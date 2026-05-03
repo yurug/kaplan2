@@ -1,0 +1,22 @@
+[package]
+name = "ktdeque-deque4"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Kaplan-Tarjan Section-4 (non-catenable) deque, hand-written Rust implementation."
+
+[lib]
+name = "ktdeque_deque4"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1.5"
+
+[features]
+default = []
+
+[[test]]
+name = "proptest_deque4"
+path = "tests/proptest_deque4.rs"

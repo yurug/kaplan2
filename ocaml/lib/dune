@@ -1,0 +1,3 @@
+(library
+ (name ktdeque)
+ (modules deque4_handwritten deque4_ref deque4))

@@ -1,0 +1,3 @@
+; Top-level dune file: keep dune from walking into the cloned reference
+; repository (which has its own build) and into temp / hidden directories.
+(dirs :standard \ external-refs tmp)

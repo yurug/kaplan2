@@ -1,0 +1,3 @@
+(executable
+ (name fuzz_deque4)
+ (libraries ktdeque monolith))

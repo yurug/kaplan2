@@ -1,0 +1,86 @@
+# kaplan2
+
+> ⚠️ **Work in progress — not released.** APIs, file layout, and proof
+> obligations may change without notice. Don't depend on this in
+> downstream code yet. No semver, no versioned tags, no published
+> packages. See the [Status](#status) section for what's actually
+> proven and what's still being built.
+
+A **mechanically verified** persistent real-time deque, with faithful
+ports across multiple languages and a microbenchmark suite.
+
+This is the data structure from
+[Kaplan & Tarjan, *Purely functional, real-time deques with catenation*
+(JACM 1999)](https://doi.org/10.1145/324133.324139), in the modernized
+encoding of
+[Viennot, Wendling, Guéneau & Pottier, *Verified catenable deques*
+(PLDI 2024)](https://dl.acm.org/doi/10.1145/3656430).
+
+What makes it special: every operation — **`push`** (prepend),
+**`pop`** (remove first), **`inject`** (append), **`eject`** (remove
+last) — runs in **worst-case O(1)**: not amortized, not "usually
+fast", not O(log n). And the whole thing is *purely functional*: you
+can fork the deque, mutate one branch, and the other stays intact,
+with no asymptotic penalty.
+
+## What's in here
+
+This repository is a **monorepo** with one self-contained tree per
+language:
+
+| Tree         | What you'll find                                                             | Build                |
+| ------------ | ---------------------------------------------------------------------------- | -------------------- |
+| [`rocq/`](rocq/) | Rocq 9.1 formalization: spec, abstract operations, sequence preservation. | `dune build rocq`    |
+| [`ocaml/`](ocaml/) | Code extracted from Rocq, plus the benchmark harness that compares us against the original Viennot implementation. | `dune build ocaml` |
+| [`c/`](c/)   | A hand-translated C port of the Rocq algorithm. Faster than Viennot's OCaml on every workload. | `cd c && make` |
+| [`rust/`](rust/) | Rust port (work in progress).                                            | `cd rust && cargo build` |
+| [`kb/`](kb/) | Knowledge base: design docs, ADRs, session notes, audits.                    | (text, no build)     |
+
+## Why one tree per language?
+
+Each tree is self-contained: it has its own README explaining how to
+build, what's verified, and how it relates to the others. You can
+`cd c/ && make` and never look at the Rocq code, or you can spend a
+weekend in `rocq/` and ignore everything else.
+
+The Rocq sources are the **source of truth**. The OCaml code in
+`ocaml/extracted/` is generated directly from Rocq via the standard
+extraction mechanism — it is not hand-edited. The C and Rust ports are
+*hand-translated* and tested for behavioral equivalence with the
+extracted reference; they are not extracted.
+
+## Quick start
+
+```sh
+# Build the Rocq formalization (zero-admit invariant enforced)
+make rocq
+
+# Run the OCaml benchmarks against Viennot's reference implementation
+make bench
+./_build/default/ocaml/bench/crossover.exe
+
+# Build and test the C port
+cd c && make test && ./test
+```
+
+See each tree's README for the full instructions and details.
+
+## Status
+
+- **Sequence preservation** (every operation produces the right list of
+  elements): proved end-to-end for all four operations and three
+  optimization variants. Zero admits.
+- **Regularity invariant** (the colored-chain well-formedness that
+  guarantees worst-case O(1)): foundation laid; preservation theorems
+  in progress.
+- **Performance**: the Rocq-extracted OCaml beats Viennot's reference
+  by 6-7× on adversarial workloads, with no asymptotic growth across
+  deque sizes from 10 to 10⁷. The C port pulls a further 1.6×-3×
+  ahead under arena compaction.
+
+For details, see the per-tree READMEs and [`kb/`](kb/) for design
+documents and session-by-session progress notes.
+
+## License
+
+MIT.

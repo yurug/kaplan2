@@ -1,0 +1,13 @@
+(library
+ (name kt_deque_ptr)
+ (modules kt_deque_ptr))
+
+(executable
+ (name test_kt_deque_ptr)
+ (modules test_kt_deque_ptr)
+ (libraries unix kt_deque_ptr))
+
+(executable
+ (name diff_workload)
+ (modules diff_workload)
+ (libraries kt_deque_ptr))

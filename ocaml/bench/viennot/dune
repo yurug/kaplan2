@@ -1,0 +1,9 @@
+; Vendored copy of Viennot et al.'s deque (lib/{color_GYR,deque_core,deque}.ml)
+; from external-refs/VerifiedCatenableDeque/, MIT-licensed, used here
+; solely for benchmark comparison per ADR-0009.
+;
+; NOT modified — we treat them as a black-box external reference.
+
+(library
+ (name viennot_deque)
+ (modules color_GYR deque_core deque))

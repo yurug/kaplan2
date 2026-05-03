@@ -1,0 +1,95 @@
+# Build artifacts
+_build/
+_obuild/
+*.vo
+*.vos
+*.vok
+*.glob
+*.aux
+.lia.cache
+.nia.cache
+
+# OCaml artifacts
+*.cmi
+*.cmo
+*.cmx
+*.cmxa
+*.cma
+*.cmt
+*.cmti
+*.a
+*.o
+*.so
+*.annot
+
+# Editor / OS
+.merlin
+*.swp
+.DS_Store
+
+# External references (cloned from upstream; we don't track them)
+/external-refs/
+
+# PDF text extracts (regenerable)
+/tmp/pdf-extracts/
+
+# Bench outputs
+/bench/results/
+
+# Reports archived from older sessions land here too; keep them
+!kb/reports/
+
+# Secrets — never commit
+gh_token
+*.token
+*.pem
+
+# Core dumps (anywhere in tree)
+core.*
+**/core.*
+
+# Rust build artifacts
+rust/target/
+target/
+
+# C build artifacts
+*.exe
+*.out
+**/build/
+*.s
+*.data
+*.gcda
+*.gcno
+*.gcov
+
+# Public/c compiled artifacts (regenerable via Make)
+Public/c/test
+Public/c/test_debug
+Public/c/test_fallback_trace
+Public/c/bench
+Public/c/bench_*
+Public/c/wc_test
+Public/c/inject_only
+Public/c/eject_only
+Public/c/eject_only_h1
+Public/c/profile_*
+Public/c/perf.data
+
+# Embedded clones (not part of this repo)
+agentic-dev-kit
+
+# Large reference PDFs (regenerable from upstream)
+*.pdf
+
+# Binary packages
+*.deb
+
+# Editor scratch dirs / files
+.codex
+.codex/
+.claude/
+
+# Generated extraction outputs (rebuildable from Coq sources)
+kt_extracted/*.ml
+kt_extracted/*.mli
+
