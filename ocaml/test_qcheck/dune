@@ -4,7 +4,7 @@
  (libraries kaplan2_bench_helpers qcheck))
 
 ; QCheck tests against the verified extracted library (kt_deque_ptr).
-; This is the property suite that exercises the public ``kaplan2-deque``
+; This is the property suite that exercises the public ``ktdeque``
 ; package — the one we ship via opam.
 (test
  (name test_kt_deque_ptr)

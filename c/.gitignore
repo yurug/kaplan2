@@ -35,3 +35,6 @@ prof
 
 # AFL run outputs
 afl_findings/
+
+# Built example binary
+examples/hello
