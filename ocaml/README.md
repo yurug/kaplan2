@@ -109,26 +109,33 @@ for a critical reading of how convincing that evidence is.
 
 ```sh
 dune runtest          # all QCheck property suites
-dune exec ocaml/test_monolith/fuzz_deque4.exe    # Monolith fuzzing
-dune exec ocaml/extracted/test_kt_deque_ptr.exe  # extracted-library smoke
+dune exec ocaml/test_monolith/fuzz_kt_deque_ptr.exe   # Monolith on verified
+dune exec ocaml/test_monolith/fuzz_deque4.exe         # Monolith on bench-helper
+dune exec ocaml/extracted/test_kt_deque_ptr.exe       # extracted-library smoke
 ```
 
-`dune runtest` runs two parallel QCheck suites:
+`dune runtest` runs two parallel QCheck suites — both target the
+public library and the bench-helper, mirroring the Monolith setup:
 
 - `test_qcheck/test_kt_deque_ptr.ml` — properties on the **verified
   extracted library** (`Kt_deque_ptr.push_kt2 / pop_kt2 / inject_kt2 /
-  eject_kt2`), 1000 random op-sequences each + persistence + edge cases.
-  This is the property suite for the published `ktdeque`
-  package.
-- `test_qcheck/test_deque4.ml` — same property template against the
+  eject_kt2`), 1000 random op-sequences × 6 properties.  This is the
+  property suite for the published `ktdeque` package.
+- `test_qcheck/test_deque4.ml` — same template against the
   bench-helper hand-written deque.  Validates the bench infrastructure;
   not what you ship.
 
-The Monolith fuzzer in `test_monolith/` currently targets only the
-bench-helper.  Direct evidence beyond QCheck for the verified library
-includes (a) the Rocq sequence-preservation theorems and (b) the
-bit-for-bit C↔OCaml differential at n=400k from the C side
-(`make -C ../c check-diff-multi`).
+The Monolith model-based fuzzer has the same dual coverage:
+`test_monolith/fuzz_kt_deque_ptr.exe` exercises the published library
+under the same harness as `fuzz_deque4.exe` (via VWGP §9.1's pattern,
+list reference oracle).  Both are coverage-guided and run until you
+stop them; a clean exit without a counterexample print means no
+divergence has been found in that window.
+
+Beyond the in-process oracles, the strongest evidence for the verified
+library comes from (a) the Rocq sequence-preservation theorems in
+`../rocq/KTDeque/DequePtr/OpsKTSeq.v` and (b) the bit-for-bit C↔OCaml
+differential at n=400k (`make -C ../c check-diff-multi`).
 
 ## Microbenchmarks
 
