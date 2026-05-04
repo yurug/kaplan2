@@ -13,3 +13,10 @@
 (executable
  (name viennot_alloc)
  (libraries unix viennot_deque))
+
+; canonical.ml: compare our verified KTDeque against canonical-style
+; alternatives (Viennot, our hand-written Deque4, list-based reference).
+; Driven from bench/canonical.sh.
+(executable
+ (name canonical)
+ (libraries unix viennot_deque ktdeque kaplan2_bench_helpers))

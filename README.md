@@ -78,6 +78,18 @@ dune runtest         # QCheck on KTDeque (verified) and Deque4 (helper)
 make check-all       # full C matrix incl. C↔OCaml differential (~45 s)
 ```
 
+The two top-level benchmarks live in [`bench/`](bench/):
+
+```sh
+make bench-three-way   # C vs our OCaml vs Viennot OCaml at n=1M
+make bench-canonical   # verified ktdeque vs canonical alternatives
+                       # (Viennot, our handwritten, list reference)
+```
+
+Both write a Markdown report to `bench/results/` with kernel + gcc +
+OCaml versions embedded for reproducibility.  See
+[`bench/README.md`](bench/README.md) for the methodology.
+
 See each tree's README for the full instructions and details.
 
 ## Status

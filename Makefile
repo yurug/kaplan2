@@ -1,4 +1,5 @@
-.PHONY: all rocq ocaml extraction bench clean check check-c check-all
+.PHONY: all rocq ocaml extraction bench clean check check-c check-all \
+        bench-three-way bench-canonical bench-all
 
 all: rocq
 
@@ -29,6 +30,19 @@ check check-c:
 check-all:
 	dune build ocaml/extracted/diff_workload.exe
 	$(MAKE) -C c check-all
+
+# Top-level reproducible benchmarks.  See bench/README.md for methodology.
+#   bench-three-way  — our C / our OCaml / Viennot OCaml at n=1M
+#   bench-canonical  — verified ktdeque vs Viennot / our handwritten / list ref,
+#                      across a workload battery (steady, adversarial, fork)
+#   bench-all        — runs both
+bench-three-way:
+	bench/three-way.sh
+
+bench-canonical:
+	bench/canonical.sh
+
+bench-all: bench-three-way bench-canonical
 
 clean:
 	dune clean
