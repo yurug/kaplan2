@@ -108,19 +108,27 @@ for a critical reading of how convincing that evidence is.
 ## Tests
 
 ```sh
-dune runtest          # QCheck property tests
+dune runtest          # all QCheck property suites
 dune exec ocaml/test_monolith/fuzz_deque4.exe    # Monolith fuzzing
 dune exec ocaml/extracted/test_kt_deque_ptr.exe  # extracted-library smoke
 ```
 
-> **Caveat:** the QCheck/Monolith tests in `test_qcheck/` and
-> `test_monolith/` currently exercise the **bench-helper**
-> `deque4_handwritten`, *not* the verified extracted library.  They
-> validate the bench infrastructure, not `kt_deque_ptr` directly.  The
-> direct evidence for the extracted library is the Coq theorems plus the
-> bit-for-bit C↔OCaml diff (run from the C side: `make -C ../c
-> check-diff-multi`).  Adding QCheck coverage of `kt_deque_ptr` is
-> tracked in the repo backlog.
+`dune runtest` runs two parallel QCheck suites:
+
+- `test_qcheck/test_kt_deque_ptr.ml` — properties on the **verified
+  extracted library** (`Kt_deque_ptr.push_kt2 / pop_kt2 / inject_kt2 /
+  eject_kt2`), 1000 random op-sequences each + persistence + edge cases.
+  This is the property suite for the published `kaplan2-deque`
+  package.
+- `test_qcheck/test_deque4.ml` — same property template against the
+  bench-helper hand-written deque.  Validates the bench infrastructure;
+  not what you ship.
+
+The Monolith fuzzer in `test_monolith/` currently targets only the
+bench-helper.  Direct evidence beyond QCheck for the verified library
+includes (a) the Rocq sequence-preservation theorems and (b) the
+bit-for-bit C↔OCaml differential at n=400k from the C side
+(`make -C ../c check-diff-multi`).
 
 ## Microbenchmarks
 

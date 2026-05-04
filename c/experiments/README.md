@@ -68,8 +68,9 @@ Build inject_only with the same flags:
 
 ```sh
 gcc -O3 -g -fno-omit-frame-pointer -funroll-loops -finline-functions \
-    -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=199309L -DNDEBUG \
-    -o inject_only ktdeque_dequeptr.c inject_only.c
+    -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=199310L -DNDEBUG \
+    -I../include \
+    -o inject_only ../src/ktdeque_dequeptr.c inject_only.c
 perf record -F 4000 --call-graph=dwarf -o inject.data -- ./inject_only 1000000
 hotspot inject.data
 ```

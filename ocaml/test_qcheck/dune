@@ -1,3 +1,11 @@
+; QCheck tests against the bench-helper hand-written deque (Deque4).
 (test
  (name test_deque4)
  (libraries kaplan2_bench_helpers qcheck))
+
+; QCheck tests against the verified extracted library (kt_deque_ptr).
+; This is the property suite that exercises the public ``kaplan2-deque``
+; package — the one we ship via opam.
+(test
+ (name test_kt_deque_ptr)
+ (libraries kt_deque_ptr qcheck))

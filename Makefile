@@ -17,9 +17,12 @@ bench:
 # C-side correctness suite.  See c/Makefile for individual targets.
 #   make check      — fast (test, test_debug, wc_test, threads)
 #   make check-c    — equivalent to `make -C c check`
-#   make check-all  — full matrix incl. ASan, UBSan, TSan, fuzz, differential
-#                     (~30 sec wall-clock); the differential test depends on
-#                     the OCaml extraction being built.
+#   make check-all  — full matrix: static analysis + ASan + UBSan + TSan +
+#                     1000-seed fuzz + 32-trace C↔OCaml differential
+#                     (mix + deep cascade) + 200×64 persistence stress
+#                     (~45 sec wall-clock).  The differential layers
+#                     depend on the OCaml extraction binary, which this
+#                     target builds first.
 check check-c:
 	$(MAKE) -C c check
 
