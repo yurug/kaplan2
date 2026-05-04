@@ -3,7 +3,7 @@
 > ⚠️ **Work in progress — not yet released.** APIs, file layout, and
 > proof obligations may change without notice. Don't depend on this
 > in downstream code yet. No semver, no versioned tags. The opam
-> package `kaplan2-deque` is buildable from a clone but not yet on
+> package `ktdeque` is buildable from a clone but not yet on
 > the official opam-repository. See the [Status](#status) section
 > for what's actually proven and what's still being built.
 
@@ -64,7 +64,7 @@ _build/default/ocaml/bench/compare.exe
 cd c && make && ./test
 
 # Or install the verified OCaml library locally (opam package
-# kaplan2-deque; ships only the extracted code from rocq/).
+# ktdeque; ships only the extracted code from rocq/).
 opam install .
 ```
 

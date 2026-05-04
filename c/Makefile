@@ -12,7 +12,7 @@
 #     make                build library + tests + bench + fuzz drivers
 #     make check          fast correctness suite
 #     make check-all      full matrix (sanitizers + fuzz + diff + ...)
-#     make install        install libkaplan2_deque.a + header + .pc file
+#     make install        install libktdeque.a + header + .pc file
 #     make clean          remove all build artifacts
 #
 # =====================================================================
@@ -26,7 +26,7 @@ BENCHDIR:= benches
 
 KT_C_SRC ?= $(SRCDIR)/ktdeque_dequeptr.c
 KT_HDR   := $(INCDIR)/ktdeque.h
-LIBNAME  := kaplan2_deque
+LIBNAME  := ktdeque
 LIBFILE  := lib$(LIBNAME).a
 
 CFLAGS_COMMON = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=199310L -I$(INCDIR)
@@ -233,24 +233,24 @@ install: lib
 	install -d $(DESTDIR)$(PREFIX)/lib/pkgconfig
 	install -m 644 $(KT_HDR)  $(DESTDIR)$(PREFIX)/include/ktdeque.h
 	install -m 644 $(LIBFILE) $(DESTDIR)$(PREFIX)/lib/$(LIBFILE)
-	@echo 'prefix=$(PREFIX)'                       >  kaplan2_deque.pc.tmp
-	@echo 'exec_prefix=$${prefix}'                 >> kaplan2_deque.pc.tmp
-	@echo 'libdir=$${exec_prefix}/lib'             >> kaplan2_deque.pc.tmp
-	@echo 'includedir=$${prefix}/include'          >> kaplan2_deque.pc.tmp
-	@echo ''                                       >> kaplan2_deque.pc.tmp
-	@echo 'Name: kaplan2-deque'                    >> kaplan2_deque.pc.tmp
-	@echo 'Description: Kaplan-Tarjan persistent real-time deque (worst-case O(1))' >> kaplan2_deque.pc.tmp
-	@echo 'Version: 0.1.0'                         >> kaplan2_deque.pc.tmp
-	@echo 'Libs: -L$${libdir} -l$(LIBNAME)'        >> kaplan2_deque.pc.tmp
-	@echo 'Cflags: -I$${includedir}'               >> kaplan2_deque.pc.tmp
-	install -m 644 kaplan2_deque.pc.tmp $(DESTDIR)$(PREFIX)/lib/pkgconfig/kaplan2-deque.pc
-	@rm -f kaplan2_deque.pc.tmp
-	@echo "Installed to $(DESTDIR)$(PREFIX) — header, $(LIBFILE), kaplan2-deque.pc"
+	@echo 'prefix=$(PREFIX)'                       >  ktdeque.pc.tmp
+	@echo 'exec_prefix=$${prefix}'                 >> ktdeque.pc.tmp
+	@echo 'libdir=$${exec_prefix}/lib'             >> ktdeque.pc.tmp
+	@echo 'includedir=$${prefix}/include'          >> ktdeque.pc.tmp
+	@echo ''                                       >> ktdeque.pc.tmp
+	@echo 'Name: ktdeque'                    >> ktdeque.pc.tmp
+	@echo 'Description: Kaplan-Tarjan persistent real-time deque (worst-case O(1))' >> ktdeque.pc.tmp
+	@echo 'Version: 0.1.0'                         >> ktdeque.pc.tmp
+	@echo 'Libs: -L$${libdir} -l$(LIBNAME)'        >> ktdeque.pc.tmp
+	@echo 'Cflags: -I$${includedir}'               >> ktdeque.pc.tmp
+	install -m 644 ktdeque.pc.tmp $(DESTDIR)$(PREFIX)/lib/pkgconfig/ktdeque.pc
+	@rm -f ktdeque.pc.tmp
+	@echo "Installed to $(DESTDIR)$(PREFIX) — header, $(LIBFILE), ktdeque.pc"
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/include/ktdeque.h
 	rm -f $(DESTDIR)$(PREFIX)/lib/$(LIBFILE)
-	rm -f $(DESTDIR)$(PREFIX)/lib/pkgconfig/kaplan2-deque.pc
+	rm -f $(DESTDIR)$(PREFIX)/lib/pkgconfig/ktdeque.pc
 
 clean:
 	rm -f *.o $(LIBFILE)

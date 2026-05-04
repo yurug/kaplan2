@@ -1,4 +1,4 @@
-# kaplan2-deque — Kaplan-Tarjan persistent real-time deque, in C
+# ktdeque — Kaplan-Tarjan persistent real-time deque, in C
 
 A purely-functional, persistent, double-ended queue with **worst-case
 O(1) per operation** — push, inject, pop, and eject all run in
@@ -52,7 +52,7 @@ package install.
 ## Quick start
 
 ```sh
-make            # build libkaplan2_deque.a + tests + bench
+make            # build libktdeque.a + tests + bench
 ./test          # functional tests across 7 workloads × 11 sizes (1..1M)
 ./wc_test       # worst-case allocation bound (≤ 16 ops per call, flat in n)
 ./bench         # microbench, with arena compaction
@@ -62,13 +62,13 @@ make install PREFIX=/usr/local
 Linking against the library:
 
 ```sh
-cc your_program.c -lkaplan2_deque -o your_program
+cc your_program.c -lktdeque -o your_program
 ```
 
 Or via `pkg-config`:
 
 ```sh
-cc your_program.c $(pkg-config --cflags --libs kaplan2-deque) -o your_program
+cc your_program.c $(pkg-config --cflags --libs ktdeque) -o your_program
 ```
 
 ## Minimal example

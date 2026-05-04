@@ -7,7 +7,7 @@
 ; the result over.
 (library
  (name kt_deque_ptr)
- (public_name kaplan2-deque)
+ (public_name ktdeque)
  (modules kt_deque_ptr))
 
 (executable

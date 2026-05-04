@@ -1,4 +1,4 @@
-# kaplan2-deque (OCaml) — verified persistent real-time deque
+# ktdeque (OCaml) — verified persistent real-time deque
 
 This is the OCaml side of the kaplan2 deque project: a purely-functional,
 persistent double-ended queue with **worst-case O(1) per operation**.
@@ -17,7 +17,7 @@ compaction), see [`../c/`](../c/).
 
 ## Install
 
-The verified library is published as the opam package `kaplan2-deque`.
+The verified library is published as the opam package `ktdeque`.
 From a clone of the repository:
 
 ```sh
@@ -28,7 +28,7 @@ Or directly from the source tree:
 
 ```sh
 dune build
-dune install kaplan2-deque
+dune install ktdeque
 ```
 
 ## Use
@@ -61,7 +61,7 @@ variants.
 
 ```
 ocaml/
-├── extracted/           PUBLIC LIBRARY (kaplan2-deque)
+├── extracted/           PUBLIC LIBRARY (ktdeque)
 │   ├── kt_deque_ptr.ml      verified extraction snapshot
 │   ├── kt_deque_ptr.mli
 │   ├── test_kt_deque_ptr.ml smoke test against a list reference
@@ -118,7 +118,7 @@ dune exec ocaml/extracted/test_kt_deque_ptr.exe  # extracted-library smoke
 - `test_qcheck/test_kt_deque_ptr.ml` — properties on the **verified
   extracted library** (`Kt_deque_ptr.push_kt2 / pop_kt2 / inject_kt2 /
   eject_kt2`), 1000 random op-sequences each + persistence + edge cases.
-  This is the property suite for the published `kaplan2-deque`
+  This is the property suite for the published `ktdeque`
   package.
 - `test_qcheck/test_deque4.ml` — same property template against the
   bench-helper hand-written deque.  Validates the bench infrastructure;
