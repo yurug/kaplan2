@@ -1,14 +1,14 @@
 (executable
  (name compare)
- (libraries unix viennot_deque kt_deque_ptr))
+ (libraries unix viennot_deque ktdeque))
 
 (executable
  (name crossover)
- (libraries unix viennot_deque kt_deque_ptr))
+ (libraries unix viennot_deque ktdeque))
 
 (executable
  (name diag_inject)
- (libraries kt_deque_ptr))
+ (libraries ktdeque))
 
 (executable
  (name viennot_alloc)

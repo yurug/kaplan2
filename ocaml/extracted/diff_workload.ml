@@ -14,7 +14,7 @@
                   (4 monotonic phases of N/4: push, inject, pop, eject;
                   drives Θ(log N) deque depth and the deepest cascades). *)
 
-open Kt_deque_ptr
+open KTDeque
 
 (* xorshift64 — same as c/diff_workload.c. *)
 let xs_state = ref 0x123456789abcdef0L

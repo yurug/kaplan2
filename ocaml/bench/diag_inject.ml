@@ -1,7 +1,7 @@
 (** Diagnostic: trace push 100 + step-by-step inject (KChain version) to find
     the failure shape. *)
 
-open Kt_deque_ptr
+open KTDeque
 
 let print_buf_size : type a. a buf5 -> string = function
   | B0 -> "B0" | B1 _ -> "B1" | B2 _ -> "B2"

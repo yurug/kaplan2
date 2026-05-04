@@ -2,7 +2,7 @@
 
 (* ---------- KTDeque (extracted from Coq) ---------- *)
 module Kt = struct
-  open Kt_deque_ptr
+  open KTDeque
 
   type 'a t = 'a chain
 

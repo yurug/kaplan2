@@ -74,7 +74,7 @@ sanitizer-and-fuzz-and-diff matrix):
 
 ```sh
 dune build           # Rocq + OCaml
-dune runtest         # QCheck on Kt_deque_ptr (verified) and Deque4 (helper)
+dune runtest         # QCheck on KTDeque (verified) and Deque4 (helper)
 make check-all       # full C matrix incl. C↔OCaml differential (~45 s)
 ```
 

@@ -11,7 +11,7 @@
 
 (* ---------- KtRec: recursive proof artifact ---------- *)
 module KtRec = struct
-  open Kt_deque_ptr
+  open KTDeque
 
   type 'a t = 'a chain
 
@@ -44,7 +44,7 @@ end
 
 (* ---------- KtFull: Viennot-mirroring WC O(1) push (push_kt2 on KChain) - *)
 module KtFull = struct
-  open Kt_deque_ptr
+  open KTDeque
 
   type 'a t = 'a kChain
 
@@ -77,7 +77,7 @@ end
 
 (* ---------- KtFast: KChain inlined / fast-path ops (push_kt3 etc.) ---------- *)
 module KtFast = struct
-  open Kt_deque_ptr
+  open KTDeque
 
   type 'a t = 'a kChain
 
@@ -110,7 +110,7 @@ end
 
 (* ---------- KtFastest: kt4 with PushOk/PopOk no-option allocation ---------- *)
 module KtFastest = struct
-  open Kt_deque_ptr
+  open KTDeque
 
   type 'a t = 'a kChain
 
@@ -197,14 +197,14 @@ let build_vi n =
 
 (** chain_depth (KtRec, recursive Chain). *)
 let chain_depth_kt c =
-  let open Kt_deque_ptr in
+  let open KTDeque in
   let rec go : type a. a chain -> int = fun c -> match c with
     | Ending _ -> 0
     | ChainCons (_, c') -> 1 + go c'
   in go c
 
 let kchain_depth c =
-  let open Kt_deque_ptr in
+  let open KTDeque in
   let rec go : type a. a kChain -> int = fun c -> match c with
     | KEnding _ -> 0
     | KCons (_, _, c') -> 1 + go c'
@@ -223,24 +223,24 @@ let workload_steady_push ~iters ~size =
     (chain_depth_kt kr) (kchain_depth kf) (kchain_depth ka) (kchain_depth kx);
   (* Pre-compute one element once; reuse in the hot loop to avoid
      E.base alloc cost per call. *)
-  let elt = Kt_deque_ptr.E.base 42 in
+  let elt = KTDeque.E.base 42 in
   let ns_kr = bench_steady ~iters ~init:kr
     ~step:(fun _ t ->
-      match Kt_deque_ptr.push_chain_rec elt t with Some t' -> t' | None -> t) in
+      match KTDeque.push_chain_rec elt t with Some t' -> t' | None -> t) in
   let ns_kf =
     try bench_steady ~iters ~init:kf
       ~step:(fun _ t ->
-        match Kt_deque_ptr.push_kt2 elt t with Some t' -> t' | None -> t)
+        match KTDeque.push_kt2 elt t with Some t' -> t' | None -> t)
     with Failure _ -> nan in
   let ns_ka =
     try bench_steady ~iters ~init:ka
       ~step:(fun _ t ->
-        match Kt_deque_ptr.push_kt3 elt t with Some t' -> t' | None -> t)
+        match KTDeque.push_kt3 elt t with Some t' -> t' | None -> t)
     with Failure _ -> nan in
   let ns_kx =
     try bench_steady ~iters ~init:kx
       ~step:(fun _ t ->
-        match Kt_deque_ptr.push_kt4 elt t with PushOk t' -> t' | PushFail -> t)
+        match KTDeque.push_kt4 elt t with PushOk t' -> t' | PushFail -> t)
     with Failure _ -> nan in
   let ns_vi = bench_steady ~iters ~init:vi
     ~step:(fun i t -> Vi.push (size + i) t) in
@@ -259,11 +259,11 @@ let workload_steady_pop ~iters ~size =
     ~step:(fun _ t -> match KtFull.pop t with Some (_, t') -> t' | None -> t) in
   (* Direct call into pop_kt3 / pop_kt4 — bypass the wrapper's Some-allocation. *)
   let ns_ka = bench_steady ~iters ~init:ka
-    ~step:(fun _ t -> match Kt_deque_ptr.pop_kt3 t with
+    ~step:(fun _ t -> match KTDeque.pop_kt3 t with
                        | Some (_, t') -> t'
                        | None -> t) in
   let ns_kx = bench_steady ~iters ~init:kx
-    ~step:(fun _ t -> match Kt_deque_ptr.pop_kt4 t with
+    ~step:(fun _ t -> match KTDeque.pop_kt4 t with
                        | PopOk (_, t') -> t'
                        | PopFail -> t) in
   let ns_vi = bench_steady ~iters ~init:vi
@@ -280,18 +280,18 @@ let workload_steady_inject ~iters ~size =
   let ns_kr = bench_steady ~iters ~init:kr
     ~step:(fun i t -> KtRec.inject t (size + i)) in
   let kx = build_kt_fastest size in
-  let elt = Kt_deque_ptr.E.base 42 in
+  let elt = KTDeque.E.base 42 in
   let ns_kf =
     try bench_steady ~iters ~init:kf
-      ~step:(fun _ t -> match Kt_deque_ptr.inject_kt2 t elt with Some t' -> t' | None -> t)
+      ~step:(fun _ t -> match KTDeque.inject_kt2 t elt with Some t' -> t' | None -> t)
     with Failure _ -> nan in
   let ns_ka =
     try bench_steady ~iters ~init:ka
-      ~step:(fun _ t -> match Kt_deque_ptr.inject_kt3 t elt with Some t' -> t' | None -> t)
+      ~step:(fun _ t -> match KTDeque.inject_kt3 t elt with Some t' -> t' | None -> t)
     with Failure _ -> nan in
   let ns_kx =
     try bench_steady ~iters ~init:kx
-      ~step:(fun _ t -> match Kt_deque_ptr.inject_kt4 t elt with PushOk t' -> t' | PushFail -> t)
+      ~step:(fun _ t -> match KTDeque.inject_kt4 t elt with PushOk t' -> t' | PushFail -> t)
     with Failure _ -> nan in
   let ns_vi = bench_steady ~iters ~init:vi
     ~step:(fun i t -> Vi.inject t (size + i)) in
@@ -309,15 +309,15 @@ let workload_steady_eject ~iters ~size =
   let kx = build_kt_fastest (size + iters) in
   let ns_kf =
     try bench_steady ~iters ~init:kf
-      ~step:(fun _ t -> match Kt_deque_ptr.eject_kt2 t with Some (t', _) -> t' | None -> t)
+      ~step:(fun _ t -> match KTDeque.eject_kt2 t with Some (t', _) -> t' | None -> t)
     with Failure _ -> nan in
   let ns_ka =
     try bench_steady ~iters ~init:ka
-      ~step:(fun _ t -> match Kt_deque_ptr.eject_kt3 t with Some (t', _) -> t' | None -> t)
+      ~step:(fun _ t -> match KTDeque.eject_kt3 t with Some (t', _) -> t' | None -> t)
     with Failure _ -> nan in
   let ns_kx =
     try bench_steady ~iters ~init:kx
-      ~step:(fun _ t -> match Kt_deque_ptr.eject_kt4 t with PopOk (_, t') -> t' | PopFail -> t)
+      ~step:(fun _ t -> match KTDeque.eject_kt4 t with PopOk (_, t') -> t' | PopFail -> t)
     with Failure _ -> nan in
   let ns_vi = bench_steady ~iters ~init:vi
     ~step:(fun _ t -> match Vi.eject t with Some (t', _) -> t' | None -> t) in
@@ -338,28 +338,28 @@ let workload_alt_pp ~iters ~size =
   let ka = build_kt_fast size in
   let kx = build_kt_fastest size in
   let vi = build_vi size in
-  let elt = Kt_deque_ptr.E.base 42 in
+  let elt = KTDeque.E.base 42 in
   let ns_kr = bench_steady ~iters ~init:kr ~step:(fun _ t ->
-    let t' = (match Kt_deque_ptr.push_chain_rec elt t with
+    let t' = (match KTDeque.push_chain_rec elt t with
               | Some t' -> t' | None -> t) in
-    match Kt_deque_ptr.pop_chain_rec t' with
+    match KTDeque.pop_chain_rec t' with
     | Some (_, t'') -> t'' | None -> t') in
   let ns_kf = try bench_steady ~iters ~init:kf ~step:(fun _ t ->
-    let t' = (match Kt_deque_ptr.push_kt2 elt t with
+    let t' = (match KTDeque.push_kt2 elt t with
               | Some t' -> t' | None -> t) in
-    match Kt_deque_ptr.pop_kt2 t' with
+    match KTDeque.pop_kt2 t' with
     | Some (_, t'') -> t'' | None -> t')
     with Failure _ -> nan in
   let ns_ka = try bench_steady ~iters ~init:ka ~step:(fun _ t ->
-    let t' = (match Kt_deque_ptr.push_kt3 elt t with
+    let t' = (match KTDeque.push_kt3 elt t with
               | Some t' -> t' | None -> t) in
-    match Kt_deque_ptr.pop_kt3 t' with
+    match KTDeque.pop_kt3 t' with
     | Some (_, t'') -> t'' | None -> t')
     with Failure _ -> nan in
   let ns_kx = try bench_steady ~iters ~init:kx ~step:(fun _ t ->
-    let t' = (match Kt_deque_ptr.push_kt4 elt t with
+    let t' = (match KTDeque.push_kt4 elt t with
               | PushOk t' -> t' | PushFail -> t) in
-    match Kt_deque_ptr.pop_kt4 t' with
+    match KTDeque.pop_kt4 t' with
     | PopOk (_, t'') -> t'' | PopFail -> t')
     with Failure _ -> nan in
   let ns_vi = bench_steady ~iters ~init:vi ~step:(fun i t ->
@@ -376,29 +376,29 @@ let workload_mixed ~iters ~size =
   let ka = build_kt_fast size in
   let kx = build_kt_fastest size in
   let vi = build_vi size in
-  let elt = Kt_deque_ptr.E.base 42 in
+  let elt = KTDeque.E.base 42 in
   let ns_kr = bench_steady ~iters ~init:kr ~step:(fun _ t ->
-    let t = match Kt_deque_ptr.push_chain_rec elt t with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.inject_chain_rec t elt with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.pop_chain_rec t with Some (_, t) -> t | None -> t in
-    match Kt_deque_ptr.eject_chain_rec t with Some (t, _) -> t | None -> t) in
+    let t = match KTDeque.push_chain_rec elt t with Some t -> t | None -> t in
+    let t = match KTDeque.inject_chain_rec t elt with Some t -> t | None -> t in
+    let t = match KTDeque.pop_chain_rec t with Some (_, t) -> t | None -> t in
+    match KTDeque.eject_chain_rec t with Some (t, _) -> t | None -> t) in
   let ns_kf = try bench_steady ~iters ~init:kf ~step:(fun _ t ->
-    let t = match Kt_deque_ptr.push_kt2 elt t with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.inject_kt2 t elt with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.pop_kt2 t with Some (_, t) -> t | None -> t in
-    match Kt_deque_ptr.eject_kt2 t with Some (t, _) -> t | None -> t)
+    let t = match KTDeque.push_kt2 elt t with Some t -> t | None -> t in
+    let t = match KTDeque.inject_kt2 t elt with Some t -> t | None -> t in
+    let t = match KTDeque.pop_kt2 t with Some (_, t) -> t | None -> t in
+    match KTDeque.eject_kt2 t with Some (t, _) -> t | None -> t)
     with Failure _ -> nan in
   let ns_ka = try bench_steady ~iters ~init:ka ~step:(fun _ t ->
-    let t = match Kt_deque_ptr.push_kt3 elt t with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.inject_kt3 t elt with Some t -> t | None -> t in
-    let t = match Kt_deque_ptr.pop_kt3 t with Some (_, t) -> t | None -> t in
-    match Kt_deque_ptr.eject_kt3 t with Some (t, _) -> t | None -> t)
+    let t = match KTDeque.push_kt3 elt t with Some t -> t | None -> t in
+    let t = match KTDeque.inject_kt3 t elt with Some t -> t | None -> t in
+    let t = match KTDeque.pop_kt3 t with Some (_, t) -> t | None -> t in
+    match KTDeque.eject_kt3 t with Some (t, _) -> t | None -> t)
     with Failure _ -> nan in
   let ns_kx = try bench_steady ~iters ~init:kx ~step:(fun _ t ->
-    let t = match Kt_deque_ptr.push_kt4 elt t with PushOk t -> t | PushFail -> t in
-    let t = match Kt_deque_ptr.inject_kt4 t elt with PushOk t -> t | PushFail -> t in
-    let t = match Kt_deque_ptr.pop_kt4 t with PopOk (_, t) -> t | PopFail -> t in
-    match Kt_deque_ptr.eject_kt4 t with PopOk (_, t) -> t | PopFail -> t)
+    let t = match KTDeque.push_kt4 elt t with PushOk t -> t | PushFail -> t in
+    let t = match KTDeque.inject_kt4 t elt with PushOk t -> t | PushFail -> t in
+    let t = match KTDeque.pop_kt4 t with PopOk (_, t) -> t | PopFail -> t in
+    match KTDeque.eject_kt4 t with PopOk (_, t) -> t | PopFail -> t)
     with Failure _ -> nan in
   let ns_vi = bench_steady ~iters ~init:vi ~step:(fun i t ->
     let t = Vi.push (size + i) t in
@@ -418,38 +418,38 @@ let workload_fork ~iters ~size =
   let ka = build_kt_fast size in
   let kx = build_kt_fastest size in
   let vi = build_vi size in
-  let elt = Kt_deque_ptr.E.base 42 in
-  let pushpop16_kr (snap : int Kt_deque_ptr.chain) =
+  let elt = KTDeque.E.base 42 in
+  let pushpop16_kr (snap : int KTDeque.chain) =
     let t = ref snap in
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.push_chain_rec elt !t with Some t' -> t' | None -> !t
+      t := match KTDeque.push_chain_rec elt !t with Some t' -> t' | None -> !t
     done;
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.pop_chain_rec !t with Some (_, t') -> t' | None -> !t
+      t := match KTDeque.pop_chain_rec !t with Some (_, t') -> t' | None -> !t
     done; () in
-  let pushpop16_kf (snap : int Kt_deque_ptr.kChain) =
+  let pushpop16_kf (snap : int KTDeque.kChain) =
     let t = ref snap in
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.push_kt2 elt !t with Some t' -> t' | None -> !t
+      t := match KTDeque.push_kt2 elt !t with Some t' -> t' | None -> !t
     done;
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.pop_kt2 !t with Some (_, t') -> t' | None -> !t
+      t := match KTDeque.pop_kt2 !t with Some (_, t') -> t' | None -> !t
     done; () in
-  let pushpop16_ka (snap : int Kt_deque_ptr.kChain) =
+  let pushpop16_ka (snap : int KTDeque.kChain) =
     let t = ref snap in
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.push_kt3 elt !t with Some t' -> t' | None -> !t
+      t := match KTDeque.push_kt3 elt !t with Some t' -> t' | None -> !t
     done;
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.pop_kt3 !t with Some (_, t') -> t' | None -> !t
+      t := match KTDeque.pop_kt3 !t with Some (_, t') -> t' | None -> !t
     done; () in
-  let pushpop16_kx (snap : int Kt_deque_ptr.kChain) =
+  let pushpop16_kx (snap : int KTDeque.kChain) =
     let t = ref snap in
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.push_kt4 elt !t with PushOk t' -> t' | PushFail -> !t
+      t := match KTDeque.push_kt4 elt !t with PushOk t' -> t' | PushFail -> !t
     done;
     for _ = 1 to 16 do
-      t := match Kt_deque_ptr.pop_kt4 !t with PopOk (_, t') -> t' | PopFail -> !t
+      t := match KTDeque.pop_kt4 !t with PopOk (_, t') -> t' | PopFail -> !t
     done; () in
   let pushpop16_vi (snap : int Vi.t) =
     let t = ref snap in

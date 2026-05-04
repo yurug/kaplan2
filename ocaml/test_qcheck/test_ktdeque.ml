@@ -3,7 +3,7 @@
 
     Mirrors the property suite in [test_deque4.ml] (which exercises the
     bench-helper hand-written variant) but targets the published
-    public library [Kt_deque_ptr.push_kt2 / pop_kt2 / inject_kt2 /
+    public library [KTDeque.push_kt2 / pop_kt2 / inject_kt2 /
     eject_kt2] — the bounded-cascade worst-case-O(1) entry points.
 
     Strategy: generate random sequences of operations against a list
@@ -16,7 +16,7 @@
     QCheck/Monolith suites previously only validated the
     bench-helper. *)
 
-open Kt_deque_ptr
+open KTDeque
 
 (* ------------------------------------------------------------------ *)
 (* Adapter: wrap push_kt2/pop_kt2/inject_kt2/eject_kt2 to look like a *)
@@ -31,12 +31,12 @@ module D = struct
   let push (x : 'a) (d : 'a t) : 'a t =
     match push_kt2 (Coq_E.base x) d with
     | Some d' -> d'
-    | None -> failwith "Kt_deque_ptr.push_kt2: regularity violated"
+    | None -> failwith "KTDeque.push_kt2: regularity violated"
 
   let inject (d : 'a t) (x : 'a) : 'a t =
     match inject_kt2 d (Coq_E.base x) with
     | Some d' -> d'
-    | None -> failwith "Kt_deque_ptr.inject_kt2: regularity violated"
+    | None -> failwith "KTDeque.inject_kt2: regularity violated"
 
   let pop (d : 'a t) : ('a * 'a t) option =
     match pop_kt2 d with

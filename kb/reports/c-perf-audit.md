@@ -360,7 +360,7 @@ of 40 stored). If so, finding 7's structural fix is well-motivated.
 
 ### C. Test the OCaml `kt3` allocation pattern
 
-`push_kt3` (line 1553 in `kt_deque_ptr.ml`) builds a fresh `KCons(c, p, c')`
+`push_kt3` (line 1553 in `kTDeque.ml`) builds a fresh `KCons(c, p, c')`
 on every push — that's a **3-word block** + a `PNode` block + a `B5` block
 = ~10 words = 80 B. We're at 96 B for FULL plus 64 B for DIFF = 160 B.
 **The OCaml allocates LESS per op than the C** despite living in a

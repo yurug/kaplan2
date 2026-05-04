@@ -3,7 +3,7 @@
     Exercises push_chain_full / pop_chain / inject_chain_full /
     eject_chain and compares against a list-based reference. *)
 
-open Kt_deque_ptr
+open KTDeque
 
 (* The empty deque: [Ending B0], handily named [empty_chain]. *)
 let empty_deque () : 'a chain = empty_chain

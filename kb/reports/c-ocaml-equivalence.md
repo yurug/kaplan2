@@ -19,7 +19,7 @@ step (the trace match).
         │
         │   extraction (Coq's standard extractor, unverified)
         ▼
-   OCaml (ocaml/extracted/kt_deque_ptr.ml)
+   OCaml (ocaml/extracted/kTDeque.ml)
         │
         │   << TESTING ONLY: differential bit-for-bit on workloads >>
         ▼
