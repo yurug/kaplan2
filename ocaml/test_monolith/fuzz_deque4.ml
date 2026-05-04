@@ -1,7 +1,7 @@
 (** Monolith model-based fuzzing for Deque4.
 
-    Compares the candidate hand-written [Ktdeque.Deque4] against the list
-    reference [Ktdeque.Deque4_ref], generating millions of random scenarios.
+    Compares the candidate hand-written [Kaplan2_bench_helpers.Deque4] against the list
+    reference [Kaplan2_bench_helpers.Deque4_ref], generating millions of random scenarios.
     Per VWGP §9.1's harness pattern.
 
     Cross-references:
@@ -9,8 +9,8 @@
     - kb/architecture/decisions/adr-0009-deque4-end-to-end.md
 *)
 
-module C = Ktdeque.Deque4
-module R = Ktdeque.Deque4_ref
+module C = Kaplan2_bench_helpers.Deque4
+module R = Kaplan2_bench_helpers.Deque4_ref
 
 open Monolith
 

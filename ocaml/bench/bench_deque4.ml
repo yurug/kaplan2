@@ -9,8 +9,8 @@
     - VWGP §9.1
 *)
 
-module C = Ktdeque.Deque4
-module R = Ktdeque.Deque4_ref
+module C = Kaplan2_bench_helpers.Deque4
+module R = Kaplan2_bench_helpers.Deque4_ref
 module V = Viennot_deque.Deque
 
 (* ------------------------------------------------------------------ *)
@@ -101,8 +101,8 @@ let bench_eject n =
 
 let () =
   Printf.printf "Deque4 benchmark — three impls compared\n";
-  Printf.printf "  cand   : Ktdeque.Deque4 (our hand-written OCaml; v0 chain w/ spill)\n";
-  Printf.printf "  ref    : Ktdeque.Deque4_ref (linked list, O(n) per back-op)\n";
+  Printf.printf "  cand   : Kaplan2_bench_helpers.Deque4 (our hand-written OCaml; v0 chain w/ spill)\n";
+  Printf.printf "  ref    : Kaplan2_bench_helpers.Deque4_ref (linked list, O(n) per back-op)\n";
   Printf.printf "  viennot: Viennot et al. Deque (vendored from external-refs)\n";
   Printf.printf "  Methodology: VWGP §9.1, 1000 iters per measurement.\n\n";
   let sizes = [1; 4; 16; 64; 256; 1024; 4096; 16384; 65536] in

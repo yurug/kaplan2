@@ -13,8 +13,8 @@
     - kb/architecture/decisions/adr-0009-deque4-end-to-end.md
 *)
 
-module D = Ktdeque.Deque4
-module R = Ktdeque.Deque4_ref
+module D = Kaplan2_bench_helpers.Deque4
+module R = Kaplan2_bench_helpers.Deque4_ref
 
 (* ------------------------------------------------------------------ *)
 (* Operation language                                                   *)

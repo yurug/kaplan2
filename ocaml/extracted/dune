@@ -1,5 +1,13 @@
+; Public verified library: the OCaml extraction of the Rocq
+; KTDeque/DequePtr/ formalization.  This is the deque we ship.
+;
+; The .ml/.mli files are checked into git as a snapshot — `dune build`
+; works without ../rocq/ being present.  To regenerate the snapshot,
+; run `dune build rocq/KTDeque/Extract` from the repo root and copy
+; the result over.
 (library
  (name kt_deque_ptr)
+ (public_name kaplan2-deque)
  (modules kt_deque_ptr))
 
 (executable

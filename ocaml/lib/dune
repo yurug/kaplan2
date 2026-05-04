@@ -1,3 +1,8 @@
+; Bench-helper library — NOT the public deque.  Holds the
+; hand-written Deque4 (O(log n) amortized) and a list-based reference
+; oracle.  Used only by the bench/ and test_*/ binaries to compare
+; against the verified extracted library kt_deque_ptr (public_name
+; kaplan2-deque).
 (library
- (name ktdeque)
+ (name kaplan2_bench_helpers)
  (modules deque4_handwritten deque4_ref deque4))

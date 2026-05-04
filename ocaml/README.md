@@ -1,64 +1,141 @@
-# OCaml — extracted code & benchmarks
+# kaplan2-deque (OCaml) — verified persistent real-time deque
 
-This tree contains:
+This is the OCaml side of the kaplan2 deque project: a purely-functional,
+persistent double-ended queue with **worst-case O(1) per operation**.
+The library here is the **OCaml extraction of the Rocq formalization**
+in [`../rocq/`](../rocq/) — extracted automatically by Coq's extraction
+mechanism after every push/inject/pop/eject operation has been proven
+sequence-preserving against the abstract specification.
 
-- **`extracted/`** — OCaml code emitted automatically from the Rocq
-  formalization in [`../rocq/`](../rocq/) by Coq's extraction
-  mechanism. Do not hand-edit; regenerate with `make extraction` from
-  the repo root.
-- **`bench/`** — microbenchmark harness comparing the extracted
-  implementation against Viennot's reference OCaml deque on a range
-  of workloads.
-- **`lib/`** — small support library used by the benchmark.
-- **`test_monolith/`, `test_qcheck/`** — fuzzing and property tests.
+In other words: this OCaml is a verified front-end for the algorithm.
+The proofs live in `../rocq/KTDeque/DequePtr/OpsKTSeq.v`.  The extraction
+output is checked into `extracted/kt_deque_ptr.ml{,.mli}` so this tree
+builds standalone — no Rocq toolchain required.
 
-## What runs in the benchmark
+For the C port (1.6×–2.9× faster on every workload at n=1M with arena
+compaction), see [`../c/`](../c/).
 
-The harness exercises four operation variants:
+## Install
 
-| Variant       | What it does                                             |
-| ------------- | -------------------------------------------------------- |
-| `KtRec`       | Recursive worst-case implementation (proof artifact, O(log n)). |
-| `KtFull`      | Full-cascade O(log n) (proof artifact).                  |
-| `KtFast`      | Bounded-depth WC O(1) (`push_kt3` etc.) — the fast variant. |
-| `KtFastest`   | `kt4` variant: 2-constructor result types, fewer allocations. |
-| `Viennot`     | The reference implementation from Viennot et al.         |
-
-…across these workloads:
-
-- **Steady push / pop / inject / eject** — growing or shrinking deque.
-- **Adversarial alt-push-pop** — repeated push-then-pop at the same
-  size, the worst case for amortized data structures.
-- **Mixed P/I/Po/E** — interleaved operations.
-- **Fork-stress** — snapshot then push 16 then pop 16 (persistent
-  branching).
-
-Sizes range from 10 to 10⁷ elements with 200K iterations per op.
-
-## Build & run
-
-From the repo root:
+The verified library is published as the opam package `kaplan2-deque`.
+From a clone of the repository:
 
 ```sh
-make bench
-./_build/default/ocaml/bench/crossover.exe
+opam install .
 ```
 
-The crossover binary prints a table of nanoseconds-per-op for each
-variant × workload × size, with ratios against Viennot.
+Or directly from the source tree:
 
-## Headline numbers
+```sh
+dune build
+dune install kaplan2-deque
+```
 
-On adversarial workloads (size 1k+):
+## Use
 
-| Workload          | KtFast / Viennot |
-| ----------------- | ---------------- |
-| Alt push-pop      | 0.16  (6× faster) |
-| Mixed P/I/Po/E    | 0.14  (7× faster) |
-| Fork-stress       | 0.71  (1.4× faster) |
+```ocaml
+open Kt_deque_ptr
 
-KtFast is **flat across all sizes** — confirming worst-case O(1)
-empirically. Viennot grows ~2× from size 10 to 1k before plateauing.
+let () =
+  let d = empty_chain in
+  let d = match push_chain_rec (E.base 1) d with
+          | Some d' -> d' | None -> assert false in
+  let d = match inject_chain_rec d (E.base 2) with
+          | Some d' -> d' | None -> assert false in
+  match pop_chain_rec d with
+  | Some (e, _d') ->
+      (match E.to_list e with
+       | [x] -> Printf.printf "popped %d\n" x
+       | _   -> assert false)
+  | None -> assert false
+```
 
-See [`../kb/reports/perf-study-pop-eject.md`](../kb/reports/perf-study-pop-eject.md)
-for the deep-dive analysis.
+The `E.base` constructor wraps a value as a base element; `E.to_list e`
+flattens an element back to a list of base values (depth-1 elements
+become singletons).  The `_rec` variants are the proof-artifact
+recursive versions; for production use prefer `push_kt2 / inject_kt2 /
+pop_kt2 / eject_kt2`, which are the bounded-cascade worst-case-O(1)
+variants.
+
+## Layout
+
+```
+ocaml/
+├── extracted/           PUBLIC LIBRARY (kaplan2-deque)
+│   ├── kt_deque_ptr.ml      verified extraction snapshot
+│   ├── kt_deque_ptr.mli
+│   ├── test_kt_deque_ptr.ml smoke test against a list reference
+│   ├── diff_workload.ml     paired with c/tests/diff_workload.c
+│   └── dune
+├── lib/                 BENCH-HELPER LIBRARY (kaplan2_bench_helpers, internal)
+│   ├── deque4.ml            hand-written O(log n) variant for benchmarks
+│   ├── deque4_handwritten.ml
+│   ├── deque4_ref.ml        list-based oracle (used by QCheck/Monolith)
+│   └── dune
+├── bench/               microbenchmarks (compare.exe, crossover.exe, ...)
+├── test_qcheck/         QCheck property tests against the bench-helpers
+├── test_monolith/       Monolith model-based fuzzing against the bench-helpers
+└── README.md            this file
+```
+
+The public library is *only* `kt_deque_ptr` (the verified extraction).
+Everything under `lib/` is bench-only support — those modules exist to
+let `bench/compare.exe` compare the verified library against a
+hand-written variant and a list reference.  They are not installed.
+
+## How the extraction works
+
+The Coq side proves a family of sequence-preservation theorems
+(`push_kt2_seq`, `pop_kt2_seq`, ..., `eject_kt4_seq`) against an
+abstract list semantics.  Coq's `Extraction` plugin then translates
+the verified imperative DSL into pure OCaml.  The resulting `.ml` /
+`.mli` files are checked into git as a snapshot, so the OCaml tree
+builds without the Coq toolchain.
+
+To regenerate the snapshot after a Rocq change:
+
+```sh
+dune build rocq/KTDeque/Extract       # produces _build/.../KTDeque.ml
+# Copy KTDeque.ml -> ocaml/extracted/kt_deque_ptr.ml
+```
+
+The differential test (`make check-diff*` from the C side) runs the
+extracted OCaml and the C side against the same xorshift workload and
+diffs their outputs byte-for-byte; any disagreement is treated as a
+bug.  See [`../kb/reports/c-ocaml-equivalence.md`](../kb/reports/c-ocaml-equivalence.md)
+for a critical reading of how convincing that evidence is.
+
+## Tests
+
+```sh
+dune runtest          # QCheck property tests
+dune exec ocaml/test_monolith/fuzz_deque4.exe    # Monolith fuzzing
+dune exec ocaml/extracted/test_kt_deque_ptr.exe  # extracted-library smoke
+```
+
+> **Caveat:** the QCheck/Monolith tests in `test_qcheck/` and
+> `test_monolith/` currently exercise the **bench-helper**
+> `deque4_handwritten`, *not* the verified extracted library.  They
+> validate the bench infrastructure, not `kt_deque_ptr` directly.  The
+> direct evidence for the extracted library is the Coq theorems plus the
+> bit-for-bit C↔OCaml diff (run from the C side: `make -C ../c
+> check-diff-multi`).  Adding QCheck coverage of `kt_deque_ptr` is
+> tracked in the repo backlog.
+
+## Microbenchmarks
+
+The `bench/compare.exe` driver runs push / pop / inject / eject and a
+mixed workload at n ∈ {10k, 100k, 1M}, comparing the verified extraction
+against Viennot's reference deque:
+
+```sh
+dune build ocaml/bench/compare.exe
+_build/default/ocaml/bench/compare.exe
+```
+
+For cross-language perf vs the C, see [`../c/COMPARISON.md`](../c/COMPARISON.md).
+
+## License
+
+MIT.  See [`../LICENSE`](../LICENSE) (or the per-tree `LICENSE` file
+under `c/` or `rocq/`).
