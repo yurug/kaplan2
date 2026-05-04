@@ -37,25 +37,28 @@ dune install ktdeque
 open KTDeque
 
 let () =
-  let d = empty_chain in
-  let d = match push_chain_rec (E.base 1) d with
+  (* push 1, inject 2, then pop the front. *)
+  let d = empty_kchain in
+  let d = match push_kt2 (Coq_E.base 1) d with
           | Some d' -> d' | None -> assert false in
-  let d = match inject_chain_rec d (E.base 2) with
+  let d = match inject_kt2 d (Coq_E.base 2) with
           | Some d' -> d' | None -> assert false in
-  match pop_chain_rec d with
+  match pop_kt2 d with
   | Some (e, _d') ->
-      (match E.to_list e with
-       | [x] -> Printf.printf "popped %d\n" x
+      (match Coq_E.to_list e with
+       | [x] -> Printf.printf "popped %d\n" x      (* prints "popped 1" *)
        | _   -> assert false)
   | None -> assert false
 ```
 
-The `E.base` constructor wraps a value as a base element; `E.to_list e`
-flattens an element back to a list of base values (depth-1 elements
-become singletons).  The `_rec` variants are the proof-artifact
-recursive versions; for production use prefer `push_kt2 / inject_kt2 /
-pop_kt2 / eject_kt2`, which are the bounded-cascade worst-case-O(1)
-variants.
+`Coq_E.base` wraps a value as a base element; `Coq_E.to_list e` flattens
+an element back to a list of base values (depth-1 elements become
+singletons).  The `kt2` family (`push_kt2 / inject_kt2 / pop_kt2 /
+eject_kt2`) is the bounded-cascade worst-case-O(1) entry point —
+what you want for production.  The library also exports
+`push_chain_rec / pop_chain_rec / ...` (recursive, O(log n) cascade);
+those are proof-artifact variants kept for the Rocq refinement
+theorems and not recommended for new code.
 
 ## Layout
 
