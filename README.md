@@ -1,10 +1,11 @@
 # kaplan2
 
-> ⚠️ **Work in progress — not released.** APIs, file layout, and proof
-> obligations may change without notice. Don't depend on this in
-> downstream code yet. No semver, no versioned tags, no published
-> packages. See the [Status](#status) section for what's actually
-> proven and what's still being built.
+> ⚠️ **Work in progress — not yet released.** APIs, file layout, and
+> proof obligations may change without notice. Don't depend on this
+> in downstream code yet. No semver, no versioned tags. The opam
+> package `kaplan2-deque` is buildable from a clone but not yet on
+> the official opam-repository. See the [Status](#status) section
+> for what's actually proven and what's still being built.
 
 A **mechanically verified** persistent real-time deque, with faithful
 ports across multiple languages and a microbenchmark suite.
@@ -57,10 +58,24 @@ make rocq
 
 # Run the OCaml benchmarks against Viennot's reference implementation
 make bench
-./_build/default/ocaml/bench/crossover.exe
+_build/default/ocaml/bench/compare.exe
 
 # Build and test the C port
-cd c && make test && ./test
+cd c && make && ./test
+
+# Or install the verified OCaml library locally (opam package
+# kaplan2-deque; ships only the extracted code from rocq/).
+opam install .
+```
+
+The full correctness suite runs across all three layers (Rocq proofs,
+QCheck on the verified extraction, and the C-side
+sanitizer-and-fuzz-and-diff matrix):
+
+```sh
+dune build           # Rocq + OCaml
+dune runtest         # QCheck on Kt_deque_ptr (verified) and Deque4 (helper)
+make check-all       # full C matrix incl. C↔OCaml differential (~45 s)
 ```
 
 See each tree's README for the full instructions and details.
