@@ -1,0 +1,6 @@
+; In-tree builder for the example.  Uses the local ktdeque library; this
+; is independent of `opam install`, so `dune build` from the repo root
+; or `dune exec ocaml/examples/hello.exe` works directly.
+(executable
+ (name hello)
+ (libraries ktdeque))

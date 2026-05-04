@@ -60,6 +60,15 @@ what you want for production.  The library also exports
 those are proof-artifact variants kept for the Rocq refinement
 theorems and not recommended for new code.
 
+A full runnable example lives in [`examples/hello.ml`](examples/hello.ml).
+Build it in-tree with `dune build ocaml/examples/hello.exe` (or run
+directly: `dune exec ocaml/examples/hello.exe`).  After
+`opam install .`, the same source compiles via ocamlfind:
+
+```sh
+ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
+```
+
 ## Layout
 
 ```
