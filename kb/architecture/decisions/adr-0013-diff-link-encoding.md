@@ -97,5 +97,5 @@ for extraction into helper functions.
 - `../overview.md` — module dependency graph.
 - `adr-0012-packet-aggregation.md` — the packet layout this ADR
   optimizes.
-- `c/ktdeque_dequeptr.c` — the FULL/DIFF type declarations and the
+- `c/src/ktdeque_dequeptr.c` — the FULL/DIFF type declarations and the
   `link_outer_pre` / `link_outer_suf` accessors that hide FULL/DIFF.

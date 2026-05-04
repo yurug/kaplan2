@@ -32,7 +32,7 @@ by `exec_op H r args` is ≤ the corresponding constant.
   - `exec_pop_pkt_full_C_cost`, `packet_pop_wc_O1`,
   - and the symmetric inject/eject lemmas.
   These prove the cost bound for the cost-monad (`MC`) routine; the C
-  side runtime witness is `c/wc_test.c` (allocation-count flat
+  side runtime witness is `c/tests/wc_test.c` (allocation-count flat
   across n=1k/10k/100k).
 
 ## NF2 — Bounded allocation footprint per public operation

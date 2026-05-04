@@ -11,7 +11,7 @@ The complete inventory of types and constraints used by the formalization.
 
 ## Scope
 Covers: every type in `rocq/KTDeque/Common/`, `rocq/KTDeque/DequePtr/`,
-plus the hand-written C cell layout in `c/ktdeque_dequeptr.c`. Does NOT
+plus the hand-written C cell layout in `c/src/ktdeque_dequeptr.c`. Does NOT
 cover: operations (see `algorithms.md`), error taxonomy (see
 `error-taxonomy.md`), or the I/O surface (see `api-contracts.md`).
 
@@ -99,7 +99,7 @@ Definition NF_POP_PKT_FULL   : nat := 9.   (* pop including refill   *)
 The C is hand-written, not extracted. Its shape mirrors the Rocq
 inductive but with two extensions — neither has a Rocq counterpart.
 
-### 2.1 FULL link (`c/ktdeque_dequeptr.c`)
+### 2.1 FULL link (`c/src/ktdeque_dequeptr.c`)
 
 ```c
 typedef struct kt_chain_link {
@@ -165,7 +165,7 @@ needed). The C tag is a deviation maintained by hand at every constructor.
 The opaque module `RegularPacketDeque : REGULAR_PACKET_DEQUE` hides
 `Chain`/`Packet` internals.
 
-### 4.2 C (`c/ktdeque.h`)
+### 4.2 C (`c/include/ktdeque.h`)
 
 `kt_deque` (typedef'd `kt_chain_link*`, NULL ≅ empty) plus `kt_empty`,
 `kt_push`, `kt_inject`, `kt_pop`, `kt_eject`, `kt_length`, `kt_walk`,

@@ -1,6 +1,6 @@
-# C performance audit — `c/ktdeque_dequeptr.c`
+# C performance audit — `c/src/ktdeque_dequeptr.c`
 
-Audit of `/home/coder/workspace/kaplan2/c/ktdeque_dequeptr.c` (~2755 lines), the
+Audit of `/home/coder/workspace/kaplan2/c/src/ktdeque_dequeptr.c` (~2755 lines), the
 hand-translated KT99 §4.1 packets-and-chains implementation. Goal: find concrete
 optimizations to close the gap with OCaml-extracted `kt3` on push/inject.
 Persistence and worst-case O(1) are non-negotiable.

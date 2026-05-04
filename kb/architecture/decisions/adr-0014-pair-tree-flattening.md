@@ -35,7 +35,7 @@ Level ≥ 3 keeps the `kt_pair` indirection (the public
 `kt_pair_make` / `kt_pair_split` returning level-3 pairs is the only
 external interface to this).
 
-The `pair_split_at` helper in `c/ktdeque_dequeptr.c` performs a
+The `pair_split_at` helper in `c/src/ktdeque_dequeptr.c` performs a
 level-aware split by **aliasing** offsets within the original buffer
 block — no allocation. This works because the arena is allocation-only:
 the block lives forever after first allocation, so aliasing is safe.
@@ -95,7 +95,7 @@ specific to the C's pairing strategy.
 - `../overview.md` — module dependency graph.
 - `adr-0012-packet-aggregation.md` — the packet/chain layout this ADR
   packs elements into.
-- `c/ktdeque_dequeptr.c` — `pair_split_at` and the public `kt_pair_*`
+- `c/src/ktdeque_dequeptr.c` — `pair_split_at` and the public `kt_pair_*`
   symbols.
 - `rocq/KTDeque/Common/Element.v` — the abstract `ELEMENT` interface
   that is *more general* than the C specialization.

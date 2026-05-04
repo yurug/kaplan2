@@ -37,7 +37,7 @@ each piece of the manual lives. Does NOT cover: type definitions
 ## Module dependency graph
 
 ```text
-                    c/ktdeque_dequeptr.c    (hand-written C; per ADR-0012/13/14)
+                    c/src/ktdeque_dequeptr.c    (hand-written C; per ADR-0012/13/14)
                               ⟂ no formal C↔Rocq link
                               |
                               | mirrors the *shape* of:

@@ -76,7 +76,7 @@ For every public op `exec_op H args = Some (H', out)`:
 
 ---
 
-## 2. C public surface (`c/ktdeque.h`)
+## 2. C public surface (`c/include/ktdeque.h`)
 
 The C exposes the same operations as the Rocq interface, expressed in C
 ABI:

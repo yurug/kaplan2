@@ -51,7 +51,7 @@ level uses paired elements at the next level deeper, exactly as in
 Viennot's GADT. The level invariant is captured externally (extrinsic
 style; see ADR-0004).
 
-C side (`c/ktdeque_dequeptr.c`):
+C side (`c/src/ktdeque_dequeptr.c`):
 
 ```c
 typedef struct kt_chain_link {
@@ -113,4 +113,4 @@ refinement theorems do not directly apply to general C chains at depth
   refines.
 - `adr-0010-imperative-dsl.md` — the imperative DSL contract.
 - `rocq/KTDeque/DequePtr/Model.v` — the Rocq encoding.
-- `c/ktdeque_dequeptr.c` — the C `kt_chain_link` layout.
+- `c/src/ktdeque_dequeptr.c` — the C `kt_chain_link` layout.
