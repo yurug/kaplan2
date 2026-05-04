@@ -1,4 +1,4 @@
-(** Monolith model-based fuzzing for the **verified** [kt_deque_ptr]
+(** Monolith model-based fuzzing for the **verified** [ktdeque]
     library.
 
     Compares the published library

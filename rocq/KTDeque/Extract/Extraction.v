@@ -17,7 +17,7 @@ Set Extraction Output Directory "kt_extracted".
 (** Extract Coq types to OCaml's native types where possible. *)
 Extraction Language OCaml.
 
-Extraction "kt_deque_ptr.ml"
+Extraction "kTDeque.ml"
   ElementTree.t
   ElementTree.to_list
   ElementTree.level

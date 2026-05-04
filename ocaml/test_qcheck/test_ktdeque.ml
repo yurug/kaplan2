@@ -1,4 +1,4 @@
-(** QCheck property-based tests for the **verified** [kt_deque_ptr]
+(** QCheck property-based tests for the **verified** [ktdeque]
     library — the OCaml extraction of the Rocq formalization.
 
     Mirrors the property suite in [test_deque4.ml] (which exercises the
@@ -135,7 +135,7 @@ let run (ops : op list) : int list * int list * int option =
 
 let prop_to_list_matches_reference =
   QCheck.Test.make ~count:1000
-    ~name:"kt_deque_ptr: to_list equals list reference at every step"
+    ~name:"ktdeque: to_list equals list reference at every step"
     QCheck.(make ~print:pp_ops
               (QCheck.Gen.list_size QCheck.Gen.(int_range 1 100) gen_op))
     (fun ops ->
@@ -146,21 +146,21 @@ let prop_to_list_matches_reference =
 
 let prop_pop_empty =
   QCheck.Test.make ~count:1
-    ~name:"kt_deque_ptr: pop empty returns None"
+    ~name:"ktdeque: pop empty returns None"
     QCheck.(make (QCheck.Gen.return ()))
     (fun () ->
        match D.pop D.empty with None -> true | Some _ -> false)
 
 let prop_eject_empty =
   QCheck.Test.make ~count:1
-    ~name:"kt_deque_ptr: eject empty returns None"
+    ~name:"ktdeque: eject empty returns None"
     QCheck.(make (QCheck.Gen.return ()))
     (fun () ->
        match D.eject D.empty with None -> true | Some _ -> false)
 
 let prop_push_then_pop_id =
   QCheck.Test.make ~count:1000
-    ~name:"kt_deque_ptr: push x then pop returns x and original"
+    ~name:"ktdeque: push x then pop returns x and original"
     QCheck.(make QCheck.Gen.(int_range 0 1000))
     (fun x ->
        let d = D.push x D.empty in
@@ -170,7 +170,7 @@ let prop_push_then_pop_id =
 
 let prop_inject_then_eject_id =
   QCheck.Test.make ~count:1000
-    ~name:"kt_deque_ptr: inject x then eject returns x and original"
+    ~name:"ktdeque: inject x then eject returns x and original"
     QCheck.(make QCheck.Gen.(int_range 0 1000))
     (fun x ->
        let d = D.inject D.empty x in
@@ -180,7 +180,7 @@ let prop_inject_then_eject_id =
 
 let prop_persistence_simple =
   QCheck.Test.make ~count:1000
-    ~name:"kt_deque_ptr: persistence — old handle still has its content"
+    ~name:"ktdeque: persistence — old handle still has its content"
     QCheck.(make ~print:pp_ops
               (QCheck.Gen.list_size QCheck.Gen.(int_range 1 50) gen_op))
     (fun ops ->
