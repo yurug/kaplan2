@@ -42,9 +42,17 @@
 #include <string.h>
 #include <assert.h>
 #include <stdint.h>
-#ifdef KT_DIFF_DEBUG
 #include <stdio.h>
-#endif
+
+/* OOM is fatal — the public API (kt_push, kt_pop, ...) returns a deque,
+ * not a status code, so there's no way to signal allocation failure to
+ * callers.  Match the same policy as kt_region_create's callers, which
+ * already assume non-NULL arenas. */
+__attribute__((noreturn, cold))
+static void kt_oom_die(const char* what) {
+    fprintf(stderr, "ktdeque: out of memory in %s\n", what);
+    abort();
+}
 
 #define MAX_BUF 5
 #define MAX_PACKET_DEPTH 64
@@ -155,6 +163,7 @@ static kt_arena_chunk* arena_chunk_new_sz(kt_arena_chunk* prev,
     size_t payload = hint ? hint : ARENA_CHUNK_SIZE;
     if (need > payload) payload = need;
     kt_arena_chunk* c = (kt_arena_chunk*)malloc(sizeof(*c) + payload);
+    if (__builtin_expect(c == NULL, 0)) kt_oom_die("arena_chunk_new_sz");
     c->prev = prev;
     c->bump = c->data;
     c->end  = c->data + payload;
@@ -725,6 +734,7 @@ static inline kt_elem kt_pair_make_inline(kt_elem x, kt_elem y) {
 }
 
 static inline void kt_pair_split_inline(kt_elem e, kt_elem* x, kt_elem* y) {
+    assert(e != NULL);
     kt_pair* p = (kt_pair*)e;
     *x = p->left;
     *y = p->right;
@@ -760,6 +770,7 @@ static inline kt_elem pair_make_at(int level, kt_elem x, kt_elem y) {
  * elements.  At level<=K, no allocation: the two outputs alias offsets
  * into the original block.  Persistence preserved (arena never frees). */
 static inline void pair_split_at(int level, kt_elem e, kt_elem* x, kt_elem* y) {
+    assert(e != NULL);
     if (__builtin_expect(level == 1, 1)) {
         kt_elem* b = (kt_elem*)e;
         *x = b[0];
@@ -871,6 +882,7 @@ static void kt_fwd_grow(struct kt_region* r) {
     kt_fwd_entry* old_tab = r->fwd_tab;
     size_t new_cap = old_cap ? old_cap * 2 : 4096;
     r->fwd_tab = (kt_fwd_entry*)calloc(new_cap, sizeof(kt_fwd_entry));
+    if (__builtin_expect(r->fwd_tab == NULL, 0)) kt_oom_die("kt_fwd_grow");
     r->fwd_cap = new_cap;
     r->fwd_count = 0;
     if (old_tab) {
@@ -2274,7 +2286,7 @@ kt_deque kt_pop(kt_deque d, kt_elem* out, int* out_was_nonempty) {
             if (out) *out = x;
             if (out_was_nonempty) *out_was_nonempty = 1;
             uint8_t depth = link_depth(top);
-            kt_buf bb[2 * MAX_PACKET_DEPTH];
+            kt_buf bb[2 * MAX_PACKET_DEPTH] = {0};
             for (int i = 0; i < 2 * depth; i++) bb[i] = *link_buf_at(top, i);
             bb[1] = rest;
             return (kt_deque)alloc_link(top->chain_pos, depth, bb, link_tail(top));
@@ -2415,7 +2427,7 @@ kt_deque kt_eject(kt_deque d, kt_elem* out, int* out_was_nonempty) {
             if (out) *out = x;
             if (out_was_nonempty) *out_was_nonempty = 1;
             uint8_t depth = link_depth(top);
-            kt_buf bb[2 * MAX_PACKET_DEPTH];
+            kt_buf bb[2 * MAX_PACKET_DEPTH] = {0};
             for (int i = 0; i < 2 * depth; i++) bb[i] = *link_buf_at(top, i);
             bb[0] = rest;
             return (kt_deque)alloc_link(top->chain_pos, depth, bb, link_tail(top));

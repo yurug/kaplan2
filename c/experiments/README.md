@@ -1,4 +1,15 @@
-# Profiling kt_eject (and friends) with perf + hotspot
+# Experiments — perf hypothesis tests, profilers, legacy variants
+
+This directory holds artifacts that are **not part of the public
+library**: hypothesis tests written during a perf study, profile
+drivers, and two legacy deque variants (`ktdeque_d4cell.c`,
+`ktdeque_viennot.c`) kept around for differential testing.  Nothing
+here is built by `make all`.  Most files reference
+`ktdeque_dequeptr.c` at its old top-level path — when you re-run any
+of these from this directory, point them at `../src/ktdeque_dequeptr.c`
+and `-I../include`.
+
+## Profiling kt_eject (and friends) with perf + hotspot
 
 The eject benchmark runs ~4.5× slower than Viennot OCaml. To understand why,
 record a perf trace and inspect with [hotspot](https://github.com/KDAB/hotspot).

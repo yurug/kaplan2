@@ -7,7 +7,7 @@ Kaplan–Tarjan §4 catenable deque, compared against two OCaml baselines.
 
 | Name | Language | Provenance | Worst-case bound |
 |------|----------|------------|------------------|
-| **`c/ktdeque_dequeptr.c`** | C    | KT99 §4.1 stack-of-substacks / VWGP packets-and-chains in C | **O(1)** worst case (empirically verified) |
+| **`c/src/ktdeque_dequeptr.c`** | C    | KT99 §4.1 stack-of-substacks / VWGP packets-and-chains in C | **O(1)** worst case (empirically verified) |
 | **OCaml (extracted)**    | OCaml | `Coq → OCaml` extraction of the abstract chain ADT in `rocq/KTDeque/DequePtr/` | O(1) amortized; cascade depth = O(log n) |
 | **Viennot OCaml**        | OCaml | Vendored from VWGP (`ocaml/bench/viennot/deque{,_core}.ml`) | **O(1)** worst case (GADT type-level regularity + real-time path) |
 
@@ -30,46 +30,55 @@ ensures that each operation modifies at most the top packet's outermost
 buffer + (in the green_of_red cascade) the topmost-G level + the immediately
 above; path-copy is bounded by a constant chain head.
 
-## Performance — 1M operations, ns/op (median of 3+ runs)
+## Performance — n = 1,000,000, ns/op
 
-| Op      | C (this work) | Viennot OCaml | KTDeque OCaml | C vs Viennot |
-|---------|---|---|---|---|
-| push    | 115 |  90 | 70 | 1.28× slower |
-| inject  | 112 |  74 | 57 | 1.51× slower |
-| pop     |  83 |  50 | 46 | 1.66× slower |
-| eject   |  84 |  44 | 39 | 1.91× slower |
-| **mixed*** |  **77** | **167** | **111** | **2.17× faster** |
+*Last measured: 2026-05-04, gcc 13.3.0, OCaml 5.x, single core.*
 
-*mixed = `(push, push, pop)` interleaved, ns / total op count.
+The C is built two ways to expose the cost of arena compaction:
+`-DKT_COMPACT_INTERVAL=0` disables it (every link allocated from a
+non-compacted bump arena), and `-DKT_COMPACT_INTERVAL=4096` runs the
+compactor every 4096 ops.  `make bench` defaults to the K=4096 build.
+
+| Op      | **C, K=4096 (default)** | C, K=0 | KTDeque OCaml | Viennot OCaml | C(K=4096) vs Viennot |
+|---------|------------------------:|-------:|--------------:|--------------:|---------------------:|
+| push    |              **31.2**   | 155.7  |     66.5      |     82.9      | **2.66× faster**     |
+| inject  |              **35.0**   | 156.9  |     57.1      |     68.6      | **1.96× faster**     |
+| pop     |              **26.0**   | 144.8  |     33.6      |     49.0      | **1.88× faster**     |
+| eject   |              **25.9**   | 147.4  |     35.3      |     43.0      | **1.66× faster**     |
+| mixed*  |              **18.7**   |  82.8  |     35.0      |     53.4      | **2.86× faster**     |
+
+*mixed = `(push, push, pop)` interleaved at constant size, ns / total op count.
 
 ### Reading the numbers
 
-1. **All three implementations scale linearly with N.**  Per-op cost (in ns)
-   is roughly constant across sizes 10k / 100k / 1M.  No quadratic blowup;
-   no log-n drift on adversarial workloads (verified separately by
-   `wc_test.c`).
+1. **Compaction is load-bearing.**  K=4096 is **4.4×–5.7× faster** than
+   K=0 on every op.  Without it, the bump arena fragments under
+   sustained workloads and the cache thrashes; the C drops to **1.55×
+   – 3.42× slower** than Viennot OCaml.  Don't ship K=0.
 
-2. **C's `mixed` workload is 2.17× faster than Viennot OCaml.**  In a
-   workload where the deque size stays roughly constant and operations
-   exercise both sides of the chain, the C wins decisively.  This is the
-   regime where path-copy is the dominant cost and the constant-cascade-depth
-   bound matters most.
+2. **With compaction, C beats Viennot OCaml on every workload by
+   1.66×–2.86×.**  Mixed and push are the biggest wins (close to 3×);
+   eject is the smallest (~1.66×).
 
-3. **Pure pushes/pops are 1.28× to 1.91× slower in C than in Viennot OCaml.**
-   The gap is dominated by the OCaml minor-heap allocator (`caml_alloc_small`
-   is two instructions: `young_ptr -= n; if (young_ptr < young_limit) gc()`)
-   vs. our region-bump allocator (load-add-compare-store-load: four
-   instructions).  Per push that's ~6 extra cycles × ~6 allocs/op ≈ 12 ns —
-   close to the observed gap.  OCaml records also carry one header word; our
-   `kt_pl` (combined packet+link) has no header, but our `kt_buf` has a size
-   byte + 7 bytes of alignment padding.
+3. **All three implementations scale linearly with N.**  Per-op cost
+   is roughly constant across sizes 10k / 100k / 1M.  No quadratic
+   blowup; no log-n drift on adversarial workloads (verified
+   separately by `wc_test.c`).
 
-4. **OCaml extracted (KTDeque) is faster than both.**  The abstract D4
-   representation has fewer indirections than packets-and-chains and
-   benefits from OCaml's allocator.  However, its underlying algorithm is
-   the *recursive* `push4_full` — amortized-O(1), not worst-case.  This
-   benchmark is on workloads where the amortized and worst-case costs
-   coincide.
+4. **OCaml-extracted (KTDeque) is faster than Viennot OCaml.**  The
+   abstract D4 representation has fewer indirections than
+   packets-and-chains and benefits from OCaml's allocator.  However,
+   its underlying algorithm is the *recursive* `push4_full` —
+   amortized-O(1), not worst-case.  These benchmarks are on workloads
+   where the amortized and worst-case costs coincide.
+
+5. **The C structural overhead vs. Viennot OCaml.**  The C's
+   region-bump allocator is `load-add-compare-store-load` (four
+   instructions on the fast path).  OCaml's `caml_alloc_small` is
+   `young_ptr -= n; if (young_ptr < young_limit) gc()` (two
+   instructions).  Compaction makes the difference because it lets the
+   region bump pointer stay in a tight range that fits cache, masking
+   the extra instruction.
 
 ## Design notes
 
@@ -109,9 +118,9 @@ The structural choices that make the C worst-case O(1) and (mostly) fast:
 
 ## Known gaps
 
-- **Pure-op faster than Viennot OCaml.** This implementation is
-  1.3–1.9× slower on push / inject / pop / eject in isolation. Mixed
-  workloads (more representative of real deque usage) win by 2.2×.
+- **No-compaction regime is allocation-bound.**  At `K=0` (compaction
+  disabled) the C is 1.55×–3.42× slower than Viennot OCaml.  Don't
+  ship K=0; the recommended config is the K=4096 default.
 - **Rocq refinement of the packet/chain layout.** The Rocq side has
   only depth-1 packet refinement. The packet/chain representation in
   this C has no Rocq counterpart at packet depth ≥ 2; closing that

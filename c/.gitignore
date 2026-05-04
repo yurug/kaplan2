@@ -1,0 +1,37 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+
+# Test / bench / fuzz binaries (no extensions)
+/test
+/test_debug
+/test_asan
+/test_threads
+/test_threads_tsan
+/test_persistence_stress
+/wc_test
+/bench
+/bench_K0
+/bench_K4096
+/bench_arena_*
+/bench_perf
+/diff_workload
+/fuzz
+/fuzz_afl
+
+# Profiling / debugging output
+core
+core.*
+gmon.out
+perf.data
+perf.data.old
+prof
+*.gcov
+*.gcda
+*.gcno
+
+# AFL run outputs
+afl_findings/
