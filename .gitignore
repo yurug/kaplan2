@@ -8,6 +8,7 @@ _obuild/
 *.aux
 .lia.cache
 .nia.cache
+*.install
 
 # OCaml artifacts
 *.cmi
