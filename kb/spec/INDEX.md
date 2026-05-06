@@ -9,10 +9,19 @@ related: [index]
 ## One-liner
 Routing table for the formal specification.
 
+## Where to start
+
+If this is your first contact with the codebase, read
+[`why-bounded-cascade.md`](why-bounded-cascade.md) first.  It is the
+intuition layer — *why* the algorithm is correct and elegant — and
+makes the rest of the spec (type definitions, operation pseudocode,
+repair cases) readable rather than mystical.
+
 ## Files
 
 | If you need…                                          | Read                              |
 |-------------------------------------------------------|------------------------------------|
+| The intuition behind the WC O(1) bound                 | `why-bounded-cascade.md`           |
 | Type definitions and invariants                        | `data-model.md`                    |
 | How operations work                                    | `algorithms.md`                    |
 | The public surface and laws                            | `api-contracts.md`                 |

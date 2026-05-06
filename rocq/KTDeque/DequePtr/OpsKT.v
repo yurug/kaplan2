@@ -1,6 +1,14 @@
 (** * Module: KTDeque.DequePtr.OpsKT --
     Worst-case O(1) deque operations on [KChain].
 
+    First-time reader: read [kb/spec/why-bounded-cascade.md] before
+    this file.  That document explains *why* the algorithm encoded
+    here is correct and elegant; this file is the mechanization of
+    that algorithm.  In particular it explains why the regularity
+    invariant "no two Reds adjacent" is the load-bearing fact and
+    why [ensure_green] firing exactly once per public op is what
+    delivers the worst-case O(1) bound.
+
     This module mechanizes the Viennot-Wendling-Guéneau-Pottier
     presentation of the Kaplan-Tarjan persistent real-time deque (PLDI
     2024). The overall algorithm — color-dispatched buffer helpers,

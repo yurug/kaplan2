@@ -24,6 +24,14 @@ fast", not O(log n). And the whole thing is *purely functional*: you
 can fork the deque, mutate one branch, and the other stays intact,
 with no asymptotic penalty.
 
+If you have never seen the KT99 / Viennot algorithm before, read
+[`kb/spec/why-bounded-cascade.md`](kb/spec/why-bounded-cascade.md)
+first.  It is the *intuition* layer — a 600-word narrative explaining
+why "no two reds in a row" delivers worst-case O(1), why packets
+aggregate yellow runs into a single allocation, and why the whole
+thing works in the persistent setting where amortised analyses fail.
+Every other file in the repo will make more sense after reading it.
+
 ## What's in here
 
 This repository is a **monorepo** with one self-contained tree per

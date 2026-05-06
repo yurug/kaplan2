@@ -1,5 +1,10 @@
 (** * Module: KTDeque.Common.Color -- Kaplan-Tarjan G/Y/R color tags.
 
+    For *why* these three colors and *why* the regularity invariant
+    "no two Reds adjacent" delivers worst-case O(1), read
+    [kb/spec/why-bounded-cascade.md] first.  This module is the
+    syntactic encoding; that document is the reason it exists.
+
     Color encoding mirroring Viennot's GADT colors:
       - Green  = "absorbable in both directions" (push or inject without overflow)
       - Yellow = "absorbable in at least one direction"

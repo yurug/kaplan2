@@ -1,5 +1,12 @@
 (** * Module: KTDeque.DequePtr.Model -- Viennot-style packet/chain aggregation.
 
+    First-time reader: read [kb/spec/why-bounded-cascade.md] §3 before
+    this file.  That section explains *why* a [Packet] aggregates an
+    entire yellow run into a single allocation unit — without this
+    aggregation, re-threading the chain after a repair would touch
+    O(yellow-run-length) cells, defeating the worst-case O(1) bound.
+    This file is the Rocq encoding of the aggregation.
+
     Per the project hard rule (worst-case O(1)) and ADR-0011 (element
     abstraction): the flat [D4Cell] layout cannot achieve persistent
     worst-case O(1) for the Kaplan-Tarjan deque because re-threading a
