@@ -23,11 +23,14 @@ each piece of the manual lives. Does NOT cover: type definitions
 /home/coder/workspace/kaplan2/
 ├── rocq/KTDeque/                # Rocq sources (DequePtr/, Common/, Extract/, RBR/)
 ├── ocaml/
-│   ├── lib/                     # hand-written OCaml (Viennot reference)
-│   ├── bench/                   # OCaml drivers (compare.exe + Viennot reference)
-│   ├── extracted/               # OCaml output of `dune build` extraction
-│   └── test_qcheck/, test_monolith/  # OCaml validation harnesses
-├── c/                           # hand-written C (ktdeque_dequeptr.c is the Makefile default)
+│   ├── extracted/               # PUBLIC LIBRARY (kTDeque.ml, package `ktdeque`)
+│   ├── lib/                     # internal `ktdeque_bench_helpers` (Deque4 + list ref)
+│   ├── bench/                   # drivers: compare, crossover, canonical, diag_inject
+│   │   └── viennot/             # vendored VWGP PLDI'24 deque (reference baseline)
+│   ├── examples/                # minimal hello.ml against the public library
+│   └── test_qcheck/, test_monolith/  # property + model-based tests (×2 each)
+├── c/                           # hand-written C (`include/ktdeque.h` + `src/ktdeque_dequeptr.c`,
+│                                # restructured into include/ src/ tests/ benches/ examples/ experiments/)
 ├── rust/                        # Rust port
 ├── kb/                          # this knowledge base
 ├── kb/execution-manual-v3.md, jacm-final.pdf, viennot-...pdf
@@ -102,15 +105,22 @@ Key invariants of this graph:
 | `Extraction.v`    | `Extraction Language OCaml`; emits OCaml under `ocaml/extracted/`.    |
 
 ### `c/` (hand-written; not extracted)
-| File                       | Role                                                                  |
-|----------------------------|-----------------------------------------------------------------------|
-| `ktdeque_dequeptr.c`       | The production C, per ADR-0012/13/14. ~2000 lines. Mirrors `Footprint.v`'s shape but with packet aggregation (depth ≥ 2, nested PNodes), DIFF link encoding, and `green_of_red` cascade — all of which extend Rocq's covered fragment. |
-| `ktdeque_viennot.c`        | Viennot translation kept for diff. |
-| `ktdeque.c`                | Older D4Cell variant kept for diff (amortized only). |
-| `ktdeque.h`                | Public C ABI: `kt_empty`, `kt_push`, `kt_inject`, `kt_pop`, `kt_eject`, `kt_length`, `kt_walk`, `kt_check_regular`. |
-| `test.c`, `test_debug` (target) | Functional tests at sizes 1..100k. `test_debug` is built without `-DNDEBUG` so the `green_of_red` regularity asserts actually fire. |
-| `wc_test.c`                | Allocation-count flatness check (NF1/NF2 runtime witness).            |
-| `bench.c`, `eject_only.c`, `inject_only.c` | Performance + perf-profiling drivers.                |
+Layout post-restructure: `include/ktdeque.h` is the public ABI;
+`src/ktdeque_dequeptr.c` is the production source; `tests/`,
+`benches/`, `examples/` are organized accordingly; legacy variants
+live under `experiments/`.
+
+| File                                  | Role                                                                  |
+|---------------------------------------|-----------------------------------------------------------------------|
+| `src/ktdeque_dequeptr.c`              | Production C, per ADR-0012/13/14. ~2700 lines.  Mirrors `Footprint.v`'s shape but with packet aggregation (depth ≥ 2, nested PNodes), DIFF link encoding, and the `green_of_red` cascade — all of which extend Rocq's covered fragment. |
+| `experiments/ktdeque_viennot.c`       | Viennot-style translation kept for diff. |
+| `experiments/ktdeque_d4cell.c`        | Older D4Cell variant kept for diff (amortized only). |
+| `include/ktdeque.h`                   | Public C ABI: `kt_empty`, `kt_push`, `kt_inject`, `kt_pop`, `kt_eject`, `kt_length`, `kt_walk`, `kt_check_regular`. |
+| `tests/test.c`, `test_debug` (target) | Functional tests at sizes 1..1M.  `test_debug` is built without `-DNDEBUG` so the `green_of_red` regularity asserts actually fire. |
+| `tests/wc_test.c`                     | Allocation-count flatness check (NF1/NF2 runtime witness).            |
+| `tests/diff_workload.c`, `fuzz.c`, `fuzz_afl.c`, `test_threads.c`, `test_persistence_stress.c` | Differential, fuzz, multi-thread, and persistence-stress test drivers. |
+| `benches/bench.c`, `bench_perf.c`     | Performance + perf-profiling drivers.                                  |
+| `experiments/eject_only.c`, `inject_only.c`, `h{1,2,3}_*.c`, `profile_*.c` | Hypothesis-test drivers from the perf study; not built by `make all`. |
 
 ### `rocq/KTDeque/RBR/`
 A warm-up module for the redundant binary representation (KT99 §3).
