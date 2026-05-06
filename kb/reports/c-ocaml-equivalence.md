@@ -42,7 +42,7 @@ hand translation is the load-bearing unverified step.
 | `check-tsan`                            | 4 threads × 100k ops, per-thread deques                                   | data races on TLS-isolated state                                     |
 | `check` (functional)                    | 7 workloads × 11 sizes (1 to 1M)                                          | basic regressions + `kt_check_regular` invariant                     |
 | `check-static`                          | gcc -fanalyzer + clang --analyze                                          | null-deref, OOB, double-free, leak, UAF                              |
-| `wc_test`                               | ≤ 7–8 allocations per call, flat in n                                     | C silently amortizing instead of WC O(1)                             |
+| `wc_test`                               | ≤ 8 allocations per call, flat in n                                       | C silently amortizing instead of WC O(1)                             |
 
 All green.  Total wall-clock for `check-all`: ~41 seconds (was ~25s before
 the deep + multi-seed + persistence-stress layers were added).

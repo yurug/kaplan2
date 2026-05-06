@@ -1,4 +1,4 @@
-(** diff_workload.ml — generates the SAME workload as c/diff_workload.c
+(** diff_workload.ml — generates the SAME workload as c/tests/diff_workload.c
     using the same xorshift64 seed/sequence; runs through the extracted
     [push_kt2 / pop_kt2 / inject_kt2 / eject_kt2] (proven
     sequence-preserving in OpsKTSeq.v); emits the same text format.
@@ -16,7 +16,7 @@
 
 open KTDeque
 
-(* xorshift64 — same as c/diff_workload.c. *)
+(* xorshift64 — same as c/tests/diff_workload.c. *)
 let xs_state = ref 0x123456789abcdef0L
 let xorshift_next () =
   let x = !xs_state in

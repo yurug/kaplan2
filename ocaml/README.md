@@ -164,5 +164,4 @@ For cross-language perf vs the C, see [`../c/COMPARISON.md`](../c/COMPARISON.md)
 
 ## License
 
-MIT.  See [`../LICENSE`](../LICENSE) (or the per-tree `LICENSE` file
-under `c/` or `rocq/`).
+MIT.  See [`../LICENSE`](../LICENSE).

@@ -25,7 +25,7 @@ BIN="$ROOT/_build/default/ocaml/bench/canonical.exe"
 [ -x "$BIN" ] || { echo "ERROR: $BIN missing"; exit 1; }
 
 # Environment fingerprint.
-OCAML_VER=$(ocaml -version 2>&1 | head -1)
+OCAML_VER=$(ocamlc -vnum 2>&1 || ocaml -vnum 2>&1 || echo unknown)
 KERNEL=$(uname -srm)
 DATE=$(date -Iseconds)
 OUTDIR="$ROOT/bench/results"

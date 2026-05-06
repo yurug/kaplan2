@@ -32,7 +32,9 @@ rocq/
     │   ├── Regularity.v      -- older Chain regularity (no colors)
     │   ├── Footprint.v       -- cost-bounded imperative DSL
     │   └── ...
-    └── Extract/Extraction.v  -- emits ../../ocaml/extracted/*.ml
+    └── Extract/Extraction.v  -- emits _build/.../kt_extracted/kTDeque.ml;
+                                the snapshot in ../../ocaml/extracted/kTDeque.ml
+                                is updated by hand from that build output.
 ```
 
 ## Build

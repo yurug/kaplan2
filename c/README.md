@@ -38,6 +38,7 @@ c/
 ├── src/ktdeque_dequeptr.c      the production source (single file)
 ├── tests/                      correctness + fuzz drivers
 ├── benches/                    microbenchmarks
+├── examples/                   minimal hello-world (in-tree + pkg-config build modes)
 ├── experiments/                profile / hypothesis tests, legacy variants
 ├── Makefile
 ├── README.md
@@ -54,7 +55,7 @@ package install.
 ```sh
 make            # build libktdeque.a + tests + bench
 ./test          # functional tests across 7 workloads × 11 sizes (1..1M)
-./wc_test       # worst-case allocation bound (≤ 16 ops per call, flat in n)
+./wc_test       # worst-case allocation bound (≤ 8 ops per call, flat in n)
 ./bench         # microbench, with arena compaction
 make install PREFIX=/usr/local
 ```

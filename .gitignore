@@ -63,18 +63,6 @@ target/
 *.gcno
 *.gcov
 
-# Public/c compiled artifacts (regenerable via Make)
-Public/c/test
-Public/c/test_debug
-Public/c/test_fallback_trace
-Public/c/bench
-Public/c/bench_*
-Public/c/wc_test
-Public/c/inject_only
-Public/c/eject_only
-Public/c/eject_only_h1
-Public/c/profile_*
-Public/c/perf.data
 
 # Embedded clones (not part of this repo)
 agentic-dev-kit

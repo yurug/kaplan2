@@ -253,7 +253,7 @@ let () =
     else
       [1_000; 10_000; 100_000]
   in
-  Printf.printf "# Canonical-implementation comparison\n\n";
+  Printf.printf "## Per-implementation table\n\n";
   Printf.printf "ns/op for each implementation across workloads × sizes. \
                   Lower is better; ratio columns are vs Viennot.\n\n";
   Printf.printf "Implementations:\n";

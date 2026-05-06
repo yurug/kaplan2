@@ -33,7 +33,7 @@ Two-tier (per ADR-0008 / ADR-0010):
 
 1. **Spec layer** (`rocq/KTDeque/DequePtr/Model.v`, `Repair.v`): abstract `Chain` / `Packet`, sequence semantics, regularity predicates.  Includes recursive proof-artifact ops (`push_chain_full` etc.).
 
-2. **Certified imperative DSL** (`rocq/KTDeque/DequePtr/OpsImperative.v`, `Footprint.v`): non-recursive `exec_*_C` operating on `Heap (D4Cell (E.t A))` via `alloc / read / freeze`.  Cost-tracked in MC monad (`rocq/KTDeque/Common/CostMonad.v`).  Cost ≤ NF_PUSH = 6 by structural inspection.
+2. **Certified imperative DSL** (`rocq/KTDeque/DequePtr/OpsImperative.v`, `Footprint.v`): non-recursive `exec_*_C` operating on `Heap (D4Cell (E.t A))` via `alloc / read / freeze`.  Cost-tracked in MC monad (`rocq/KTDeque/Common/CostMonad.v`).  Cost ≤ `NF_PUSH_PKT_FULL = 9` by structural inspection (see `Footprint.v:468`).
 
 3. **Translation targets**: OCaml extraction (`rocq/KTDeque/Extract/Extraction.v` → `ocaml/extracted/`) and hand-written C (`c/`).  These should mirror the imperative DSL, not the abstract spec.
 
