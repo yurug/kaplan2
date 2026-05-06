@@ -112,8 +112,8 @@ headlines:
 | -------- | ------- |
 | `kt_empty()`                            | the empty deque |
 | `kt_push(x, d)`, `kt_inject(d, x)`      | add to front / back, return new deque |
-| `kt_pop(d, &out, &nonempty)`            | remove front, return new deque + value |
-| `kt_eject(d, &out, &nonempty)`          | remove back, return new deque + value |
+| `kt_pop(d, &out, &out_was_nonempty)`            | remove front, return new deque + value |
+| `kt_eject(d, &out, &out_was_nonempty)`          | remove back, return new deque + value |
 | `kt_length(d)`                          | element count |
 | `kt_walk(d, cb, ctx)`                   | front-to-back traversal |
 | `kt_region_create / kt_region_destroy`  | scoped arena (see below) |

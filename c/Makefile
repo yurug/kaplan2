@@ -5,7 +5,7 @@
 #     include/    public header (ktdeque.h)
 #     src/        production source (ktdeque_dequeptr.c)
 #     tests/      correctness + fuzz drivers
-#     bench/      microbenchmarks
+#     benches/    microbenchmarks
 #     experiments/ profile/hypothesis tests (not built by default)
 #
 #   Common targets:

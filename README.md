@@ -101,7 +101,7 @@ See each tree's README for the full instructions and details.
   guarantees worst-case O(1)): foundation laid; preservation theorems
   in progress.
 - **Performance**: the Rocq-extracted OCaml is roughly tied with
-  Viennot's hand-written reference (within ±10% on every standard
+  Viennot's hand-written reference (within ~15% on every standard
   workload at n=1M), and the C port is **1.65×–2.86× faster than
   Viennot OCaml** on every workload at n=1M with arena compaction
   enabled.  Numbers in [`c/COMPARISON.md`](c/COMPARISON.md) and

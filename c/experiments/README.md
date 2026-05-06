@@ -11,8 +11,13 @@ and `-I../include`.
 
 ## Profiling kt_eject (and friends) with perf + hotspot
 
-The eject benchmark runs ~4.5× slower than Viennot OCaml. To understand why,
-record a perf trace and inspect with [hotspot](https://github.com/KDAB/hotspot).
+> **Historical context.**  When this experiments/ directory was first
+> populated, the C `eject` was ~4.5× slower than Viennot OCaml on a
+> push-N-then-eject-N workload — that gap motivated the perf study
+> below.  After the perf-phase optimisations (N, O, P, R) landed, C
+> eject is now **1.6× faster** than Viennot OCaml at K=4096 (see
+> `../COMPARISON.md`).  The perf-trace recipe in this directory is
+> kept as a reference for future regressions.
 
 ## On your laptop
 

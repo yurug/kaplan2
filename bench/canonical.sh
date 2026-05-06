@@ -25,6 +25,7 @@ BIN="$ROOT/_build/default/ocaml/bench/canonical.exe"
 [ -x "$BIN" ] || { echo "ERROR: $BIN missing"; exit 1; }
 
 # Environment fingerprint.
+GCC_VER=$(gcc --version 2>/dev/null | head -1 || echo "gcc not detected")
 OCAML_VER=$(ocamlc -vnum 2>&1 || ocaml -vnum 2>&1 || echo unknown)
 KERNEL=$(uname -srm)
 DATE=$(date -Iseconds)
@@ -42,6 +43,7 @@ RAW=$("$BIN" $SIZES 2>&1)
     echo
     echo "**Generated**: $DATE"
     echo "**Kernel**: $KERNEL"
+    echo "**gcc**: $GCC_VER"
     echo "**OCaml**: $OCAML_VER"
     echo "**Sizes**: $SIZES"
     echo "**Source**: \`bench/canonical.sh\` → \`ocaml/bench/canonical.ml\`"
@@ -65,8 +67,6 @@ RAW=$("$BIN" $SIZES 2>&1)
     echo "| \`alt_push_pop\`    | push, pop, push, pop, … at constant size 0–1            |        2 |"
     echo "| \`mixed_pipopo\`    | push, inject, pop, pop in cycles                        |        4 |"
     echo "| \`fork_stress\`     | snapshot then push 16 onto the snapshot, repeated       |       16 |"
-    echo
-    echo "## Raw output"
     echo
     echo "$RAW"
     echo

@@ -103,7 +103,7 @@ cold and wants to know what's certified vs hand-derived, what runs,
 and where the boundaries are.
 
 1. `../README.md` — one-page user-facing entry point.
-2. `../scripts/validate.sh` — end-to-end reproducibility script.
+2. `make check-all` from the repo root — runs the full correctness matrix (~45s).
 3. `kb/architecture/overview.md` — module dependency graph and gap list.
 4. `kb/architecture/decisions/` — ADRs documenting design choices and known scope limits.
 5. `kb/properties/non-functional.md` — cost bounds and what each one covers.

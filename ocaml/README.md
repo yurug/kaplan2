@@ -107,8 +107,13 @@ builds without the Coq toolchain.
 To regenerate the snapshot after a Rocq change:
 
 ```sh
-dune build rocq/KTDeque/Extract       # produces _build/.../KTDeque.ml
-# Copy KTDeque.ml -> ocaml/extracted/kTDeque.ml
+# From the repo root, build the extraction stanza:
+dune build rocq/KTDeque/Extract
+# That writes _build/default/rocq/KTDeque/Extract/kt_extracted/kTDeque.ml.
+# Copy it over the snapshot:
+cp _build/default/rocq/KTDeque/Extract/kt_extracted/kTDeque.ml \
+   ocaml/extracted/kTDeque.ml
+# (The .mli is hand-maintained; rebuild + dune runtest to confirm.)
 ```
 
 The differential test (`make check-diff*` from the C side) runs the
