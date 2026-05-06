@@ -229,38 +229,32 @@ What the scaling data *does* show:
 `make bench-adversarial` runs a workload designed to *break* D4's
 amortized analysis.  The amortized argument says "average over a
 sequence of M operations on the *same evolving structure*".  It does
-NOT bound a single operation: D4's worst-case op is O(log N) on a
-*primed* state.
+NOT bound a single operation: D4's worst-case op is O(log N).
 
 Persistence breaks the amortization: take a saved state s, apply M
 push operations using s as the LHS each time.  Each call returns a
 new deque; s is unchanged.  No credits carry across calls — every
 single call pays its own state-dependent worst-case cost.
 
-We hand-construct a "primed" D4 state with all-B5 prefixes at every
-level (a valid chain value structurally) and we also build a
-sequentially-pushed deque at the same logical size — the latter is
-reachable from empty by N pushes, the former probably is not (every
-cascade leaves one prefix at B4, so the all-B5 alignment isn't a
-state any push-only sequence stops at).  We include both because the
-empirical result is the same: D4_sequential per-op cost matches
-D4_primed within a few ns at every depth, so even *ordinary* use
-exposes the worst case.  KT, Vi and C are built via sequential pushes
-to the same logical size — their per-op cost is state-independent by
-construction (WC O(1)), so any state suffices.
+All four implementations are built the same way: N sequential pushes
+from empty.  We pick N = 5*(2^(d+1)-1) — sizes where sequential build
+deterministically lands at a state from which one more push triggers
+a Θ(d) cascade in D4.  Every state in the bench is therefore reachable
+from empty.  KT, Vi and the C library are state-independent (WC O(1))
+so any state of size N suffices for them.
 
 ![adversarial](plots/adversarial.png)
 
 Sample numbers from this machine (ns/op; lower is better):
 
-| Depth |     Size  |  C   |  KT  |  Vi  | D4_primed | D4_sequential | KT/D4 ratio |
-| ----: | --------: | ---: | ---: | ---: | --------: | ------------: | ----------: |
-|     0 |        5  |108.3 |  9.0 | 11.7 |    14.9   |       14.8    |     0.6×    |
-|     4 |      155  | 28.6 | 26.0 | 29.8 |    50.2   |       54.1    |   **1.9×**  |
-|     8 |    2,555  | 43.1 | 26.1 | 29.9 |    96.3   |       97.7    |   **3.7×**  |
-|    12 |   40,955  | 57.2 | 25.7 | 30.0 |   132.8   |      133.5    |   **5.2×**  |
-|    16 |  655,355  | 33.3 | 25.8 | 29.7 |   171.6   |      174.8    |   **6.7×**  |
-|    18 | 2,621,435 | 35.3 | 25.4 | 47.5 |   190.7   |      198.7    |   **7.5×**  |
+| Depth |     Size  |  C   |  KT  |  Vi  |  D4   | KT/D4 ratio |
+| ----: | --------: | ---: | ---: | ---: | ----: | ----------: |
+|     0 |        5  |104.6 |  7.4 |  9.9 |  17.8 |     0.4×    |
+|     4 |      155  | 29.9 | 25.3 | 30.0 |  50.3 |   **2.0×**  |
+|     8 |    2,555  | 50.6 | 26.9 | 30.3 | 103.7 |   **3.9×**  |
+|    12 |   40,955  | 66.1 | 26.4 | 30.0 | 146.6 |   **5.6×**  |
+|    16 |  655,355  | 32.5 | 26.7 | 30.0 | 172.2 |   **6.4×**  |
+|    18 | 2,621,435 | 42.1 | 25.8 | 31.0 | 212.0 |   **8.2×**  |
 
 What the table is saying:
 
@@ -270,21 +264,18 @@ What the table is saying:
   independent, exactly what the proofs guarantee.
 - **D4's per-op cost grows linearly with cascade depth** (~ +10 ns
   per level).  At depth 18 the structure has cascaded 18 times
-  deep, so each persistent push redoes 18 levels of work.
-- **D4_primed and D4_sequential agree closely**: at these sizes,
-  sequentially-built D4 states naturally land at near-worst-case
-  cascade boundaries, so even "natural" use exposes the gap.
-- **The ratio grows with N**: 1.9× at depth 4, 7.5× at depth 18
-  (≈ 2.6M elements).  Asymptotically unbounded — that's the formal
-  content of "amortized O(log n) ≠ worst-case O(1)".
-- **C noise at small depths** (108 ns at depth 0, dropping to ~30 ns
+  deep, so each persistent push redoes ~18 levels of work.
+- **The ratio grows with N**: 2× at depth 4, 8× at depth 18 (≈ 2.6M
+  elements).  Asymptotically unbounded — that's the formal content
+  of "amortized O(log n) ≠ worst-case O(1)".
+- **C noise at small depths** (104 ns at depth 0, dropping to ~30 ns
   by depth 3) is residual arena warm-up that the warmup pass at the
   start of the C bench doesn't fully amortize on the first few
   depths; ignore the depth-0 row when comparing.
 
 The story this plot tells is *operational*: same workload, same
-persistence, different per-op guarantee class, observably different
-scaling.
+persistence, all states reachable from empty by ordinary pushes, yet
+observably different scaling per-op.
 
 #### Why we cap N at 10⁸ on a 62 GB box
 

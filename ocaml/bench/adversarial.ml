@@ -13,31 +13,19 @@
     state is unchanged).  Each call pays the *single-op* cost of state
     s.  No credits carry across calls because the calls do not chain.
 
-    On a primed state s (one where push triggers a depth-d cascade),
-    M persistent pushes cost M*d work for D4, but M*c for KT/Vi (where
-    c is the WC bound).
+    All states tested here are *reachable* from empty by ordinary
+    sequences of push operations.  We pick logical sizes
+    N = 5*(2^(d+1)-1) — the depth where, after N sequential pushes from
+    empty, the resulting D4 chain has just enough cascade boundaries
+    aligned that a single additional push pays Θ(d) work.  Persistent
+    push from such a state pays that Θ(d) cost on every iteration.
 
-    We hand-construct a "primed" D4 state with all-B5 prefixes at every
-    level.  This state is *structurally* a valid [chain] value but is
-    NOT reached by any push-only sequence from empty — every level-0
-    cascade leaves level 0 at B4, so all levels are never simultaneously
-    at B5 mid-sequence.  We include it to demonstrate the bound that
-    the proof carries: a chain of this shape *exists* as an inhabited
-    type, and on it every push pays log-N work.
-
-    For the realistic case we also report [D4_sequential]: build the
-    same logical size by N sequential pushes from empty.  Empirically
-    this lands at a state which is just as expensive (sometimes more)
-    on the persistent-push test as the hand-crafted primed state — so
-    the worst case is reached by ordinary use, not just by adversarial
-    construction.
-
-    For KT and Vi we build via sequential pushes to the same logical
-    size; their per-op cost is state-independent by construction so
-    any state suffices.
+    For KT, Vi and the C library we build via sequential pushes to the
+    same logical size; their per-op cost is state-independent (WC O(1))
+    so any state suffices.
 
     Run via [bench/adversarial.sh].  Output is one row per (impl, depth)
-    with ns/op for [m] persistent pushes from the primed state. *)
+    with ns/op for [m] persistent pushes from the saved state. *)
 
 open Ktdeque_bench_helpers
 
@@ -63,29 +51,13 @@ let warmup () =
   for i = 1 to n do d4 := Deque4.push i !d4 done
 
 (* ------------------------------------------------------------------ *)
-(* Construct a D4 state primed for cascade depth [d].                  *)
-(* All prefixes at B5, all suffixes at B0, child chain nests d levels. *)
-(* The element values are dummy ints; the bench measures structural    *)
-(* work, not value-dependent paths.                                     *)
+(* Logical size we run at for each "depth" point.                      *)
+(* N = 5*(2^(d+1) - 1) — the size where N sequential pushes from empty *)
+(* leave D4 in a state from which one more push triggers a Θ(d)       *)
+(* cascade.  Match the C-side bench's logical_size so the X-axis is    *)
+(* identical across runtimes.                                           *)
 (* ------------------------------------------------------------------ *)
 
-(* Polymorphic recursion: build a primed chain at element type 'a, then
-   wrap in Two-cells to descend into ('a*'a) and so on.  Because OCaml
-   polymorphic recursion needs explicit annotation, we use a GADT-style
-   helper. *)
-
-let rec primed_d4 : type a. a -> int -> a Deque4.chain =
-  fun (seed : a) (depth : int) : a Deque4.chain ->
-    let b5_of (x : a) : a Deque4.buf5 = Deque4.B5 (x, x, x, x, x) in
-    if depth <= 0 then Deque4.One (b5_of seed)
-    else
-      let child : (a * a) Deque4.chain = primed_d4 (seed, seed) (depth - 1) in
-      Two (b5_of seed, child, B0)
-
-let primed_d4_t (depth : int) : int Deque4.t = Some (primed_d4 0 depth)
-
-(* Logical size of a primed-d4 chain at given depth: prefix B5 at level
-   l holds 5 * 2^l base elements.  Sum_{l=0..d} 5 * 2^l = 5 * (2^(d+1) - 1). *)
 let logical_size depth = 5 * ((1 lsl (depth + 1)) - 1)
 
 (* ------------------------------------------------------------------ *)
@@ -108,10 +80,7 @@ let build_vi n =
   for i = 1 to n do vi := Viennot_deque.Deque.Base.push i !vi done;
   !vi
 
-(* Also build D4 via sequential pushes, for the curious reader: this is
-   the "lucky path" — sequential build leaves D4 in a state where the
-   typical push-from-saved is cheap.  Contrast with primed state. *)
-let build_d4_sequential n =
+let build_d4 n =
   let d4 = ref Deque4.empty in
   for i = 1 to n do d4 := Deque4.push i !d4 done;
   !d4
@@ -162,15 +131,12 @@ let run depths m =
   warmup ();
   List.iter (fun depth ->
     let size = logical_size depth in
-    (* D4 primed: worst case — every push triggers depth-d cascade *)
-    let d4_primed = Some (primed_d4 0 depth) in
-    let ns_d4_primed = time_persistent_push_d4 ~m d4_primed in
-    emit ~impl:"D4_primed" ~depth ~size ~ns:ns_d4_primed;
-    (* D4 sequential build at the same logical size — typical case *)
-    let d4_seq = build_d4_sequential size in
-    let ns_d4_seq = time_persistent_push_d4 ~m d4_seq in
-    emit ~impl:"D4_sequential" ~depth ~size ~ns:ns_d4_seq;
-    (* KT and Vi at the same size — WC bounds make state irrelevant *)
+    (* D4 built by sequential push from empty — reachable, and at this
+       choice of size already pays Θ(d) per persistent push. *)
+    let d4_state = build_d4 size in
+    let ns_d4 = time_persistent_push_d4 ~m d4_state in
+    emit ~impl:"D4" ~depth ~size ~ns:ns_d4;
+    (* KT and Vi at the same size — WC bounds make state irrelevant. *)
     let kt_state = build_kt size in
     let ns_kt = time_persistent_push_kt ~m kt_state in
     emit ~impl:"KT" ~depth ~size ~ns:ns_kt;

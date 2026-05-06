@@ -24,14 +24,10 @@ COLORS = {
     "C":              "#1f77b4",
     "KT":             "#2ca02c",
     "Viennot":        "#d62728",
-    "D4_primed":      "#9467bd",
-    "D4_sequential":  "#8c564b",
+    "D4":             "#9467bd",
 }
-MARKERS = {
-    "C": "o", "KT": "s", "Viennot": "^",
-    "D4_primed": "D", "D4_sequential": "x",
-}
-IMPL_ORDER = ("C", "KT", "Viennot", "D4_primed", "D4_sequential")
+MARKERS = {"C": "o", "KT": "s", "Viennot": "^", "D4": "D"}
+IMPL_ORDER = ("C", "KT", "Viennot", "D4")
 
 
 def read_csv(path):
