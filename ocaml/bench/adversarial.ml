@@ -17,8 +17,21 @@
     M persistent pushes cost M*d work for D4, but M*c for KT/Vi (where
     c is the WC bound).
 
-    We construct a primed D4 state directly by building the chain
-    structure with all-B5 prefixes — guaranteed worst-case for D4.
+    We hand-construct a "primed" D4 state with all-B5 prefixes at every
+    level.  This state is *structurally* a valid [chain] value but is
+    NOT reached by any push-only sequence from empty — every level-0
+    cascade leaves level 0 at B4, so all levels are never simultaneously
+    at B5 mid-sequence.  We include it to demonstrate the bound that
+    the proof carries: a chain of this shape *exists* as an inhabited
+    type, and on it every push pays log-N work.
+
+    For the realistic case we also report [D4_sequential]: build the
+    same logical size by N sequential pushes from empty.  Empirically
+    this lands at a state which is just as expensive (sometimes more)
+    on the persistent-push test as the hand-crafted primed state — so
+    the worst case is reached by ordinary use, not just by adversarial
+    construction.
+
     For KT and Vi we build via sequential pushes to the same logical
     size; their per-op cost is state-independent by construction so
     any state suffices.

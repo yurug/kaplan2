@@ -21,13 +21,17 @@ import matplotlib.pyplot as plt
 
 
 COLORS = {
+    "C":              "#1f77b4",
     "KT":             "#2ca02c",
     "Viennot":        "#d62728",
     "D4_primed":      "#9467bd",
     "D4_sequential":  "#8c564b",
 }
-MARKERS = {"KT": "s", "Viennot": "^", "D4_primed": "D", "D4_sequential": "x"}
-IMPL_ORDER = ("KT", "Viennot", "D4_primed", "D4_sequential")
+MARKERS = {
+    "C": "o", "KT": "s", "Viennot": "^",
+    "D4_primed": "D", "D4_sequential": "x",
+}
+IMPL_ORDER = ("C", "KT", "Viennot", "D4_primed", "D4_sequential")
 
 
 def read_csv(path):
@@ -64,7 +68,7 @@ def render(data, out_path):
     ax.set_ylabel("ns / op (lower is better)")
     ax.set_title(
         "Persistent-fork: M push ops from a saved state\n"
-        "WC O(1) (KT, Viennot) flat; amortized O(log N) (D4) grows linearly with depth"
+        "WC O(1) (C, KT, Viennot) flat; amortized O(log N) (D4) grows linearly with depth"
     )
     ax.grid(True, which="both", alpha=0.3)
     ax.set_ylim(bottom=0)

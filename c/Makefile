@@ -76,6 +76,11 @@ test_debug: $(KT_C_SRC) $(TESTDIR)/test.c $(KT_HDR)
 bench: $(KT_C_SRC) $(BENCHDIR)/bench.c $(KT_HDR)
 	$(CC) $(CFLAGS) -o $@ $(KT_C_SRC) $(BENCHDIR)/bench.c $(LDFLAGS)
 
+# Persistent-fork microbench — emits CSV "C,<depth>,<size>,<ns_per_op>"
+# rows, consumed by bench/adversarial.sh alongside the OCaml side.
+bench_adversarial: $(KT_C_SRC) $(BENCHDIR)/bench_adversarial.c $(KT_HDR)
+	$(CC) $(CFLAGS) -o $@ $(KT_C_SRC) $(BENCHDIR)/bench_adversarial.c $(LDFLAGS)
+
 # wc_test must enable KT_PROFILE so the alloc counters are live.
 wc_test: $(KT_C_SRC) $(TESTDIR)/wc_test.c $(KT_HDR)
 	$(CC) $(CFLAGS) -DKT_PROFILE -o $@ $(KT_C_SRC) $(TESTDIR)/wc_test.c $(LDFLAGS)
