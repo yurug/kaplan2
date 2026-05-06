@@ -5,11 +5,12 @@ to audit** (single shell script per benchmark, no hidden state) and
 **easy to reproduce** (one make target each, environment fingerprint
 embedded in every result file).
 
-| Benchmark                | What it compares                                                                 | Run via                  |
-| ------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
-| [`three-way.sh`](three-way.sh)   | Our **C** vs our **OCaml** (extracted) vs **Viennot OCaml** at one fixed N        | `make bench-three-way`   |
-| [`canonical.sh`](canonical.sh)   | Our verified ktdeque vs canonical-style alternatives, à la Viennot et al. PLDI'24 | `make bench-canonical`   |
-| [`sweep.sh`](sweep.sh)           | C / KTDeque / Viennot / **D4** swept over N from 10⁴ to 10⁸; renders PNG plots    | `make bench-sweep`       |
+| Benchmark                | What it compares                                                                 | Run via                       |
+| ------------------------ | -------------------------------------------------------------------------------- | ----------------------------- |
+| [`three-way.sh`](three-way.sh)   | Our **C** vs our **OCaml** (extracted) vs **Viennot OCaml** at one fixed N        | `make bench-three-way`        |
+| [`canonical.sh`](canonical.sh)   | Our verified ktdeque vs canonical-style alternatives, à la Viennot et al. PLDI'24 | `make bench-canonical`        |
+| [`sweep.sh`](sweep.sh)           | C / KTDeque / Viennot / **D4** swept over N from 10⁴ to 10⁸; renders PNG plots    | `make bench-sweep`            |
+| [`adversarial.sh`](adversarial.sh) | Persistent-fork microbench: forces D4's worst case per op, isolates WC vs amortized | `make bench-adversarial`    |
 
 Both scripts:
 
@@ -185,31 +186,34 @@ Numbers from the same run (ns/op, lower is better):
 
 | N           |     C push |  KT push |  Vi push |  D4 push |
 | ----------: | ---------: | -------: | -------: | -------: |
-|      10,000 |     159.8  |   166.0  |   180.0  |   209.8  |
-|     100,000 |      60.5  |    88.9  |    89.1  |    84.3  |
-|   1,000,000 |      37.5  |    81.9  |    83.7  |    78.5  |
-|  10,000,000 |      35.9  |    79.5  |    81.5  |    75.8  |
-| 100,000,000 |      35.3  |    81.9  |    85.8  |    73.5  |
+|      10,000 |     139.4  |    62.2  |    61.0  |    54.2  |
+|     100,000 |      53.1  |    76.2  |   101.7  |    66.5  |
+|   1,000,000 |      37.8  |    82.9  |    96.3  |    74.0  |
+|  10,000,000 |      35.3  |    84.9  |    90.6  |    79.1  |
+| 100,000,000 |      33.2  |    88.1  |    87.8  |    78.8  |
 
-The N=10⁴ row reflects cold-start effects (allocator warm-up + initial
-arena chunk).  From N=10⁵ onward each implementation's per-op cost is
-flat to within a few ns — exactly the empirical fingerprint of
-worst-case O(1).  The full table at all 5 ops × 5 sizes (push, inject,
-pop, eject, mixed) lives in `bench/results/sweep-YYYY-MM-DD.md` after a
-run.
+Both binaries now run a small warmup loop (1000 ops per impl) before
+the timed measurements, so the N=10⁴ numbers reflect steady-state
+per-op cost rather than first-touch / page-fault startup overhead.
+(C push at N=10⁴ is still slightly elevated because the C arena's
+first chunk allocation happens inside the timed loop — a residual
+that doesn't affect any larger N.)  Each implementation's per-op
+cost is flat across the four orders of magnitude — exactly the
+empirical fingerprint of worst-case O(1).  The full table at all 5
+ops × 5 sizes (push, inject, pop, eject, mixed) lives in
+`bench/results/sweep-YYYY-MM-DD.md` after a run.
 
 #### What about D4's O(log n) drift?
 
 D4 is amortized O(log n) per op, so its line *should* drift upward
-with N.  In practice the drift is invisible at this size range: from
-N=10⁴ to N=10⁸ the cascade depth roughly doubles (log₂ goes from ~14
-to ~27), but the per-cell work is so small that the absolute ns/op
-shift gets lost in run-to-run noise.  You'd need an adversarial
-workload that *forces* deep cascades on every op (rather than
-amortizing them) to see the divergence — which is precisely the WC vs
-amortized distinction the WC-O(1) bound buys you.
+with N.  In practice the drift is invisible on these scaling plots:
+push N elements through D4 sequentially and the cascades amortize
+across the whole sequence, so the per-op average stays near constant.
+To force the divergence you need an adversarial workload that *defeats
+the amortized analysis*.  See [`bench-adversarial`](#bench-adversarial-persistent-fork-microbench)
+below — it shows D4 paying 7× the per-op cost of KT at depth 18.
 
-What the data *does* show:
+What the scaling data *does* show:
 
 - **All four lines stay flat** from N=10⁵ on.  C wins everywhere; KT
   and Vi are within ~5%; D4 is comparable on push and *faster* on
@@ -219,6 +223,57 @@ What the data *does* show:
   on the simple paths so that the *adversarial* worst case is
   bounded.  D4 has no such bookkeeping, so the common case is faster
   — but its worst-case op is unbounded by N.
+
+### `bench-adversarial` (persistent-fork microbench)
+
+`make bench-adversarial` runs a workload designed to *break* D4's
+amortized analysis.  The amortized argument says "average over a
+sequence of M operations on the *same evolving structure*".  It does
+NOT bound a single operation: D4's worst-case op is O(log N) on a
+*primed* state.
+
+Persistence breaks the amortization: take a saved state s, apply M
+push operations using s as the LHS each time.  Each call returns a
+new deque; s is unchanged.  No credits carry across calls — every
+single call pays its own state-dependent worst-case cost.
+
+We construct a primed D4 state directly (chain with all-B5 prefixes
+down to depth d), build KT and Vi via sequential pushes to the same
+logical size, then time M=200k persistent pushes per impl.
+
+![adversarial](plots/adversarial.png)
+
+Sample numbers from this machine (ns/op; lower is better):
+
+| Depth |     Size  |  KT  |  Vi  | D4_primed | D4_sequential | KT/D4 ratio |
+| ----: | --------: | ---: | ---: | --------: | ------------: | ----------: |
+|     0 |        5  | 7.4  | 8.7  |    14.6   |       11.9    |     **2.0×**|
+|     4 |      155  | 25.4 | 29.6 |    50.4   |       50.5    |     **2.0×**|
+|     8 |    2,555  | 25.8 | 29.8 |    96.2   |       98.0    |     **3.7×**|
+|    12 |   40,955  | 25.5 | 30.1 |   133.7   |      135.8    |     **5.3×**|
+|    16 |  655,355  | 25.8 | 29.9 |   172.2   |      175.8    |     **6.7×**|
+|    18 | 2,621,435 | 24.6 | 28.6 |   184.0   |      191.6    |     **7.5×**|
+
+What the table is saying:
+
+- **KT and Viennot are flat across depth** (~25 and ~30 ns).  This
+  is the empirical fingerprint of WC O(1): per-op cost is genuinely
+  state-independent, exactly what the proof guarantees.
+- **D4's per-op cost grows linearly with cascade depth** (~ +10 ns
+  per level).  At depth 18 the structure has cascaded 18 times
+  deep, so each persistent push redoes 18 levels of work.
+- **D4_primed and D4_sequential agree closely**: at these sizes,
+  sequentially-built D4 states naturally land at near-worst-case
+  cascade boundaries, so even "natural" use exposes the gap.
+- **The ratio grows with N**: 2× at depth 4, 7× at depth 18 (≈ 2.6M
+  elements).  Asymptotically the ratio is unbounded — that's the
+  formal content of "amortized O(log n) ≠ worst-case O(1)".
+
+The C library is omitted from this plot: like KT it's WC O(1) by
+construction, so it would be flat at ~30-35 ns and add no contrast
+beyond what KT and Vi already show.  The story this plot tells is
+*operational*: same workload, same persistence, different per-op
+guarantee class, observably different scaling.
 
 #### Why we cap N at 10⁸ on a 62 GB box
 

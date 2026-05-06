@@ -299,11 +299,35 @@ static void bench_region(int n) {
     printf("\n");
 }
 
+/* Warm arena, code paths, branch predictor before timed measurement.
+ * Without this the first `bench()` row absorbed first-touch costs
+ * (~150-200 ns/op at N=10^4 instead of the steady-state ~35-60 ns/op). */
+static void warmup_runtime(void) {
+    long warm_values[5000];
+    for (int i = 0; i < 5000; i++) warm_values[i] = i + 1;
+    kt_deque d = kt_empty();
+    for (int i = 0; i < 5000; i++) {
+        d = kt_push(kt_base(&warm_values[i]), d);
+    }
+    for (int i = 0; i < 5000; i++) {
+        kt_elem e; int ne;
+        d = kt_pop(d, &e, &ne);
+        if (!ne) break;
+    }
+    /* Also exercise inject/eject paths and the compaction path. */
+    d = kt_empty();
+    for (int i = 0; i < 5000; i++) {
+        d = kt_inject(d, kt_base(&warm_values[i]));
+        if ((i & 0xfff) == 0xfff) kt_arena_compact(&d, 1);
+    }
+}
+
 /* If invoked with one or more numeric arguments, run the core `bench`
  * (no region workload) at exactly those sizes — used by the sweep
  * harness in bench/sweep.sh.  With no arguments, run the default
  * three-size sweep + the region workload. */
 int main(int argc, char** argv) {
+    warmup_runtime();
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {
             long n = strtol(argv[i], NULL, 10);

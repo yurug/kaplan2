@@ -75,6 +75,37 @@ let time label f =
   Printf.printf "  %-30s : %8.3f ms\n" label ((t1 -. t0) *. 1000.0);
   r
 
+(* Warm allocator, OCaml minor heap, branch predictor, ICache before
+   the first timed measurement.  Without this the N=10^4 row of the
+   sweep absorbed runtime startup cost (~150-200 ns/op anomaly).
+   Keep the warmup small enough that it does not perturb the major
+   heap state of the subsequent timed loops. *)
+let warmup_runtime () =
+  let n = 1_000 in
+  let kt = ref Kt.empty in
+  let vi = ref Vi.empty in
+  let d4 = ref D4.empty in
+  for i = 1 to n do
+    kt := Kt.push i !kt;
+    vi := Vi.push i !vi;
+    d4 := D4.push i !d4
+  done;
+  for _ = 1 to n do
+    (match Kt.pop !kt with Some (_, k') -> kt := k' | None -> ());
+    (match Vi.pop !vi with Some (_, v') -> vi := v' | None -> ());
+    (match D4.pop !d4 with Some (_, d') -> d4 := d' | None -> ())
+  done;
+  for i = 1 to n do
+    kt := Kt.inject !kt i;
+    vi := Vi.inject !vi i;
+    d4 := D4.inject !d4 i
+  done;
+  for _ = 1 to n do
+    (match Kt.eject !kt with Some (k', _) -> kt := k' | None -> ());
+    (match Vi.eject !vi with Some (v', _) -> vi := v' | None -> ());
+    (match D4.eject !d4 with Some (d', _) -> d4 := d' | None -> ())
+  done
+
 (* The sweep harness runs this binary once per (impl, size) so that at
    N=10^8 we never hold KT, Vi and D4 alive in the same OCaml heap.
    BENCH_IMPLS picks which impls to run; default = all three (the
@@ -197,6 +228,7 @@ let benchmark n =
   Printf.printf "\n"
 
 let () =
+  warmup_runtime ();
   if Array.length Sys.argv > 1 then
     (* Sweep mode: run at exactly the sizes given on the command line.
        Used by bench/sweep.sh. *)

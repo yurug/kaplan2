@@ -1,5 +1,5 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
-        bench-three-way bench-canonical bench-sweep bench-all
+        bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
 
 all: rocq
 
@@ -49,7 +49,14 @@ bench-canonical:
 bench-sweep:
 	bench/sweep.sh
 
-bench-all: bench-three-way bench-canonical
+# Adversarial persistent-fork microbench: re-execute one push from a
+# saved state M times.  Defeats D4's amortized analysis (every op
+# pays its single-op worst-case cost = O(log N)), demonstrating the
+# operational value of WC O(1).  Wall-clock < 1 minute.
+bench-adversarial:
+	bench/adversarial.sh
+
+bench-all: bench-three-way bench-canonical bench-adversarial
 
 clean:
 	dune clean

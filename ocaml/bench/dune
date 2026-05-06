@@ -20,3 +20,10 @@
 (executable
  (name canonical)
  (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+
+; adversarial.ml: persistent-fork microbench — re-run a single op from
+; a saved state M times to defeat the amortized analysis on D4.  Driven
+; from bench/adversarial.sh.
+(executable
+ (name adversarial)
+ (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
