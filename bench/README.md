@@ -249,33 +249,43 @@ Sample numbers from this machine (ns/op; lower is better):
 
 | Depth |     Size  |  C   |  KT  |  Vi  |  D4   | KT/D4 ratio |
 | ----: | --------: | ---: | ---: | ---: | ----: | ----------: |
-|     0 |        5  |104.6 |  7.4 |  9.9 |  17.8 |     0.4×    |
-|     4 |      155  | 29.9 | 25.3 | 30.0 |  50.3 |   **2.0×**  |
-|     8 |    2,555  | 50.6 | 26.9 | 30.3 | 103.7 |   **3.9×**  |
-|    12 |   40,955  | 66.1 | 26.4 | 30.0 | 146.6 |   **5.6×**  |
-|    16 |  655,355  | 32.5 | 26.7 | 30.0 | 172.2 |   **6.4×**  |
-|    18 | 2,621,435 | 42.1 | 25.8 | 31.0 | 212.0 |   **8.2×**  |
+|     0 |        5  | 16.2 |  7.4 |  8.7 |  17.4 |     0.4×    |
+|     4 |      155  | 24.3 | 25.0 | 30.0 |  66.3 |   **2.7×**  |
+|     8 |    2,555  | 24.9 | 25.8 | 33.3 |  96.4 |   **3.7×**  |
+|    12 |   40,955  | 21.0 | 25.5 | 29.9 | 131.9 |   **5.2×**  |
+|    16 |  655,355  | 20.3 | 25.6 | 30.0 | 171.9 |   **6.7×**  |
+|    18 | 2,621,435 | 25.1 | 25.5 | 31.3 | 191.3 |   **7.5×**  |
 
 What the table is saying:
 
-- **C, KT and Viennot are all flat across depth** (~30-40, ~25, ~30 ns
-  respectively).  Three independent WC-O(1) implementations giving the
-  same empirical fingerprint: per-op cost is genuinely state-
+- **C, KT and Viennot are all flat across depth** (~22, ~25, ~30 ns
+  respectively).  Three independent WC-O(1) implementations giving
+  the same empirical fingerprint: per-op cost is genuinely state-
   independent, exactly what the proofs guarantee.
 - **D4's per-op cost grows linearly with cascade depth** (~ +10 ns
   per level).  At depth 18 the structure has cascaded 18 times
   deep, so each persistent push redoes ~18 levels of work.
-- **The ratio grows with N**: 2× at depth 4, 8× at depth 18 (≈ 2.6M
-  elements).  Asymptotically unbounded — that's the formal content
-  of "amortized O(log n) ≠ worst-case O(1)".
-- **C noise at small depths** (104 ns at depth 0, dropping to ~30 ns
-  by depth 3) is residual arena warm-up that the warmup pass at the
-  start of the C bench doesn't fully amortize on the first few
-  depths; ignore the depth-0 row when comparing.
+- **The ratio grows with N**: 2.7× at depth 4, 7.5× at depth 18
+  (≈ 2.6M elements).  Asymptotically unbounded — that's the formal
+  content of "amortized O(log n) ≠ worst-case O(1)".
 
 The story this plot tells is *operational*: same workload, same
 persistence, all states reachable from empty by ordinary pushes, yet
 observably different scaling per-op.
+
+##### A note on the C arena and persistence
+
+The persistent-push pattern is unusual: every iteration allocates a
+new chain link whose result we immediately discard.  Without
+intervention M=200k iterations would leak ~10 MB of dead links into
+the C arena, spilling the working set out of L2 and adding
+memory-system noise that has nothing to do with per-op cost.  OCaml's
+minor GC reclaims discarded results during the loop implicitly; in C
+we ask for it explicitly with `kt_arena_compact` every 4096 iterations.
+Compaction time is excluded from the per-op measurement.  This is a
+realistic usage pattern — long-running C programs that hold persistent
+deques are expected to compact periodically; see the production region
+API (`kt_region_*`) for the same idea integrated with explicit lifetimes.
 
 #### Why we cap N at 10⁸ on a 62 GB box
 

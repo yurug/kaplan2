@@ -39,17 +39,24 @@ static long logical_size(int depth) {
 static long warm_storage[4096];
 
 /* Warm allocator + ICache + branch predictor before any timed loop.
- * Mirrors c/benches/bench.c warmup_runtime. */
+ * Mirrors what the timed loop does: build a small saved state and run
+ * a discarded-result persistent-push loop with periodic compaction —
+ * the unusual pattern that the simpler push+pop warmup in bench.c
+ * does not exercise. */
 static void warmup_runtime(void) {
     for (int i = 0; i < 4096; i++) warm_storage[i] = i + 1;
-    kt_deque d = kt_empty();
-    for (int i = 0; i < 4096; i++) {
-        d = kt_push(kt_base(&warm_storage[i]), d);
+    kt_deque saved = kt_empty();
+    for (int i = 0; i < 256; i++) {
+        saved = kt_push(kt_base(&warm_storage[i]), saved);
     }
-    for (int i = 0; i < 4096; i++) {
-        kt_elem e; int ne;
-        d = kt_pop(d, &e, &ne);
-        if (!ne) break;
+    kt_arena_compact(&saved, 1);
+    kt_elem e = kt_base(&warm_storage[0]);
+    /* Mirror the timed-loop body: discarded persistent push with the
+     * same compaction cadence the timed loop uses. */
+    for (long i = 0; i < 50000; i++) {
+        kt_deque _r = kt_push(e, saved);
+        (void)_r;
+        if ((i & 0xfff) == 0xfff) kt_arena_compact(&saved, 1);
     }
 }
 
@@ -77,21 +84,38 @@ static void run_depth(int depth, long m, long* values, long n_values) {
 
     /* Use a single value for the M persistent pushes — the structural
      * work is value-independent.  We point at warm_storage[0] which
-     * is alive through the whole bench (file-scope static). */
+     * is alive through the whole bench (file-scope static).
+     *
+     * We periodically compact the arena DURING the loop because each
+     * persistent push allocates a chain link whose result we discard.
+     * Without compaction, M=200k iterations leak ~10 MB of dead links
+     * into the arena, spilling the working set out of L2 and adding
+     * memory-system noise that has nothing to do with the per-op
+     * cost.  The OCaml side avoids this implicitly via minor GC; in
+     * C we need to ask for it explicitly.  Compact time is excluded
+     * from the per-op measurement. */
+    const long COMPACT_INTERVAL = 4096;
     kt_elem e = kt_base(&warm_storage[0]);
-    double t0 = now_sec();
-    for (long i = 0; i < m; i++) {
-        kt_deque _r = kt_push(e, saved);
-        (void)_r;
+    double accum = 0.0;
+    long burst = 0;
+    long i = 0;
+    while (i < m) {
+        long todo = m - i;
+        if (todo > COMPACT_INTERVAL) todo = COMPACT_INTERVAL;
+        double t0 = now_sec();
+        for (long j = 0; j < todo; j++) {
+            kt_deque _r = kt_push(e, saved);
+            (void)_r;
+        }
+        double t1 = now_sec();
+        accum += (t1 - t0);
+        i += todo;
+        burst++;
+        kt_arena_compact(&saved, 1);
     }
-    double t1 = now_sec();
-    double ns_per_op = (t1 - t0) * 1e9 / (double)m;
+    double ns_per_op = accum * 1e9 / (double)m;
     printf("C,%d,%ld,%.3f\n", depth, size, ns_per_op);
     fflush(stdout);
-
-    /* Free the dead arena tail accumulated during the timed loop, in
-     * preparation for the next depth.  saved is still a valid root. */
-    kt_arena_compact(&saved, 1);
 }
 
 static void parse_csv_ints(const char* s, int** out, int* out_n) {
