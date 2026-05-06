@@ -1,6 +1,6 @@
 (executable
  (name compare)
- (libraries unix viennot_deque ktdeque))
+ (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
 
 (executable
  (name crossover)

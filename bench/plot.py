@@ -4,7 +4,11 @@
 Reads a CSV with columns (n, op, impl, ns_per_op) produced by
 bench/sweep.sh, emits one PNG per op (push, pop, inject, eject, mixed)
 showing ns/op vs n on a log-x axis with one line per implementation
-(C, KTDeque, Viennot).  Also writes a Markdown summary table.
+(C, KTDeque, Viennot, D4).  Also writes a Markdown summary table.
+
+D4 (our hand-written amortized-O(log n) variant) is deliberately
+included as a contrast to the WC-O(1) lines: its per-op cost should
+drift upward with N, where the other three stay flat.
 
 Usage:
     bench/plot.py <csv> <plot_dir> <md_summary_file>
@@ -32,14 +36,20 @@ def read_csv(path):
     return data
 
 
-COLORS = {"C": "#1f77b4", "KTDeque": "#2ca02c", "Viennot": "#d62728"}
-MARKERS = {"C": "o", "KTDeque": "s", "Viennot": "^"}
+COLORS = {
+    "C": "#1f77b4",
+    "KTDeque": "#2ca02c",
+    "Viennot": "#d62728",
+    "D4": "#9467bd",
+}
+MARKERS = {"C": "o", "KTDeque": "s", "Viennot": "^", "D4": "D"}
+IMPL_ORDER = ("C", "KTDeque", "Viennot", "D4")
 
 
 def render_op(op, impl_data, out_path):
     """impl_data: { impl_name -> [(n, ns), ...] }"""
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
-    for impl in ("C", "KTDeque", "Viennot"):
+    for impl in IMPL_ORDER:
         if impl not in impl_data:
             continue
         ns = impl_data[impl]
@@ -71,7 +81,7 @@ def write_md_summary(data, md_path, csv_path):
     sizes = sorted(
         {n for op in data for impl in data[op] for n, _ in data[op][impl]}
     )
-    impls = ["C", "KTDeque", "Viennot"]
+    impls = list(IMPL_ORDER)
     ops = ["push", "inject", "pop", "eject", "mixed"]
     lines = []
     lines.append("# Three-way scaling sweep\n")

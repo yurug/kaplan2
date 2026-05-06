@@ -9,7 +9,7 @@ embedded in every result file).
 | ------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
 | [`three-way.sh`](three-way.sh)   | Our **C** vs our **OCaml** (extracted) vs **Viennot OCaml** at one fixed N        | `make bench-three-way`   |
 | [`canonical.sh`](canonical.sh)   | Our verified ktdeque vs canonical-style alternatives, à la Viennot et al. PLDI'24 | `make bench-canonical`   |
-| [`sweep.sh`](sweep.sh)           | The same three impls, swept over N from 10⁴ to 10⁸; renders PNG plots             | `make bench-sweep`       |
+| [`sweep.sh`](sweep.sh)           | C / KTDeque / Viennot / **D4** swept over N from 10⁴ to 10⁸; renders PNG plots    | `make bench-sweep`       |
 
 Both scripts:
 
@@ -157,8 +157,17 @@ yourself.
 ### `bench-sweep` (N from 10⁴ to 10⁸)
 
 `make bench-sweep` varies N over five orders of magnitude and renders
-PNG plots showing ns/op vs N for each (op × impl).  Flat lines are
-the WC O(1) signal: per-op cost does not grow with N.
+PNG plots showing ns/op vs N for each (op × impl).  Four lines per
+plot:
+
+- **C** — our C library (`libktdeque.a`), arena compaction at K=4096.
+- **KTDeque** — verified Rocq extraction (`push_kt2 / pop_kt2 / …`).
+- **Viennot** — Viennot's hand-written WC-O(1) reference.
+- **D4** — our hand-written *amortized* O(log n) variant
+  (`Ktdeque_bench_helpers.Deque4`), included as the contrast against
+  WC O(1).
+
+Flat lines are the WC O(1) signal: per-op cost does not grow with N.
 
 The plots below were rendered from a single run on this machine
 (committed snapshots — re-running `make bench-sweep` overwrites them
@@ -174,19 +183,42 @@ in `bench/plots/`):
 
 Numbers from the same run (ns/op, lower is better):
 
-| N           |     C push |  KT push |  Vi push |
-| ----------: | ---------: | -------: | -------: |
-| 10,000      | 171.7      |   179.3  |    80.6  |
-| 100,000     |  57.0      |    89.0  |    79.8  |
-| 1,000,000   |  37.8      |    82.6  |    80.8  |
-| 10,000,000  |  35.9      |    80.7  |    85.9  |
-| 100,000,000 |  34.2      |    84.3  |    81.1  |
+| N           |     C push |  KT push |  Vi push |  D4 push |
+| ----------: | ---------: | -------: | -------: | -------: |
+|      10,000 |     159.8  |   166.0  |   180.0  |   209.8  |
+|     100,000 |      60.5  |    88.9  |    89.1  |    84.3  |
+|   1,000,000 |      37.5  |    81.9  |    83.7  |    78.5  |
+|  10,000,000 |      35.9  |    79.5  |    81.5  |    75.8  |
+| 100,000,000 |      35.3  |    81.9  |    85.8  |    73.5  |
 
 The N=10⁴ row reflects cold-start effects (allocator warm-up + initial
 arena chunk).  From N=10⁵ onward each implementation's per-op cost is
 flat to within a few ns — exactly the empirical fingerprint of
-worst-case O(1).  The full table at all 5 ops × 5 sizes lives in
-`bench/results/sweep-YYYY-MM-DD.md` after a run.
+worst-case O(1).  The full table at all 5 ops × 5 sizes (push, inject,
+pop, eject, mixed) lives in `bench/results/sweep-YYYY-MM-DD.md` after a
+run.
+
+#### What about D4's O(log n) drift?
+
+D4 is amortized O(log n) per op, so its line *should* drift upward
+with N.  In practice the drift is invisible at this size range: from
+N=10⁴ to N=10⁸ the cascade depth roughly doubles (log₂ goes from ~14
+to ~27), but the per-cell work is so small that the absolute ns/op
+shift gets lost in run-to-run noise.  You'd need an adversarial
+workload that *forces* deep cascades on every op (rather than
+amortizing them) to see the divergence — which is precisely the WC vs
+amortized distinction the WC-O(1) bound buys you.
+
+What the data *does* show:
+
+- **All four lines stay flat** from N=10⁵ on.  C wins everywhere; KT
+  and Vi are within ~5%; D4 is comparable on push and *faster* on
+  pop/eject (~25 ns vs ~50 ns).
+- **D4's pop/eject advantage is the structural cost of WC O(1)**:
+  KTDeque's chain-coloring discipline pays a fixed per-op overhead
+  on the simple paths so that the *adversarial* worst case is
+  bounded.  D4 has no such bookkeeping, so the common case is faster
+  — but its worst-case op is unbounded by N.
 
 #### Why we cap N at 10⁸ on a 62 GB box
 

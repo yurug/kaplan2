@@ -50,6 +50,23 @@ module Vi = struct
   let eject t = D.eject t
 end
 
+(* ---------- D4: hand-written amortized O(log n) (bench-helpers) ---------- *)
+(* Included in the sweep so a reader can see the per-op cost drift
+   that the WC-O(1) discipline avoids: D4's cascade depth grows
+   logarithmically with N, so its line should rise slowly while KT and
+   Vi stay flat. *)
+module D4 = struct
+  module D = Ktdeque_bench_helpers.Deque4
+
+  type 'a t = 'a D.t
+
+  let empty : 'a t = D.empty
+  let push x t = D.push x t
+  let inject t x = D.inject t x
+  let pop t = D.pop t
+  let eject t = D.eject t
+end
+
 (* ---------- Generic timer ---------- *)
 let time label f =
   let t0 = Unix.gettimeofday () in
@@ -58,70 +75,125 @@ let time label f =
   Printf.printf "  %-30s : %8.3f ms\n" label ((t1 -. t0) *. 1000.0);
   r
 
+(* The sweep harness runs this binary once per (impl, size) so that at
+   N=10^8 we never hold KT, Vi and D4 alive in the same OCaml heap.
+   BENCH_IMPLS picks which impls to run; default = all three (the
+   historical behavior, fine at small/medium N). *)
+let impls_enabled =
+  match Sys.getenv_opt "BENCH_IMPLS" with
+  | None | Some "" | Some "ALL" -> ["KT"; "VI"; "D4"]
+  | Some s ->
+      String.split_on_char ',' s
+      |> List.map String.trim
+      |> List.filter (fun s -> s <> "")
+let want impl = List.mem impl impls_enabled
+
 let benchmark n =
   Printf.printf "=== Benchmark: %d operations ===\n" n;
 
   Printf.printf "Pushing %d items:\n" n;
   let kt = ref Kt.empty in
   let vi = ref Vi.empty in
-  time "KTDeque push" (fun () ->
-    for i = 1 to n do kt := Kt.push i !kt done);
-  time "Viennot   push" (fun () ->
-    for i = 1 to n do vi := Vi.push i !vi done);
+  let d4 = ref D4.empty in
+  if want "KT" then
+    time "KTDeque push" (fun () ->
+      for i = 1 to n do kt := Kt.push i !kt done);
+  if want "VI" then
+    time "Viennot   push" (fun () ->
+      for i = 1 to n do vi := Vi.push i !vi done);
+  if want "D4" then
+    time "Deque4    push" (fun () ->
+      for i = 1 to n do d4 := D4.push i !d4 done);
 
   Printf.printf "Popping %d items:\n" n;
-  time "KTDeque pop" (fun () ->
-    for _ = 1 to n do
-      match Kt.pop !kt with
-      | Some (_, k') -> kt := k'
-      | None         -> ()
-    done);
-  time "Viennot   pop" (fun () ->
-    for _ = 1 to n do
-      match Vi.pop !vi with
-      | Some (_, v') -> vi := v'
-      | None         -> ()
-    done);
+  if want "KT" then
+    time "KTDeque pop" (fun () ->
+      for _ = 1 to n do
+        match Kt.pop !kt with
+        | Some (_, k') -> kt := k'
+        | None         -> ()
+      done);
+  if want "VI" then
+    time "Viennot   pop" (fun () ->
+      for _ = 1 to n do
+        match Vi.pop !vi with
+        | Some (_, v') -> vi := v'
+        | None         -> ()
+      done);
+  if want "D4" then
+    time "Deque4    pop" (fun () ->
+      for _ = 1 to n do
+        match D4.pop !d4 with
+        | Some (_, d') -> d4 := d'
+        | None         -> ()
+      done);
 
   Printf.printf "Mixed push/pop (alternating, %d each):\n" n;
   let kt = ref Kt.empty in
   let vi = ref Vi.empty in
-  time "KTDeque mixed" (fun () ->
-    for i = 1 to n do
-      kt := Kt.push i !kt;
-      kt := Kt.push (i+1) !kt;
-      (match Kt.pop !kt with
-       | Some (_, k') -> kt := k'
-       | None         -> ());
-    done);
-  time "Viennot   mixed" (fun () ->
-    for i = 1 to n do
-      vi := Vi.push i !vi;
-      vi := Vi.push (i+1) !vi;
-      (match Vi.pop !vi with
-       | Some (_, v') -> vi := v'
-       | None         -> ());
-    done);
+  let d4 = ref D4.empty in
+  if want "KT" then
+    time "KTDeque mixed" (fun () ->
+      for i = 1 to n do
+        kt := Kt.push i !kt;
+        kt := Kt.push (i+1) !kt;
+        (match Kt.pop !kt with
+         | Some (_, k') -> kt := k'
+         | None         -> ());
+      done);
+  if want "VI" then
+    time "Viennot   mixed" (fun () ->
+      for i = 1 to n do
+        vi := Vi.push i !vi;
+        vi := Vi.push (i+1) !vi;
+        (match Vi.pop !vi with
+         | Some (_, v') -> vi := v'
+         | None         -> ());
+      done);
+  if want "D4" then
+    time "Deque4    mixed" (fun () ->
+      for i = 1 to n do
+        d4 := D4.push i !d4;
+        d4 := D4.push (i+1) !d4;
+        (match D4.pop !d4 with
+         | Some (_, d') -> d4 := d'
+         | None         -> ());
+      done);
 
   Printf.printf "Inject %d items, then eject %d:\n" n n;
   let kt = ref Kt.empty in
   let vi = ref Vi.empty in
-  time "KTDeque inject" (fun () ->
-    for i = 1 to n do kt := Kt.inject !kt i done);
-  time "Viennot   inject" (fun () ->
-    for i = 1 to n do vi := Vi.inject !vi i done);
-  time "KTDeque eject" (fun () ->
-    for _ = 1 to n do
-      match Kt.eject !kt with
-      | Some (k', _) -> kt := k'
-      | None         -> ()
-    done);
-  time "Viennot   eject" (fun () ->
-    for _ = 1 to n do
-      match Vi.eject !vi with
-      | Some (v', _) -> vi := v'
-      | None         -> ()
-    done);
+  let d4 = ref D4.empty in
+  if want "KT" then
+    time "KTDeque inject" (fun () ->
+      for i = 1 to n do kt := Kt.inject !kt i done);
+  if want "VI" then
+    time "Viennot   inject" (fun () ->
+      for i = 1 to n do vi := Vi.inject !vi i done);
+  if want "D4" then
+    time "Deque4    inject" (fun () ->
+      for i = 1 to n do d4 := D4.inject !d4 i done);
+  if want "KT" then
+    time "KTDeque eject" (fun () ->
+      for _ = 1 to n do
+        match Kt.eject !kt with
+        | Some (k', _) -> kt := k'
+        | None         -> ()
+      done);
+  if want "VI" then
+    time "Viennot   eject" (fun () ->
+      for _ = 1 to n do
+        match Vi.eject !vi with
+        | Some (v', _) -> vi := v'
+        | None         -> ()
+      done);
+  if want "D4" then
+    time "Deque4    eject" (fun () ->
+      for _ = 1 to n do
+        match D4.eject !d4 with
+        | Some (d', _) -> d4 := d'
+        | None         -> ()
+      done);
   Printf.printf "\n"
 
 let () =

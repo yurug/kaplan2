@@ -67,13 +67,17 @@ for sz in $SIZES; do
     C_RAW+=$("$C_BIN" "$sz" 2>&1)$'\n'
 done
 
-# Run OCaml compare — one process per size, same reason as the C side
-# (sequential calls let the major heap accumulate; at n=10^8 the
-# leftover from earlier sizes pushes the process over the OOM line).
-echo "==> Running OCaml compare at sizes: $SIZES"
+# Run OCaml compare — one process per (impl, size).  We can't keep KT,
+# Vi and D4 alive in the same OCaml heap at n=10^8 (would peak well
+# over the box's RAM); BENCH_IMPLS=$impl filters to a single impl per
+# process, so peak is ~one deque.  Sequential per-size also avoids the
+# major-heap residue carrying over across sizes.
+echo "==> Running OCaml compare at sizes: $SIZES (one impl per process)"
 ML_RAW=""
-for sz in $SIZES; do
-    ML_RAW+=$("$ML_BIN" "$sz" 2>&1)$'\n'
+for impl in KT VI D4; do
+    for sz in $SIZES; do
+        ML_RAW+=$(BENCH_IMPLS="$impl" "$ML_BIN" "$sz" 2>&1)$'\n'
+    done
 done
 
 # Parse C output: blocks of "=== n = N ===" then "  op : T ms (X ns/op[ total])".
@@ -93,24 +97,31 @@ echo "$C_RAW" | awk -v csv="$CSV" '
 '
 
 # Parse OCaml output: blocks of "=== Benchmark: N operations ===" with rows
-# "  KTDeque op : T ms" and "  Viennot   op : T ms".  ns/op = T*1e6/N
-# (mixed: 3*N).
+# "  KTDeque op : T ms", "  Viennot   op : T ms", "  Deque4    op : T ms".
+# ns/op = T*1e6/N (mixed: 3*N).  D4 (the hand-written amortized O(log n)
+# variant) is included on the plot as a deliberate contrast to the WC-O(1)
+# lines: its per-op cost should drift upward with N.
 echo "$ML_RAW" | awk -v csv="$CSV" '
     function emit(impl, op, ms, n) {
         ns = (ms * 1e6) / (op == "mixed" ? 3*n : n+0)
         printf("%s,%s,%s,%.3f\n", n, op, impl, ns) >> csv
     }
     /^=== Benchmark: / { n = $3; next }
-    /^  KTDeque push/   { emit("KTDeque", "push",   $(NF-1), n) }
-    /^  Viennot[[:space:]]+push/   { emit("Viennot", "push",   $(NF-1), n) }
-    /^  KTDeque inject/ { emit("KTDeque", "inject", $(NF-1), n) }
-    /^  Viennot[[:space:]]+inject/ { emit("Viennot", "inject", $(NF-1), n) }
-    /^  KTDeque pop/    { emit("KTDeque", "pop",    $(NF-1), n) }
-    /^  Viennot[[:space:]]+pop/    { emit("Viennot", "pop",    $(NF-1), n) }
-    /^  KTDeque eject/  { emit("KTDeque", "eject",  $(NF-1), n) }
-    /^  Viennot[[:space:]]+eject/  { emit("Viennot", "eject",  $(NF-1), n) }
-    /^  KTDeque mixed/  { emit("KTDeque", "mixed",  $(NF-1), n) }
-    /^  Viennot[[:space:]]+mixed/  { emit("Viennot", "mixed",  $(NF-1), n) }
+    /^  KTDeque push/             { emit("KTDeque", "push",   $(NF-1), n) }
+    /^  Viennot[[:space:]]+push/  { emit("Viennot", "push",   $(NF-1), n) }
+    /^  Deque4[[:space:]]+push/   { emit("D4",      "push",   $(NF-1), n) }
+    /^  KTDeque inject/           { emit("KTDeque", "inject", $(NF-1), n) }
+    /^  Viennot[[:space:]]+inject/{ emit("Viennot", "inject", $(NF-1), n) }
+    /^  Deque4[[:space:]]+inject/ { emit("D4",      "inject", $(NF-1), n) }
+    /^  KTDeque pop/              { emit("KTDeque", "pop",    $(NF-1), n) }
+    /^  Viennot[[:space:]]+pop/   { emit("Viennot", "pop",    $(NF-1), n) }
+    /^  Deque4[[:space:]]+pop/    { emit("D4",      "pop",    $(NF-1), n) }
+    /^  KTDeque eject/            { emit("KTDeque", "eject",  $(NF-1), n) }
+    /^  Viennot[[:space:]]+eject/ { emit("Viennot", "eject",  $(NF-1), n) }
+    /^  Deque4[[:space:]]+eject/  { emit("D4",      "eject",  $(NF-1), n) }
+    /^  KTDeque mixed/            { emit("KTDeque", "mixed",  $(NF-1), n) }
+    /^  Viennot[[:space:]]+mixed/ { emit("Viennot", "mixed",  $(NF-1), n) }
+    /^  Deque4[[:space:]]+mixed/  { emit("D4",      "mixed",  $(NF-1), n) }
 '
 
 echo "==> CSV at $CSV"
