@@ -79,7 +79,7 @@ ocaml/
 │   ├── test_ktdeque.ml smoke test against a list reference
 │   ├── diff_workload.ml     paired with c/tests/diff_workload.c
 │   └── dune
-├── lib/                 BENCH-HELPER LIBRARY (kaplan2_bench_helpers, internal)
+├── lib/                 BENCH-HELPER LIBRARY (ktdeque_bench_helpers, internal)
 │   ├── deque4.ml            hand-written O(log n) variant for benchmarks
 │   ├── deque4_handwritten.ml
 │   ├── deque4_ref.ml        list-based oracle (used by QCheck/Monolith)
@@ -104,17 +104,26 @@ the verified imperative DSL into pure OCaml.  The resulting `.ml` /
 `.mli` files are checked into git as a snapshot, so the OCaml tree
 builds without the Coq toolchain.
 
-To regenerate the snapshot after a Rocq change:
+Regenerating the snapshot after a Rocq change is currently a manual
+step — dune's Rocq integration sandboxes the extraction's filesystem
+side-effect and doesn't surface a `kTDeque.ml` build artifact.  The
+practical recipe is:
 
 ```sh
-# From the repo root, build the extraction stanza:
-dune build rocq/KTDeque/Extract
-# That writes _build/default/rocq/KTDeque/Extract/kt_extracted/kTDeque.ml.
-# Copy it over the snapshot:
-cp _build/default/rocq/KTDeque/Extract/kt_extracted/kTDeque.ml \
-   ocaml/extracted/kTDeque.ml
-# (The .mli is hand-maintained; rebuild + dune runtest to confirm.)
+# 1. Make sure the Rocq sources still build:
+dune build rocq/KTDeque
+# 2. Re-extract directly with coqc, in a fresh directory that has the
+#    Rocq logical-path mappings set up.  The Extraction.v stanza
+#    writes `kt_extracted/kTDeque.ml` relative to coqc's cwd.
+# 3. Copy the resulting `kTDeque.ml` over the snapshot:
+#    cp .../kt_extracted/kTDeque.ml ocaml/extracted/kTDeque.ml
+# 4. Rebuild and re-run the tests + diff harness:
+dune build && dune runtest && make -C c check-diff-multi
 ```
+
+The `.mli` is hand-maintained and matches the API expected by
+`compare.ml` / `canonical.ml` / the QCheck suites; if you change the
+Rocq surface API, also update `ocaml/extracted/kTDeque.mli`.
 
 The differential test (`make check-diff*` from the C side) runs the
 extracted OCaml and the C side against the same xorshift workload and

@@ -80,7 +80,7 @@ module Vi : DEQUE = struct
 end
 
 module D4 : DEQUE = struct
-  module D = Kaplan2_bench_helpers.Deque4
+  module D = Ktdeque_bench_helpers.Deque4
   type 'a t = 'a D.t
   let empty = D.empty
   let push x t = D.push x t
@@ -90,7 +90,7 @@ module D4 : DEQUE = struct
 end
 
 module Ref : DEQUE = struct
-  module D = Kaplan2_bench_helpers.Deque4_ref
+  module D = Ktdeque_bench_helpers.Deque4_ref
   type 'a t = 'a D.t
   let empty = D.empty
   let push x t = D.push x t

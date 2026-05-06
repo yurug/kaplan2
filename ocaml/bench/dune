@@ -19,4 +19,4 @@
 ; Driven from bench/canonical.sh.
 (executable
  (name canonical)
- (libraries unix viennot_deque ktdeque kaplan2_bench_helpers))
+ (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))

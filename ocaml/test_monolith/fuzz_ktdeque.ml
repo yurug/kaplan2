@@ -3,7 +3,7 @@
 
     Compares the published library
     ([KTDeque.push_kt2 / pop_kt2 / inject_kt2 / eject_kt2]) against
-    the list reference [Kaplan2_bench_helpers.Deque4_ref], generating
+    the list reference [Ktdeque_bench_helpers.Deque4_ref], generating
     millions of random scenarios.  Per VWGP §9.1's harness pattern,
     parallel to fuzz_deque4 (which targets the bench-helper).
 
@@ -59,7 +59,7 @@ module C = struct
          | _ -> failwith "eject_kt2: top element is not a base singleton")
 end
 
-module R = Kaplan2_bench_helpers.Deque4_ref
+module R = Ktdeque_bench_helpers.Deque4_ref
 
 open Monolith
 

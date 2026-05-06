@@ -4,5 +4,5 @@
 ; against the verified extracted library ktdeque (public_name
 ; ktdeque).
 (library
- (name kaplan2_bench_helpers)
+ (name ktdeque_bench_helpers)
  (modules deque4_handwritten deque4_ref deque4))

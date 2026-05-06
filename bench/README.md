@@ -52,8 +52,8 @@ alternating push/pop, mixed P/I/Po/Po, fork-stress) at three sizes
 | ------ | ----------------------------------------------------------------- | ----------------- |
 | **KT**  | Our verified extraction (`KTDeque.push_kt2 / pop_kt2 / …`)        | WC O(1)           |
 | **Vi**  | Viennot OCaml (vendored, hand-written)                            | WC O(1)           |
-| **D4**  | Our hand-written `Deque4` (`Kaplan2_bench_helpers.Deque4`)        | amortized O(log n)|
-| **Ref** | List-based reference (`Kaplan2_bench_helpers.Deque4_ref`)         | O(1) push/pop, O(n) inject/eject |
+| **D4**  | Our hand-written `Deque4` (`Ktdeque_bench_helpers.Deque4`)        | amortized O(log n)|
+| **Ref** | List-based reference (`Ktdeque_bench_helpers.Deque4_ref`)         | O(1) push/pop, O(n) inject/eject |
 
 `Ref` is the algorithmic baseline (a `'a list` with `(::)` for push and
 `@ [_]` for inject).  It is included on workloads where its O(n)

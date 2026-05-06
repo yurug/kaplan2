@@ -1,10 +1,10 @@
 ; Monolith fuzzer for the bench-helper hand-written deque.
 (executable
  (name fuzz_deque4)
- (libraries kaplan2_bench_helpers monolith))
+ (libraries ktdeque_bench_helpers monolith))
 
 ; Monolith fuzzer for the verified extracted library (ktdeque).
-; Reuses Kaplan2_bench_helpers.Deque4_ref as the list oracle.
+; Reuses Ktdeque_bench_helpers.Deque4_ref as the list oracle.
 (executable
  (name fuzz_ktdeque)
- (libraries ktdeque kaplan2_bench_helpers monolith))
+ (libraries ktdeque ktdeque_bench_helpers monolith))

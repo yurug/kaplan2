@@ -21,10 +21,12 @@ libraries.  Building, testing, and benchmarking are all standalone.
   fuzzing, bit-for-bit C↔OCaml differential at n=400k under deep-cascade
   workloads, and 64-branch persistence stress.
 - **Worst-case O(1)** — verified empirically by `wc_test`: each op
-  performs ≤ 8 allocations, flat in n.  The maxima do not grow with
-  deque size.
+  performs ≤ 8 allocations, with the per-counter maxima (packets,
+  links, pairs, bufs) flat across n ∈ {1k, 10k, 100k}.  The total
+  occasionally ticks up by 1 between sizes due to one rare
+  pair-block emission, but the structural bound stays at 8.
 - **Faster than Viennot OCaml on every workload** at n=1M with arena
-  compaction enabled (default), by 1.65×–2.86× — see
+  compaction enabled (default), by ~1.5×–~2.9× — see
   [`COMPARISON.md`](COMPARISON.md).
 - **Persistent and thread-safe to read** — every op returns a new
   deque that shares structure with the input.  Independent deques in

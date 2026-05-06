@@ -6,6 +6,21 @@ related: [rocq-toolchain, monolith-fuzzing, adr-0005]
 
 # OCaml extraction — Runtime Behavior
 
+> **NOTE — outdated content below.**  This file describes an older
+> design where the hand-written `ocaml/lib/` was the production code
+> and the Coq extraction served only as a sanity witness.  The
+> project's current architecture is the *opposite*: the verified
+> Coq-extracted library (`ocaml/extracted/`, opam package `ktdeque`,
+> module `KTDeque`) is the production deque, and `ocaml/lib/`
+> (renamed `ktdeque_bench_helpers`) is bench-only support kept for
+> comparison drivers.  See `ocaml/README.md` for the current model.
+> Recent perf measurements (see `c/COMPARISON.md`) show the extracted
+> `kt2` family is roughly tied with Viennot's hand-written reference,
+> not "an order of magnitude slower" as this doc still claims further
+> down — the kt2 / kt3 / kt4 redesign and the inlined extraction
+> directives largely closed the gap.  The text below is preserved for
+> historical context.
+
 ## One-liner
 How the Rocq → OCaml extraction pipeline works for KTDeque, what code it produces, and the trade-offs of running extracted code vs. the hand-written OCaml.
 

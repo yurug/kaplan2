@@ -1,7 +1,7 @@
 ; QCheck tests against the bench-helper hand-written deque (Deque4).
 (test
  (name test_deque4)
- (libraries kaplan2_bench_helpers qcheck))
+ (libraries ktdeque_bench_helpers qcheck))
 
 ; QCheck tests against the verified extracted library (ktdeque).
 ; This is the property suite that exercises the public ``ktdeque``

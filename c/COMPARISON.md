@@ -60,7 +60,7 @@ compactor every 4096 ops.  `make bench` defaults to the K=4096 build.
    drops to **1.5×–3.4× slower** than Viennot OCaml.  Don't ship K=0.
 
 2. **With compaction, C beats Viennot OCaml on every workload by
-   1.65×–2.86×.**  Mixed and push are the biggest wins (close to 3×);
+   ~1.5×–~2.9×.**  Mixed and push are the biggest wins (close to 3×);
    eject is the smallest (~1.65×).
 
 3. **KTDeque OCaml (`kt2`) is roughly tied with Viennot OCaml.**  The
