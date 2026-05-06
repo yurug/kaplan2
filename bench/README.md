@@ -168,6 +168,15 @@ plot:
   (`Ktdeque_bench_helpers.Deque4`), included as the contrast against
   WC O(1).
 
+Workload pattern is **sequential build**: each operation uses the
+result of the previous one, the deque grows from 0 to N elements, and
+all N intermediate states stay live in the heap.  Per-op numbers are
+therefore the *amortized* cost of growing a deque, including OCaml
+major-heap and C arena pressure as the structure accumulates — not
+the cost of one operation in isolation.  See
+[`bench-adversarial`](#bench-adversarial-persistent-fork-microbench)
+for the single-op-in-isolation measurement.
+
 Flat lines are the WC O(1) signal: per-op cost does not grow with N.
 
 The plots below were rendered from a single run on this machine
@@ -235,6 +244,21 @@ Persistence breaks the amortization: take a saved state s, apply M
 push operations using s as the LHS each time.  Each call returns a
 new deque; s is unchanged.  No credits carry across calls — every
 single call pays its own state-dependent worst-case cost.
+
+> **Why these numbers don't match `bench-sweep`'s "push" row.**  The
+> sweep measures *sequential build* (each push uses the result of the
+> previous, all intermediate states stay live).  This bench measures
+> *persistent fork* (every iteration starts from the same saved
+> state, the result is discarded).  These are two genuinely different
+> workloads; they answer two different questions.  D4 looks fast on
+> the sweep because amortization works (~80 ns at N=10⁸) and slow
+> here because amortization fails (~190 ns at N≈2.6M).  KT and Vi
+> look slower on the sweep (~85 ns at N=10⁸) and faster here (~25-30
+> ns) because the sweep's kept-result chain accumulates heap pressure
+> while this bench's discarded results stay in the OCaml minor heap.
+> The sweep tells you "what does the everyday `for i := …` cost"; the
+> adversarial bench tells you "what does *one* push on a saved state
+> cost — the worst case the WC-O(1) bound was designed to bound".
 
 All four implementations are built the same way: N sequential pushes
 from empty.  We pick N = 5*(2^(d+1)-1) — sizes where sequential build
