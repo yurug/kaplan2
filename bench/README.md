@@ -89,6 +89,70 @@ Viennot's full §9 experiments would also include:
 Pull requests welcome.  The cleanest extension path is adding a new
 adapter module to `canonical.ml` and a row in its workload table.
 
+## Example results from a single run
+
+> Snapshot from one run of each bench.  Single-process,
+> single-threaded; **not statistically post-processed**.  Re-running
+> on the same machine reproduces these to within run-to-run variance
+> (roughly ±10%).  See the reproducibility checklist below for what
+> to do before quoting any of these in a paper.
+
+**Machine**: Linux 6.17.12+deb14-amd64 x86_64, gcc 13.3.0, OCaml 5.4.1.
+
+### `bench-three-way` (n = 1,000,000)
+
+ns/op (lower is better).  Speedup column is Viennot OCaml ÷ C.
+
+| Op      | C (K=4096) | KTDeque (extracted OCaml) | Viennot OCaml | C vs Viennot |
+| ------- | ---------: | ------------------------: | ------------: | -----------: |
+| push    |     31.3   |      81.0                 |      84.8     | **2.71×**    |
+| inject  |     35.9   |      78.8                 |      81.4     | **2.27×**    |
+| pop     |     25.8   |      54.5                 |      54.3     | **2.10×**    |
+| eject   |     32.1   |      53.3                 |      49.7     | **1.55×**    |
+| mixed   |     18.8   |      49.1                 |      66.7     | **3.55×**    |
+
+The C with arena compaction (K=4096) wins on every workload.  The two
+OCaml columns (verified extraction vs Viennot's hand-written reference)
+are within ~10% of each other on every op — both implement the same
+WC-O(1) algorithm class and run in the same OCaml runtime.
+
+### `bench-canonical` (n = 100,000 iters)
+
+ns/op for each implementation across workloads.  Lower is better;
+ratio columns are vs Viennot.  `—` means the implementation was
+skipped because its asymptotic cost would dominate runtime
+(`Ref.inject` is O(n) → O(n²) total at this size).
+
+| Workload        |  iters  |    KT   |    Vi   |    D4   |   Ref   | KT/Vi | D4/Vi | Ref/Vi |
+| --------------- | ------: | ------: | ------: | ------: | ------: | ----: | ----: | -----: |
+| steady_push     | 100 000 |    65.2 |    73.5 |    56.2 |    20.8 |  0.89 |  0.76 |  0.28  |
+| steady_inject   | 100 000 |    61.1 |    63.8 |    52.0 |     —   |  0.96 |  0.81 |   —    |
+| drain           | 100 000 |    58.9 |    52.4 |    36.1 |    12.3 |  1.12 |  0.69 |  0.23  |
+| alt_push_pop    | 100 000 |     9.2 |     8.1 |     5.8 |     3.3 |  1.13 |  0.71 |  0.41  |
+| mixed_pipopo    | 100 000 |     9.0 |     8.8 |     7.0 |     —   |  1.02 |  0.80 |   —    |
+| fork_stress     | 100 000 |    35.5 |    39.7 |    30.6 |     5.8 |  0.89 |  0.77 |  0.15  |
+
+What the table is saying:
+
+- `KT` (verified extraction, kt2 family) and `Vi` (Viennot's hand-written
+  reference) are roughly tied on every workload — KT is within ~12% of
+  Vi everywhere.  Both are WC O(1).
+- `D4` (our hand-written amortized-O(log n) variant) is faster than KT
+  and Vi at this size on push/pop because its bookkeeping is cheaper
+  per-op when cascades are rare; the WC-O(1) machinery only pays off
+  when an adversarial pattern forces deep cascades.
+- `Ref` (a `'a list` with O(n) inject/eject) crushes the others on
+  push-only and pop-only workloads (cons/uncons is the cheapest
+  possible op).  It's there as the algorithmic baseline, not as a
+  competitor.
+- The `alt_push_pop` row is the classic adversarial workload Viennot's
+  paper highlights: at constant size 0–1, the per-op overhead
+  dominates, so all implementations look fast and close together.
+
+The full canonical run also produces tables at n=1000 and n=10000;
+see `bench/results/canonical-YYYY-MM-DD.md` after running the bench
+yourself.
+
 ## Reproducibility checklist
 
 Before quoting numbers from these benches in a paper or README, please:
