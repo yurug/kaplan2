@@ -1,22 +1,67 @@
 (** * Module: KTDeque.Common.CostMonad -- the cost-instrumented heap monad.
 
-    A parallel monad to [M] that tracks the number of primitive heap
-    operations (read, alloc, freeze, write) performed by a computation.
-    Used to prove worst-case O(1) bounds on the imperative ops.
+    ## Why this exists
 
-    The monad: [MC Cell X := Heap Cell -> option (Heap Cell * X * nat)].
-    The third component is the *primitive op count*: each [read_MC],
-    [alloc_MC], [freeze_MC], [write_MC] adds 1; [retC]/[failC] add 0;
-    [bindC] adds the costs of its components.
+    Worst-case O(1) is the project hard rule (see CLAUDE.md and
+    kb/spec/why-bounded-cascade.md).  "O(1)" without a unit is empty
+    rhetoric; the cost monad makes the unit explicit.  We count
+    primitive *heap operations* — reads, allocs, freezes, writes —
+    because those are exactly the units of work the imperative DSL
+    in OpsImperative.v exposes, and they are what the C runtime pays
+    for in cycles (a memcpy of a packet, an arena bump, a tag write).
+    Bounding the heap-op count by a constant therefore translates
+    directly to bounding the wall-clock cost of an operation by a
+    constant.
 
-    This is purely an instrumentation layer.  [to_M] strips the count and
-    recovers the standard [M Cell X] computation; the conformance lemma
-    [to_M_*] shows each instrumented op is functionally identical to its
-    [M] counterpart.
+    ## What it is
+
+    A parallel monad to [M] that tracks heap-op counts alongside the
+    usual heap-threading semantics:
+
+      [MC Cell X := Heap Cell -> option (Heap Cell * X * nat)]
+                                                       ^^^
+                                                primitive op count
+
+    Each primitive [read_MC], [alloc_MC], [freeze_MC], [write_MC]
+    adds 1 to the count.  [retC] / [failC] add 0.  [bindC] adds the
+    costs of its components.  The total cost of a structured
+    computation is therefore the sum of the costs of its leaves, which
+    is what "structural cost analysis" means here: the cost is read
+    off the AST of the term.
+
+    ## How we use it to prove WC O(1)
+
+    For each public op (push, inject, pop, eject) in
+    [DequePtr/Footprint.v]:
+
+      1. Express the op as a closed expression in [MC] using only
+         primitive ops and [bindC].
+      2. By inspection of the AST, count the primitive ops in the
+         worst-case branch.  This gives a literal numeric constant
+         (e.g. [NF_PUSH_PKT_FULL = 9]).
+      3. Prove the cost lemma: [cost_of (op …) H = Some k] for
+         [k <= NF_PUSH_PKT_FULL].
+
+    The proofs are short because [cost_bindC] mechanically distributes
+    the addition over the AST and each primitive op contributes a
+    fixed constant.  No induction over the input — that's the whole
+    point.  An op whose cost is a closed-form constant in the AST is,
+    by construction, worst-case O(1).
+
+    ## Cost is purely instrumentation
+
+    [to_M] strips the count and recovers the standard [M Cell X]
+    computation.  The conformance lemmas [to_M_*] show each
+    instrumented op is functionally identical to its [M] counterpart.
+    So we never have to re-prove a sequence-semantics lemma against
+    [MC]; the proofs in [OpsImperative.v] are stated in [M] and the
+    cost lemmas in [Footprint.v] use [MC] independently.
 
     Cross-references:
-    - kb/properties/footprint.md (NF1, NF2 — worst-case bounds).
+    - kb/spec/why-bounded-cascade.md     (why bounded cost is the goal).
+    - kb/properties/footprint.md         (NF1, NF2 — worst-case bounds).
     - kb/architecture/decisions/adr-0010-imperative-dsl.md.
+    - DequePtr/Footprint.v               (where the bounds are proved).
 *)
 
 From KTDeque.Common Require Import Prelude FinMapHeap HeapExt Monad.
