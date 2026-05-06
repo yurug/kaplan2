@@ -17,10 +17,38 @@
     Plus equivalences `push_kt3 = push_kt2` etc. so the bench targets
     inherit sequence preservation.
 
+    ## Proof method
+
+    The proofs in this file are stratified bottom-up so each layer
+    builds on the previous.  Within each layer, the same recipe
+    applies to most lemmas, so we explain the recipe once per section
+    rather than repeating it before every [Proof].
+
+    The basic recipe for buffer-level helpers is:
+
+      destruct b; inversion guard_eq; subst;
+      cbn -[E.to_list]; rewrite ?app_nil_r, ?app_assoc;
+      reflexivity.
+
+    Why it works: every [Buf5]-shaped helper (green_push, yellow_inject,
+    prefix_decompose, …) is a six-case match on buffer size; destruct
+    explodes those cases; inversion of the [Some _ = Some _] guard
+    extracts the result; [cbn -[E.to_list]] reduces all the cell
+    plumbing without unfolding the opaque [E.to_list] (which would
+    diverge on infinite-element trees); [app_nil_r] / [app_assoc] put
+    the remaining list expressions in the canonical right-associated
+    form that the goal expects.
+
+    Higher-level lemmas (concat, make_small, green_of_red_k) compose
+    the buffer-level lemmas through chain-level helpers like
+    [chain_to_list_simple], [rebal_eq], [chain_to_list_nested].  Each
+    section banner below explains its specific recipe.
+
     Cross-references:
     - [KTDeque/DequePtr/OpsKT.v]   -- ops being verified.
     - [KTDeque/DequePtr/Model.v]   -- [chain_seq], [packet_seq], [buf_seq_E].
     - [KTDeque/Common/Element.v]   -- [E.to_list], [E.pair], [E.unpair].
+    - [kb/spec/why-bounded-cascade.md] -- why these proofs matter.
 *)
 
 From Stdlib Require Import List.
@@ -35,6 +63,11 @@ Module E := OpsKT.E.
 
 (* ========================================================================== *)
 (* Buffer-level sequence preservation                                          *)
+(* ========================================================================== *)
+(* Method: every lemma below is a direct application of the boilerplate        *)
+(* recipe (see file header).  Each helper [green_push], [yellow_inject], etc.  *)
+(* is a six-case match on the input buffer; destruct + inversion + cbn clears  *)
+(* the goal automatically.  No section-specific cleverness.                    *)
 (* ========================================================================== *)
 
 (** Helper: [buf_seq_E_pair] = `E.to_list a ++ E.to_list b`. *)
@@ -340,17 +373,16 @@ Proof. exact Model.E.unpair_to_list. Qed.
 (* ========================================================================== *)
 (* Cross-buffer concat sequence preservation                                   *)
 (* ========================================================================== *)
+(* Method: where the boilerplate [destruct + rewrite prefix23_seq] would       *)
+(* normally close the goal, we hit a Rocq tactic-mechanics issue: rewrite      *)
+(* fails with "Found no subterm matching" because the [prefix23] application   *)
+(* isn't syntactically recognized after a prior [subst].  Workaround: case-    *)
+(* split on the [opt] argument and let [cbn] unfold [prefix23] directly.       *)
+(* The arithmetic of list concat is otherwise the same as in earlier sections. *)
+(* ========================================================================== *)
 
 (** [green_prefix_concat (b1, b2) = Some (b1', b2')] preserves the joined
     sequence [buf_seq_E b1 ++ buf_seq_E b2]. *)
-(* ========================================================================== *)
-(* Cross-buffer concat sequence preservation                                   *)
-(* ========================================================================== *)
-
-(** Strategy: instead of [rewrite prefix23_seq] (which fails with "no
-    subterm matching" — a tactic-mechanics issue with the [prefix23]
-    application not being syntactically recognized post-substitution), we
-    case-split on [opt] and let [cbn] unfold [prefix23] directly. *)
 
 Lemma green_prefix_concat_seq :
   forall (A : Type) (b1 b2 b1' b2' : Buf5 (Model.E.t A)),
@@ -498,17 +530,27 @@ Qed.
 (* ========================================================================== *)
 (* make_small_seq                                                              *)
 (* ========================================================================== *)
-
-(** The headline buffer→Chain promotion lemma: [make_small b1 b2 b3]
-    produces a Chain whose flat sequence is [buf_seq_E b1 ++ buf_seq_E b2
-    ++ buf_seq_E b3].  9 cases by [prefix_decompose × suffix_decompose].
-
-    NOTE: this proof is a multi-day undertaking: the (Overflow, Overflow)
-    case alone weaves together [buffer_halve_seq], [pair_each_buf_seq],
-    [suffix12_seq], and three uses of [E.to_list_pair] across nested
-    chain construction.  All necessary helper lemmas are proven above.
-    The proof skeleton below sketches the case structure and rewrite
-    plumbing; full closure is deferred. *)
+(* Method: the heaviest proof in the file.  [make_small b1 b2 b3] is the       *)
+(* depth-1 collapse step inside [green_of_red] Case 1; it produces a Chain     *)
+(* whose flat sequence equals [buf_seq_E b1 ++ buf_seq_E b2 ++ buf_seq_E b3].  *)
+(* The proof is a 3 x 3 case-split over [prefix_decompose b1 x suffix_decompose*)
+(* b3] (each of underflow / ok / overflow), giving 9 cases.                    *)
+(*                                                                             *)
+(* The recipe per case:                                                        *)
+(*   1. Apply [prefix_decompose_seq] / [suffix_decompose_seq] to convert the   *)
+(*      decomposition results into list-equation hypotheses Hpd, Hsd.          *)
+(*   2. Inspect the inner shape produced by [make_small] (one of [Ending],    *)
+(*      [ChainCons _ Hole _], or [ChainCons _ (PNode _ Hole _) _]).            *)
+(*   3. Unfold the matching [chain_to_list_*] lemma to expose the concrete    *)
+(*      [buf_seq_E _ ++ buf_seq_E _ ++ ...] right-hand side.                  *)
+(*   4. Apply Hpd / Hsd plus [E.to_list_pair] (where pairs got formed inside   *)
+(*      [pair_each_buf]) and reassociate with [app_assoc].                     *)
+(*                                                                             *)
+(* The (Overflow, Overflow) corner is the most plumbing-heavy: it weaves       *)
+(* [buffer_halve_seq], [pair_each_buf_seq], [suffix12_seq], and three uses    *)
+(* of [E.to_list_pair] across a nested-chain construction.  All helper lemmas *)
+(* live above this section; the proof here is purely composition.             *)
+(* ========================================================================== *)
 (** Lift an equation [X = Y] to [X ++ l = Y ++ l] for arbitrary tail [l]. *)
 Lemma app_eq_lift : forall {A} (X Y l : list A), X = Y -> X ++ l = Y ++ l.
 Proof. intros A X Y l Heq. rewrite Heq. reflexivity. Qed.
@@ -743,6 +785,26 @@ Qed.
 (* ========================================================================== *)
 (* green_of_red_k_seq                                                          *)
 (* ========================================================================== *)
+(* Method: this is the proof that converts a Red-headed chain to a Green-     *)
+(* headed one in O(1).  Three structural cases mirror Viennot's three cases:   *)
+(*                                                                             *)
+(*   Case 1 — top is [KCons Red (PNode pre Hole suf) (KEnding b)]:             *)
+(*     Collapse depth-1 via [make_small pre b suf]; reduce by [make_small_seq].*)
+(*                                                                             *)
+(*   Case 2 — top is [KCons Red (PNode pre1 Hole suf1) (KCons _ (PNode pre2  *)
+(*                    child suf2) tail)]:                                      *)
+(*     Concat outer with inner via [green_prefix_concat] / [green_suffix_     *)
+(*     concat]; the children's flat sequences are unaffected.  Closed by      *)
+(*     [rebal_eq] applied to the two concat lemmas.                            *)
+(*                                                                             *)
+(*   Case 3 — top is [KCons Red (PNode pre1 (PNode pre2 child suf2) suf1) tail]: *)
+(*     Same as Case 2 but using the deeper [prefix_concat] / [suffix_concat]. *)
+(*                                                                             *)
+(* The whole proof is one large [destruct]-driven case split followed by      *)
+(* mechanical applications of the appropriate concat-seq lemma.  No           *)
+(* induction; that's the whole point — [green_of_red_k] is a finite-depth    *)
+(* rewrite, which is what makes [ensure_green] worst-case O(1).               *)
+(* ========================================================================== *)
 
 (** Helper: 5-place "rebalance equality" lemma — given the two boundary
     equations [a++b=a'++b'] and [c++d=c'++d'], the chain
@@ -862,6 +924,29 @@ Qed.
 (* ========================================================================== *)
 (* push_kt2_seq                                                                *)
 (* ========================================================================== *)
+(* Method (used by all four [{push,pop,inject,eject}_kt2_seq] proofs below):   *)
+(*                                                                             *)
+(*   1. Destruct the top of the chain: empty Ending, KCons-with-Hole-packet,  *)
+(*      or KCons-with-PNode-packet.  Some shapes are degenerate and clear     *)
+(*      via [discriminate] on the guard equation.                              *)
+(*                                                                             *)
+(*   2. For the productive shape, dispatch on the colour tag (Green / Yellow  *)
+(*      / Red).  In each colour branch, the result is built from one of:      *)
+(*        - a buffer-level helper ([green_push] / [yellow_push] / etc.),      *)
+(*        - or [make_yellow_k] / [make_red_k] which fire [ensure_green_k].    *)
+(*                                                                             *)
+(*   3. Apply the corresponding [_seq] lemma (proved earlier in this file)    *)
+(*      to convert the buffer/colour helper's success into a list equation.   *)
+(*                                                                             *)
+(*   4. Unfold [kchain_to_list] / [chain_to_list] / [packet_seq] to expose    *)
+(*      the concrete buffer-of-Es shape; reassociate with [app_assoc] /       *)
+(*      [app_nil_r] to match the goal.                                         *)
+(*                                                                             *)
+(* The four proofs ([push,pop,inject,eject]_kt2_seq) follow this template     *)
+(* almost mechanically; the only per-direction variation is whether the      *)
+(* prepended/appended sequence is on the left or right and which colour      *)
+(* helpers are called.                                                         *)
+(* ========================================================================== *)
 
 (** [push_kt2 x c] preserves sequence: prepends [E.to_list x]. *)
 Lemma push_kt2_seq :
@@ -907,7 +992,7 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
-(* inject_kt2_seq                                                              *)
+(* inject_kt2_seq    -- mirror of push_kt2_seq (same recipe; see its banner)   *)
 (* ========================================================================== *)
 
 (** [inject_kt2 c x] preserves sequence: appends [E.to_list x]. *)
@@ -948,7 +1033,7 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
-(* pop_kt2_seq                                                                 *)
+(* pop_kt2_seq      -- mirror of push_kt2_seq (same recipe; see its banner)    *)
 (* ========================================================================== *)
 
 (** [pop_kt2 c] preserves sequence: input list = popped element ++ result. *)
@@ -992,7 +1077,7 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
-(* eject_kt2_seq                                                               *)
+(* eject_kt2_seq    -- mirror of push_kt2_seq (same recipe; see its banner)    *)
 (* ========================================================================== *)
 
 (** [eject_kt2 c] preserves sequence: input list = result ++ ejected element. *)
@@ -1063,7 +1148,9 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
-(* push_kt3_seq                                                                *)
+(* push_kt3_seq    -- kt3 is kt2 with [yellow_wrap] inlined for the Yellow-    *)
+(* fast path, so each [_kt3_seq] proof reduces to its [_kt2_seq] counterpart   *)
+(* via [yellow_wrap_eq_make_yellow_k] (proved just above).                     *)
 (* ========================================================================== *)
 
 (** [push_kt3] preserves sequence (inlined Yellow fast path). *)
@@ -1260,6 +1347,13 @@ Qed.
 
 (* ========================================================================== *)
 (* kt4 ↔ kt3 equivalence via option-to-result translation                      *)
+(* ========================================================================== *)
+(* Method: kt4 differs from kt3 only in its return type — flat 2-constructor   *)
+(* sums [push_result] / [pop_result] instead of nested [option (E.t A * _)]    *)
+(* — saving one OCaml-extracted allocation on the hot path.  The proofs are    *)
+(* therefore equivalences modulo a sum-isomorphism: for each operation,        *)
+(* show kt4's result projects back to kt3's [option] via the obvious           *)
+(* translation, then inherit the sequence law from kt3.                        *)
 (* ========================================================================== *)
 
 (** [yellow_wrap_pr] is [yellow_wrap] with [option] → [push_result]. *)
