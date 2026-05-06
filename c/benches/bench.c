@@ -137,7 +137,7 @@ static void bench(int n) {
         }
         double t1 = now_sec();
         printf("  mixed  : %8.3f ms (%6.1f ns/op total)\n",
-               (t1 - t0) * 1000.0, (t1 - t0) * 1e9 / (3 * n));
+               (t1 - t0) * 1000.0, (t1 - t0) * 1e9 / (3.0 * (double)n));
     }
 
     free(values);
@@ -299,7 +299,23 @@ static void bench_region(int n) {
     printf("\n");
 }
 
-int main(void) {
+/* If invoked with one or more numeric arguments, run the core `bench`
+ * (no region workload) at exactly those sizes — used by the sweep
+ * harness in bench/sweep.sh.  With no arguments, run the default
+ * three-size sweep + the region workload. */
+int main(int argc, char** argv) {
+    if (argc > 1) {
+        for (int i = 1; i < argc; i++) {
+            long n = strtol(argv[i], NULL, 10);
+            if (n <= 0) {
+                fprintf(stderr, "bench: bad size '%s'\n", argv[i]);
+                return 2;
+            }
+            bench((int)n);
+        }
+        printf("max RSS at end: %ld KB\n", max_rss_kb());
+        return 0;
+    }
     bench(10000);
     bench(100000);
     bench(1000000);

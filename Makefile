@@ -1,5 +1,5 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
-        bench-three-way bench-canonical bench-all
+        bench-three-way bench-canonical bench-sweep bench-all
 
 all: rocq
 
@@ -41,6 +41,13 @@ bench-three-way:
 
 bench-canonical:
 	bench/canonical.sh
+
+# Scaling sweep: vary N from 10^4 to 10^9 and emit PNG plots showing
+# ns/op vs N for each (op, impl).  At n=10^9 the OCaml side runs out
+# of memory; that size is C-only.  PNGs land in bench/plots/ (tracked).
+# Wall-clock at the default sweep is ~10-20 minutes on a workstation.
+bench-sweep:
+	bench/sweep.sh
 
 bench-all: bench-three-way bench-canonical
 

@@ -125,6 +125,15 @@ let benchmark n =
   Printf.printf "\n"
 
 let () =
-  benchmark 10_000;
-  benchmark 100_000;
-  benchmark 1_000_000
+  if Array.length Sys.argv > 1 then
+    (* Sweep mode: run at exactly the sizes given on the command line.
+       Used by bench/sweep.sh. *)
+    Array.iter (fun a ->
+      try benchmark (int_of_string a)
+      with _ -> Printf.eprintf "compare: bad size '%s'\n%!" a; exit 2
+    ) (Array.sub Sys.argv 1 (Array.length Sys.argv - 1))
+  else begin
+    benchmark 10_000;
+    benchmark 100_000;
+    benchmark 1_000_000
+  end
