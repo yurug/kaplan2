@@ -1,10 +1,19 @@
 /* ktdeque_dequeptr.c — packets-and-chains C implementation with FLAT
- * packet allocation and DIFF-link encoding.  Each Rocq `Packet A` value
- * (a yellow run of k nested levels) maps to one FULL chain link allocation
- * containing 2*k contiguous `kt_buf`s.  Cascade through a yellow run is
- * in-place buffer manipulation on a stack-local packet copy, with at most
- * 2 mallocs committed per operation (one new top link plus, when the
- * cascade extends past the packet, one new tail link).
+ * packet allocation and DIFF-link encoding.
+ *
+ * READ FIRST: kb/spec/why-bounded-cascade.md.  That document explains
+ * the algorithm at the intuition layer (why "no two reds adjacent"
+ * gives WC O(1), why packets aggregate yellow runs); this file is the
+ * C realisation of that algorithm.  The vocabulary used below — Green,
+ * Yellow, Red, packet, chain, ensure_green, make_small, green_of_red —
+ * is defined and motivated there.
+ *
+ * Each Rocq `Packet A` value (a yellow run of k nested levels) maps
+ * to one FULL chain link allocation containing 2*k contiguous `kt_buf`s.
+ * Cascade through a yellow run is in-place buffer manipulation on a
+ * stack-local packet copy, with at most 2 mallocs committed per
+ * operation (one new top link plus, when the cascade extends past the
+ * packet, one new tail link).
  *
  * Phase P (diff-link, K=1):  Most ops modify exactly one of {outer pre,
  * outer suf} and leave inner bufs / deeper levels untouched.  We model
@@ -402,6 +411,33 @@ static inline int buf_eject(const kt_buf* b, kt_buf* out_rest, kt_elem* out_x) {
 
 /* ====================================================================== */
 /* Chain link / packet (flat layout)                                      */
+/*                                                                         */
+/* This is the C realisation of the Rocq [Packet] / [Chain] structure.    */
+/* The KT99 / Viennot algorithm requires that an entire yellow run lives   */
+/* in a SINGLE allocation unit — otherwise a chain repair would touch     */
+/* O(yellow-run-length) cells, defeating the worst-case O(1) bound (see   */
+/* kb/spec/why-bounded-cascade.md §3 for why).                            */
+/*                                                                         */
+/* A chain is a NULL-terminated linked list of links.  Each link is one   */
+/* of two flavours:                                                        */
+/*                                                                         */
+/*   FULL link  =  one packet aggregating depth >= 1 yellow levels        */
+/*                  layout: 16 B header + bufs[2*depth] (96 B for depth=1)*/
+/*                                                                         */
+/*   DIFF link  =  a single-buffer override layered over a FULL "base"    */
+/*                  layout: 16 B header + base ptr + 1 override buffer    */
+/*                  (56 B fixed)                                           */
+/*                                                                         */
+/* Most operations modify only one of {outer_pre, outer_suf}; the DIFF    */
+/* form lets such writes ship a 56-byte allocation instead of cloning a   */
+/* 96-byte FULL.  The K=1 invariant ("a DIFF's base is always FULL") keeps */
+/* reads O(1) — at most one indirection through DIFF -> base.              */
+/*                                                                         */
+/* The colour tag is stored explicitly in the header rather than derived  */
+/* from buffer sizes.  This is required by the Viennot algorithm: after a */
+/* green_of_red Case 3 the freshly-tagged Red link may *happen* to have   */
+/* G/Y-sized buffers, so the tag is contextual, not structural.  Reading  */
+/* the tag from the header is what lets ensure_green dispatch correctly.  */
 /* ====================================================================== */
 
 /* Color tag (Viennot regularity).  Required because the structural color
@@ -1459,9 +1495,19 @@ static void suffix_rot(const kt_buf* b, kt_elem x, kt_elem* out_front, kt_buf* o
 
 /* ====================================================================== */
 /* make_small: handle the depth=1, tail=NULL case of green_of_red.        */
-/* See Viennot's `make_small p1 b2 s1`: produces a fresh green chain     */
-/* given a 1-level packet's pre/suf and the deeper buffer (which is B0  */
-/* in our case since tail=NULL is "Ending B0" implicit).                  */
+/*                                                                         */
+/* This is the bottom of the cascade: when a Red link sits on top of an   */
+/* otherwise-empty chain, [make_small] re-balances the three buffers      */
+/* (p1, b2, s1) into a fresh green chain in one step.  No recursion —     */
+/* the proof artifact in OpsAbstract.v *is* recursive, but the production */
+/* implementation here mirrors OpsKT.v's [make_small], which is a 9-case  */
+/* match on the prefix/suffix decomposition (3 outcomes for each: under-  */
+/* flow, ok, overflow).  Each case touches at most a constant number of   */
+/* buffers, so the operation is O(1).                                     */
+/*                                                                         */
+/* Sequence semantics: chain_to_list(result) =                            */
+/*   buf_seq(p1) ++ buf_seq(b2) ++ buf_seq(s1).                           */
+/* The proof of this is OpsKTSeq.v's [make_small_seq] (the 9-case proof). */
 /* ====================================================================== */
 
 /* make_small builds a fresh chain from (p1, b2, s1).  In our usage
@@ -1854,13 +1900,36 @@ static inline void suffix_concat(int level,
 
 /* ====================================================================== */
 /* green_of_red: the central rebalancing primitive.                        */
+/*                                                                         */
+/* This is the heart of the worst-case O(1) bound.  When a public          */
+/* operation leaves the chain head Red (one of its outer buffers overflew  */
+/* or underflew), green_of_red converts that single Red link into a Green  */
+/* one.  Crucially, by the regularity invariant ("no two Reds adjacent",  */
+/* see kb/spec/why-bounded-cascade.md §2) the link below the Red top is   */
+/* either Green or absent — so green_of_red itself is non-recursive.       */
+/*                                                                         */
+/* Three structural cases, mirroring Viennot:                              */
+/*                                                                         */
+/*   Case 1:  depth=1, tail=NULL.  Bottom of chain.  Collapse to fresh     */
+/*            green chain via make_small(p1, B0, s1).                      */
+/*                                                                         */
+/*   Case 2:  depth=1, tail!=NULL.  Tail is Green by regularity.  Merge    */
+/*            our outer pre/suf into tail's outer pre/suf via              */
+/*            green_prefix_concat / green_suffix_concat; result is a       */
+/*            single fresh Green link replacing both the old top and tail. */
+/*                                                                         */
+/*   Case 3:  depth>=2.  Split the yellow run at the outer level: the     */
+/*            outermost level becomes a Green link, the rest of the run   */
+/*            becomes a tagged-Red sub-packet that prepends to the tail.  */
+/*                                                                         */
+/* Total work is bounded by a structural constant — at most 2 link        */
+/* allocations, no recursion.  The cost bound NF_PUSH_PKT_FULL = 9 in     */
+/* CostMonad.v is the formal version of this.                              */
 /* ====================================================================== */
 
 /* Apply green_of_red to a chain whose head is `top` and whose top
  * packet is RED (outer pre or outer suf is overflow/underflow, depending
- * on which op triggered it).  Returns the head of the fixed chain.
- *
- * The 3 cases mirror Viennot directly. */
+ * on which op triggered it).  Returns the head of the fixed chain. */
 static kt_chain_link* green_of_red(kt_chain_link* top) {
     /* Inputs: top->depth, top->bufs, top->tail.
        cp = top's chain_pos (level offset of top's outer bufs).
@@ -1967,6 +2036,25 @@ static kt_chain_link* ensure_green(kt_chain_link* L) {
     if (L != NULL && L->tag == COL_R) return green_of_red(L);
     return L;
 }
+
+/* ====================================================================== */
+/* Public push / inject / pop / eject (the four user-facing operations)   */
+/* ====================================================================== */
+/* Each public op has a single shape:                                     */
+/*                                                                         */
+/*   1. naive update of the top buffer (push x onto top->bufs[0], etc.).  */
+/*   2. if that overflowed/underflowed (top is now Red), call             */
+/*      green_of_red(top) to repair.                                       */
+/*   3. return the new chain head.                                         */
+/*                                                                         */
+/* Step 2 inlines the cheap "is the top really Red?" check at the call    */
+/* site (rather than going through ensure_green) to save a function call  */
+/* in the hot path.  ensure_green above is kept for reference / future    */
+/* inlining-disabling builds.                                              */
+/*                                                                         */
+/* Both step 1 and step 2 do O(1) work — that's the worst-case bound.     */
+/* See kb/spec/why-bounded-cascade.md §4 for the full argument.            */
+/* ====================================================================== */
 
 /* ====================================================================== */
 /* push                                                                    */
