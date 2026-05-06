@@ -20,7 +20,7 @@
 
     Cross-references:
     - bench/viennot/color_GYR.ml -- Viennot's GADT color encoding.
-    - Public/c/ktdeque_dequeptr.c (color_from_bufs) -- C runtime version.
+    - c/src/ktdeque_dequeptr.c (color_from_bufs) -- C runtime version.
 *)
 
 From KTDeque.Common Require Import Prelude Buf5.

@@ -1,32 +1,36 @@
-(** Side-by-side benchmark: extracted KTDeque (DequePtr) vs Viennot's Deque4. *)
+(** Side-by-side benchmark: the verified KTDeque library vs Viennot's Deque4.
 
-(* ---------- KTDeque (extracted from Coq) ---------- *)
+    Uses the public [push_kt2 / pop_kt2 / inject_kt2 / eject_kt2] API
+    — the bounded-cascade WC O(1) entry points that the [ktdeque] opam
+    package advertises and that the QCheck/Monolith suites validate. *)
+
+(* ---------- KTDeque (verified extraction, kt2 family) ---------- *)
 module Kt = struct
   open KTDeque
 
-  type 'a t = 'a chain
+  type 'a t = 'a kChain
 
-  let empty : 'a t = empty_chain
+  let empty : 'a t = empty_kchain
 
-  let push x t = match push_chain_rec (E.base x) t with
+  let push x t = match push_kt2 (Coq_E.base x) t with
     | Some t' -> t'
     | None    -> failwith "Kt.push: regularity invariant violated"
 
-  let inject t x = match inject_chain_rec t (E.base x) with
+  let inject t x = match inject_kt2 t (Coq_E.base x) with
     | Some t' -> t'
     | None    -> failwith "Kt.inject: regularity invariant violated"
 
-  let pop t = match pop_chain_rec t with
+  let pop t = match pop_kt2 t with
     | Some (e, t') ->
-        let xs = E.to_list e in
+        let xs = Coq_E.to_list e in
         (match xs with
          | [x] -> Some (x, t')
          | _   -> failwith "Kt.pop: top element not a base singleton")
     | None -> None
 
-  let eject t = match eject_chain_rec t with
+  let eject t = match eject_kt2 t with
     | Some (t', e) ->
-        let xs = E.to_list e in
+        let xs = Coq_E.to_list e in
         (match xs with
          | [x] -> Some (t', x)
          | _   -> failwith "Kt.eject: top element not a base singleton")

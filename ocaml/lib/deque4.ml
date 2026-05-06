@@ -1,11 +1,15 @@
-(** Public Deque4 API: a Section-4 (non-catenable) double-ended queue.
+(** Hand-written Deque4 used by the bench harness only.
 
     Operations: empty, is_empty, push, pop, inject, eject, to_list.
-    Worst-case time complexity: O(1) for push, pop, inject, eject (per
-    KT99); O(n) for to_list.
+    Time complexity: amortized O(log n) per op (the hand-written cell
+    layout cascades a recursive spill on overflow); O(n) for to_list.
+    NOT worst-case O(1): for the WC O(1) deque, see the verified
+    [KTDeque] library in `ocaml/extracted/`.
 
-    This module re-exports the hand-written implementation by default.
-    Switch to the extracted-from-Rocq form by editing the body below.
+    This module re-exports the hand-written implementation; it exists
+    so the bench drivers can compare the verified extraction against
+    a different functional design point.  Not part of the public
+    [ktdeque] opam package.
 
     Cross-references:
     - kb/architecture/decisions/adr-0009-deque4-end-to-end.md

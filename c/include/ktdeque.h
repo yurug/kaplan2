@@ -1,10 +1,12 @@
-/* ktdeque.h — Section-4 deque with worst-case O(1) per op (packets-and-chains).
+/* ktdeque.h — Kaplan-Tarjan persistent real-time deque, worst-case O(1) per op.
  *
  * Algorithmic structure: KT99 §4.1 stack-of-substacks / VWGP packets-and-chains.
  * Each operation modifies at most the top packet plus (in the green_of_red
  * cascade) the topmost-G chain link.
  *
- * See COMPARISON.md for benchmark numbers, STATUS.md for design rationale.
+ * See COMPARISON.md for benchmark numbers, ../README.md (top-level) for the
+ * project overview, and ../kb/architecture/decisions/ for ADRs covering the
+ * design rationale.
  */
 
 #ifndef KT_DEQUE_H

@@ -3,8 +3,8 @@
  * validate against per-thread reference deque.
  *
  * Build:
- *   gcc -O2 -g -fsanitize=thread -DNDEBUG -I c/ -pthread \
- *       -o /tmp/test_threads c/ktdeque_dequeptr.c c/test_threads.c
+ *   gcc -O2 -g -fsanitize=thread -DNDEBUG -Ic/include -pthread \
+ *       -o /tmp/test_threads c/src/ktdeque_dequeptr.c c/tests/test_threads.c
  *
  * Run:
  *   /tmp/test_threads 100000   # 100k ops per thread

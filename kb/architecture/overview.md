@@ -30,7 +30,7 @@ each piece of the manual lives. Does NOT cover: type definitions
 ├── c/                           # hand-written C (ktdeque_dequeptr.c is the Makefile default)
 ├── rust/                        # Rust port
 ├── kb/                          # this knowledge base
-├── kaplan_cadeque_execution_manual_v3.md, jacm-final.pdf, viennot-...pdf
+├── kb/execution-manual-v3.md, jacm-final.pdf, viennot-...pdf
 └── dune-project, Makefile, README.md
 ```
 

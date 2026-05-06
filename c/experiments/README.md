@@ -28,7 +28,7 @@ sudo sysctl kernel.perf_event_paranoid=1     # allow user-mode perf
 ### Generate a trace
 
 ```sh
-cd c
+cd c/experiments
 ./profile_eject.sh 1000000        # writes perf.data
 ```
 

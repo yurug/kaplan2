@@ -38,7 +38,7 @@ RAW=$("$BIN" $SIZES 2>&1)
 
 # Emit the report (header + bench output + footer).
 {
-    echo "# Canonical comparison (kaplan2 ktdeque vs canonical alternatives)"
+    echo "# Canonical comparison: ktdeque vs canonical alternatives"
     echo
     echo "**Generated**: $DATE"
     echo "**Kernel**: $KERNEL"

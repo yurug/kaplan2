@@ -21,10 +21,10 @@ libraries.  Building, testing, and benchmarking are all standalone.
   fuzzing, bit-for-bit C↔OCaml differential at n=400k under deep-cascade
   workloads, and 64-branch persistence stress.
 - **Worst-case O(1)** — verified empirically by `wc_test`: each op
-  performs ≤ 16 allocations, flat in n.  The maxima do not grow with
+  performs ≤ 8 allocations, flat in n.  The maxima do not grow with
   deque size.
 - **Faster than Viennot OCaml on every workload** at n=1M with arena
-  compaction enabled (default), by 1.66×–2.86× — see
+  compaction enabled (default), by 1.65×–2.86× — see
   [`COMPARISON.md`](COMPARISON.md).
 - **Persistent and thread-safe to read** — every op returns a new
   deque that shares structure with the input.  Independent deques in
@@ -171,11 +171,11 @@ With arena compaction at K=4096 (the `make bench` default):
 
 | Op     | C (K=4096) | Viennot OCaml | Speedup |
 | ------ | ---------: | ------------: | ------: |
-| push   |   31.2 ns  |    82.9 ns    | 2.66×   |
-| inject |   35.0 ns  |    68.6 ns    | 1.96×   |
-| pop    |   26.0 ns  |    49.0 ns    | 1.88×   |
-| eject  |   25.9 ns  |    43.0 ns    | 1.66×   |
-| mixed  |   18.7 ns  |    53.4 ns    | 2.86×   |
+| push   |   32.6 ns  |    83.4 ns    | 2.56×   |
+| inject |   36.6 ns  |    69.7 ns    | 1.90×   |
+| pop    |   27.2 ns  |    51.5 ns    | 1.89×   |
+| eject  |   27.2 ns  |    44.9 ns    | 1.65×   |
+| mixed  |   19.1 ns  |    54.6 ns    | 2.86×   |
 
 See [`COMPARISON.md`](COMPARISON.md) for the K=0 (no-compaction)
 column, the methodology, and a note on why compaction is load-bearing.

@@ -1,38 +1,37 @@
-(** Smoke test + microbenchmark for the extracted DequePtr deque.
+(** Smoke test + microbenchmark for the verified extracted KTDeque library.
 
-    Exercises push_chain_full / pop_chain / inject_chain_full /
-    eject_chain and compares against a list-based reference. *)
+    Exercises the public WC-O(1) API (push_kt2 / inject_kt2 / pop_kt2 /
+    eject_kt2) and compares against a list-based reference. *)
 
 open KTDeque
 
-(* The empty deque: [Ending B0], handily named [empty_chain]. *)
-let empty_deque () : 'a chain = empty_chain
+let empty_deque () : 'a kChain = empty_kchain
 
-let push x d = match push_chain_rec (E.base x) d with
+let push x d = match push_kt2 (Coq_E.base x) d with
   | Some d' -> d'
   | None    -> failwith "push: regularity invariant violated"
 
-let inject d x = match inject_chain_rec d (E.base x) with
+let inject d x = match inject_kt2 d (Coq_E.base x) with
   | Some d' -> d'
   | None    -> failwith "inject: regularity invariant violated"
 
-let pop d = match pop_chain_rec d with
+let pop d = match pop_kt2 d with
   | Some (e, d') ->
-      let xs = E.to_list e in
+      let xs = Coq_E.to_list e in
       (match xs with
        | [x] -> Some (x, d')
        | _   -> failwith "pop: top element is not a base singleton")
   | None -> None
 
-let eject d = match eject_chain_rec d with
+let eject d = match eject_kt2 d with
   | Some (d', e) ->
-      let xs = E.to_list e in
+      let xs = Coq_E.to_list e in
       (match xs with
        | [x] -> Some (d', x)
        | _   -> failwith "eject: top element is not a base singleton")
   | None -> None
 
-let to_list d = chain_to_list d
+let to_list d = kchain_to_list d
 
 (* Smoke test *)
 let () =

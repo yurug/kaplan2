@@ -10,11 +10,11 @@
  * abort as a crash and saves the input that produced it.
  *
  * Build:
- *   afl-gcc -O2 -DAFL_HARNESS -o c/fuzz_afl c/ktdeque_dequeptr.c c/fuzz_afl.c
+ *   afl-gcc -O2 -DAFL_HARNESS -o c/fuzz_afl c/src/ktdeque_dequeptr.c c/tests/fuzz_afl.c
  *
  * Run (sandbox-friendly):
  *   AFL_SKIP_CPUFREQ=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
- *   afl-fuzz -i c/afl_seeds -o c/afl_findings -- ./c/fuzz_afl
+ *   afl-fuzz -i c/tests/afl_seeds -o c/tests/afl_findings -- ./c/fuzz_afl
  */
 #include "ktdeque.h"
 #include <stdio.h>

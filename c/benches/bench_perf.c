@@ -7,13 +7,13 @@
  *   gcc -O3 -funroll-loops -finline-functions -fomit-frame-pointer \
  *       -DNDEBUG -DKT_COMPACT_INTERVAL=4096 \
  *       -fno-omit-frame-pointer -ggdb -g3 \
- *       -o c/bench_perf c/ktdeque_dequeptr.c c/bench_perf.c
+ *       -o c/benches/bench_perf c/src/ktdeque_dequeptr.c c/benches/bench_perf.c
  *
  * Profile:
- *   perf record -F 999 --call-graph dwarf -- ./c/bench_perf
+ *   perf record -F 999 --call-graph dwarf -- ./c/benches/bench_perf
  *   perf report --stdio --sort=overhead,symbol | head -40
  *   perf annotate green_of_red --stdio | head -80
- *   perf stat -e cycles,instructions,branch-misses,cache-misses ./c/bench_perf
+ *   perf stat -e cycles,instructions,branch-misses,cache-misses ./c/benches/bench_perf
  */
 #include "ktdeque.h"
 #include <stdio.h>

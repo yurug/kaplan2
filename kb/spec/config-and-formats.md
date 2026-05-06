@@ -38,7 +38,7 @@ Top-level workspace `/home/coder/workspace/kaplan2/`:
 ├── dune-project                        # workspace dune-project
 ├── Makefile                            # convenience wrapper
 ├── README.md
-├── kaplan_cadeque_execution_manual_v3.md
+├── kb/execution-manual-v3.md
 ├── jacm-final.pdf
 ├── viennot-wendling-gueneau-pottier-verified-catenable-deques.pdf
 └── external-refs/

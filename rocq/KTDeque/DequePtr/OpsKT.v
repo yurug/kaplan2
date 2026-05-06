@@ -162,7 +162,7 @@
     ## Cross-references
 
     - [bench/viennot/deque_core.ml] — the reference being mirrored.
-    - [c/ktdeque_dequeptr.c] — the hand-translated C version.
+    - [c/src/ktdeque_dequeptr.c] — the hand-translated C version.
     - [KTDeque.Common.Color] — color types.
     - [KTDeque.Common.Element] — the [ELEMENT] interface and its
       canonical [ElementTree] instance.

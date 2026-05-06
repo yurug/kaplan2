@@ -7,7 +7,7 @@
  *
  * Build:
  *   gcc -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer \
- *       -DNDEBUG -I c/ -o /tmp/fuzz c/ktdeque_dequeptr.c c/fuzz.c
+ *       -DNDEBUG -Ic/include -o /tmp/fuzz c/src/ktdeque_dequeptr.c c/tests/fuzz.c
  *
  * Run:
  *   ASAN_OPTIONS=detect_leaks=0 /tmp/fuzz 1000   # 1000 seeds × random lengths

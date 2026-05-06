@@ -13,6 +13,8 @@ bug-reports: "https://github.com/yurug/kaplan2/issues"
 depends: [
   "ocaml" {>= "4.14"}
   "dune" {>= "3.22"}
+  "qcheck" {with-test}
+  "qcheck-core" {with-test}
   "odoc" {with-doc}
 ]
 build: [

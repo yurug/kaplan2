@@ -13,7 +13,7 @@ Canonical definitions for every domain term used across the KB.
 All terms used in more than one file. Section/Theorem/Lemma identifiers (D4-1, C6-3, P4) are catalogued under `properties/INDEX.md` and `spec/INDEX.md`, not here.
 
 ## Sources
-- **Manual** = `/home/coder/workspace/kaplan2/kaplan_cadeque_execution_manual_v3.md` (the prescriptive contract).
+- **Manual** = `kb/execution-manual-v3.md` (the prescriptive contract).
 - **KT99** = Kaplan & Tarjan, *Purely Functional, Real-Time Deques with Catenation*, JACM 46(5), 1999.
 - **VWGP** = Viennot, Wendling, Guéneau, Pottier, *Verified Purely Functional Catenable Real-Time Deques*, 2025 (preprint LMCS).
 
