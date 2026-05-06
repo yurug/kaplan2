@@ -1,3 +1,28 @@
+(** {1 KTDeque (implementation)}
+
+    This file is the Rocq-extracted implementation.  The user-facing
+    documentation lives in [kTDeque.mli] — read that for the public
+    API; do not duplicate it here.
+
+    Every [let] in this file has a Rocq-side counterpart:
+    - production WC-O(1) ops [push_kt2 / pop_kt2 / inject_kt2 /
+      eject_kt2] (and their [_kt3] / [_kt4] siblings) come from
+      [DequePtr/OpsKT.v];
+    - buffer helpers from [Common/Buf5.v];
+    - element-tree machinery ([ElementTree], [Coq_E]) from
+      [Common/Element.v];
+    - [_chain_full] / [_chain_rec] proof artefacts from
+      [DequePtr/OpsAbstract.v] and [DequePtr/Repair.v].
+
+    Re-extraction: build [rocq/KTDeque/Extract] from the project root
+    and copy the resulting [.ml]/[.mli] over.  Preserve the literate
+    headers and per-binding [(** ... *)] comments in [.mli].
+
+    For *why* this code is correct and elegant — why "no two reds
+    adjacent" delivers worst-case O(1), why packets aggregate yellow
+    runs into a single allocation — read
+    [kb/spec/why-bounded-cascade.md].
+*)
 
 type __ = Obj.t
 

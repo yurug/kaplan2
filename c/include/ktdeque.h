@@ -1,12 +1,80 @@
-/* ktdeque.h — Kaplan-Tarjan persistent real-time deque, worst-case O(1) per op.
+/* ====================================================================== *
+ * ktdeque.h - Kaplan-Tarjan persistent real-time deque, worst-case O(1).  *
+ * ====================================================================== *
  *
- * Algorithmic structure: KT99 §4.1 stack-of-substacks / VWGP packets-and-chains.
- * Each operation modifies at most the top packet plus (in the green_of_red
- * cascade) the topmost-G chain link.
+ * A purely functional deque with worst-case O(1) per operation push, pop,
+ * inject, eject.  Every kt_deque value is an immutable snapshot; an
+ * operation returns a new snapshot sharing structure with the old one,
+ * with no asymptotic penalty.  You can fork a deque, mutate one branch,
+ * and the other branch is unaffected.
  *
- * See COMPARISON.md for benchmark numbers, ../README.md (top-level) for the
- * project overview, and ../kb/architecture/decisions/ for ADRs covering the
- * design rationale.
+ * Algorithm: KT99 / Viennot-Wendling-Guéneau-Pottier "packets and chains".
+ *
+ * For the *intuition* — why "no two reds adjacent" delivers worst-case
+ * O(1), why packets aggregate yellow runs into a single allocation —
+ * read kb/spec/why-bounded-cascade.md.  The implementation in
+ * src/ktdeque_dequeptr.c mirrors that document section by section.
+ *
+ *   --------------------------------------------------------------------
+ *   QUICK START
+ *   --------------------------------------------------------------------
+ *
+ *     #include "ktdeque.h"
+ *
+ *     long values[] = {1, 2, 3};
+ *     kt_deque d = kt_empty();
+ *     d = kt_push(kt_base(&values[0]), d);
+ *     d = kt_push(kt_base(&values[1]), d);
+ *     // d now holds [&values[1], &values[0]]
+ *
+ *     kt_elem x; int ok;
+ *     d = kt_pop(d, &x, &ok);
+ *     // ok = 1, x = &values[1]
+ *
+ *   See examples/hello.c for a full walkthrough.
+ *
+ *   --------------------------------------------------------------------
+ *   ELEMENT MODEL
+ *   --------------------------------------------------------------------
+ *
+ *   Elements are opaque kt_elem (= void*).  The deque does not copy or
+ *   own user data; it stores the pointer-sized values you pass in.
+ *   Common patterns:
+ *
+ *     - You own a long array `storage[N]`: pass kt_base(&storage[i]).
+ *     - You own a struct: pass a pointer to it.
+ *     - You want a small inline scalar: cast to (kt_elem) (size_t).
+ *
+ *   The low 3 bits of every kt_elem stored in the deque must be zero
+ *   (see src/ktdeque_dequeptr.c, "Buffer (Buf5)" section, for why —
+ *   the buffer's size is encoded in those bits).  All malloc-aligned
+ *   pointers and 8-byte-aligned scalars satisfy this.
+ *
+ *   --------------------------------------------------------------------
+ *   THREADING
+ *   --------------------------------------------------------------------
+ *
+ *   The default arena (used by the legacy kt_push / kt_pop / ... entry
+ *   points) is per-thread (TLS).  Concurrent threads never share arena
+ *   state; each thread can use the legacy API independently.
+ *
+ *   To pass a deque between threads, or to bound RSS deterministically,
+ *   use the explicit-region API (kt_region_create / kt_*_in / ...) —
+ *   see the bottom of this file.
+ *
+ *   --------------------------------------------------------------------
+ *   ARENA MANAGEMENT
+ *   --------------------------------------------------------------------
+ *
+ *   The library uses a bump-pointer arena to avoid per-op malloc.  Every
+ *   kt_push allocates ~50-100 bytes of arena; long-running programs
+ *   should periodically call kt_arena_compact() to reclaim arena space
+ *   no longer reachable from any live deque (a Cheney-style copy
+ *   collector specialized to the deque shape).  The roots[] array MUST
+ *   list every currently-live deque value.
+ *
+ *   See COMPARISON.md for benchmark numbers, ../../README.md for the
+ *   project overview, and ../../kb/architecture/decisions/ for ADRs.
  */
 
 #ifndef KT_DEQUE_H
@@ -15,27 +83,76 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* ====================================================================== *
+ * Element type.                                                            *
+ * ====================================================================== */
+
+/** Opaque element handle.  See ELEMENT MODEL above for what to put here. */
 typedef void* kt_elem;
 
+/** Internal pair node — surfaces in the API only via kt_pair_make /
+ *  kt_pair_split for users who want to assemble paired elements
+ *  manually.  Most callers should ignore this and let the deque pair
+ *  things internally. */
 typedef struct kt_pair {
     kt_elem left;
     kt_elem right;
 } kt_pair;
 
+/** kt_base(x) : kt_elem.  Wrap a typed pointer or scalar to fit the
+ *  kt_elem slot.  This is just a cast; provided for readability so call
+ *  sites distinguish "user value going in" from internal pair handles. */
 #define kt_base(x) ((kt_elem)(x))
 
+/** Pack two elements into a single kt_elem holding a kt_pair, allocating
+ *  a kt_pair node in the current arena.  Symmetric kt_pair_split
+ *  reverses the operation.  Most users never call these directly. */
 kt_elem kt_pair_make(kt_elem x, kt_elem y);
+
+/** Inverse of kt_pair_make: store the two halves into [*x] and [*y]. */
 void    kt_pair_split(kt_elem e, kt_elem* x, kt_elem* y);
 
+/* ====================================================================== *
+ * Deque value type and core operations.                                    *
+ * ====================================================================== */
+
+/** Opaque deque handle.  An immutable snapshot; operations never mutate
+ *  the input — they return a new snapshot sharing structure. */
 typedef void* kt_deque;
 
+/** The empty deque.  All deques are eventually rooted at kt_empty(). */
 kt_deque kt_empty(void);
+
+/** Prepend [x] to the front of [d]; return the resulting deque.
+ *  Worst-case O(1).  See kb/spec/why-bounded-cascade.md §4 for why. */
 kt_deque kt_push   (kt_elem x, kt_deque d);
+
+/** Append [x] to the back of [d]; return the resulting deque.
+ *  Mirror of kt_push.  Worst-case O(1). */
 kt_deque kt_inject (kt_deque d, kt_elem x);
+
+/** Remove and return the front element of [d].  On entry, [*out] and
+ *  [*out_was_nonempty] are written; on exit, the function returns the
+ *  remaining deque.
+ *
+ *  If [d] is empty: [*out_was_nonempty = 0], [*out] unchanged, and the
+ *  returned deque is empty.  Otherwise: [*out_was_nonempty = 1] and
+ *  [*out] holds the popped element.
+ *
+ *  Worst-case O(1). */
 kt_deque kt_pop    (kt_deque d, kt_elem* out, int* out_was_nonempty);
+
+/** Remove and return the back element of [d].  Mirror of kt_pop.
+ *  Worst-case O(1). */
 kt_deque kt_eject  (kt_deque d, kt_elem* out, int* out_was_nonempty);
 
+/** Total number of elements in [d].  O(N): walks the whole structure.
+ *  Provided for debugging and tests; not intended for hot-path use. */
 size_t kt_length(kt_deque d);
+
+/* ====================================================================== *
+ * Debug / inspection.                                                      *
+ * ====================================================================== */
 
 /* Returns 0 if the chain satisfies the C's K-T regularity invariant —
  * the per-packet analogue of the abstract `regular_chain` predicate
@@ -84,14 +201,52 @@ int    kt_check_regular(kt_deque d);
  */
 int    kt_check_diff_invariant(kt_deque d);
 
+/** Iterate every base element in the deque, in front-to-back order,
+ *  invoking [cb(e, ctx)] for each one.  O(N).  Provided for diagnostics
+ *  and tests; the verified pop / eject ops are the right tool for
+ *  in-order consumption in production code. */
 typedef void (*kt_walk_cb)(kt_elem e, void* ctx);
 void kt_walk(kt_deque d, kt_walk_cb cb, void* ctx);
+
+/* ====================================================================== *
+ * Allocation counters.                                                     *
+ * ====================================================================== *
+ *
+ * For wall-clock-equivalent cost reasoning at the C level: each kt_*
+ * op allocates a bounded number of arena objects.  These counters
+ * expose the running totals so a test (e.g. tests/wc_test.c) can
+ * verify that `K` operations cost at most `c * K` allocations for
+ * a small constant `c`.  Reset between runs with
+ * kt_reset_alloc_counters().
+ */
 
 size_t kt_alloc_packets(void);
 size_t kt_alloc_chains(void);
 size_t kt_alloc_pairs(void);
 size_t kt_alloc_bufs(void);
 void   kt_reset_alloc_counters(void);
+
+/* ====================================================================== *
+ * Arena management.                                                        *
+ * ====================================================================== *
+ *
+ * The library uses a bump-pointer arena to avoid the ~30-50 ns / call
+ * overhead of malloc.  Every kt_push / kt_inject / etc. allocates
+ * O(1) arena bytes; nothing is freed until the caller explicitly
+ * compacts.
+ *
+ * For short-lived workloads this is fine.  For long-running programs
+ * (millions of ops, especially with discarded intermediate states),
+ * call kt_arena_compact() periodically to reclaim arena bytes that
+ * are no longer reachable from any live deque.  A Cheney-style
+ * semispace copy collector specialized to the deque shape; cost is
+ * O(reachable cells), not O(arena size).
+ *
+ * SAFETY CONTRACT: roots[] MUST list every currently-live deque
+ * value.  Any persistent old version not in roots[] becomes dangling.
+ * If you don't know your full root set, prefer the kt_region_*
+ * API below — it folds compaction into explicit lifetimes.
+ */
 
 /* Compact the arena: copy all chain links and pair elements reachable
  * from any of the `n_roots` deque values forward into a fresh region,
