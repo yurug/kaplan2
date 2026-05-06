@@ -836,6 +836,10 @@ void kt_pair_split(kt_elem e, kt_elem* x, kt_elem* y) {
 /* ====================================================================== */
 /* Public API: empty                                                      */
 /* ====================================================================== */
+/* The empty deque is just NULL.  Every kt_deque eventually traces back   */
+/* to here.  An NULL chain has zero allocated arena bytes — kt_empty() is */
+/* O(1) in time and space.                                                 */
+/* ====================================================================== */
 
 kt_deque kt_empty(void) { return NULL; }
 
@@ -1265,13 +1269,26 @@ size_t kt_arena_compact_full(kt_deque* roots, size_t n_roots) {
 }
 
 /* ====================================================================== */
-/* Push / Inject                                                          */
+/* Push / Inject (internal cascade machinery)                              */
 /* ====================================================================== */
-/* These mirror Viennot's push/make_red/green_of_red, specialized to a
- * flat packet layout.  The cascade INSIDE a packet is in-place on a
- * stack-local kt_buf array (`work`); only when we commit to a final
- * structure do we malloc.
- */
+/* This section implements the cascade through a single yellow run, plus  */
+/* the pre/post-cascade chain rebuild.  Everything below is the           */
+/* operational realisation of Viennot's [push] / [make_red] /             */
+/* [green_of_red] functions, specialised to the flat-packet layout.      */
+/*                                                                         */
+/* The trick that buys us O(1) per public op: the cascade INSIDE a        */
+/* yellow run is in-place buffer manipulation on a stack-local kt_buf    */
+/* array ([work]).  We allocate from the arena only after the final     */
+/* shape is determined — at most 2 mallocs per public op (one new top    */
+/* link, plus, when the cascade extends past the packet, one new tail    */
+/* link).                                                                  */
+/*                                                                         */
+/* Why packets must aggregate yellow runs (rather than one chain link    */
+/* per level): a chain repair re-threads the chain after the cascade.    */
+/* If each level were its own allocation, re-threading would touch       */
+/* O(yellow-run-length) cells, defeating WC O(1).  See                   */
+/* kb/spec/why-bounded-cascade.md §3.                                     */
+/* ====================================================================== */
 
 /* Helper: extract the "overflow pair" from a B5 prefix buffer — i.e.,
  * the back two elements — leaving a B3 prefix.  Returns the pair.
@@ -1720,6 +1737,19 @@ static kt_chain_link* make_small(uint8_t cp, kt_buf p1, kt_buf b2, kt_buf s1) {
 
 /* ====================================================================== */
 /* green_prefix_concat / green_suffix_concat / prefix_concat / suffix_concat */
+/* ====================================================================== */
+/* The "buffer-redistribution" helpers used by green_of_red Cases 2 and 3.  */
+/* When two adjacent levels each have their outer buffer in a colour the   */
+/* algorithm can't tolerate (one too small, the other too big), these      */
+/* helpers shuffle elements between them so the outer becomes Green and    */
+/* the inner stays Yellow.  Each is O(1) — works on at most a constant    */
+/* number of buffer slots.                                                  */
+/*                                                                         */
+/* The "[green_]_*_concat" pair handles the depth-1 (outer-meets-tail)    */
+/* case; the "_concat" pair handles the depth-≥2 (outer-meets-inner)      */
+/* case.  See the corresponding [Definition green_prefix_concat] etc. in  */
+/* rocq/KTDeque/DequePtr/OpsKT.v for the abstract spec, and OpsKTSeq.v   */
+/* [green_prefix_concat_seq] for the sequence-preservation lemma.          */
 /* ====================================================================== */
 
 /* These are the Viennot helpers used in green_of_red Cases 2 & 3.  They
@@ -2617,6 +2647,19 @@ kt_deque kt_eject(kt_deque d, kt_elem* out, int* out_was_nonempty) {
 
 /* ====================================================================== */
 /* Length, regularity, walk                                               */
+/* ====================================================================== */
+/* Inspection / debug helpers.  All O(N) — they walk the entire deque.   */
+/*                                                                         */
+/*   kt_length        — count base elements.                               */
+/*   kt_check_regular — verify the C's runtime regularity invariant        */
+/*                      matches the abstract spec's [regular_chain].       */
+/*                      Returns 0 on success, a distinct negative code     */
+/*                      per violation (see header for the table).          */
+/*   kt_check_diff_invariant — verify K=1 (no DIFF over DIFF).             */
+/*   kt_walk          — front-to-back base-element callback iteration.    */
+/*                                                                         */
+/* These are intended for tests and diagnostics; the verified pop / eject */
+/* operations are the right tool for production iteration.                 */
 /* ====================================================================== */
 
 static size_t buf_count_at(const kt_buf* b, int level) {
