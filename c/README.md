@@ -20,11 +20,10 @@ libraries.  Building, testing, and benchmarking are all standalone.
   ASan + UBSan + TSan, a 1000-seed fuzzer, AFL-style coverage-guided
   fuzzing, bit-for-bit C↔OCaml differential at n=400k under deep-cascade
   workloads, and 64-branch persistence stress.
-- **Worst-case O(1)** — verified empirically by `wc_test`: each op
-  performs ≤ 8 allocations, with the per-counter maxima (packets,
-  links, pairs, bufs) flat across n ∈ {1k, 10k, 100k}.  The total
-  occasionally ticks up by 1 between sizes due to one rare
-  pair-block emission, but the structural bound stays at 8.
+- **Worst-case O(1)** — verified empirically by `wc_test`: the per-op
+  allocation total is bounded by **≤ 8** across n ∈ {1k, 10k, 100k},
+  with no growth in n.  (The total ticks up by one between 10k and
+  100k due to one rare pair-block emission; it never exceeds 8.)
 - **Faster than Viennot OCaml on every workload** at n=1M with arena
   compaction enabled (default), by ~1.5×–~2.9× — see
   [`COMPARISON.md`](COMPARISON.md).

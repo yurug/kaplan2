@@ -78,7 +78,9 @@ The extracted module **is not idiomatic OCaml**. It carries:
 
 Per VWGP §9.2.2, extracted code from a Rocq formalization with size/level indices is **O(n)** per operation, not O(1), because indices are not erased. Our development has fewer indices (cells are simple records, not type-indexed), so the impact is smaller, but extracted `nat` arithmetic still slows things by an order of magnitude relative to the hand-written OCaml.
 
-**Conclusion**: hand-written OCaml in `ocaml/lib/` is the production code. Extracted code is a sanity witness for the formalization.
+**Conclusion (as written)**: hand-written OCaml in `ocaml/lib/` is the production code. Extracted code is a sanity witness for the formalization.
+
+> **Update (current architecture):** the extracted code (`ocaml/extracted/kTDeque.ml`, opam package `ktdeque`) is the production library; `ocaml/lib/` was renamed `ktdeque_bench_helpers` and is internal bench-only support.  See the banner at the top of this file.
 
 ## Demo and fuzz
 

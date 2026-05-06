@@ -9,6 +9,7 @@
 (library
  (name ktdeque)
  (public_name ktdeque)
+ (synopsis "Kaplan-Tarjan persistent real-time deque (Coq-extracted, worst-case O(1))")
  (wrapped false)
  (modules kTDeque))
 

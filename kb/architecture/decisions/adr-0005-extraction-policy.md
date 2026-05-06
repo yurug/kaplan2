@@ -7,7 +7,15 @@ related: [architecture-overview, ocaml-extraction]
 # ADR-0005: Extraction policy
 
 ## Status
-Proposed.
+Accepted.  **Update (2026-05):** at the time this ADR was written
+the planned model was "hand-written `ocaml/lib/` is production,
+extracted code is a sanity witness".  After the kt2/kt3/kt4 redesign
+in phases δ.opt and δ.opt2, the verified extraction
+(`ocaml/extracted/kTDeque.ml`, public_name `ktdeque`) is the
+production library and `ocaml/lib/` (renamed
+`ktdeque_bench_helpers`) is internal bench-only support.  The
+extraction directives in this ADR are still in force; only the
+production-vs-witness role of the two trees has flipped.
 
 ## Context
 

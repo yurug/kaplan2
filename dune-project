@@ -17,7 +17,7 @@
  (name ktdeque)
  (synopsis "Kaplan-Tarjan persistent real-time deque (Coq-extracted, worst-case O(1))")
  (description
-   "A purely-functional, persistent, double-ended queue with worst-case O(1) per operation: push, pop, inject, eject all run in constant time.  The OCaml code in this package is automatically extracted from the Rocq formalization in the kaplan2 repository.  The extraction is proven sequence-preserving in the source theorems, so this OCaml is the verified front-end for the algorithm.  For the C port (1.6x-2.9x faster than this OCaml on every workload at n=1M with arena compaction), see the c/ directory of the source repo.")
+   "A purely-functional, persistent, double-ended queue with worst-case O(1) per operation: push, pop, inject, eject all run in constant time.  The OCaml code in this package is automatically extracted from the Rocq formalization in the kaplan2 repository.  The extraction is proven sequence-preserving in the source theorems, so this OCaml is the verified front-end for the algorithm.  Performance is competitive with Viennot et al.'s hand-written real-time deque (within ~15% on standard workloads at n=1M).  For a C port that runs ~1.5x-2.9x faster than Viennot OCaml under arena compaction, see the c/ directory of the source repo.")
  (depends
   (ocaml (>= 4.14))
   dune
