@@ -526,9 +526,65 @@ Definition top_level_paths_green {X : Type} (q : Cadeque X) : Prop :=
       /\ triple_color (preferred_path_tail tR) = Green4
   end.
 
-(** ** [regular_cad]: semiregular plus (RC4).
+(** ** [well_sized_triple]: manual §10.5 (OT1)-(OT4) size constraints.
 
-    This is the invariant the public operations
+    Ordinary triples come in three kinds and have specific buffer
+    size constraints:
+
+    (OT1) [TOnly] with non-empty child: both buffers ≥ 5.
+    (OT2) [TOnly] with empty child: one buffer empty, the other
+          has positive size.  The both-≥-5 case is also legal
+          when the child happens to be [CEmpty].
+    (OT3) [TLeft]:  prefix ≥ 5, suffix = 2.
+    (OT4) [TRight]: prefix = 2, suffix ≥ 5.
+
+    These constraints are what make the colour discipline
+    deterministic (the colour-determining buffer always has size
+    ≥ 5, so the §10.6 thresholds R/O/Y/G are never the defensive
+    default for sizes 0..4). *)
+
+Definition well_sized_triple {X : Type} (t : Triple X) : Prop :=
+  match t with
+  | TOnly  pre c suf =>
+      match c with
+      | CEmpty =>
+          (* (OT2): child empty + one buffer empty + other > 0,
+             OR both ≥ 5 (degenerate case). *)
+          (buf6_size pre = 0 /\ buf6_size suf > 0)
+          \/ (buf6_size suf = 0 /\ buf6_size pre > 0)
+          \/ (buf6_size pre >= 5 /\ buf6_size suf >= 5)
+      | _ =>
+          (* (OT1): child non-empty, both buffers ≥ 5. *)
+          buf6_size pre >= 5 /\ buf6_size suf >= 5
+      end
+  | TLeft  pre _ suf =>
+      (* (OT3) *)
+      buf6_size pre >= 5 /\ buf6_size suf = 2
+  | TRight pre _ suf =>
+      (* (OT4) *)
+      buf6_size pre = 2 /\ buf6_size suf >= 5
+  end.
+
+(** ** [well_sized_cad] / [well_sized_subtree]: mutual Fixpoint
+    asserting (OT1)-(OT4) at every triple in the tree. *)
+
+Fixpoint well_sized_cad {X : Type} (q : Cadeque X) : Prop :=
+  match q with
+  | CEmpty        => True
+  | CSingle t     => well_sized_subtree t
+  | CDouble tL tR => well_sized_subtree tL /\ well_sized_subtree tR
+  end
+with well_sized_subtree {X : Type} (t : Triple X) : Prop :=
+  match t with
+  | TOnly  _ c _ => well_sized_cad c /\ well_sized_triple t
+  | TLeft  _ c _ => well_sized_cad c /\ well_sized_triple t
+  | TRight _ c _ => well_sized_cad c /\ well_sized_triple t
+  end.
+
+(** ** [regular_cad]: semiregular plus (RC4) plus (OT1)-(OT4)
+    size constraints.
+
+    This is the *full* invariant the public operations
     ([cad_push] / [cad_inject] / [cad_pop] / [cad_eject] /
     [cad_concat]) maintain.  Internal helpers (eventually:
     [make_red_*] / [green_of_red_*] in Phase 5.6) may temporarily
@@ -536,7 +592,7 @@ Definition top_level_paths_green {X : Type} (q : Cadeque X) : Prop :=
     restores [regular_cad]. *)
 
 Definition regular_cad {X : Type} (q : Cadeque X) : Prop :=
-  semiregular_cad q /\ top_level_paths_green q.
+  semiregular_cad q /\ top_level_paths_green q /\ well_sized_cad q.
 
 (** * Trivial corollaries. *)
 
@@ -551,9 +607,10 @@ Proof. intros. exact I. Qed.
 Lemma regular_cad_empty :
   forall (X : Type), regular_cad (@CEmpty X).
 Proof.
-  intros X. split.
+  intros X. split; [|split].
   - apply semiregular_cad_empty.
   - apply top_level_paths_green_empty.
+  - exact I.
 Qed.
 
 (** ** Manual §10.9 structural lemma 1:
@@ -706,16 +763,19 @@ Theorem red_triple_child_regular :
   forall (X : Type) (t : Triple X),
     triple_color t = Red4 ->
     semiregular_triple t ->
+    well_sized_subtree t ->
     regular_cad (triple_child t).
 Proof.
-  intros X t Hred Hsr.
+  intros X t Hred Hsr Hws.
   destruct t as [pre c suf | pre c suf | pre c suf];
     cbn in Hsr; destruct Hsr as [Hcad Hloc];
+    cbn in Hws; destruct Hws as [Hwscad _];
     destruct c as [|ct|tL tR];
     cbn in Hred, Hloc;
     try discriminate;
     rewrite Hred in Hloc;
-    cbn; split; try exact Hcad; cbn; exact Hloc.
+    cbn;
+    (split; [exact Hcad | split; [exact Hloc | exact Hwscad]]).
 Qed.
 
 (** ** Manual §10.9 structural lemma 4:
@@ -776,26 +836,24 @@ Lemma regular_cad_push_to_empty :
   forall (X : Type) (x : X),
     regular_cad (cad_push x (@CEmpty X)).
 Proof.
-  intros X x. cbn. unfold regular_cad. split.
+  intros X x. cbn. unfold regular_cad. split; [|split].
   - (* semiregular *)
-    cbn. split.
-    + (* semiregular_cad CEmpty inside the new triple *)
-      exact I.
-    + (* semiregular_local *)
-      cbn. exact I.
+    cbn. split; [exact I | cbn; exact I].
   - (* top_level_paths_green: the new triple is Green (child empty) *)
     cbn. reflexivity.
+  - (* well_sized: TOnly with CEmpty child + suf empty + pre size 1 > 0
+       satisfies the (OT2) second branch. *)
+    cbn. split; [exact I | right; left; cbn; lia].
 Qed.
 
 Lemma regular_cad_inject_to_empty :
   forall (X : Type) (x : X),
     regular_cad (cad_inject (@CEmpty X) x).
 Proof.
-  intros X x. cbn. unfold regular_cad. split.
-  - cbn. split.
-    + exact I.
-    + cbn. exact I.
+  intros X x. cbn. unfold regular_cad. split; [|split].
+  - cbn. split; [exact I | cbn; exact I].
   - cbn. reflexivity.
+  - cbn. split; [exact I | left; cbn; lia].
 Qed.
 
 (** ** Triple-level colour after push: per-kind lemmas.
