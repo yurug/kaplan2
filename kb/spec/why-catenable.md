@@ -4,13 +4,13 @@ domain: spec
 related: [why-bounded-cascade, algorithms, data-model, plan-catenable]
 ---
 
-# Why catenation is `O(log log min(m, n))` — the second elegance of KT99
+# Why catenation is WC `O(1)` — the second elegance of KT99
 
 This is the companion to [`why-bounded-cascade.md`](why-bounded-cascade.md).
 That document explained the WC-O(1) trick for push, pop, inject and
 eject — the Section-4 deque we have already certified.  This document
-explains the trick that comes after: how to add a *concatenation*
-operation that joins two persistent deques in `O(log log min(m, n))`
+explains the trick that comes *after*: how to add a *concatenation*
+operation that joins two persistent deques in **worst-case `O(1)`**
 time, *without* breaking the WC-O(1) bound on the other four ops.
 
 A reader landing on the catenable code (`rocq/KTDeque/Buffer6/`,
@@ -40,12 +40,16 @@ let append a b =
 uses exactly this fold-based `append` for its public API.  It is
 correct; it is not what the KT99 paper title is about.
 
-KT99's headline result is that you can do better.  *Much* better:
-`O(log log min(m, n))` per concat, while every other op stays at the
-WC-O(1) we have already certified.
+KT99's headline result is that you can do *much* better:
+**worst-case `O(1)`** per concat, while every other op also stays at
+WC `O(1)`.
 
-`log log N` is small enough to be effectively constant in practice:
-`log_2 (log_2 N)` is `≤ 6` for any `N` that fits in 64 bits.
+(Historical note: an earlier 1995 KT STOC paper achieved
+`O(log log min(m, n))` for concat using a doubly-exponential level
+discipline.  The JACM 1999 paper this project mechanises supersedes
+that result with the constant-time bound.  If you encounter
+`O(log log)` claims about catenable deques in older literature, that
+is the predecessor algorithm — not what we are building.)
 
 ## 2. The high-level idea
 
@@ -70,13 +74,12 @@ The two key insights:
     *non-catenable* WC-O(1) deque we already certified.  Push and
     pop on those buffers are O(1).  No new ops at the buffer level.
 
-(b) **The catenable spine has fast (yellow) and slow (green/red)
-    parts**, exactly analogous to the Section-4 colour discipline,
-    but at a *different scale*.  In Section 4 the cascade was over
-    *paired-element* levels, log_2 N deep.  In Section 6 the cascade
-    is over *triple-tree* levels, but the way the triples are shaped
-    forces the *interesting* part of the recursion to bottom out
-    after `log log N` levels — see §4 below.
+(b) **The catenable spine has a colour discipline analogous to
+    Section 4**, applied at the *triple* level instead of the
+    *packet* level.  The "no two reds adjacent" rule (or its
+    Section-6 analogue with Green / Yellow / Red triples) ensures
+    that any single concat fires at most a constant number of
+    repair sites along the spine.
 
 Concatenation of two cadeques `A` and `B` works conceptually like
 this:
@@ -93,9 +96,10 @@ this:
     [`GLOSSARY.md`](https://github.com/yurug/kaplan2/blob/main/kb/GLOSSARY.md);
     KT99 §6.2).
 
-The work done at each level is a constant number of `Buf6`
-operations.  Each `Buf6` operation is one Section-4 deque op =
-`O(1)`.  So the total work for concat is `O(depth of recursion)`.
+Each step does at most a constant number of `Buf6` operations, and
+each `Buf6` operation is one Section-4 deque op = `O(1)`.  The
+colour invariant guarantees the repair pass triggers only `O(1)`
+times per concat.  Total work: `O(1)` worst-case.
 
 ## 3. The new vocabulary, very briefly
 
@@ -131,53 +135,55 @@ this is just enough to read the upcoming Rocq files.)
 - **`adopt6`** — a shortcut pointer to the tail of the preferred
   path.  When the path is long enough (≥ 3 levels), the cell stores
   a direct pointer to the tail so the repair primitive can find it
-  in `O(1)` instead of walking down.
+  in `O(1)` instead of walking down.  This shortcut is what reduces
+  the per-op work to a true constant rather than depending on the
+  spine depth.
 
 - **Repair cases** — five of them: `1a, 1b, 2a, 2b, 2c`.  See
   KT99 §6.2 / manual §12.4.  Each is a fixed-shape rearrangement
   involving a constant number of `Buf6` ops.
 
-## 4. Why `log log`, specifically
+## 4. Why `O(1)` worst-case, not `O(log log)` or `O(log)`
 
-This is the question that surprises every reader.  Why does the
-recursion bottom out at `log log N` rather than `log N` (the
-Section-4 depth) or `O(1)`?
+This is the question every reader asks.  Why constant, when the
+catenable spine can be deep, and the structure recursive?
 
-The short answer: **at each level of the catenable spine, the
-structure stored at that level is a Section-4 deque, whose
-size grows doubly-exponentially with depth.**
+The short answer: **the colour discipline (analogous to Section 4)
+amortises into a *worst-case* bound by ensuring at most one repair
+fires per concat**, and the `adopt6` shortcut pointer makes that
+single repair cost `O(1)` regardless of how deep the preferred path
+is.
 
-A precise way to see it (the reader should consult KT99 §6 for the
-formal argument):
+A precise way to see it (the reader should consult KT99 §6–§7 for
+the formal argument):
 
-- Level 0 of the cadeque holds base elements `'a`.
-- Level 1 holds *Stored triples* over `'a`.  A Stored triple
-  contains a `Buf6` of base elements, i.e. a Section-4 deque of base
-  elements.  A single Stored triple at level 1 can hold up to
-  `O(2^k)` base elements where `k` is the depth of its inner
-  Section-4 deque (which itself can be `~ log N`).
-- Level 2 holds Stored triples over (Stored triples of base).  A
-  single such triple can hold `O(2^(2^k))` base elements.
-- Level `d` holds an element type whose inhabitants flatten to
-  `~ 2^(2^(2^...))` base values, with `d` exponentiations.
+- **The spine can be deep.**  A cadeque holding `N` base elements
+  has a triple-tree spine whose depth can grow with `N`.  Walking
+  the whole spine would be `O(log N)` or worse.
 
-So the number of base elements representable at level `d` is a
-*doubly-exponential* function of `d`.  Equivalently, the number of
-levels needed to represent `N` base elements is `O(log log N)`.
+- **But concat does not walk the whole spine.**  It only touches
+  the boundary triples of `A` and `B` (a constant number of
+  triples) and, if a colour violation is created, the *tail of the
+  preferred path*, which the `adopt6` shortcut lets us reach in
+  `O(1)`.
 
-Concat descends the spine until it bottoms out at the deepest
-level where it must do work; the descent depth is `O(log log N)`.
-At each level it does a constant number of `Buf6` operations, each
-`O(1)` (because `Buf6` is a Section-4 deque).  Total work:
-`O(log log N) * O(1) = O(log log N)`.
+- **The colour invariant guarantees only one repair per concat.**
+  Just as Section 4's "no two reds adjacent" gives you WC O(1)
+  push/pop without amortisation, Section 6's analogue gives you
+  WC O(1) concat.  After the repair, the invariant is restored
+  and the amortised "credit" debt is paid in full immediately —
+  this is what makes it worst-case rather than amortised.
 
-This is *not* the same as the Section-4 cascade.  The Section-4
-cascade was at most one repair step per public op, all O(1) thanks
-to the colour invariant.  The Section-6 cascade is `O(log log N)`
-levels of repair; the bound comes from the doubly-exponential
-growth, not from the colour discipline alone (though the colour
-discipline is what bounds the *number of repair sites* per concat,
-which is also constant).
+This matches the *operational shape* of Section 4 — we already
+know how to verify "colour discipline ⇒ WC O(1)" because we proved
+it for the non-catenable deque.  The Section-6 colour rules are
+different (more cases, asymmetric Left/Right triples), but the
+proof technique is the same family.
+
+(Predecessor result: the 1995 KT STOC paper *did* have an
+`O(log log)` bound, justified by a doubly-exponential level
+capacity argument.  The 1999 paper supersedes that with the
+colour-discipline construction.)
 
 ## 5. What we keep, what we lose
 
@@ -189,12 +195,8 @@ The promise we make about the catenable deque:
 
 - **`pop q`, `eject q`** — still WC `O(1)`.
 
-- **`concat a b`** — `O(log log min(|a|, |b|))`.  Not `O(1)`, but
-  effectively constant in practice (`≤ 6` for `min(|a|, |b|) <
-  2^64`).  Crucially: still *bounded by structure*, no amortised
-  hand-wave that fails on persistent fork (see
-  [`why-bounded-cascade.md`](why-bounded-cascade.md) §1 for why we
-  insist on this).
+- **`concat a b`** — WC `O(1)`.  Same asymptotic class as the four
+  endpoint operations; only the constant factor is larger.
 
 - **`to_list q`** — `O(N)`.  Same as Section-4.
 
@@ -220,16 +222,20 @@ Following the same five-pillar recipe as Section 4:
 1. **Sequence preservation** (`Cadeque6/SeqProofs.v`).  For each op:
     `to_list (op q ...) = expected_concat (to_list q) ...`.  The
     headline new theorem: `to_list (concat a b) = to_list a ++
-    to_list b`.
+    to_list b`.  *(Done as of 2026-05-08 in
+    [`Cadeque6/OpsAbstract.v`](../../rocq/KTDeque/Cadeque6/OpsAbstract.v).)*
 
-2. **Cost bound** (`Cadeque6/Footprint.v`).  Two statements:
+2. **Cost bound** (`Cadeque6/Footprint.v`).  Two statements,
+    same shape:
     - push/inject/pop/eject keep WC `O(1)` at the cadeque level
       (constant ≤ some small `c1`, larger than the Section-4 `c1`
       but still constant);
-    - `concat a b` runs in `≤ c2 + c3 * log_2(log_2(min(m, n)))`.
+    - `concat a b` runs in `O(1)` worst-case — a closed-form
+      constant `c2`, readable off the AST exactly the way Section
+      4's `NF_PUSH_PKT_FULL = 9` was.
 
 3. **Regularity** (`Cadeque6/Regularity.v`).  The Section-6 colour
-    invariant.  Preserved by every public op.
+    invariant.  Preserved by every public op including `concat`.
 
 4. **Refinement** (`Cadeque6/Correctness.v`).  Bridge between the
     abstract spec and the heap-tracked imperative DSL — same
@@ -238,12 +244,11 @@ Following the same five-pillar recipe as Section 4:
 5. **Public surface** (`Public/Interface.v`).  Module-type
     interface hiding internals.
 
-The proof phase that has no Section-4 analogue is **Phase 4**: the
-log-log cost bound.  Section-4's WC O(1) was a closed-form
-constant readable off the AST.  Section-6's bound depends on
-input size and requires a recursion-depth argument over the
-triple tree.  This may force an extension of `Common/CostMonad.v`
-to track recursion depth alongside primitive op count.
+The proof phase that has no Section-4 analogue is **Phase 5**: the
+Section-6 colour invariant.  It is more elaborate than Section 4's
+because of the Left/Right asymmetry and the `adopt6` shortcut, but
+the proof *shape* — define a colour predicate, show each repair
+case preserves it — is the same.
 
 ## 7. Where this sits in the project roadmap
 

@@ -222,9 +222,9 @@ See each tree's README for the full instructions and details.
 
 ### Section 6 (catenable, in progress)
 
-The headline KT99 result — concatenation of two persistent deques in
-`O(log log min(m, n))` while every other op stays at WC O(1) — is
-under construction.  Plan and current status in
+The headline KT99 §6–§7 result — concatenation of two persistent
+deques in **worst-case `O(1)`** while every other op also stays at
+WC O(1) — is under construction.  Plan and current status in
 [`kb/plan-catenable.md`](kb/plan-catenable.md).  Intuition layer in
 [`kb/spec/why-catenable.md`](kb/spec/why-catenable.md).
 
@@ -239,8 +239,9 @@ Done so far (zero admits):
 - Phase 5 (foundation): `cad_nonempty` + totality theorems for
   `cad_pop` / `cad_eject` + size laws for all five operations.
 
-Pending: Phase 4 (cost bound `O(log log min)`), full Section-6
-colour invariant, OCaml ABI extension, C port.
+Pending: Phase 4 (cost bound — WC `O(1)` for all five ops including
+concat), full Section-6 colour invariant, OCaml ABI extension, C
+port.
 
 For details, see the per-tree READMEs and [`kb/`](kb/) for design
 documents and session-by-session progress notes.

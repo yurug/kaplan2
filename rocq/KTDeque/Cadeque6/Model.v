@@ -3,8 +3,8 @@
     First-time reader: read [kb/spec/why-catenable.md] before this
     file.  That document explains what a Triple is, why ordinary
     triples come in three kinds (only / left / right), what Stored
-    triples are, and why concatenation can be `O(log log min(m, n))`
-    on this structure.
+    triples are, and why concatenation can be worst-case [O(1)] on
+    this structure (KT99 §§6-7's headline result).
 
     ## Why this exists
 

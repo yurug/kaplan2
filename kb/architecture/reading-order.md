@@ -164,16 +164,16 @@ If you care that the C and OCaml *agree*:
 
 ## Stop 7 — The catenable extension (work in progress, 20 min)
 
-If you want to follow the headline KT99 result — concatenation in
-`O(log log min(m, n))` while every other op stays at WC O(1) —
+If you want to follow the headline KT99 §6–§7 result — concatenation
+in **worst-case `O(1)`** while every other op also stays at WC O(1) —
 read in this order:
 
 1. **[`kb/spec/why-catenable.md`](../spec/why-catenable.md)** — the
    intuition layer for catenation, paralleling
    [`why-bounded-cascade.md`](../spec/why-bounded-cascade.md).
    Covers the "deque of deques" trick, the new `Buf6` /
-   `Triple` / `Stored` vocabulary, and why the recursion depth is
-   `log log` rather than `log`.
+   `Triple` / `Stored` vocabulary, and the colour-discipline +
+   `adopt6` shortcut that keeps concat WC `O(1)`.
 
 2. **[`kb/plan-catenable.md`](../plan-catenable.md)** — the eight-
    phase project plan with current status.  Phases 0-3 are done as

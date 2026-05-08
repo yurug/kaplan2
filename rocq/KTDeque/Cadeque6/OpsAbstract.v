@@ -179,7 +179,10 @@ Fixpoint cad_from_list {X : Type} (xs : list X) : Cadeque X :=
   | y :: ys  => cad_push y (cad_from_list ys)
   end.
 
-(** ** [cad_concat]: catenation.  Abstract (correct, not log-log). *)
+(** ** [cad_concat]: catenation.  Abstract (correct, not the
+    cost-bounded version).  The operational layer (Phase 4) will
+    refine this to a worst-case [O(1)] implementation matching
+    KT99 §§6-7. *)
 
 Definition cad_concat {X : Type} (a b : Cadeque X) : Cadeque X :=
   cad_from_list (cad_to_list_base a ++ cad_to_list_base b).
@@ -372,9 +375,10 @@ Qed.
 
     This is the headline correctness theorem for catenation.  It
     falls out of [cad_from_list_seq] because [cad_concat] is defined
-    here as a list rebuild.  The [O(log log min)] operational
-    realisation in Phase 4 will be proved equivalent to this
-    abstract concat, so the sequence law transports automatically. *)
+    here as a list rebuild.  The worst-case [O(1)] operational
+    realisation in Phase 4 (KT99 §§6-7) will be proved equivalent
+    to this abstract concat, so the sequence law transports
+    automatically. *)
 
 Theorem cad_concat_seq :
   forall (X : Type) (a b : Cadeque X),

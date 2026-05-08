@@ -149,8 +149,8 @@ The catenable Section-6 extension.  In progress as of this writing.
   `Cadeque X`, `Stored X`) and the abstract operations on them
   (`cad_push`, `cad_inject`, `cad_pop`, `cad_eject`, `cad_concat`).
   All five sequence-preservation theorems are proved.  Cost bounds
-  (Phase 4 — `O(log log min(m, n))` for concat) and regularity
-  (Phase 5) are pending.
+  (Phase 4 — WC `O(1)` for concat, same asymptotic class as the
+  four endpoint ops) and regularity (Phase 5) are pending.
 
 - **`Public/`** — Empty as of this writing.  Will hold the
   user-facing module-type interface for the catenable cadeque

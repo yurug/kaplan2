@@ -11,11 +11,12 @@ status: draft
 
 Kaplan & Tarjan's headline result is not the deque we already have.
 It is a *catenable* version: two persistent real-time deques can be
-**concatenated** in `O(log log min(m, n))` time, while every other
-op (push, pop, inject, eject) stays at the worst-case O(1) we have
-already certified.  Quoting the JACM 1999 abstract: "fully persistent
-double-ended queues, supporting catenation of two deques in
-O(log log min(m, n)) time and all other operations in O(1)."
+**concatenated** in **worst-case `O(1)`** time, while every other
+op (push, pop, inject, eject) also stays at the worst-case O(1) we
+have already certified.  The JACM 1999 paper's final result (§6–§7)
+achieves WC O(1) for *every* public operation including catenation,
+superseding the predecessor 1995 STOC bound of `O(log log min(m, n))`
+for catenation.
 
 This document is the methodical plan for getting there.  It exists
 because the project's hard rule — "we do not paper over a cascade
@@ -42,8 +43,8 @@ declaring victory.
   Viennot et al. PLDI'24 paper title is *Verified catenable deques*,
   so they did the catenable case in Coq; their public deque.ml
   vendored at [`ocaml/bench/viennot/`](../ocaml/bench/viennot/) only
-  has a fold-based `append` (linear, not log-log), but their full
-  Coq development is the obvious cross-check target.
+  has a fold-based `append` (linear, not constant-time), but their
+  full Coq development is the obvious cross-check target.
 
 - **Bench harness for catenation.**  None exists yet.  The current
   bench compares push/pop/etc. against several baselines; we will
@@ -53,22 +54,23 @@ declaring victory.
 
 Three reasons:
 
-1. **The cost is no longer constant.**  Catenation is
-   `O(log log min(m, n))`.  The cost monad we set up in
-   `Common/CostMonad.v` was designed for closed-form-constant cost
-   bounds (read off the AST).  For catenation we need a *recursion-
-   depth-bounded* cost argument: `concat` recurses to a nested
-   structure of depth `O(log log N)`.  This is closer to the
-   Buffer6 paper's amortisation, and farther from the structural
-   inspection that worked for push/pop.
+1. **A new operation with a new colour discipline.**  The cost
+   bound on `concat` is still WC `O(1)` — same asymptotic class as
+   the four endpoint ops we already certified — but achieving it
+   requires a *different* colour invariant.  Section 4's "no two
+   reds adjacent on the packet chain" is replaced by Section 6's
+   triple-level discipline (asymmetric Left/Right triples, the
+   `adopt6` shortcut pointer, repair cases 1a/1b/2a/2b/2c).  The
+   cost monad in `Common/CostMonad.v` should still suffice — the
+   bound is a closed-form constant readable off the AST, just like
+   `NF_PUSH_PKT_FULL = 9` was for Section 4.
 
 2. **The data structure is recursive in a new way.**  Section 4
    uses a chain whose levels nest inside each other (paired
    element type at each level).  The catenable structure is a
    "deque of deques": the outer object is a deque whose elements
-   are themselves deques, with a balancing discipline that gives
-   the log-log bound.  New types (Buf6 with size 0..6, a catenable
-   chain), new colour invariant.
+   are themselves deques.  New types (Buf6 with size 0..6, a
+   triple tree), new colour invariant.
 
 3. **Persistence + catenation creates a sharing puzzle.**  When
    you concat A and B, structure from both must coexist in the
@@ -92,12 +94,15 @@ existing `why-bounded-cascade.md`.  ~800–1000 words explaining,
 intuitively:
 
 - why naive concatenation is `O(min(m, n))`;
-- why KT99's catenable construction is `O(log log min(m, n))`
-  (the magic balancing trick);
-- the new vocabulary (Buf6, catenable chain, what kind of "deque
-  of deques");
-- where the cost goes (concatenation vs push/inject);
-- what stays O(1) and what doesn't.
+- why KT99's final catenable construction achieves WC `O(1)` for
+  every public op including concat (the colour-discipline trick
+  applied at the triple level + the `adopt6` shortcut pointer);
+- the new vocabulary (Buf6, ordinary vs stored triples, arity,
+  preferred path);
+- where the constant-factor cost goes (concatenation vs
+  push/inject);
+- what changes (constant factors, data-structure size) versus
+  what stays the same (asymptotic bounds).
 
 Plus: cross-references to KT99 §§5–7, VWGP's approach (we'll cite
 their dev once we've located it), and a small data-model sketch
@@ -165,24 +170,25 @@ discipline holds: nothing is committed under `Admitted.`
 
 **Output**: `rocq/KTDeque/Cadeque6/Footprint.v`.
 
-Two complementary statements:
+A single shape of statement, applied to all five public ops:
 
-1. `push / pop / inject / eject` keep their WC O(1) bound (the
-   constant grows from 9 to whatever Buf6's larger buffers force).
-2. `concat` runs in cost ≤ `c1 + c2 * log_2 (log_2 (min m n))` for
-   small constants `c1`, `c2`, where `m`, `n` are the input deque
-   sizes.
+- `push / pop / inject / eject` keep their WC O(1) bound (the
+  constant grows from 9 to whatever Buf6's larger buffers force).
+- `concat a b` runs in cost ≤ a closed-form constant `c_concat`,
+  *independent of `|a|` and `|b|`*.  The argument is structural:
+  the boundary fold touches a constant number of `Buf6` ops, and
+  the colour invariant guarantees at most one repair fires; the
+  repair reaches its target in `O(1)` via the `adopt6` shortcut.
 
-The second is the new cost-monad challenge: we cannot read it
-off the AST (it depends on input size).  Likely needs a structural-
-recursion-depth argument: the recursion depth of `concat` is
-`O(log log min(m, n))`, and each level does `O(1)` work in the
-cost monad.
+Same proof technique that worked for `NF_PUSH_PKT_FULL = 9` —
+read the cost off the AST under the regularity precondition.  The
+existing `Common/CostMonad.v` should suffice without extension.
 
-**Risks**: novel cost-bound shape may force changes to
-`Common/CostMonad.v`.  Acceptable; we extend the monad if needed.
+**Risks**: surprising case-explosion in the AST inspection; the
+five repair cases (1a/1b/2a/2b/2c) each contribute their own
+constant and we need a uniform bound across them.
 
-**Milestone**: `concat_cost` lemma stating the asymptotic bound.
+**Milestone**: `cad_concat_cost` lemma stating the constant bound.
 
 ### Phase 5 — Regularity *(3–5 sessions)*
 
@@ -244,7 +250,7 @@ every level.
 | 1 — Buf6 foundation              | ✅ done           | `b2857cb` |
 | 2 — Cadeque6/Model.v types       | ✅ done           | `8503b29` |
 | 3 — abstract operations + all `_seq`s | ✅ done       | `5b78040` |
-| 4 — cost bound (`O(log log min)`) | ⏳ pending       | — |
+| 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — full Section-6 colour invariant | ⏳ deferred  | — |
 | 6 — OCaml ABI extension          | ⏳ pending        | — |
