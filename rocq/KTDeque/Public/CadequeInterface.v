@@ -83,12 +83,15 @@ Module Type CADEQUE.
   Parameter t : Type -> Type.
 
   (** Constructors / operations. *)
-  Parameter empty  : forall (A : Type), t A.
-  Parameter push   : forall (A : Type), A -> t A -> t A.
-  Parameter inject : forall (A : Type), t A -> A -> t A.
-  Parameter pop    : forall (A : Type), t A -> option (A * t A).
-  Parameter eject  : forall (A : Type), t A -> option (t A * A).
-  Parameter concat : forall (A : Type), t A -> t A -> t A.
+  Parameter empty     : forall (A : Type), t A.
+  Parameter singleton : forall (A : Type), A -> t A.
+  Parameter is_empty  : forall (A : Type), t A -> bool.
+  Parameter push      : forall (A : Type), A -> t A -> t A.
+  Parameter inject    : forall (A : Type), t A -> A -> t A.
+  Parameter pop       : forall (A : Type), t A -> option (A * t A).
+  Parameter eject     : forall (A : Type), t A -> option (t A * A).
+  Parameter concat    : forall (A : Type), t A -> t A -> t A.
+  Parameter rev       : forall (A : Type), t A -> t A.
 
   (** Denotational view. *)
   Parameter to_list : forall (A : Type), t A -> list A.
@@ -120,6 +123,25 @@ Module Type CADEQUE.
     forall (A : Type) (a b : t A),
       to_list A (concat A a b) = to_list A a ++ to_list A b.
 
+  Axiom singleton_to_list :
+    forall (A : Type) (x : A),
+      to_list A (singleton A x) = [x].
+
+  (** Note: [is_empty] tests the *structural* shape (is the cadeque
+      [CEmpty]?), not the observable sequence.  A non-empty shell
+      with all-empty inner buffers would still have [to_list = []]
+      but [is_empty = false] until the regularity invariant
+      forbids such shapes (Phase 5.5).  We expose the safe forward
+      direction; the converse will land alongside the regularity
+      invariant. *)
+  Axiom is_empty_to_list :
+    forall (A : Type) (q : t A),
+      is_empty A q = true -> to_list A q = [].
+
+  Axiom rev_to_list :
+    forall (A : Type) (q : t A),
+      to_list A (rev A q) = List.rev (to_list A q).
+
 End CADEQUE.
 
 (** ** Implementation [AbstractCadeque].
@@ -136,6 +158,12 @@ Module AbstractCadeque <: CADEQUE.
 
   Definition empty (A : Type) : t A := @CEmpty A.
 
+  Definition singleton (A : Type) (x : A) : t A :=
+    cad_singleton x.
+
+  Definition is_empty (A : Type) (q : t A) : bool :=
+    cad_is_empty q.
+
   Definition push (A : Type) (x : A) (q : t A) : t A :=
     cad_push x q.
 
@@ -150,6 +178,9 @@ Module AbstractCadeque <: CADEQUE.
 
   Definition concat (A : Type) (a b : t A) : t A :=
     cad_concat a b.
+
+  Definition rev (A : Type) (q : t A) : t A :=
+    cad_rev q.
 
   Definition to_list (A : Type) (q : t A) : list A :=
     cad_to_list_base q.
@@ -184,6 +215,24 @@ Module AbstractCadeque <: CADEQUE.
     forall (A : Type) (a b : t A),
       to_list A (concat A a b) = to_list A a ++ to_list A b.
   Proof. intros. apply cad_concat_seq. Qed.
+
+  Theorem singleton_to_list :
+    forall (A : Type) (x : A),
+      to_list A (singleton A x) = [x].
+  Proof. intros. apply cad_singleton_seq. Qed.
+
+  Theorem is_empty_to_list :
+    forall (A : Type) (q : t A),
+      is_empty A q = true -> to_list A q = [].
+  Proof.
+    intros A q H. unfold is_empty, to_list in *.
+    apply cad_is_empty_iff_nil in H. subst. reflexivity.
+  Qed.
+
+  Theorem rev_to_list :
+    forall (A : Type) (q : t A),
+      to_list A (rev A q) = List.rev (to_list A q).
+  Proof. intros. apply cad_rev_seq. Qed.
 
 End AbstractCadeque.
 

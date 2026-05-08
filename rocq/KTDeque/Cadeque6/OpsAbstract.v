@@ -672,3 +672,93 @@ Proof.
   - destruct suf_xs as [|y ys]; reflexivity.
   - destruct suf_xs as [|y ys]; reflexivity.
 Qed.
+
+(** * Convenience constructors and predicates.
+
+    Small client-facing additions that round out the API the
+    eventual [KTCatenableDeque] OCaml module will expose:
+
+    - [cad_singleton x]: build a one-element cadeque.
+    - [cad_is_empty q]: structural emptiness test.
+    - [cad_rev q]: reverse the abstract sequence.
+
+    All three have sequence laws.  None are strictly necessary —
+    they're derivable from the basic ops — but they make
+    downstream client code read better. *)
+
+Definition cad_singleton {X : Type} (x : X) : Cadeque X :=
+  cad_push x CEmpty.
+
+Lemma cad_singleton_seq :
+  forall (X : Type) (x : X),
+    cad_to_list_base (@cad_singleton X x) = [x].
+Proof. intros X x. unfold cad_singleton. apply cad_push_seq. Qed.
+
+Definition cad_is_empty {X : Type} (q : Cadeque X) : bool :=
+  match q with CEmpty => true | _ => false end.
+
+Lemma cad_is_empty_iff_nil :
+  forall (X : Type) (q : Cadeque X),
+    cad_is_empty q = true <-> q = CEmpty.
+Proof.
+  intros X q. split.
+  - destruct q as [|t|tL tR]; intro H; cbn in H; congruence.
+  - intros ->. reflexivity.
+Qed.
+
+(** ** [cad_rev]: reverse the abstract sequence.
+
+    Realised as a list rebuild — [O(N)] like the abstract
+    [cad_concat].  Phase 4's operational realisation should
+    eventually deliver an [O(1)] [cad_rev] using the standard
+    deque trick of swapping the [Left]/[Right] kind tags and
+    flipping orientation, but we don't have the colour invariant
+    to verify that yet, so we ship the list-rebuild for now. *)
+
+Definition cad_rev {X : Type} (q : Cadeque X) : Cadeque X :=
+  cad_from_list (rev (cad_to_list_base q)).
+
+Theorem cad_rev_seq :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_rev q) = rev (cad_to_list_base q).
+Proof.
+  intros X q. unfold cad_rev. apply cad_from_list_seq.
+Qed.
+
+Theorem cad_rev_rev_seq :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_rev (cad_rev q)) = cad_to_list_base q.
+Proof.
+  intros X q. rewrite !cad_rev_seq, rev_involutive. reflexivity.
+Qed.
+
+Theorem cad_rev_concat_seq :
+  forall (X : Type) (a b : Cadeque X),
+    cad_to_list_base (cad_rev (cad_concat a b))
+    = cad_to_list_base (cad_concat (cad_rev b) (cad_rev a)).
+Proof.
+  intros X a b.
+  rewrite !cad_rev_seq, !cad_concat_seq, !cad_rev_seq, rev_app_distr.
+  reflexivity.
+Qed.
+
+Theorem cad_rev_push_seq :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    cad_to_list_base (cad_rev (cad_push x q))
+    = cad_to_list_base (cad_inject (cad_rev q) x).
+Proof.
+  intros X x q.
+  rewrite cad_rev_seq, cad_push_seq, cad_inject_seq, cad_rev_seq.
+  cbn. reflexivity.
+Qed.
+
+Theorem cad_rev_inject_seq :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    cad_to_list_base (cad_rev (cad_inject q x))
+    = cad_to_list_base (cad_push x (cad_rev q)).
+Proof.
+  intros X q x.
+  rewrite cad_rev_seq, cad_inject_seq, cad_push_seq, cad_rev_seq,
+          rev_app_distr.
+  cbn. reflexivity.
+Qed.
