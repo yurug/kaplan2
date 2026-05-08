@@ -1224,3 +1224,47 @@ Proof.
       cbn in Hsr |- *; try exact I; try exact Hsr.
     destruct Hsr as [HL _]. exact HL.
 Qed.
+
+(** ** Structural unfolding of [preferred_path_tail] for each kind
+    × child shape.
+
+    Useful for explicit case analysis of the path tail without
+    fighting [Fixpoint] reduction. *)
+
+Lemma preferred_path_tail_TOnly_CSingle :
+  forall (X : Type) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TOnly pre (CSingle ct) suf) =
+    match color4_meet (buf6_color pre) (buf6_color suf) with
+    | Green4 | Red4 => TOnly pre (CSingle ct) suf
+    | _             => preferred_path_tail ct
+    end.
+Proof. intros. reflexivity. Qed.
+
+Lemma preferred_path_tail_TOnly_CDouble :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TOnly pre (CDouble tL tR) suf) =
+    match color4_meet (buf6_color pre) (buf6_color suf) with
+    | Green4 | Red4 => TOnly pre (CDouble tL tR) suf
+    | Yellow4       => preferred_path_tail tL
+    | Orange4       => preferred_path_tail tR
+    end.
+Proof. intros. reflexivity. Qed.
+
+Lemma preferred_path_tail_TLeft_CSingle :
+  forall (X : Type) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TLeft pre (CSingle ct) suf) =
+    match buf6_color pre with
+    | Green4 | Red4 => TLeft pre (CSingle ct) suf
+    | _             => preferred_path_tail ct
+    end.
+Proof. intros. reflexivity. Qed.
+
+Lemma preferred_path_tail_TLeft_CDouble :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TLeft pre (CDouble tL tR) suf) =
+    match buf6_color pre with
+    | Green4 | Red4 => TLeft pre (CDouble tL tR) suf
+    | Yellow4       => preferred_path_tail tL
+    | Orange4       => preferred_path_tail tR
+    end.
+Proof. intros. reflexivity. Qed.
