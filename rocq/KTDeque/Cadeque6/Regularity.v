@@ -163,22 +163,95 @@ Proof.
     rewrite length_app; cbn; lia.
 Qed.
 
-(** ** Totality of [cad_pop] on [cad_nonempty] cadeques.
+(** ** Helper: a [Buf6 X] with [size > 0] has a [buf6_pop] that
+    returns [Some]. *)
 
-    NOTE (Phase 5.5): the totality theorems below are stated but
-    deferred — the proof shape is straightforward (destruct q,
-    destruct the relevant triple, destruct the prefix list — if
-    nonempty, pop succeeds; the [cad_nonempty] hypothesis rules out
-    the empty case) but the case-by-case dispatch needs careful
-    bullet structure that I haven't converged on in this session.
-    Marked here as planned theorems with [Lemma] declarations only. *)
+Lemma buf6_pop_total_when_nonempty :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size b > 0 ->
+    exists x b', buf6_pop b = Some (x, b').
+Proof.
+  intros X [xs] Hsz. unfold buf6_size, buf6_elems in Hsz.
+  destruct xs as [|x rest]; cbn in Hsz; [lia|].
+  unfold buf6_pop, buf6_elems. cbn. eauto.
+Qed.
 
-(* Lemma cad_pop_total_on_nonempty :                                  *)
-(*   forall X (q : Cadeque X),                                        *)
-(*     cad_nonempty q ->                                              *)
-(*     exists x q', cad_pop q = Some (x, q').                         *)
+(** ** Helper: a [Buf6 X] with [size > 0] has a [buf6_eject] that
+    returns [Some]. *)
 
-(* Lemma cad_eject_total_on_nonempty :                                *)
-(*   forall X (q : Cadeque X),                                        *)
-(*     cad_nonempty q ->                                              *)
-(*     exists q' x, cad_eject q = Some (q', x).                       *)
+Lemma buf6_eject_total_when_nonempty :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size b > 0 ->
+    exists b' x, buf6_eject b = Some (b', x).
+Proof.
+  intros X [xs] Hsz. unfold buf6_size, buf6_elems in Hsz.
+  destruct xs as [|x rest]; cbn in Hsz; [lia|].
+  unfold buf6_eject, buf6_elems.
+  destruct (rev (x :: rest)) as [|y ys] eqn:Hrev.
+  - exfalso. apply (f_equal (@length X)) in Hrev.
+    rewrite length_rev in Hrev. cbn in Hrev. discriminate.
+  - eauto.
+Qed.
+
+(** ** Helper: [triple_pop_prefix t] succeeds when the triple's
+    outer prefix has [size > 0]. *)
+
+Lemma triple_pop_prefix_total_when_nonempty :
+  forall (X : Type) (t : Triple X),
+    buf6_size (triple_outer_prefix t) > 0 ->
+    exists x t', triple_pop_prefix t = Some (x, t').
+Proof.
+  intros X t Hsz.
+  destruct t as [pre c suf | pre c suf | pre c suf]; cbn in Hsz;
+    apply buf6_pop_total_when_nonempty in Hsz as [xp [pre' Hpop]];
+    cbn; rewrite Hpop; eauto.
+Qed.
+
+(** ** Helper: [triple_eject_suffix t] succeeds when the triple's
+    outer suffix has [size > 0]. *)
+
+Lemma triple_eject_suffix_total_when_nonempty :
+  forall (X : Type) (t : Triple X),
+    buf6_size (triple_outer_suffix t) > 0 ->
+    exists t' x, triple_eject_suffix t = Some (t', x).
+Proof.
+  intros X t Hsz.
+  destruct t as [pre c suf | pre c suf | pre c suf]; cbn in Hsz;
+    apply buf6_eject_total_when_nonempty in Hsz as [suf' [xs Heje]];
+    cbn; rewrite Heje; eauto.
+Qed.
+
+(** ** Totality: [cad_pop] succeeds on every [cad_nonempty] cadeque. *)
+
+Theorem cad_pop_total_on_nonempty :
+  forall (X : Type) (q : Cadeque X),
+    cad_nonempty q ->
+    exists x q', cad_pop q = Some (x, q').
+Proof.
+  intros X q Hq. destruct q as [|t|tL tR]; cbn in Hq.
+  - contradiction.
+  - destruct Hq as [Hpre _].
+    apply triple_pop_prefix_total_when_nonempty in Hpre as [x [t' Hp]].
+    cbn. rewrite Hp. eauto.
+  - destruct Hq as [Hpre _].
+    apply triple_pop_prefix_total_when_nonempty in Hpre as [x [tL' Hp]].
+    cbn. rewrite Hp. eauto.
+Qed.
+
+(** ** Totality: [cad_eject] succeeds on every [cad_nonempty]
+    cadeque. *)
+
+Theorem cad_eject_total_on_nonempty :
+  forall (X : Type) (q : Cadeque X),
+    cad_nonempty q ->
+    exists q' x, cad_eject q = Some (q', x).
+Proof.
+  intros X q Hq. destruct q as [|t|tL tR]; cbn in Hq.
+  - contradiction.
+  - destruct Hq as [_ Hsuf].
+    apply triple_eject_suffix_total_when_nonempty in Hsuf as [t' [x He]].
+    cbn. rewrite He. eauto.
+  - destruct Hq as [_ Hsuf].
+    apply triple_eject_suffix_total_when_nonempty in Hsuf as [tR' [x He]].
+    cbn. rewrite He. eauto.
+Qed.
