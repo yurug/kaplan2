@@ -299,3 +299,108 @@ Proof.
   intros X x suf. cbn [cad_push_op buf6_elems buf6_empty].
   apply normalize_only_empty_child_regular.
 Qed.
+
+(** ** Preservation of the structural conjuncts (well_sized +
+    top_kinds_well_formed) without the harder semantic conjuncts
+    (semiregular + top_level_paths_green).
+
+    The structural conjuncts depend only on shape and sizes, not
+    on colour or preferred-path behaviour, so they're more
+    tractable to prove case-by-case.  The semantic conjuncts
+    require colour-shift reasoning and are deferred to a focused
+    session.
+
+    We prove preservation for each `cad_push_op` case that
+    delegates to the abstract `triple_push_prefix`, plus the
+    CDouble case. *)
+
+Lemma cad_push_op_well_sized_when_TOnly_only :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    well_sized_cad (CSingle (TOnly pre c suf)) ->
+    (buf6_elems pre <> [] \/ c <> CEmpty) ->
+    well_sized_cad (cad_push_op x (CSingle (TOnly pre c suf))).
+Proof.
+  intros X x [pre_xs] c [suf_xs] Hws Hpre.
+  cbn in Hws. destruct Hws as [Hwscad Hws].
+  cbn [cad_push_op].
+  destruct c as [|ct|tL tR].
+  - (* CEmpty: pre must be nonempty per Hpre *)
+    destruct Hpre as [Hpre_nonempty | Hcontra]; [|exfalso; apply Hcontra; reflexivity].
+    cbn [buf6_elems] in Hpre_nonempty.
+    destruct pre_xs as [|p ps]; [contradiction|].
+    cbn [buf6_elems].
+    cbn. split; [exact Hwscad |].
+    (* well_sized_triple new: TOnly with empty child + pre' = (x::p::ps) *)
+    cbn in Hws.
+    destruct Hws as [[Hp Hs] | [[Hs Hp] | [Hp Hs]]].
+    + (* original: pre=0, suf>0 -- but pre_xs = p::ps, so size > 0, contradiction *)
+      cbn in Hp. discriminate.
+    + (* original: suf=0, pre>0 *)
+      right; left.
+      unfold buf6_size, buf6_push, buf6_elems. cbn.
+      split; [exact Hs | lia].
+    + (* original: both >= 5 *)
+      right; right.
+      unfold buf6_size, buf6_push, buf6_elems. cbn.
+      cbn in Hp, Hs. lia.
+  - (* CSingle ct: triple has non-empty child, OT1 *)
+    cbn. split; [exact Hwscad |].
+    cbn in Hws.
+    unfold buf6_size, buf6_push, buf6_elems. cbn.
+    cbn in Hws. lia.
+  - (* CDouble ctL ctR: same OT1 *)
+    cbn. split; [exact Hwscad |].
+    cbn in Hws.
+    unfold buf6_size, buf6_push, buf6_elems. cbn.
+    cbn in Hws. lia.
+Qed.
+
+Lemma cad_push_op_well_sized_double :
+  forall (X : Type) (x : X) (tL tR : Triple X),
+    well_sized_cad (CDouble tL tR) ->
+    triple_kind tL = KLeft ->
+    well_sized_cad (cad_push_op x (CDouble tL tR)).
+Proof.
+  intros X x tL tR Hws HtL.
+  cbn in Hws. destruct Hws as [HwsL HwsR].
+  cbn [cad_push_op].
+  destruct tL as [pre c suf | pre c suf | pre c suf];
+    cbn in HtL; try discriminate.
+  cbn in HwsL. destruct HwsL as [Hwscad [Hpre Hsuf]].
+  cbn. split; [|exact HwsR].
+  cbn. split; [exact Hwscad |].
+  cbn. split.
+  - unfold buf6_size, buf6_push, buf6_elems in *. cbn in Hpre. cbn. lia.
+  - exact Hsuf.
+Qed.
+
+Lemma cad_push_op_top_kinds_preserved :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    top_kinds_well_formed q ->
+    top_kinds_well_formed (cad_push_op x q).
+Proof.
+  intros X x q Htk.
+  destruct q as [|t|tL tR]; cbn [cad_push_op].
+  - (* CEmpty: result is CSingle (TOnly ...), top_kinds = KOnly. *)
+    cbn. reflexivity.
+  - (* CSingle t: t must be TOnly per Htk. *)
+    cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|tcL tcR].
+    + (* CEmpty: dispatch on pre *)
+      destruct pre as [pre_xs].
+      destruct pre_xs as [|p ps]; cbn [buf6_elems].
+      * (* pre empty: normalize -- always returns CEmpty or CSingle TOnly *)
+        apply normalize_only_empty_child_top_kinds.
+      * (* pre non-empty: CSingle (TOnly _ CEmpty _), kind = KOnly *)
+        cbn. reflexivity.
+    + cbn. reflexivity.
+    + cbn. reflexivity.
+  - (* CDouble: tL becomes (push x tL) which preserves kind *)
+    cbn in Htk. destruct Htk as [HtL HtR].
+    cbn. split; [|exact HtR].
+    destruct tL as [pre c suf | pre c suf | pre c suf];
+      cbn in HtL; try discriminate;
+      cbn; reflexivity.
+Qed.
