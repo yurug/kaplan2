@@ -15,6 +15,49 @@ builds standalone — no Rocq toolchain required.
 For the C port (1.6×–2.9× faster on every workload at n=1M with arena
 compaction), see [`../c/`](../c/).
 
+## When you'd reach for this in an OCaml codebase
+
+OCaml has a built-in `Queue.t` (mutable FIFO) and a community `Deque`
+in `containers` and similar libraries.  Reach for `ktdeque`
+specifically when one of these matches your situation:
+
+- **You need persistence / immutability semantics.**  `Queue.t` is
+  mutable.  Most "deque" libraries are too.  This library is purely
+  functional: every op returns a new deque sharing structure with
+  the input, with no asymptotic penalty for the share.  Useful for
+  immutable state stores, undo/redo, branching evaluators,
+  speculative search, or anywhere your codebase already trades on
+  immutability.
+
+- **You need worst-case latency, not amortised.**  Many functional
+  deque encodings (banker's deque, Hood-Melville variants) achieve
+  O(1) only on average.  Their amortised analysis falls apart in
+  the persistent setting where one state may be re-used by many
+  forks (see `bench/adversarial.sh` for the empirical demonstration
+  of exactly this failure on our hand-written D4).  This library is
+  WC O(1) per op — every individual call is bounded.
+
+- **You're building branching computations** — beam search,
+  planners, persistent search trees, IDE-style cursors with undo.
+  Every fork is free; both branches are fully usable; operations
+  on one don't disturb the other.
+
+- **You want a verified-correct algorithm without writing it
+  yourself.**  The implementation is the OCaml extraction of a
+  Rocq proof; sequence preservation is mechanically checked, and
+  the extraction is property-tested via QCheck and Monolith
+  (`ocaml/test_qcheck/`, `ocaml/test_monolith/`).
+
+When you would NOT use this:
+
+- **You need raw cycle-count throughput for a single-threaded
+  mutable queue.**  An OCaml `Queue.t` (mutable, no persistence)
+  beats this on the hot loop.  Reach for `ktdeque` when you also
+  need persistence or strict latency.
+- **N stays small (< ~100) and persistence isn't required.**  A
+  plain `'a list` with `(::)`, or a `Stdlib.Queue.t`, is simpler
+  and faster.
+
 ## Install
 
 The verified library is published as the opam package `ktdeque`.

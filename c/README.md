@@ -14,6 +14,49 @@ running both against the same fuzz workload and diffing the outputs
 The package depends only on a C11 compiler and `libc`.  No external
 libraries.  Building, testing, and benchmarking are all standalone.
 
+## When you'd reach for this in a C codebase
+
+C already has plenty of double-ended-queue options (singly/doubly
+linked lists, ring buffers, your own ad-hoc structure).  Use this
+library specifically when one of these matches your situation:
+
+- **You need worst-case latency, not amortised.**  The library
+  guarantees a *bounded* number of arena allocations per operation
+  (≤ 8 across all the benchmarked sizes; see `wc_test`).  No
+  occasional spike from a "rebuild this index" step.  Important for
+  audio buffers, control loops, hard-real-time kernels, or any code
+  where a 99.99th-percentile pause is unacceptable.
+
+- **You need persistence — fork the queue and use both halves
+  independently.**  Every op returns a new deque sharing structure
+  with the old one; the old deque is fully usable too.  Useful for
+  undo/redo, branching simulators, speculative execution, snapshots
+  for debugging, or anywhere you'd want copy-on-write semantics for
+  a queue.  The handoff is O(1) (a pointer copy); no deep copy.
+
+- **You're calling from a multi-threaded context where reads must
+  not block writes.**  Independent threads each have their own
+  thread-local arena (TLS); reads of a deque are pure pointer
+  traversal, no locks.  Pass a deque between threads via the
+  explicit-region API (`kt_region_*`).
+
+- **You want the verified-correct algorithm without writing it
+  yourself.**  The C source mirrors a Rocq formalisation; the
+  implementation has been bit-for-bit fuzzed against the
+  Coq-extracted OCaml version on millions of random workloads.
+
+When you'd NOT use this:
+
+- **You only need one end** — a `std::deque`-style stack or queue,
+  not both ends.  A simple linked list or array-backed ring is
+  smaller and faster.
+- **The deque is short-lived and small** — for sizes < a few hundred
+  with no persistence needed, an array-backed circular buffer beats
+  this library on raw cycle count.
+- **You can mutate freely** — if you don't need persistence and
+  don't need WC O(1), an in-place mutable deque is simpler and
+  faster.
+
 ## Status
 
 - **Functionally correct** — passes a 9-layer test matrix, including

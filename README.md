@@ -38,6 +38,53 @@ should hit each file, see
 ~90 minutes for the full tour, ~20 minutes for the first three
 stops (intuition + public API + worked example).
 
+## When you'd use this
+
+A persistent real-time deque is the right data structure when you
+need *both* ends and *either* persistence or hard latency guarantees.
+Concretely:
+
+- **Latency-sensitive systems** — audio buffers, real-time control
+  loops, game engines, interactive UIs.  WC O(1) (not amortised)
+  means *every* operation completes in bounded time; you never get
+  the occasional ~log N spike that an amortised scheme can produce
+  on a "rebuild" step.
+
+- **Branching computation** — search, planners, beam search,
+  speculative execution, undo/redo, branching evaluators, tree-
+  structured backtracking.  Persistence means a fork is free — both
+  branches are fully usable, and operations on one don't affect the
+  other.  You don't pay a copy.
+
+- **Functional pipelines and immutable data flow** — anywhere the
+  rest of your system already trades on immutability (Erlang-style
+  message passing, OCaml/Haskell programs, F#/Scala FP code, React-
+  /Redux-style stores).  An immutable deque slots in without forcing
+  callers to think about ownership or aliasing.
+
+- **Sliding-window algorithms** — when both ends of a window move
+  independently, list-based queues force O(n) on one end.  A deque
+  is O(1) on both.
+
+- **Catenable list / rope substrate** — the deque without catenation
+  is half of a catenable structure used in functional rope-like
+  text editors.  (Catenation itself is on the project roadmap; see
+  the [Status](#status) section.)
+
+When you would NOT use this:
+
+- **Cache-line-tight tight inner loops over short sequences** — for
+  a 16-element queue an array-backed ring buffer wins on raw cycle
+  count (no allocation, no pointer chasing).  Use this deque when N
+  is large enough that the constant-factor difference is dominated
+  by memory locality and you genuinely need persistence or strict
+  latency.
+
+- **Queue-only or stack-only workloads with no persistence
+  requirement** — a standard mutable list / vector / `std::deque`
+  is simpler and often faster.  Reach for this library when you
+  *also* need at least one of: persistence, WC O(1), or both.
+
 ## What's in here
 
 This repository is a **monorepo** with one self-contained tree per
