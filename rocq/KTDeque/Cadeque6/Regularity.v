@@ -581,8 +581,29 @@ with well_sized_subtree {X : Type} (t : Triple X) : Prop :=
   | TRight _ c _ => well_sized_cad c /\ well_sized_triple t
   end.
 
+(** ** [top_kinds_well_formed]: top-level triple kind discipline.
+
+    The Section-6 algorithm structures the root cadeque so that:
+
+    - arity 1 ([CSingle t]):  t is [TOnly]
+    - arity 2 ([CDouble tL tR]): tL is [TLeft] and tR is [TRight]
+
+    This isn't an explicit manual rule but follows from how the
+    algorithm builds the structure (TLeft/TRight are *boundary*
+    triples of arity-2 cadeques; TOnly is the singleton root).
+    Without this constraint, e.g. [CSingle (TRight ...)] would be
+    syntactically possible and break push preservation (push
+    grows the prefix from 2 to 3, violating OT4). *)
+
+Definition top_kinds_well_formed {X : Type} (q : Cadeque X) : Prop :=
+  match q with
+  | CEmpty        => True
+  | CSingle t     => triple_kind t = KOnly
+  | CDouble tL tR => triple_kind tL = KLeft /\ triple_kind tR = KRight
+  end.
+
 (** ** [regular_cad]: semiregular plus (RC4) plus (OT1)-(OT4)
-    size constraints.
+    size constraints plus top-kind discipline.
 
     This is the *full* invariant the public operations
     ([cad_push] / [cad_inject] / [cad_pop] / [cad_eject] /
@@ -592,7 +613,10 @@ with well_sized_subtree {X : Type} (t : Triple X) : Prop :=
     restores [regular_cad]. *)
 
 Definition regular_cad {X : Type} (q : Cadeque X) : Prop :=
-  semiregular_cad q /\ top_level_paths_green q /\ well_sized_cad q.
+  semiregular_cad q
+  /\ top_level_paths_green q
+  /\ well_sized_cad q
+  /\ top_kinds_well_formed q.
 
 (** * Trivial corollaries. *)
 
@@ -607,9 +631,10 @@ Proof. intros. exact I. Qed.
 Lemma regular_cad_empty :
   forall (X : Type), regular_cad (@CEmpty X).
 Proof.
-  intros X. split; [|split].
+  intros X. split; [|split; [|split]].
   - apply semiregular_cad_empty.
   - apply top_level_paths_green_empty.
+  - exact I.
   - exact I.
 Qed.
 
@@ -764,18 +789,29 @@ Theorem red_triple_child_regular :
     triple_color t = Red4 ->
     semiregular_triple t ->
     well_sized_subtree t ->
+    triple_child t <> CEmpty ->
+    (* The child cadeque's top kinds are well-formed: this is an
+       *additional* assumption because the parent triple's
+       semiregular/well-sized structure doesn't constrain the
+       child's top-level kind discipline.  In a regular cadeque
+       built by the algorithm this holds; we expose it as a
+       precondition here. *)
+    top_kinds_well_formed (triple_child t) ->
     regular_cad (triple_child t).
 Proof.
-  intros X t Hred Hsr Hws.
+  intros X t Hred Hsr Hws Hne Htk.
   destruct t as [pre c suf | pre c suf | pre c suf];
     cbn in Hsr; destruct Hsr as [Hcad Hloc];
     cbn in Hws; destruct Hws as [Hwscad _];
     destruct c as [|ct|tL tR];
-    cbn in Hred, Hloc;
+    cbn in Hred, Hloc, Hne;
+    try (exfalso; apply Hne; reflexivity);
     try discriminate;
     rewrite Hred in Hloc;
     cbn;
-    (split; [exact Hcad | split; [exact Hloc | exact Hwscad]]).
+    (split; [exact Hcad
+            | split; [exact Hloc
+                     | split; [exact Hwscad | exact Htk]]]).
 Qed.
 
 (** ** Manual §10.9 structural lemma 4:
@@ -836,7 +872,7 @@ Lemma regular_cad_push_to_empty :
   forall (X : Type) (x : X),
     regular_cad (cad_push x (@CEmpty X)).
 Proof.
-  intros X x. cbn. unfold regular_cad. split; [|split].
+  intros X x. cbn. unfold regular_cad. split; [|split; [|split]].
   - (* semiregular *)
     cbn. split; [exact I | cbn; exact I].
   - (* top_level_paths_green: the new triple is Green (child empty) *)
@@ -844,16 +880,19 @@ Proof.
   - (* well_sized: TOnly with CEmpty child + suf empty + pre size 1 > 0
        satisfies the (OT2) second branch. *)
     cbn. split; [exact I | right; left; cbn; lia].
+  - (* top_kinds_well_formed: the new triple is TOnly *)
+    cbn. reflexivity.
 Qed.
 
 Lemma regular_cad_inject_to_empty :
   forall (X : Type) (x : X),
     regular_cad (cad_inject (@CEmpty X) x).
 Proof.
-  intros X x. cbn. unfold regular_cad. split; [|split].
+  intros X x. cbn. unfold regular_cad. split; [|split; [|split]].
   - cbn. split; [exact I | cbn; exact I].
   - cbn. reflexivity.
   - cbn. split; [exact I | left; cbn; lia].
+  - cbn. reflexivity.
 Qed.
 
 (** ** Triple-level colour after push: per-kind lemmas.

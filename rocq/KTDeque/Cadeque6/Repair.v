@@ -172,6 +172,18 @@ Proof.
     try exact I; split; cbn; exact I.
 Qed.
 
+(** ** Top-kind discipline: result is either CEmpty or CSingle TOnly. *)
+
+Theorem normalize_only_empty_child_top_kinds :
+  forall (X : Type) (pre suf : Buf6 X),
+    top_kinds_well_formed (normalize_only_empty_child pre suf).
+Proof.
+  intros X [pre_xs] [suf_xs].
+  unfold normalize_only_empty_child, buf6_elems.
+  destruct pre_xs as [|p ps]; destruct suf_xs as [|s ss]; cbn;
+    try exact I; reflexivity.
+Qed.
+
 (** ** Headline: the normalized result is regular. *)
 
 Theorem normalize_only_empty_child_regular :
@@ -179,8 +191,9 @@ Theorem normalize_only_empty_child_regular :
     regular_cad (normalize_only_empty_child pre suf).
 Proof.
   intros X pre suf.
-  split; [|split].
+  split; [|split; [|split]].
   - apply normalize_only_empty_child_semiregular.
   - apply normalize_only_empty_child_top_paths_green.
   - apply normalize_only_empty_child_well_sized.
+  - apply normalize_only_empty_child_top_kinds.
 Qed.
