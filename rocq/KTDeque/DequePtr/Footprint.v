@@ -1,39 +1,94 @@
 (** * Module: KTDeque.DequePtr.Footprint -- worst-case O(1) cost bounds
     for the Viennot packet representation.
 
-    A chain of yellow cells re-thread is normally O(yellow-run-length).
-    The packet aggregation fixes this: a yellow run is a chain of
-    [PCell]s, each linked via [pcell_inner], and a push only touches the
-    TOP cell.  Re-threading after a buffer repair is bounded by a
-    constant — IT DOES NOT DEPEND ON THE YELLOW-RUN LENGTH.
+    ## Why this file exists
 
-    Cell layout:
+    "Worst-case O(1)" is the project hard rule (CLAUDE.md).  The
+    sequence-preservation proofs in [OpsKTSeq.v] establish *correctness*;
+    this file establishes *cost*.  Specifically: each public operation
+    costs at most a fixed constant number of primitive heap operations
+    (read, alloc, freeze, write) — no induction over the input, no
+    dependence on chain depth.  The constant is the [NF_*] number you
+    see referenced from [c/src/ktdeque_dequeptr.c]'s headers and from
+    [kb/spec/why-bounded-cascade.md] §3.
+
+    The trick that makes a constant bound possible at all is *packet
+    aggregation*: a yellow run of k nested levels lives in ONE
+    allocation unit (a single cell with a contiguous bufs-array).
+    Without aggregation, re-threading a yellow run after a repair
+    would touch O(k) cells, defeating the bound.  See
+    [kb/spec/why-bounded-cascade.md] §3.
+
+    ## Cell layout
+
+    Each chain cell is a heap record of fixed size:
 
         Record PCell (X : Type) := mkPCell {
           pcell_pre   : Buf5 X;             (* prefix buffer at this level *)
           pcell_suf   : Buf5 X;             (* suffix buffer; B0 for Ending *)
-          pcell_inner : option Loc;         (* None = Hole or Ending; Some = next deeper [PCell] *)
-          pcell_tail  : option Loc;         (* None = Ending; Some = chain tail [PCell] *)
+          pcell_inner : option Loc;         (* None = Hole or Ending; Some = next deeper PCell *)
+          pcell_tail  : option Loc;         (* None = Ending; Some = chain tail PCell *)
         }.
 
-    Top-level chain handle: [Loc] of the topmost cell, or [None] for an
-    empty chain.
+    The chain handle is the [Loc] of the topmost cell, or [None] for
+    the empty chain.  The C runtime in [c/src/ktdeque_dequeptr.c] uses
+    an analogous flat layout (kt_packet with bufs[2*depth]); the cost
+    numbers proved here translate directly to "at most 9 primitive
+    arena/cell touches" in the C implementation.
 
-    Cost accounting (the headline numbers):
+    ## Cost accounting (the headline numbers)
 
-      - [NF_PUSH_PKT = 3] -- naive push (1 read + 1 alloc + 1 freeze).
-        Used by [exec_push_pkt_naive_C] / [exec_pop_pkt_C] / [exec_eject_pkt_C].
-      - [NF_MAKE_RED_PKT = 6] -- one make_red repair primitive
-        (1 read of top + pure compute + 1 read of tail + 2 alloc-freeze).
-      - [NF_PUSH_PKT_FULL = 9] -- combined push+overflow.
+    Every primitive op (read / alloc / freeze / write) is counted as 1
+    in the [MC] monad ([Common/CostMonad.v]).  The total cost of a
+    structured op is read off its AST by [bindC]'s additivity.
+
+      - [NF_PUSH_PKT = 3]      — naive push: 1 read of top + 1 alloc
+                                  + 1 freeze.  Used by
+                                  [exec_push_pkt_naive_C] /
+                                  [exec_pop_pkt_C] / [exec_eject_pkt_C].
+      - [NF_MAKE_RED_PKT = 6]  — one make_red repair primitive: 1 read
+                                  of top + pure compute + 1 read of
+                                  tail + 2 alloc-freeze pairs.
+      - [NF_PUSH_PKT_FULL = 9] — combined push + overflow: a single
+                                  public op pays at most 3 + 6 = 9
+                                  primitive heap operations.
 
     Critically: the cost is INDEPENDENT of the chain depth.  The proof
-    is structural inversion on the cost monad — no induction.
+    is structural inversion on the cost monad — no induction over the
+    input chain.  An op whose cost is a closed-form constant in the
+    AST is, by definition, worst-case O(1).
+
+    ## What's proved here
+
+    For each [exec_*_C] op (the certified imperative DSL form, see
+    [OpsImperative.v]):
+      1. Functional correctness: the op's [to_M] projection equals the
+         abstract [_chain] op (sequence preserved).
+      2. Cost bound: [cost_of (op …) H = Some k] for some [k <= NF_*].
+
+    Together these are "WC O(1) per op" in operational terms.
+
+    ## How to read this file
+
+    Read the [NF_*] constants first (search "Definition NF_PUSH_PKT" in
+    this file).  Each numeric constant is a literal step count.  Then
+    read the cost-bound lemma for whichever op you care about (e.g.
+    [push_pkt_naive_C_cost]) — those proofs are short, just [cbn] +
+    [cost_bindC] applications.  The rest of the file is [exec_*_C]
+    definitions and conformance lemmas connecting them to the abstract
+    spec.
 
     Cross-references:
-    - [bench/viennot/deque_core.ml] -- the algorithmic reference.
-    - [KTDeque/Common/CostMonad.v] -- the [MC] monad with primitive
-      op counts.
+    - [KTDeque/Common/CostMonad.v]      -- the [MC] monad and [cost_of].
+    - [KTDeque/DequePtr/OpsImperative.v]-- the imperative DSL ops whose
+      cost is bounded here.
+    - [KTDeque/DequePtr/OpsAbstract.v]  -- the abstract spec [exec_*_C]
+      refines.
+    - [bench/viennot/deque_core.ml]     -- the algorithmic reference.
+    - [c/src/ktdeque_dequeptr.c]        -- the C runtime that
+      operationally realises these bounds.
+    - [kb/spec/why-bounded-cascade.md]  -- intuition: why the cost is
+      structurally a constant.
 *)
 
 From KTDeque.Common Require Import Prelude FinMapHeap HeapExt Monad

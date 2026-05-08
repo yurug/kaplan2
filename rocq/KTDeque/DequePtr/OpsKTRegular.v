@@ -1,23 +1,72 @@
 (** * Module: KTDeque.DequePtr.OpsKTRegular -- color-based regularity
       invariant for [KChain] (Phase δ.3 foundation).
 
-    Defines [regular_kt c] as the explicit-color analogue of Viennot's
-    GADT well-typing.  This file establishes the invariant and proves
-    the basic structural lemmas (decidability, trivial cases, top
-    color non-Red).
+    ## Why this file exists
 
-    The full preservation theorems
-       [regular_kt c -> push_kt2 x c = Some c' -> regular_kt c']
-       [regular_kt c -> exists c', push_kt2 x c = Some c']
-    and analogues for inject/pop/eject are stated here as [Lemma]s but
-    deliberately not proved yet — they require substantial case work
-    that will be added incrementally.  None are [Admitted] in this
-    file, preserving the project's zero-admit invariant.
+    The regularity invariant is the load-bearing fact in the WC O(1)
+    proof.  Intuition: between any two Red links there must be a Green
+    link.  When a public operation (push / inject / pop / eject)
+    leaves the chain head Red, [ensure_green_k] fires [green_of_red_k]
+    *exactly once* — because the link below the new Red top is Green
+    (or absent), *guaranteed by regularity*.  No recursion.  See
+    [kb/spec/why-bounded-cascade.md] §2 for the intuition.
+
+    This file is the formal counterpart of that argument:
+
+      [regular_kt c]  is true iff the chain [c] has no two adjacent
+                      Red links and the top is non-Red.
+
+      Preservation theorems (this file is the home of these):
+        [regular_kt c -> push_kt2 x c = Some c' -> regular_kt c']
+        [regular_kt c -> exists c', push_kt2 x c = Some c']
+        + analogues for inject/pop/eject.
+
+    Together with the cost bounds in [Footprint.v] and the sequence
+    preservation in [OpsKTSeq.v], they say: starting from
+    [empty_kchain] and applying any sequence of public operations,
+    every intermediate [KChain] is regular and every operation costs
+    at most [NF_PUSH_PKT_FULL = 9] heap ops.
+
+    ## Status
+
+    The basic structural lemmas (decidability, trivial cases, top
+    color non-Red) are proven.  The full preservation theorems are
+    stated as [Lemma]s but **deliberately not proved yet** — they
+    require substantial case work that will be added incrementally.
+    None are [Admitted], preserving the project's zero-admit
+    invariant.
+
+    Until preservation is closed, the WC O(1) story holds for *cost*
+    (via [Footprint.v]) but the *regularity* invariant required to
+    apply that cost bound is not yet formally maintained across
+    operations.  In practice, the C runtime asserts the invariant in
+    debug builds (see [kt_check_regular] in [c/include/ktdeque.h]),
+    and the QCheck/Monolith property tests have not yet found a
+    violation.
+
+    ## Why "color-based" matters
+
+    Earlier the project had a [Chain] type ([Model.v]) without explicit
+    colors, with regularity defined extrinsically in [Regularity.v].
+    Adding colors to the type ([KChain] in [Model.v], [KCons col p tl])
+    makes the invariant local: a chain is regular iff every [KCons]'s
+    color is consistent with its tail's top color.  No more "find the
+    top of the yellow run, then check what's below it" — the colour
+    tag tells you directly.
+
+    The color tag is *contextual*, not derivable from buffer sizes
+    alone (after a [green_of_red] Case 3, the freshly-tagged Red
+    packet may have G/Y-sized buffers).  See [OpsKT.v] header.
 
     Cross-references:
-    - [KTDeque/Common/Color.v]      -- color, color_meet, buf_color.
-    - [KTDeque/DequePtr/OpsKT.v]    -- the ops being verified.
-    - [KTDeque/DequePtr/Regularity.v] -- regularity for [Chain] (no colors).
+    - [kb/spec/why-bounded-cascade.md] -- the intuition layer.
+    - [KTDeque/Common/Color.v]         -- color, color_meet, buf_color.
+    - [KTDeque/DequePtr/OpsKT.v]       -- the ops whose preservation
+                                          is proved here.
+    - [KTDeque/DequePtr/Regularity.v]  -- regularity for the older
+                                          color-less [Chain] type.
+    - [KTDeque/DequePtr/Footprint.v]   -- the cost bound that depends
+                                          on regularity holding.
 *)
 
 From Stdlib Require Import List.

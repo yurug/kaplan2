@@ -1,22 +1,56 @@
 (** * Module: KTDeque.Common.Buf5 -- six-constructor fixed-size buffer.
 
-    Manual §5.2 + Q17.  A [Buf5 X] holds 0..5 elements.  We use six explicit
-    constructors [B0..B5] rather than a length-indexed vector because:
-    - it makes the runtime shape explicit (one tag, fixed fields);
-    - proofs by case analysis are mechanical;
-    - extraction produces idiomatic OCaml;
-    - no [Equations] / [Program] dependency.
+    ## What it is
 
-    Per ADR-0004 we use plain inductives.  Per the Buffer6 wrapper (§8 / [Buffer6/]),
-    a [Buf5 X] is the underlying storage of a Section-4 deque cell prefix or
-    suffix.  Its element type is [X], not the base [A] -- in higher levels of
-    the deque, [X] becomes a pair (or higher) of base elements (per
-    [Common/Prelude]).
+    [Buf5 X] is the level-local storage at every chain level: 0..5
+    elements of type [X].  Six explicit constructors enumerate the
+    sizes:
+
+      [B0]                      0 elements
+      [B1 a]                    1 element
+      [B2 a b]                  2 elements
+      [B3 a b c]                3 elements
+      [B4 a b c d]              4 elements
+      [B5 a b c d e]            5 elements
+
+    The element type [X] is not the base type [A].  At level 0 of a
+    chain, [X = E.t A] holds level-0 elements (one base value each);
+    at deeper levels, the deque pairs elements up via [E.pair], so
+    [X] still has type [E.t A] but now with elements at higher
+    levels.
+
+    ## Why six explicit constructors instead of a length-indexed vector?
+
+    Per ADR-0004 we use plain inductives:
+    - The runtime shape is explicit (one tag + fixed fields).
+    - Proofs by case analysis are mechanical: [destruct b] gives the
+      six cases directly.  See [DequePtr/OpsKTSeq.v]'s "Buffer-level
+      sequence preservation" section for the recipe — essentially
+      the same six-line proof for every buffer-level lemma.
+    - OCaml extraction produces an idiomatic 6-constructor variant
+      type with no [Obj.magic].
+    - No dependency on [Equations] or [Program].
+
+    ## Colour interpretation
+
+    A buffer's *colour* is determined by its size:
+      [B0] / [B5]      Red       (next op underflows or overflows)
+      [B1] / [B4]      Yellow    (next op safe in at least one direction)
+      [B2] / [B3]      Green     (next op safe in both directions)
+
+    The colour discipline gives the algorithm its WC O(1) bound; see
+    [kb/spec/why-bounded-cascade.md] §2.
+
+    Manual §5.2 + Q17.
 
     Cross-references:
-    - kb/spec/data-model.md#3.2
-    - kb/properties/functional.md#P10..P20 (Buffer6 helpers; Buf5 supplies the
-      underlying primitive that those helpers are built on).
+    - [Common/Color.v]                      -- buffer colour from size.
+    - [DequePtr/OpsKT.v]                    -- the colour-dispatched ops
+                                                that operate on Buf5.
+    - [DequePtr/OpsKTSeq.v]                 -- the recurring six-case
+                                                proof recipe.
+    - [kb/spec/data-model.md] §3.2.
+    - [kb/properties/functional.md] P10..P20.
 *)
 
 From KTDeque.Common Require Import Prelude.

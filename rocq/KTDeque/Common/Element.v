@@ -1,18 +1,82 @@
 (** * Module: KTDeque.Common.Element -- abstract level-l element interface.
 
-    Per ADR-0011 (option (a)'): the deque is parameterized by an abstract
-    [t A] type representing "an element at some level".  This decouples the
-    deque algorithm from the leaf representation, enabling cache-friendly
-    target-specific instances (e.g., flat arrays for shallow levels +
-    pointer pairs for deep levels — preserving worst-case O(1) when the
-    array threshold is a constant).
+    ## What an "element" is in this codebase
 
-    For Coq proofs we use the canonical [ElementTree] instance, which
-    represents [t A] as [{ l : nat & xpow A l }] — a pair of a level and a
-    perfectly balanced binary tree of [A]'s.
+    The deque at the top level holds your [\'a] base values, but at
+    each deeper level it holds *paired* values: pairs at level 1,
+    pairs of pairs at level 2, etc.  We need a single type that
+    expresses "[\'a] value at some level [l]" — call it [t A].  It
+    has three operations:
+
+      [base : A -> t A]                    -- wrap as level 0
+      [pair : t A -> t A -> t A]           -- combine same-level into +1
+      [unpair : t A -> option (t A * t A)] -- split (None at level 0)
+
+    plus a [to_list : t A -> list A] that flattens to base values.
+    That's all the deque operations need.
+
+    ## Worked example
+
+    With [E := ElementTree] and base type [A := nat]:
+
+    {[
+        E.base 5            : E.t nat   -- a level-0 element holding [5]
+        E.level (E.base 5)  = 0
+        E.to_list (E.base 5) = [5]
+
+        let p = E.pair (E.base 1) (E.base 2)  : E.t nat
+        E.level p           = 1
+        E.to_list p         = [1; 2]
+
+        E.pair p (E.pair (E.base 3) (E.base 4))  : E.t nat
+        E.level _           = 2
+        E.to_list _         = [1; 2; 3; 4]
+    ]}
+
+    A deque can mix elements at different levels — that's precisely
+    why we need the level tag.  The KT/Viennot algorithm guarantees
+    that a level-l element is always paired with another level-l
+    element when it cascades.
+
+    ## Why an abstraction (not just a fixed type)?
+
+    Per ADR-0011 (option (a)'): the deque is parameterized by [t A] so
+    a target-specific instance can use flat arrays for shallow levels
+    plus pointer pairs for deep levels — preserving worst-case O(1)
+    when the array threshold is a constant.  The OCaml extraction
+    chooses the canonical [ElementTree] instance, but a hand-written
+    C runtime can use a different representation as long as it
+    satisfies the [ELEMENT] module type.
+
+    ## What the user sees in the OCaml extraction
+
+    The OCaml-extracted [ktdeque] library exposes [\'a Coq_E.t] (an
+    alias for [ElementTree.t]).  Public users only need three
+    functions:
+
+      [Coq_E.base v]      to wrap an [\'a] before [push_kt2 / inject_kt2];
+      [Coq_E.to_list e]   to flatten the element returned by [pop_kt2 / eject_kt2];
+      [Coq_E.level e]     for diagnostics (always 0 at the public surface).
+
+    The verified ops only ever return level-0 elements at the public
+    boundary — the level-l machinery is internal.  See
+    [ocaml/extracted/kTDeque.mli] for the user-facing docs.
+
+    ## The internal representation
+
+    The canonical [ElementTree] instance represents [t A] as
+    [{ l : nat & xpow A l }] — a pair of a level [l] and a perfectly
+    balanced binary tree [xpow A l] of [2^l] values of [A].
+
+      [xpow A 0] = [A]
+      [xpow A 1] = [A * A]
+      [xpow A 2] = [(A * A) * (A * A)]
+      [xpow A l] = [xpow A (l-1) * xpow A (l-1)]
 
     Cross-references:
-    - kb/architecture/decisions/adr-0011-element-abstraction.md
+    - [kb/architecture/decisions/adr-0011-element-abstraction.md]
+    - [ocaml/extracted/kTDeque.mli]    -- the user-facing API.
+    - [kb/spec/why-bounded-cascade.md] §1 -- why levels exist at all.
 *)
 
 From KTDeque.Common Require Import Prelude.
