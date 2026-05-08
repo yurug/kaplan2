@@ -1133,3 +1133,15 @@ Proof.
   - apply color4_meet_monotone_right.
     apply (buf6_color_inject_monotone _ _ x). exact Hsz.
 Qed.
+
+(** ** [semiregular_local] is monotone-inverse in colour: a "better"
+    colour has weaker (or vacuous) requirements.
+
+    Sketch (full proof deferred): if old colour is Red, old has
+    RC2 (every child Green); new colour ≥ Red could be R/O/Y/G,
+    each with weaker conditions implied by RC2.  If old is
+    Orange, old has RC3 (non-preferred Green); new is O/Y/G with
+    same-or-weaker.  If old is Yellow/Green, both old and new are
+    True.  Implementation requires one nested destruct per
+    colour-pair × child-shape; deferred until preservation theorem
+    needs it. *)
