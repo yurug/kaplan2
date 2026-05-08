@@ -241,15 +241,31 @@ Proof.
   rewrite length_app. cbn. lia.
 Qed.
 
+(** ** Inverse laws.
+
+    Pop after push and eject after inject return the original
+    element and (literal!) buffer.  These are the "stack on each
+    end" property at the buffer level. *)
+
+Lemma buf6_pop_push :
+  forall (X : Type) (x : X) (b : Buf6 X),
+    buf6_pop (buf6_push x b) = Some (x, b).
+Proof. intros X x [xs]. reflexivity. Qed.
+
+Lemma buf6_eject_inject :
+  forall (X : Type) (b : Buf6 X) (x : X),
+    buf6_eject (buf6_inject b x) = Some (b, x).
+Proof.
+  intros X [xs] x. unfold buf6_eject, buf6_inject, buf6_elems.
+  rewrite rev_app_distr. cbn. rewrite rev_involutive. reflexivity.
+Qed.
+
 (** ** Examples. *)
 
 Example buf6_push_pop_roundtrip :
   forall (x : nat) (b : Buf6 nat),
     buf6_pop (buf6_push x b) = Some (x, b).
-Proof.
-  intros x [xs]. unfold buf6_push, buf6_pop, buf6_elems.
-  reflexivity.
-Qed.
+Proof. apply buf6_pop_push. Qed.
 
 Example buf6_size_after_three_pushes :
   buf6_size (buf6_push 3 (buf6_push 2 (buf6_push 1 (@buf6_empty nat)))) = 3.

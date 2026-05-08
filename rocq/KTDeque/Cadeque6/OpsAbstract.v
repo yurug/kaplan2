@@ -437,8 +437,9 @@ Qed.
     These size laws derive immediately from the sequence laws above
     via [length (xs ++ ys) = length xs + length ys] and friends.
     They are useful as the input shape that Phase 4's cost-bound
-    proofs will take ("the per-op cost is bounded by [c1 + c2 *
-    log_2 (log_2 (cad_size q))]"). *)
+    proofs will take.  Phase 4 targets a per-op cost bound that is
+    independent of [cad_size q] (a closed-form constant readable
+    off the AST, KT99 §§6-7). *)
 
 Definition cad_size {X : Type} (q : Cadeque X) : nat :=
   length (cad_to_list_base q).
@@ -489,4 +490,118 @@ Theorem cad_size_concat :
 Proof.
   intros X a b. unfold cad_size.
   rewrite cad_concat_seq, length_app. reflexivity.
+Qed.
+
+(** * Inverse laws.
+
+    A deque is a stack on each end: pop undoes push at the front,
+    eject undoes inject at the back.  At the buffer and triple
+    levels the inverse is *literal* equality.  At the cadeque level
+    we must drop down to sequence equivalence, because pushing onto
+    [CEmpty] produces a [CSingle] wrapper that pop cannot fully
+    unwrap (it leaves an empty-buffered triple as the residue). *)
+
+Lemma triple_pop_after_push :
+  forall (X : Type) (x : X) (t : Triple X),
+    triple_pop_prefix (triple_push_prefix x t) = Some (x, t).
+Proof.
+  intros X x t.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+    cbn [triple_push_prefix triple_pop_prefix];
+    rewrite buf6_pop_push; reflexivity.
+Qed.
+
+Lemma triple_eject_after_inject :
+  forall (X : Type) (t : Triple X) (x : X),
+    triple_eject_suffix (triple_inject_suffix t x) = Some (t, x).
+Proof.
+  intros X t x.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+    cbn [triple_inject_suffix triple_eject_suffix];
+    rewrite buf6_eject_inject; reflexivity.
+Qed.
+
+(** ** [cad_pop_push]: popping after pushing recovers the element
+    and a cadeque with the same observable sequence. *)
+
+Theorem cad_pop_push :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    exists q',
+      cad_pop (cad_push x q) = Some (x, q')
+      /\ cad_to_list_base q' = cad_to_list_base q.
+Proof.
+  intros X x q. destruct q as [|t|tL tR]; cbn.
+  - eexists. split; reflexivity.
+  - rewrite triple_pop_after_push. eexists. split; reflexivity.
+  - rewrite triple_pop_after_push. eexists. split; reflexivity.
+Qed.
+
+(** ** [cad_eject_inject]: ejecting after injecting recovers the
+    element and a cadeque with the same observable sequence. *)
+
+Theorem cad_eject_inject :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    exists q',
+      cad_eject (cad_inject q x) = Some (q', x)
+      /\ cad_to_list_base q' = cad_to_list_base q.
+Proof.
+  intros X q x. destruct q as [|t|tL tR]; cbn.
+  - eexists. split; reflexivity.
+  - rewrite triple_eject_after_inject. eexists. split; reflexivity.
+  - rewrite triple_eject_after_inject. eexists. split; reflexivity.
+Qed.
+
+(** ** Recovery: pushing the popped element back rebuilds the
+    sequence.  This is the *other* direction of the inverse: given
+    a non-empty cadeque, the element popped off can be pushed back
+    to restore the abstract sequence (as a list, not as a literal
+    cadeque value).
+
+    Useful for clients reasoning about "popped state can be
+    reconstituted". *)
+
+Theorem cad_push_pop_recovery :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') ->
+    cad_to_list_base (cad_push x q') = cad_to_list_base q.
+Proof.
+  intros X q x q' Hp.
+  apply cad_pop_seq in Hp.
+  rewrite cad_push_seq, <- Hp. reflexivity.
+Qed.
+
+Theorem cad_inject_eject_recovery :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) ->
+    cad_to_list_base (cad_inject q' x) = cad_to_list_base q.
+Proof.
+  intros X q q' x He.
+  apply cad_eject_seq in He.
+  rewrite cad_inject_seq, <- He. reflexivity.
+Qed.
+
+(** * Distribution: push/inject across concat.
+
+    [push] hits the front, [concat] joins front-of-result to
+    front-of-[a]; therefore [push x (concat a b) ≡ concat (push x a) b].
+    Symmetric for [inject].  Both at the level of observable
+    sequences (not literal values). *)
+
+Theorem cad_concat_push_left :
+  forall (X : Type) (x : X) (a b : Cadeque X),
+    cad_to_list_base (cad_push x (cad_concat a b))
+    = cad_to_list_base (cad_concat (cad_push x a) b).
+Proof.
+  intros X x a b.
+  rewrite cad_push_seq, !cad_concat_seq, cad_push_seq. reflexivity.
+Qed.
+
+Theorem cad_concat_inject_right :
+  forall (X : Type) (a b : Cadeque X) (x : X),
+    cad_to_list_base (cad_inject (cad_concat a b) x)
+    = cad_to_list_base (cad_concat a (cad_inject b x)).
+Proof.
+  intros X a b x.
+  rewrite cad_inject_seq, !cad_concat_seq, cad_inject_seq, app_assoc.
+  reflexivity.
 Qed.
