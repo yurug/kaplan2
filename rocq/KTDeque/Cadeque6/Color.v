@@ -287,3 +287,71 @@ Lemma buf6_color_inject_green_stays_green :
 Proof.
   intros. apply buf6_color_inject_grows_to_green. lia.
 Qed.
+
+(** ** Colour ordering: Green > Yellow > Orange > Red.
+
+    [color4_le c1 c2] means [c2] is at least as good as [c1].
+    Useful for stating monotonicity of colour under push/inject. *)
+
+Definition color4_rank (c : Color4) : nat :=
+  match c with
+  | Red4    => 0
+  | Orange4 => 1
+  | Yellow4 => 2
+  | Green4  => 3
+  end.
+
+Definition color4_le (c1 c2 : Color4) : Prop :=
+  color4_rank c1 <= color4_rank c2.
+
+Lemma color4_le_refl :
+  forall c, color4_le c c.
+Proof.
+  intros c; unfold color4_le; destruct c; cbn; lia.
+Qed.
+
+Lemma color4_le_trans :
+  forall c1 c2 c3, color4_le c1 c2 -> color4_le c2 c3 -> color4_le c1 c3.
+Proof.
+  intros c1 c2 c3 H12 H23; unfold color4_le in *; lia.
+Qed.
+
+(** ** Buffer-colour monotonicity under push: push never worsens
+    a buffer's Section-6 colour.
+
+    Specifically:
+    - Red (size 5) → Orange (size 6): improves
+    - Orange (size 6) → Yellow (size 7): improves
+    - Yellow (size 7) → Green (size 8): improves
+    - Green (size ≥ 8) → Green: stays
+    - Sizes 0..4 (defensive default Green) → 1..5: may *worsen*
+      to Red at size 5.  This is the defensive-default trap.
+
+    To avoid the trap, we condition on size ≥ 5 (the colour-
+    determining range per OT1-OT4). *)
+
+Lemma buf6_color_push_monotone :
+  forall (X : Type) (x : X) (b : Buf6 X),
+    buf6_size b >= 5 ->
+    color4_le (buf6_color b) (buf6_color (buf6_push x b)).
+Proof.
+  intros X x b Hsz.
+  unfold color4_le, buf6_color.
+  rewrite buf6_push_size.
+  remember (buf6_size b) as n eqn:Hn.
+  destruct n as [|[|[|[|[|[|[|[|n']]]]]]]];
+    cbn in Hsz; try lia; cbn; unfold color4_rank; lia.
+Qed.
+
+Lemma buf6_color_inject_monotone :
+  forall (X : Type) (b : Buf6 X) (x : X),
+    buf6_size b >= 5 ->
+    color4_le (buf6_color b) (buf6_color (buf6_inject b x)).
+Proof.
+  intros X b x Hsz.
+  unfold color4_le, color4_rank, buf6_color.
+  rewrite buf6_inject_size.
+  remember (buf6_size b) as n eqn:Hn.
+  destruct n as [|[|[|[|[|[|[|[|n']]]]]]]];
+    cbn in Hsz; try lia; cbn; lia.
+Qed.
