@@ -210,6 +210,63 @@ make -C c check-diff-multi
 If the OCaml side is unavailable, you can still run all the other
 layers — every test is independent.
 
+## Concurrency
+
+Three things to know:
+
+1. **Each thread has its own bump arena** (thread-local storage).
+   The default API (`kt_push`, `kt_pop`, `kt_inject`, `kt_eject`,
+   `kt_arena_compact`) routes to the calling thread's arena.
+   Concurrent threads never share arena state; each thread can use
+   the default API independently.  TSan-clean: see
+   `tests/test_threads.c` and `make check-tsan`.
+
+2. **A deque value is a pointer; deque values are immutable**.
+   Every op returns a new deque sharing structure with the input.
+   Reading from a deque (`kt_walk`, `kt_length`, `kt_check_regular`)
+   does no allocation and no mutation — multiple threads can read
+   the same deque value concurrently with no locks.
+
+3. **Cross-thread sharing requires the regions API**.  A deque
+   value created in thread A's arena is *not* safe to mutate
+   (push/pop/etc.) from thread B: the new chain links would land
+   in B's arena and create cross-arena pointers that break on
+   compaction.  For genuine cross-thread sharing, use
+   [`kt_region_create`](include/ktdeque.h):
+
+   ```c
+   /* Producer thread */
+   kt_region* r = kt_region_create(0);
+   kt_deque d = kt_empty_in(r);
+   d = kt_push_in(r, kt_base(&v0), d);
+   /* publish (r, d) to the consumer via your favourite channel ... */
+
+   /* Consumer thread (after receiving (r, d)) */
+   kt_elem out; int ok;
+   kt_deque d2 = kt_pop_in(r, d, &out, &ok);
+   /* d2, d, and r all stay alive until kt_region_destroy(r). */
+   ```
+
+   Both threads operate on the same region.  The region holds
+   refcounted-or-explicit lifetimes on every link inside it; you
+   destroy the region when you're done with all derivatives.
+
+This library is **not** a lock-free concurrent queue (Michael-
+Scott, MPMC channels, etc.).  Those are *transports* — for moving
+items between threads, use one of those (or wrap one yourself).
+This library is the *value type* for an immutable deque.  A
+common pattern:
+
+  - One thread "owns" the live deque (a pointer in shared memory).
+  - Reader threads atomically load the pointer, walk the snapshot
+    (no locks).
+  - The writer atomically CAS-publishes a new deque pointer when
+    state advances.
+
+Persistence and immutability make this pattern natural: readers
+always see a self-consistent snapshot; writers never partially
+update a state visible to readers.
+
 ## Headline performance — n=1M, gcc 13.3, single core
 
 With arena compaction at K=4096 (the `make bench` default):

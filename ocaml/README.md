@@ -112,6 +112,60 @@ directly: `dune exec ocaml/examples/hello.exe`).  After
 ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 ```
 
+## Concurrency (OCaml 5 / Domain)
+
+A `kChain` value is fully immutable.  Every op produces a new
+value; the input is unchanged.  This is the easiest concurrency
+story possible:
+
+- **Multiple domains can read the same `kChain` concurrently**
+  with no locks.  Traversing a `kChain` (`kchain_to_list`, or any
+  walk you write yourself) does no allocation and no mutation;
+  Domain A's traversal is independent of Domain B's traversal of
+  the same value.
+
+- **Push / pop / inject / eject are pure functions** of their
+  arguments and return a fresh `kChain`.  Two domains can each
+  call `push_kt2` on the same input simultaneously and they will
+  produce two independent results, sharing structure with the
+  input.  No locks, no atomics, no `Mutex` involved.
+
+- **If you maintain a "current deque" cell** that multiple
+  domains read and update, the cell — not the deque value —
+  needs the usual OCaml multicore discipline.  Wrap it in
+  [`Atomic.t`](https://v2.ocaml.org/api/Atomic.html) and CAS:
+
+  ```ocaml
+  let current : 'a kChain Atomic.t = Atomic.make empty_kchain
+
+  (* Reader: lock-free snapshot. *)
+  let snap () = Atomic.get current
+
+  (* Writer: CAS-publish a new state.  Retries on contention. *)
+  let rec push_atomic x =
+    let q  = Atomic.get current in
+    match push_kt2 (Coq_E.base x) q with
+    | None    -> failwith "regularity violated"
+    | Some q' ->
+        if not (Atomic.compare_and_set current q q')
+        then push_atomic x
+  ```
+
+  Each successful CAS publishes a new immutable snapshot to all
+  readers.  Readers never see a half-mutated state; writers never
+  block readers.  This is the *standard* persistent-data-structure
+  concurrency pattern, and it works here without any special-case
+  reasoning because the deque values are already race-free.
+
+This library is **not** a lock-free concurrent queue (MPMC channel,
+Michael-Scott queue, etc.).  Those are transports for moving
+items between domains; this library is the value type for an
+immutable deque.  If your concurrency pattern is "producer pushes
+items, consumer pops them, one at a time", reach for a
+[`Domainslib.Chan`](https://github.com/ocaml-multicore/domainslib)
+or similar — possibly with `kChain` snapshots as messages, but the
+channel is the transport.
+
 ## Layout
 
 ```

@@ -85,6 +85,56 @@ When you would NOT use this:
   is simpler and often faster.  Reach for this library when you
   *also* need at least one of: persistence, WC O(1), or both.
 
+## Concurrency
+
+Short answer: **a deque value is an immutable snapshot, so it is
+safe to share across threads/domains for reads, and operations
+never mutate the input** — but this library is NOT a lock-free
+concurrent queue, and it has language-specific sharing rules.
+
+The headline differences:
+
+- **OCaml (multicore / Domain)**: every operation returns a new
+  immutable `kChain` value; the input is unchanged.  Multiple
+  domains can safely traverse the same `kChain` concurrently with
+  no locks.  Allocation happens on the calling domain's minor
+  heap.  If multiple domains share a "current deque" reference,
+  protect that reference with `Atomic.t` or a `Mutex` — the deque
+  *values* are already race-free, but the reference cell still
+  needs the usual OCaml multicore discipline.
+
+- **C (POSIX threads)**: each thread gets its own thread-local
+  bump arena.  A deque created in thread A's arena should not be
+  operated on (push, pop, etc.) from thread B — its new chain
+  links would land in B's arena and create cross-arena pointers.
+  For genuine cross-thread sharing, use the explicit regions API
+  ([`kt_region_create`](c/include/ktdeque.h)) and pass the region
+  pointer between threads; both threads then allocate into the
+  same region.  Read-only operations (`kt_walk`, `kt_length`) on a
+  deque from another thread's arena are safe as long as that other
+  thread is not concurrently compacting its arena.  The C side is
+  TSan-clean with N independent threads each in their own TLS
+  arena (`make check-tsan`).
+
+This library is **not** a lock-free concurrent queue (Michael-Scott
+queue, MPMC channel, etc.).  Those are *transports* for moving
+items between threads; this library is the *value type* for an
+immutable deque.  If your concurrency pattern is "producer pushes
+items, consumer pops them, one at a time", reach for an MPSC/MPMC
+channel — possibly with a `kChain` as the message payload, but
+the channel itself is the transport.
+
+If your concurrency pattern is "multiple readers walk the same
+state, occasional writer advances the shared cursor", that's the
+sweet spot for an immutable deque: each reader gets a stable
+snapshot, the writer publishes a new snapshot atomically (CAS on
+an `Atomic.t (kChain)` in OCaml, or on an atomic pointer in C with
+a shared region), and there are no readers-must-block-writers
+problems.
+
+The `c/README.md` and `ocaml/README.md` files have language-
+specific concurrency notes with code-shaped guidance.
+
 ## What's in here
 
 This repository is a **monorepo** with one self-contained tree per
