@@ -552,3 +552,68 @@ Theorem cad_inject_op_refines_cad_inject :
 Proof.
   intros X q x. rewrite cad_inject_op_seq, cad_inject_seq. reflexivity.
 Qed.
+
+(** * Top-level-paths-Green preservation for the child-empty cases.
+
+    The simpler half of [top_level_paths_green] preservation: when
+    the top triple's child is [CEmpty], the triple's colour is
+    Green by §10.6 (regardless of buffer sizes), so the preferred
+    path tail is the triple itself, Green.  Push doesn't change
+    that the child is empty (push only modifies the prefix), so
+    the new triple is also Green-by-empty-child. *)
+
+Lemma cad_push_op_top_paths_green_when_top_child_empty :
+  forall (X : Type) (x : X) (pre suf : Buf6 X),
+    top_level_paths_green (cad_push_op x (CSingle (TOnly pre CEmpty suf))).
+Proof.
+  intros X x [pre_xs] suf.
+  cbn [cad_push_op buf6_elems].
+  destruct pre_xs as [|p ps].
+  - (* normalize fires *)
+    apply normalize_only_empty_child_top_paths_green.
+  - (* direct push: result is CSingle (TOnly nonempty CEmpty suf),
+       Green by §10.6 *)
+    cbn. reflexivity.
+Qed.
+
+Lemma cad_inject_op_top_paths_green_when_top_child_empty :
+  forall (X : Type) (pre suf : Buf6 X) (x : X),
+    top_level_paths_green (cad_inject_op (CSingle (TOnly pre CEmpty suf)) x).
+Proof.
+  intros X pre [suf_xs] x.
+  cbn [cad_inject_op buf6_elems].
+  destruct suf_xs as [|s ss].
+  - apply normalize_only_empty_child_top_paths_green.
+  - cbn. reflexivity.
+Qed.
+
+(** * Top-level-paths-Green preservation for CDouble.
+
+    For [CDouble tL tR], push touches tL only.  By
+    [top_kinds_well_formed], tL is a TLeft.  The relevant question
+    is whether [preferred_path_tail (push tL)] is Green when
+    [preferred_path_tail tL] was Green originally.
+
+    For a TLeft, the preferred-path descent depends on
+    [buf6_color pre] (its colour-determining buffer).  Push grows
+    pre.  We've already proved (in [Regularity.v]):
+
+    - [preferred_path_tail_TLeft_after_push_green] : when pre size
+      ≥ 8 (true Green), the new path tail is Green.
+
+    The general case (pre size 5/6/7) requires the colour-shift
+    argument.  That is the next chunk; this lemma handles the
+    Green-stays-Green case as a starting point. *)
+
+Lemma cad_push_op_top_paths_green_double_when_top_pre_8 :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (tR : Triple X),
+    buf6_size pre >= 8 ->
+    triple_color (preferred_path_tail tR) = Green4 ->
+    top_level_paths_green (cad_push_op x (CDouble (TLeft pre c suf) tR)).
+Proof.
+  intros X x pre c suf tR Hpre HR.
+  cbn [cad_push_op]. cbn.
+  split.
+  - apply preferred_path_tail_TLeft_after_push_green. exact Hpre.
+  - exact HR.
+Qed.
