@@ -271,7 +271,7 @@ every level.
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
 
-Phase 5.5 progress (this session, 6 commits):
+Phase 5.5 progress (this session, 8 commits):
 
 - `a10b314` Color foundation: `Color4` inductive, `color4_meet`,
   `buf6_color`, `triple_color`, `stored_color` per manual §10.6.
@@ -285,16 +285,36 @@ Phase 5.5 progress (this session, 6 commits):
 - `b7b7bcf` Manual §10.9 structural lemmas 3 (red→child regular)
   and 4 (orange's non-preferred is green); push/inject-to-empty
   preservation.
+- `ff64a73` Correctness.v re-export bundle refreshed.
+- `3403d74` Buffer-level colour transitions under push/inject:
+  `buf6_color_push_grows_to_green` (size ≥ 7 → Green after push),
+  symmetric for inject; specialised `*_green_stays_green` variants.
+- `c70b0ff` Triple-level colour transitions under push/inject for
+  each triple kind (TLeft/TRight/TOnly), plus
+  `preferred_path_tail_T*_after_*_green` composing with
+  `preferred_path_tail_green_self`.
 
 Phase 5.5 deferred:
 
 - §10.9 lemma 2 (top-level red preferred path tail uniqueness):
   semantically unclear without operational context — likely lands
   alongside the repair primitives.
+
 - General `cad_push` / `cad_inject` regularity preservation:
-  needs the colour-improves-on-push lemma plus the size-from-
-  regular-triple lemma; tractable but case-heavy, deferred to a
-  next session.
+  the *building blocks* are now in place (`triple_push_prefix_T*`
+  colour-after-push lemmas, `preferred_path_tail_T*_after_*_green`
+  composers).  What blocks the general theorem: the top triple's
+  prefix size is required to be ≥ 8 (true Green range) for the
+  TLeft / TOnly cases, and that size constraint is *not* part of
+  the current `regular_cad` invariant.  Two paths forward:
+  (a) extend `regular_cad` with manual §10.5 (OT1-OT4) size
+      constraints and re-prove the existing lemmas accordingly,
+      then prove preservation;
+  (b) state preservation with a side-condition like
+      `regular_cad q /\ all_top_buffers_size_ge_8 q`.
+  Path (a) is more elegant; path (b) is a quicker sticky note.
+  Decision deferred to next session.
+
 - `cad_pop` / `cad_eject` / `cad_concat` regularity preservation:
   these *cannot* be proved with the abstract operations alone
   because pop/eject/concat may temporarily produce non-regular
