@@ -406,3 +406,194 @@ Proof.
     destruct c as [|ct|tL tR]; cbn in *; try reflexivity;
     rewrite Hr; reflexivity.
 Qed.
+
+(** * Section-6 regularity predicates (manual §10.8).
+
+    The catenable cadeque is "regular" when the colour-and-arity
+    discipline of KT99 §6 holds throughout the tree.  Two strengths:
+
+    - **Semiregular** — (RC2) and (RC3) hold:
+      (RC2) every preferred path starting at a child of a red
+            triple has Green tail;
+      (RC3) every preferred path starting at the *non-preferred*
+            child of an orange triple has Green tail.
+
+    - **Regular** — semiregular plus
+      (RC4) every preferred path starting at a top-level triple
+            has Green tail.
+
+    Public-facing operations preserve regularity; internal helpers
+    may temporarily produce semiregular-but-not-regular shapes that
+    a single repair restores to regular (manual §12.4 / KT99 §6.2,
+    five repair cases 1a/1b/2a/2b/2c). *)
+
+(** ** [semiregular_local]: the local check at a single triple.
+
+    Tests RC2 / RC3 at the triple's own colour; does NOT recurse
+    into the child cadeque.  Factored out so [semiregular_triple]
+    can call it without becoming a three-way mutual Fixpoint. *)
+
+Definition semiregular_local {X : Type} (t : Triple X) : Prop :=
+  match t with
+  | TOnly  _ c _ =>
+      match triple_color t with
+      | Red4 =>
+          (* RC2: every child's preferred path is Green. *)
+          match c with
+          | CEmpty       => True
+          | CSingle ct   => triple_color (preferred_path_tail ct) = Green4
+          | CDouble tL tR =>
+              triple_color (preferred_path_tail tL) = Green4
+              /\ triple_color (preferred_path_tail tR) = Green4
+          end
+      | Orange4 =>
+          (* RC3: the non-preferred child of orange has green
+             preferred tail.  For Only triples the single child
+             is preferred (§10.7 arity-1), so there is no
+             non-preferred child — RC3 is vacuous. *)
+          True
+      | _ => True
+      end
+  | TLeft  _ c _ =>
+      match triple_color t with
+      | Red4 =>
+          match c with
+          | CEmpty       => True
+          | CSingle ct   => triple_color (preferred_path_tail ct) = Green4
+          | CDouble tL tR =>
+              triple_color (preferred_path_tail tL) = Green4
+              /\ triple_color (preferred_path_tail tR) = Green4
+          end
+      | Orange4 =>
+          (* For arity-2 orange triples the preferred is tR, so
+             non-preferred is tL.  The path from tL must be green. *)
+          match c with
+          | CDouble tL _ =>
+              triple_color (preferred_path_tail tL) = Green4
+          | _ => True
+          end
+      | _ => True
+      end
+  | TRight _ c _ =>
+      match triple_color t with
+      | Red4 =>
+          match c with
+          | CEmpty       => True
+          | CSingle ct   => triple_color (preferred_path_tail ct) = Green4
+          | CDouble tL tR =>
+              triple_color (preferred_path_tail tL) = Green4
+              /\ triple_color (preferred_path_tail tR) = Green4
+          end
+      | Orange4 =>
+          match c with
+          | CDouble tL _ =>
+              triple_color (preferred_path_tail tL) = Green4
+          | _ => True
+          end
+      | _ => True
+      end
+  end.
+
+(** ** [semiregular_cad] / [semiregular_triple]: mutual Fixpoint
+    descending the cadeque tree.
+
+    A cadeque is semiregular when [semiregular_local] holds at every
+    triple AND each child cadeque is semiregular. *)
+
+Fixpoint semiregular_cad {X : Type} (q : Cadeque X) : Prop :=
+  match q with
+  | CEmpty        => True
+  | CSingle t     => semiregular_triple t
+  | CDouble tL tR => semiregular_triple tL /\ semiregular_triple tR
+  end
+with semiregular_triple {X : Type} (t : Triple X) : Prop :=
+  match t with
+  | TOnly  _ c _ => semiregular_cad c /\ semiregular_local t
+  | TLeft  _ c _ => semiregular_cad c /\ semiregular_local t
+  | TRight _ c _ => semiregular_cad c /\ semiregular_local t
+  end.
+
+(** ** [top_level_paths_green]: the (RC4) check at the root.
+
+    Every top-level triple's preferred-path tail must be Green. *)
+
+Definition top_level_paths_green {X : Type} (q : Cadeque X) : Prop :=
+  match q with
+  | CEmpty        => True
+  | CSingle t     => triple_color (preferred_path_tail t) = Green4
+  | CDouble tL tR =>
+      triple_color (preferred_path_tail tL) = Green4
+      /\ triple_color (preferred_path_tail tR) = Green4
+  end.
+
+(** ** [regular_cad]: semiregular plus (RC4).
+
+    This is the invariant the public operations
+    ([cad_push] / [cad_inject] / [cad_pop] / [cad_eject] /
+    [cad_concat]) maintain.  Internal helpers (eventually:
+    [make_red_*] / [green_of_red_*] in Phase 5.6) may temporarily
+    produce semiregular-but-not-regular shapes; a single repair
+    restores [regular_cad]. *)
+
+Definition regular_cad {X : Type} (q : Cadeque X) : Prop :=
+  semiregular_cad q /\ top_level_paths_green q.
+
+(** * Trivial corollaries. *)
+
+Lemma semiregular_cad_empty :
+  forall (X : Type), semiregular_cad (@CEmpty X).
+Proof. intros. exact I. Qed.
+
+Lemma top_level_paths_green_empty :
+  forall (X : Type), top_level_paths_green (@CEmpty X).
+Proof. intros. exact I. Qed.
+
+Lemma regular_cad_empty :
+  forall (X : Type), regular_cad (@CEmpty X).
+Proof.
+  intros X. split.
+  - apply semiregular_cad_empty.
+  - apply top_level_paths_green_empty.
+Qed.
+
+(** ** Manual §10.9 structural lemma 1:
+    semiregular implies every child cadeque inside every triple is
+    semiregular.
+
+    This is immediate from the definition: [semiregular_triple t]
+    unfolds to [semiregular_cad (triple_child t) /\ ...]. *)
+
+Lemma semiregular_triple_child :
+  forall (X : Type) (t : Triple X),
+    semiregular_triple t -> semiregular_cad (triple_child t).
+Proof.
+  intros X t H.
+  destruct t as [pre c suf | pre c suf | pre c suf]; cbn in *;
+    destruct H as [Hcad _]; exact Hcad.
+Qed.
+
+(** ** Manual §10.9 structural lemma 1, lifted to cadeques. *)
+
+Lemma semiregular_cad_single_child :
+  forall (X : Type) (t : Triple X),
+    semiregular_cad (CSingle t) ->
+    semiregular_cad (triple_child t).
+Proof.
+  intros X t H. cbn in H. apply semiregular_triple_child. exact H.
+Qed.
+
+Lemma semiregular_cad_double_left :
+  forall (X : Type) (tL tR : Triple X),
+    semiregular_cad (CDouble tL tR) ->
+    semiregular_cad (triple_child tL).
+Proof.
+  intros X tL tR [HL _]. apply semiregular_triple_child. exact HL.
+Qed.
+
+Lemma semiregular_cad_double_right :
+  forall (X : Type) (tL tR : Triple X),
+    semiregular_cad (CDouble tL tR) ->
+    semiregular_cad (triple_child tR).
+Proof.
+  intros X tL tR [_ HR]. apply semiregular_triple_child. exact HR.
+Qed.
