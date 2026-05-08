@@ -272,7 +272,7 @@ every level.
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
 
-Phase 5.6 progress (this session):
+Phase 5.6 progress (this session, 9 commits):
 
 - `66edf41` `Cadeque6/Repair.v`: `normalize_only_empty_child` —
   the simplest reshape primitive.  Merges (pre, suf) of a TOnly
@@ -285,21 +285,40 @@ Phase 5.6 progress (this session):
   consumers.
 - `6ad57f7` `cad_push_op` operational push + `cad_push_op_seq`
   proving observational equivalence with abstract `cad_push`.
+- `fff1177` Trivial preservation lemmas for `cad_push_op` (CEmpty
+  + normalize-fired cases).
+- `9909fe5` Structural-conjunct preservation lemmas (well_sized
+  for TOnly+TOnly cases, top_kinds unconditional).  The two
+  semantic conjuncts (semiregular, top_level_paths_green) await
+  colour-shift reasoning.
+- `ffcd704` Bug fix: `semiregular_local` Orange branch for
+  arity-2 TOnly was incorrectly `True`; now correctly checks RC3
+  for the non-preferred (left) child.  Plus the corresponding
+  §10.9 lemma `orange_only_nonpreferred_child_green`.
+- `23bc429` `cad_inject_op` symmetric to push, with seq law and
+  partial preservation lemmas.
+- `4490a3a` Refinement theorems linking operational to abstract:
+  `cad_push_op_refines_cad_push` and `cad_inject_op_refines_cad_inject`.
 
 Phase 5.6 deferred (next session):
 
-- Full `cad_push_op_preserves_regular_cad` theorem.  Trivial
-  cases (CEmpty + normalize-fired) already proven.  The
-  delegate-to-abstract cases (CSingle TOnly with non-empty pre,
-  CSingle TOnly with non-empty child, CDouble tL tR) need
-  case-by-case proofs of all four `regular_cad` conjuncts.  The
-  `top_level_paths_green` preservation requires the colour-shift
-  reasoning Yellow→Green and Orange→Yellow (RC3 covers the latter:
-  the orange's non-preferred child has a Green preferred path,
-  and after push that child becomes the yellow's preferred).
-- Symmetric `cad_inject_op` + sequence + preservation.
-- `cad_pop_op` / `cad_eject_op` / `cad_concat_op`: these need the
-  remaining KT99 §6.2 / manual §12.4 repair cases (1a/1b/2a/2b/2c).
+- Full `cad_push_op_preserves_regular_cad` and
+  `cad_inject_op_preserves_regular_cad` theorems.  Need
+  case-by-case proofs of the semantic conjuncts (semiregular +
+  top_level_paths_green) for the delegate-to-abstract cases.
+  The `top_level_paths_green` preservation requires the
+  colour-shift reasoning Yellow→Green and Orange→Yellow.  RC3
+  covers the latter: orange's non-preferred child has Green
+  preferred path, and after push that child becomes yellow's
+  preferred.  The TOnly arity-2 case is now also covered by
+  `orange_only_nonpreferred_child_green` post bug-fix.
+- `cad_pop_op` / `cad_eject_op`: pop's reshape cases include
+  trivial pop, normalize after pop, empty-result detection, and
+  the harder "cascade from child" case when pre = 5 with
+  non-empty child.  The first three are tractable like push;
+  the cascade case needs the make_red / green_of_red primitives.
+- `cad_concat_op`: needs all five repair cases (1a/1b/2a/2b/2c
+  per manual §12.4).  The headline operation; substantive.
 
 Phase 5.5 progress (this session, 8 commits):
 
