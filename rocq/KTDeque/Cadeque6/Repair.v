@@ -617,3 +617,59 @@ Proof.
   - apply preferred_path_tail_TLeft_after_push_green. exact Hpre.
   - exact HR.
 Qed.
+
+(** * Bundled well_sized preservation for [cad_push_op].
+
+    Combines the per-case structural lemmas plus the trivial CEmpty
+    and normalize-fired cases into a single full preservation
+    theorem for the [well_sized_cad] conjunct. *)
+
+Theorem cad_push_op_preserves_well_sized :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    regular_cad q ->
+    well_sized_cad (cad_push_op x q).
+Proof.
+  intros X x q [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - (* CEmpty: trivial *)
+    cbn [cad_push_op]. cbn.
+    split; [exact I |].
+    right; left. cbn. split; [reflexivity | lia].
+  - (* CSingle t: t must be TOnly per top_kinds. *)
+    cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|ctL ctR].
+    + (* CEmpty: dispatch on pre *)
+      destruct pre as [pre_xs].
+      destruct pre_xs as [|p ps].
+      * (* normalize fires *)
+        cbn [cad_push_op buf6_elems].
+        apply normalize_only_empty_child_well_sized.
+      * (* direct push *)
+        apply cad_push_op_well_sized_when_TOnly_only.
+        -- exact Hws.
+        -- left. cbn [buf6_elems]. discriminate.
+    + (* CSingle ct: c non-empty *)
+      apply cad_push_op_well_sized_when_TOnly_only.
+      * exact Hws.
+      * right. discriminate.
+    + (* CDouble: c non-empty *)
+      apply cad_push_op_well_sized_when_TOnly_only.
+      * exact Hws.
+      * right. discriminate.
+  - (* CDouble tL tR *)
+    apply cad_push_op_well_sized_double; [exact Hws|].
+    cbn in Htk. destruct Htk as [HtL _]. exact HtL.
+Qed.
+
+(** ** Bundled top_kinds preservation: already unconditional. *)
+
+Theorem cad_push_op_preserves_top_kinds :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    regular_cad q ->
+    top_kinds_well_formed (cad_push_op x q).
+Proof.
+  intros X x q [_ [_ [_ Htk]]].
+  apply cad_push_op_top_kinds_preserved. exact Htk.
+Qed.
