@@ -272,7 +272,7 @@ every level.
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
 
-Phase 5.6 progress (this session, 9 commits):
+Phase 5.6 progress (15 commits):
 
 - `66edf41` `Cadeque6/Repair.v`: `normalize_only_empty_child` —
   the simplest reshape primitive.  Merges (pre, suf) of a TOnly
@@ -299,24 +299,42 @@ Phase 5.6 progress (this session, 9 commits):
   partial preservation lemmas.
 - `4490a3a` Refinement theorems linking operational to abstract:
   `cad_push_op_refines_cad_push` and `cad_inject_op_refines_cad_inject`.
+- `77925d6` Top-level paths Green preservation for the CSingle
+  TOnly + CEmpty child cases (push and inject).
+- `68408ae` Bundled `cad_push_op_preserves_well_sized` and
+  `cad_push_op_preserves_top_kinds`: full preservation for the
+  two structural conjuncts of regular_cad.
+- `4c08b11` Symmetric: `cad_inject_op_preserves_well_sized` and
+  `cad_inject_op_preserves_top_kinds`.
+- `05059a5` Colour-monotonicity scaffolding in `Color.v`:
+  `color4_le`, `color4_rank`, `buf6_color_push_monotone`,
+  `buf6_color_inject_monotone`.  These are the building blocks
+  for the Y→G and O→Y colour-shift reasoning needed to complete
+  the semantic-conjunct preservation theorems.
 
 Phase 5.6 deferred (next session):
 
-- Full `cad_push_op_preserves_regular_cad` and
-  `cad_inject_op_preserves_regular_cad` theorems.  Need
-  case-by-case proofs of the semantic conjuncts (semiregular +
-  top_level_paths_green) for the delegate-to-abstract cases.
-  The `top_level_paths_green` preservation requires the
-  colour-shift reasoning Yellow→Green and Orange→Yellow.  RC3
-  covers the latter: orange's non-preferred child has Green
-  preferred path, and after push that child becomes yellow's
-  preferred.  The TOnly arity-2 case is now also covered by
-  `orange_only_nonpreferred_child_green` post bug-fix.
+- Full `cad_push_op_preserves_semiregular` and
+  `cad_push_op_preserves_top_level_paths_green` theorems
+  (and symmetric for inject).  The remaining cases for
+  preservation are:
+  - CSingle (TOnly _ non-empty-child _): need colour-shift
+    reasoning on `color4_meet (buf6_color (push pre)) (buf6_color
+    suf)`.  Building blocks: `buf6_color_push_monotone` (just
+    landed) gives that the meet is monotone non-decreasing.
+  - CDouble (TLeft _ _ _) tR: need colour-shift reasoning on
+    `buf6_color (push pre)` for the TLeft.  RC3 covers the O→Y
+    shift (`orange_nonpreferred_child_green` for TLeft).
+
+  Once all four conjuncts are preserved, bundle into the headline
+  `cad_push_op_preserves_regular_cad` theorem.
+
 - `cad_pop_op` / `cad_eject_op`: pop's reshape cases include
   trivial pop, normalize after pop, empty-result detection, and
   the harder "cascade from child" case when pre = 5 with
   non-empty child.  The first three are tractable like push;
   the cascade case needs the make_red / green_of_red primitives.
+
 - `cad_concat_op`: needs all five repair cases (1a/1b/2a/2b/2c
   per manual §12.4).  The headline operation; substantive.
 
