@@ -685,6 +685,39 @@ Qed.
     The local check at the modified triple is relaxed since its
     colour improved. *)
 
+(** ** Full [top_level_paths_green] preservation: deferred.
+
+    Sketch (full proof requires per-case enumeration not finished
+    in this session):
+
+    - CEmpty: trivial.
+    - CSingle TOnly + CEmpty child: covered by
+      [cad_push_op_top_paths_green_when_top_child_empty].
+    - CSingle TOnly + non-empty child: 10 surviving (old, new)
+      colour pairs to enumerate.  For new ∈ {G, R}: path tail is
+      self; need triple_color new_self = Green.  For new R:
+      eliminated by RC4 propagation (would require old R, but
+      RC4 says old path tail is Green, contradiction).  For new G:
+      [cbn [triple_color]; exact Hnew] discharges via Hnew = G.
+      For new ∈ {Y, O}: path tail is path_tail ct (CSingle child)
+      or path_tail tL/tR (CDouble child).  When old descended to
+      the same child, [assumption] closes via input RC4.  When the
+      preferred child changes (orange → yellow shift, descent left
+      becomes right), use RC3 (orange's non-preferred has Green
+      preferred path = exactly the new preferred).
+    - CSingle TLeft/TRight: contradicts [top_kinds_well_formed].
+    - CDouble: same case structure as TOnly with non-empty child.
+
+    All building blocks exist:
+      - [preferred_path_tail_T*_C*] for unfolding.
+      - [triple_*_color_monotone_T*] for monotonicity.
+      - [orange_only_nonpreferred_child_green],
+        [orange_nonpreferred_child_green],
+        [orange_right_nonpreferred_child_green] for RC3 application.
+
+    The proof is mechanical but voluminous (≈100 lines per case);
+    deferred to a focused next session. *)
+
 Theorem cad_push_op_preserves_semiregular :
   forall (X : Type) (x : X) (q : Cadeque X),
     regular_cad q ->
