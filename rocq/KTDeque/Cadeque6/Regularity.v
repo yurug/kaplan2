@@ -447,11 +447,21 @@ Definition semiregular_local {X : Type} (t : Triple X) : Prop :=
               /\ triple_color (preferred_path_tail tR) = Green4
           end
       | Orange4 =>
-          (* RC3: the non-preferred child of orange has green
-             preferred tail.  For Only triples the single child
-             is preferred (§10.7 arity-1), so there is no
-             non-preferred child — RC3 is vacuous. *)
-          True
+          (* RC3: the non-preferred child of orange has Green
+             preferred tail.  Per manual §10.7, "arity" is the
+             child cadeque's top-triple count (CEmpty=0,
+             CSingle=1, CDouble=2).  TOnly's child can be any of
+             these:
+             - arity 0/1 (CEmpty / CSingle): no non-preferred
+               child — RC3 vacuous.
+             - arity 2 (CDouble tL tR): orange's preferred is tR,
+               non-preferred is tL.  Require tL's preferred-path
+               tail Green. *)
+          match c with
+          | CDouble tL _ =>
+              triple_color (preferred_path_tail tL) = Green4
+          | _ => True
+          end
       | _ => True
       end
   | TLeft  _ c _ =>
@@ -850,6 +860,25 @@ Theorem orange_right_nonpreferred_child_green :
   forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
     triple_color (TRight pre (CDouble tL tR) suf) = Orange4 ->
     semiregular_triple (TRight pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail tL) = Green4.
+Proof.
+  intros X pre tL tR suf Horange Hsr.
+  destruct Hsr as [_ Hloc].
+  cbn in Horange, Hloc.
+  rewrite Horange in Hloc. exact Hloc.
+Qed.
+
+(** ** §10.9 lemma 4 for arity-2 [TOnly]: the non-preferred child
+    of an Orange [TOnly] with [CDouble] child has Green preferred
+    tail.
+
+    Mirrors the TLeft/TRight cases with the matching RC3 branch
+    in [semiregular_local]. *)
+
+Theorem orange_only_nonpreferred_child_green :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    triple_color (TOnly pre (CDouble tL tR) suf) = Orange4 ->
+    semiregular_triple (TOnly pre (CDouble tL tR) suf) ->
     triple_color (preferred_path_tail tL) = Green4.
 Proof.
   intros X pre tL tR suf Horange Hsr.
