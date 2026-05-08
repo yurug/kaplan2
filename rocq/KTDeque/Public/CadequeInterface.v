@@ -17,6 +17,16 @@
     implementation here will be swapped underneath the same module
     type without changing the public ABI.
 
+    ## Relationship to [DequePtr/Interface.v]
+
+    This is *not* an extension of the Section-4 [REGULAR_PACKET_DEQUE]
+    interface.  The two data structures are independent: [KTDeque]
+    (Section 4, non-catenable) and [KTCatenableDeque] (Section 6,
+    catenable) ship as separate OCaml modules in the same opam
+    package, and clients pick one based on whether they need
+    [concat].  Section-4 clients are unaffected by anything in this
+    file.
+
     The module type is the analogue of
     [DequePtr/Interface.REGULAR_PACKET_DEQUE] for the catenable
     case.  Three differences:

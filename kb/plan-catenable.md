@@ -200,14 +200,25 @@ analogue of `OpsKTRegular.v`.
 
 ### Phase 6 — Extraction + OCaml ABI *(1 session)*
 
-**Output**: extension of `ocaml/extracted/kTDeque.mli` with
-`concat` (and any new types).  New entry `cat_kt2 : 'a kChain ->
-'a kChain -> 'a kChain option`.  Update the `{1 KTDeque}` module-
-level docstring with a worked catenation example.
+**Output**: a *new, separate* module
+`ocaml/extracted/kTCatenableDeque.{ml,mli}` extracted from the
+`Cadeque6` development.  The existing `KTDeque` module (Section 4,
+non-catenable) is unchanged — the library exposes both as
+independent data structures, and a client picks one based on
+whether they need catenation.
 
-**Milestone**: `dune exec ocaml/examples/hello.exe` updated to
-demonstrate `concat`; `kTDeque.mli` doc-comments cover the new
-ABI.
+The new module exports `KTCatenableDeque.t`, plus `empty`,
+`push`, `inject`, `pop`, `eject`, `concat`, `to_list` matching
+the `Public/CadequeInterface.CADEQUE` module type.  Its
+`mli` carries its own top-level docstring, examples, and
+cross-reference to `kb/spec/why-catenable.md`.
+
+The opam package `ktdeque` ships both modules — no separate
+package, no breaking change for existing clients of `KTDeque`.
+
+**Milestone**: a new `ocaml/examples/catenable_hello.ml` exercises
+`concat`; both `KTDeque` and `KTCatenableDeque` are reachable from
+`open Ktdeque` in client code.
 
 ### Phase 7 — C port *(5–7 sessions)*
 
@@ -250,21 +261,25 @@ every level.
 | 1 — Buf6 foundation              | ✅ done           | `b2857cb` |
 | 2 — Cadeque6/Model.v types       | ✅ done           | `8503b29` |
 | 3 — abstract operations + all `_seq`s | ✅ done       | `5b78040` |
+| 3+ — algebra (inverse, distribution, recovery laws) | ✅ done | `5a99712` |
+| 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
+| 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — full Section-6 colour invariant | ⏳ deferred  | — |
-| 6 — OCaml ABI extension          | 🟡 module type drafted | — |
+| 6 — `KTCatenableDeque` module + extraction | 🟡 module type drafted | `61e7eff` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
 
 The Phase 6 module type (`CADEQUE` + `AbstractCadeque` impl) is
 now in [`rocq/KTDeque/Public/CadequeInterface.v`] with all seven
-sequence laws discharged.  The OCaml extraction (regenerating
-`ocaml/extracted/kTDeque.{ml,mli}` to expose the catenable surface)
-is still pending and intentionally deferred until Phase 4 lands a
-cost-bounded `concat` — there is no point shipping an O(N)
-catenation to OCaml clients before the WC O(1) realisation is
-ready.
+sequence laws discharged.  This module type will back the new
+`KTCatenableDeque` OCaml module (a *separate* module from
+`KTDeque`, shipped in the same opam package — see Phase 6
+description above).  The actual extraction is intentionally
+deferred until Phase 4 lands a cost-bounded `concat` — there is
+no point shipping an O(N) catenation before the WC O(1)
+realisation is ready.
 
 The headline `cad_concat_seq` is proved.  Phase 5's *operational*
 foundation (`cad_nonempty` + totality of `cad_pop` / `cad_eject`)

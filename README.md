@@ -240,7 +240,10 @@ Done so far (zero admits):
   `cad_pop` / `cad_eject` + size laws for all five operations.
 
 Pending: Phase 4 (cost bound — WC `O(1)` for all five ops including
-concat), full Section-6 colour invariant, OCaml ABI extension, C
+concat), full Section-6 colour invariant, the new
+`KTCatenableDeque` OCaml module (shipped *alongside* `KTDeque`
+rather than extending it — the library will expose two distinct
+data structures, one with catenation and one without), and the C
 port.
 
 For details, see the per-tree READMEs and [`kb/`](kb/) for design
