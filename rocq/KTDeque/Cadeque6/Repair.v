@@ -674,6 +674,76 @@ Proof.
   apply cad_push_op_top_kinds_preserved. exact Htk.
 Qed.
 
+(** ** Full preservation of [semiregular_cad] under [cad_push_op].
+
+    Composes: triple_push_prefix_color_monotone_T* (push improves
+    colour) with semiregular_local_relax_T* (better colour means
+    weaker semiregular_local condition).
+
+    The children of the modified triple are unchanged by push, so
+    semiregular_cad of the children is inherited from the input.
+    The local check at the modified triple is relaxed since its
+    colour improved. *)
+
+Theorem cad_push_op_preserves_semiregular :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    regular_cad q ->
+    semiregular_cad (cad_push_op x q).
+Proof.
+  intros X x q [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - (* CEmpty: cad_push_op produces CSingle (TOnly singleton CEmpty empty),
+       which is semiregular trivially (CEmpty child, Green colour). *)
+    cbn [cad_push_op]. cbn. split; [exact I | cbn; exact I].
+  - (* CSingle t: t is TOnly per top_kinds. *)
+    cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|ctL ctR].
+    + (* CEmpty child: dispatch on pre *)
+      destruct pre as [pre_xs].
+      destruct pre_xs as [|p ps]; cbn [cad_push_op buf6_elems].
+      * apply normalize_only_empty_child_semiregular.
+      * (* Direct push, c=CEmpty: result is CSingle (TOnly _ CEmpty _),
+           triple_color = Green by §10.6, semiregular_local True. *)
+        cbn. split; [exact I | cbn; exact I].
+    + (* Non-empty child CSingle ct: relax + monotone. *)
+      cbn [cad_push_op]. cbn.
+      cbn in Hsr. destruct Hsr as [Hwc Hloc].
+      split; [exact Hwc |].
+      cbn in Hws. destruct Hws as [_ [Hpre _]].
+      apply (semiregular_local_relax_TOnly _ pre suf
+                                            (buf6_push x pre) suf
+                                            (CSingle ct)).
+      * apply triple_push_prefix_color_monotone_TOnly. exact Hpre.
+      * exact Hloc.
+    + (* Non-empty child CDouble ctL ctR: same. *)
+      cbn [cad_push_op]. cbn.
+      cbn in Hsr. destruct Hsr as [Hwc Hloc].
+      split; [exact Hwc |].
+      cbn in Hws. destruct Hws as [_ [Hpre _]].
+      apply (semiregular_local_relax_TOnly _ pre suf
+                                            (buf6_push x pre) suf
+                                            (CDouble ctL ctR)).
+      * apply triple_push_prefix_color_monotone_TOnly. exact Hpre.
+      * exact Hloc.
+  - (* CDouble tL tR: tL is TLeft per top_kinds, tR unchanged. *)
+    cbn in Htk. destruct Htk as [HtL HtR].
+    cbn [cad_push_op]. cbn.
+    cbn in Hsr. destruct Hsr as [HsrL HsrR].
+    split; [|exact HsrR].
+    destruct tL as [pre c suf | pre c suf | pre c suf];
+      cbn in HtL; try discriminate.
+    cbn in HsrL. destruct HsrL as [Hwc Hloc].
+    cbn. split; [exact Hwc |].
+    cbn in Hws. destruct Hws as [HwsL _].
+    cbn in HwsL. destruct HwsL as [_ [Hpre _]].
+    apply (semiregular_local_relax_TLeft _ pre suf
+                                          (buf6_push x pre) suf c).
+    + apply triple_push_prefix_color_monotone_TLeft. exact Hpre.
+    + exact Hloc.
+Qed.
+
 (** * Symmetric bundled preservation for [cad_inject_op]. *)
 
 Lemma cad_inject_op_well_sized_when_TOnly_only :
