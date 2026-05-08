@@ -272,3 +272,30 @@ Proof.
     cbn [cad_push_op].
     apply (cad_push_seq X x (CDouble tL tR)).
 Qed.
+
+(** ** Preservation: push from CEmpty.
+
+    Trivial: the result is the regular singleton triple. *)
+
+Lemma cad_push_op_preserves_regular_empty :
+  forall (X : Type) (x : X),
+    regular_cad (cad_push_op x (@CEmpty X)).
+Proof.
+  intros X x. cbn [cad_push_op]. apply regular_cad_push_to_empty.
+Qed.
+
+(** ** Preservation: push when normalize fires.
+
+    [cad_push_op] dispatches to [normalize_only_empty_child] when
+    the input is [CSingle (TOnly buf6_empty CEmpty suf)] (pre is
+    syntactically empty).  The result is regular by
+    [normalize_only_empty_child_regular] -- regardless of the
+    input shape, the normalize result is always regular. *)
+
+Lemma cad_push_op_preserves_regular_normalize :
+  forall (X : Type) (x : X) (suf : Buf6 X),
+    regular_cad (cad_push_op x (CSingle (TOnly buf6_empty CEmpty suf))).
+Proof.
+  intros X x suf. cbn [cad_push_op buf6_elems buf6_empty].
+  apply normalize_only_empty_child_regular.
+Qed.

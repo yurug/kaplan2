@@ -266,10 +266,40 @@ every level.
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
-| 5.5 — Section-6 colour discipline + regularity predicate | 🟡 in progress | `a10b314`–`b7b7bcf` |
+| 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
+| 5.6 — operational repair primitives + cad_*_op | 🟡 in progress | `66edf41`–`6ad57f7` |
 | 6 — `KTCatenableDeque` module + extraction | 🟡 module type drafted | `61e7eff` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
+
+Phase 5.6 progress (this session):
+
+- `66edf41` `Cadeque6/Repair.v`: `normalize_only_empty_child` —
+  the simplest reshape primitive.  Merges (pre, suf) of a TOnly
+  with empty child into one prefix when needed, producing a
+  well-sized result.  Comes with seq, well_sized, top_paths_green,
+  semiregular, top_kinds, and headline `..._regular` theorems.
+- `f78a97f` Adds `top_kinds_well_formed` to `regular_cad` (CSingle
+  has TOnly, CDouble has TLeft + TRight).  Rules out CSingle TRight
+  which would break push preservation.  Migrates the four existing
+  consumers.
+- `6ad57f7` `cad_push_op` operational push + `cad_push_op_seq`
+  proving observational equivalence with abstract `cad_push`.
+
+Phase 5.6 deferred (next session):
+
+- Full `cad_push_op_preserves_regular_cad` theorem.  Trivial
+  cases (CEmpty + normalize-fired) already proven.  The
+  delegate-to-abstract cases (CSingle TOnly with non-empty pre,
+  CSingle TOnly with non-empty child, CDouble tL tR) need
+  case-by-case proofs of all four `regular_cad` conjuncts.  The
+  `top_level_paths_green` preservation requires the colour-shift
+  reasoning Yellow→Green and Orange→Yellow (RC3 covers the latter:
+  the orange's non-preferred child has a Green preferred path,
+  and after push that child becomes the yellow's preferred).
+- Symmetric `cad_inject_op` + sequence + preservation.
+- `cad_pop_op` / `cad_eject_op` / `cad_concat_op`: these need the
+  remaining KT99 §6.2 / manual §12.4 repair cases (1a/1b/2a/2b/2c).
 
 Phase 5.5 progress (this session, 8 commits):
 
