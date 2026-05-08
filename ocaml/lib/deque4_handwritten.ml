@@ -1,25 +1,63 @@
-(** Hand-written OCaml Deque4: Section-4 non-catenable deque.
+(** Hand-written OCaml Deque4: amortised O(log n) persistent deque.
 
-    Mirrors the cell layout from [KTDeque/Deque4/HeapCells.v]:
-    - each cell holds a prefix buffer, optional child, suffix buffer.
+    ## Role in the project
+
+    This is *not* the production deque.  It is the **amortised
+    contrast** that lets benchmarks demonstrate the value of the
+    KT99 worst-case O(1) discipline used in the production code
+    ([ocaml/extracted/kTDeque.ml] / [c/src/ktdeque_dequeptr.c]).
+
+    Specifically:
+
+    - In [bench/sweep.sh] (the scaling sweep), D4 looks competitive
+      with the WC-O(1) KT and Viennot impls on most ops, sometimes
+      even faster — because amortisation works in its favour for
+      sequential build workloads.
+
+    - In [bench/adversarial.sh] (the persistent-fork microbench), D4
+      shows the linear-in-cascade-depth growth that the WC-O(1)
+      bound is designed to avoid, while KT, Viennot, and our C
+      runtime stay flat at ~25-30 ns/op across six orders of
+      magnitude of N.  At depth 18 (size ≈ 2.6M), KT pays 25 ns/op
+      while D4 pays ~190 ns/op.
+
+    The contrast is *the operational evidence* of the WC-O(1) story
+    discussed in [kb/spec/why-bounded-cascade.md] §1: amortised
+    analyses don't survive forking; WC O(1) does.
+
+    ## What it actually is
+
+    A Section-4 non-catenable deque.  Mirrors the cell layout from
+    [KTDeque/Deque4/HeapCells.v] (the older Rocq Deque4 development,
+    superseded by the packets-and-chains DequePtr formalisation):
+
+    - each cell holds a prefix buffer, optional child, suffix buffer;
     - element type changes per level (level [l]: [α^(2^l)]).
 
-    Correctness strategy: this v0 favours simplicity over real-time
-    bounds.  Overflow on a top buffer triggers a recursive *spill* —
-    eject 2 elements from the back of the buffer, pair them, push the
-    pair onto the child level (creating a child if absent).  This
-    yields O(log n) worst-case per operation and amortized O(1).  The
-    KT99 redundant-binary discipline that recovers worst-case O(1) is
-    a future optimization (Step 2.5+, the heap refinement theorems).
+    Overflow on a top buffer triggers a recursive *spill*: eject 2
+    elements from the back of the buffer, pair them, push the pair
+    onto the child level (creating a child if absent).  This yields
+    O(log n) worst-case per operation and amortised O(1) — exactly
+    the cost profile we want to contrast against.
 
     Persistence is automatic: every operation returns a new chain
     sharing structurally with the old one.  Cells are immutable
     records; the GC handles deallocation.
 
     Cross-references:
-    - kb/architecture/decisions/adr-0009-deque4-end-to-end.md
-    - kb/spec/section4-repair-cases.md (verbatim KT99 §4.2 trace)
-    - manual §§5-7
+    - [bench/adversarial.sh]                            -- the bench
+                                                           that exposes
+                                                           D4's WC.
+    - [kb/spec/why-bounded-cascade.md] §1               -- why
+                                                           amortised
+                                                           fails on
+                                                           persistent
+                                                           workloads.
+    - [kb/architecture/decisions/adr-0009-deque4-end-to-end.md]
+    - [kb/spec/section4-repair-cases.md]                -- verbatim
+                                                           KT99 §4.2
+                                                           trace.
+    - manual §§5-7.
 *)
 
 type color3 = Green3 | Yellow3 | Red3

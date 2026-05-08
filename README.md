@@ -32,6 +32,12 @@ aggregate yellow runs into a single allocation, and why the whole
 thing works in the persistent setting where amortised analyses fail.
 Every other file in the repo will make more sense after reading it.
 
+For a guided tour through the codebase in the order a new reader
+should hit each file, see
+[`kb/architecture/reading-order.md`](kb/architecture/reading-order.md).
+~90 minutes for the full tour, ~20 minutes for the first three
+stops (intuition + public API + worked example).
+
 ## What's in here
 
 This repository is a **monorepo** with one self-contained tree per

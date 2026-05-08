@@ -1,7 +1,7 @@
 ---
 id: architecture-overview
 domain: architecture
-related: [data-model, adr-index, rocq-toolchain]
+related: [data-model, adr-index, rocq-toolchain, reading-order]
 ---
 
 # Architecture Overview
@@ -10,6 +10,14 @@ related: [data-model, adr-index, rocq-toolchain]
 Module shape, dependency graph, and the design decisions that hold the
 formalization together. The live tree uses a packets-and-chains
 representation under `rocq/KTDeque/DequePtr/`.
+
+## If you are new here
+
+Read [`reading-order.md`](reading-order.md) first.  It is a 90-minute
+guided tour through the codebase, in the order a new reader should
+hit each file.  This document (the architecture overview) is the
+*authoritative* description of module shape and dependencies; that
+one is the *path* through it.
 
 ## Scope
 Covers: top-level repo layout, module roles, dependency graph, where
