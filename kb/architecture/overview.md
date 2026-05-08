@@ -152,9 +152,13 @@ The catenable Section-6 extension.  In progress as of this writing.
   (Phase 4 — WC `O(1)` for concat, same asymptotic class as the
   four endpoint ops) and regularity (Phase 5) are pending.
 
-- **`Public/`** — Empty as of this writing.  Will hold the
-  user-facing module-type interface for the catenable cadeque
-  (analogue of `DequePtr/Interface.v`).
+- **`Public/`** — `CadequeInterface.v` defines the user-facing
+  module-type [`CADEQUE`] (analogue of [`DequePtr/Interface.REGULAR_PACKET_DEQUE`])
+  and an `AbstractCadeque` implementation that forwards to
+  [`Cadeque6/OpsAbstract.v`].  All seven sequence laws are
+  discharged.  The `concat` op currently runs in O(N) (list
+  rebuild); Phase 4 will swap in a WC O(1) implementation that
+  satisfies the same axiom set without changing the public ABI.
 
 See [`../plan-catenable.md`](../plan-catenable.md) for the eight-
 phase project plan and current status, and

@@ -253,9 +253,18 @@ every level.
 | 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — full Section-6 colour invariant | ⏳ deferred  | — |
-| 6 — OCaml ABI extension          | ⏳ pending        | — |
+| 6 — OCaml ABI extension          | 🟡 module type drafted | — |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
+
+The Phase 6 module type (`CADEQUE` + `AbstractCadeque` impl) is
+now in [`rocq/KTDeque/Public/CadequeInterface.v`] with all seven
+sequence laws discharged.  The OCaml extraction (regenerating
+`ocaml/extracted/kTDeque.{ml,mli}` to expose the catenable surface)
+is still pending and intentionally deferred until Phase 4 lands a
+cost-bounded `concat` — there is no point shipping an O(N)
+catenation to OCaml clients before the WC O(1) realisation is
+ready.
 
 The headline `cad_concat_seq` is proved.  Phase 5's *operational*
 foundation (`cad_nonempty` + totality of `cad_pop` / `cad_eject`)
