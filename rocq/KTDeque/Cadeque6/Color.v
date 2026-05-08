@@ -316,6 +316,56 @@ Proof.
   intros c1 c2 c3 H12 H23; unfold color4_le in *; lia.
 Qed.
 
+(** ** [color4_meet] is monotone in both arguments.
+
+    Improving (raising the rank of) one argument can only improve
+    or preserve the meet -- never worsen it.  This is the key
+    foundational lemma for colour-shift preservation theorems:
+    push improves the prefix colour, so [color4_meet (push_pre)
+    suf] ≥ [color4_meet pre suf]. *)
+
+Lemma color4_meet_monotone_left :
+  forall c1 c1' c2,
+    color4_le c1 c1' ->
+    color4_le (color4_meet c1 c2) (color4_meet c1' c2).
+Proof.
+  intros c1 c1' c2 H.
+  unfold color4_le, color4_rank, color4_meet in *.
+  destruct c1, c1', c2; cbn in *; lia.
+Qed.
+
+Lemma color4_meet_monotone_right :
+  forall c1 c2 c2',
+    color4_le c2 c2' ->
+    color4_le (color4_meet c1 c2) (color4_meet c1 c2').
+Proof.
+  intros c1 c2 c2' H.
+  unfold color4_le, color4_rank, color4_meet in *.
+  destruct c1, c2, c2'; cbn in *; lia.
+Qed.
+
+(** ** [color4_meet] is bounded above by both arguments.
+
+    Since meet is "worse-of", it can't be better than either input.
+    Useful for bounding new colour after a push: meet (push_pre,
+    suf) ≤ buf6_color suf. *)
+
+Lemma color4_meet_le_left :
+  forall c1 c2, color4_le (color4_meet c1 c2) c1.
+Proof.
+  intros c1 c2.
+  unfold color4_le, color4_rank, color4_meet.
+  destruct c1, c2; cbn; lia.
+Qed.
+
+Lemma color4_meet_le_right :
+  forall c1 c2, color4_le (color4_meet c1 c2) c2.
+Proof.
+  intros c1 c2.
+  unfold color4_le, color4_rank, color4_meet.
+  destruct c1, c2; cbn; lia.
+Qed.
+
 (** ** Buffer-colour monotonicity under push: push never worsens
     a buffer's Section-6 colour.
 
