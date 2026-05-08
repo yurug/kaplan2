@@ -597,3 +597,97 @@ Lemma semiregular_cad_double_right :
 Proof.
   intros X tL tR [_ HR]. apply semiregular_triple_child. exact HR.
 Qed.
+
+(** ** Mutual induction principles.
+
+    Coq's auto-generated [Triple_ind] / [Cadeque_ind] don't give
+    cross-IHs.  [Scheme ... with ...] generates a combined
+    principle that lets us inductively prove a [Triple]-property
+    and a [Cadeque]-property simultaneously, with each branch
+    receiving the IH for sub-structures of the other type. *)
+
+Scheme Triple_mut := Induction for Triple Sort Prop
+  with Cadeque_mut := Induction for Cadeque Sort Prop.
+
+(** ** [preferred_path_tail]'s tail is always Green or Red.
+
+    This is the fundamental property manual §10.7 promises: the
+    preferred path always terminates at a Green or Red triple.
+    The proof uses [Triple_mut] to obtain an IH on the child
+    cadeque's top-level triples, which are exactly the sub-triples
+    [preferred_path_tail] recurses to.
+
+    The cadeque-level companion property [Q] in the mutual
+    induction is: every top-level triple of the cadeque has a
+    G-or-R preferred tail. *)
+
+Definition triple_tail_GR {X : Type} (t : Triple X) : Prop :=
+  triple_color (preferred_path_tail t) = Green4
+  \/ triple_color (preferred_path_tail t) = Red4.
+
+Definition cadeque_top_triples_tail_GR {X : Type} (q : Cadeque X) : Prop :=
+  match q with
+  | CEmpty        => True
+  | CSingle t     => triple_tail_GR t
+  | CDouble tL tR => triple_tail_GR tL /\ triple_tail_GR tR
+  end.
+
+Theorem preferred_path_tail_color_G_or_R :
+  forall (X : Type) (t : Triple X), triple_tail_GR t.
+Proof.
+  intros X t.
+  apply (Triple_mut X
+    (fun t' => triple_tail_GR t')
+    (fun q  => cadeque_top_triples_tail_GR q)).
+  - (* TOnly *)
+    intros pre c IHc suf. unfold triple_tail_GR in *. cbn.
+    destruct c as [|ct|tL tR]; cbn in *.
+    + left. reflexivity.
+    + destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hm.
+      * left. cbn. rewrite Hm. reflexivity.
+      * exact IHc.
+      * exact IHc.
+      * right. cbn. rewrite Hm. reflexivity.
+    + destruct IHc as [IHL IHR].
+      destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hm.
+      * left. cbn. rewrite Hm. reflexivity.
+      * exact IHL.
+      * exact IHR.
+      * right. cbn. rewrite Hm. reflexivity.
+  - (* TLeft *)
+    intros pre c IHc suf. unfold triple_tail_GR in *. cbn.
+    destruct c as [|ct|tL tR]; cbn in *.
+    + left. reflexivity.
+    + destruct (buf6_color pre) eqn:Hp.
+      * left. cbn. rewrite Hp. reflexivity.
+      * exact IHc.
+      * exact IHc.
+      * right. cbn. rewrite Hp. reflexivity.
+    + destruct IHc as [IHL IHR].
+      destruct (buf6_color pre) eqn:Hp.
+      * left. cbn. rewrite Hp. reflexivity.
+      * exact IHL.
+      * exact IHR.
+      * right. cbn. rewrite Hp. reflexivity.
+  - (* TRight *)
+    intros pre c IHc suf. unfold triple_tail_GR in *. cbn.
+    destruct c as [|ct|tL tR]; cbn in *.
+    + left. reflexivity.
+    + destruct (buf6_color suf) eqn:Hs.
+      * left. cbn. rewrite Hs. reflexivity.
+      * exact IHc.
+      * exact IHc.
+      * right. cbn. rewrite Hs. reflexivity.
+    + destruct IHc as [IHL IHR].
+      destruct (buf6_color suf) eqn:Hs.
+      * left. cbn. rewrite Hs. reflexivity.
+      * exact IHL.
+      * exact IHR.
+      * right. cbn. rewrite Hs. reflexivity.
+  - (* CEmpty *)
+    cbn. exact I.
+  - (* CSingle *)
+    intros t' IHt. cbn. exact IHt.
+  - (* CDouble *)
+    intros tL tR IHtL IHtR. cbn. split; assumption.
+Qed.
