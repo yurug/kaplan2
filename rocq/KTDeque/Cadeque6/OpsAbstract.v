@@ -605,3 +605,70 @@ Proof.
   rewrite cad_inject_seq, !cad_concat_seq, cad_inject_seq, app_assoc.
   reflexivity.
 Qed.
+
+(** * Stored-triple primitives.
+
+    [Stored X] (defined in [Model.v]) is the inside-a-buffer
+    interior triple shape.  It is always Green by the algorithm's
+    discipline, so it carries no kind tag.  These primitives are
+    the building blocks the operational concat (Phase 4) will need:
+
+    - [triple_to_stored]: demote an ordinary triple from the
+      boundary into a Stored shape suitable for living inside a
+      [Buf6].
+    - [stored_make]: smart constructor that picks [StoredSmall]
+      when the child and suffix are trivially empty, else
+      [StoredBig].
+    - sequence laws connecting both forms. *)
+
+Definition triple_to_stored {X : Type} (t : Triple X) : Stored X :=
+  match t with
+  | TOnly  pre c suf => StoredBig pre c suf
+  | TLeft  pre c suf => StoredBig pre c suf
+  | TRight pre c suf => StoredBig pre c suf
+  end.
+
+Lemma triple_to_stored_seq :
+  forall (A X : Type) (flat : X -> list A) (t : Triple X),
+    stored_to_list flat (triple_to_stored t) = triple_to_list flat t.
+Proof.
+  intros A X flat t. destruct t; reflexivity.
+Qed.
+
+(** [stored_make pre c suf] builds a [StoredSmall pre] when the
+    child cadeque is structurally empty AND the suffix is the
+    empty buffer; otherwise [StoredBig pre c suf].  The two
+    encodings flatten to the same list, so the smart constructor
+    is observationally equivalent to [StoredBig] on every input. *)
+
+Definition is_empty_buf6 {X : Type} (b : Buf6 X) : bool :=
+  match buf6_elems b with [] => true | _ :: _ => false end.
+
+Definition is_empty_cadeque {X : Type} (c : Cadeque X) : bool :=
+  match c with CEmpty => true | _ => false end.
+
+Definition stored_make {X : Type}
+                       (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X)
+                     : Stored X :=
+  if andb (is_empty_cadeque c) (is_empty_buf6 suf)
+  then StoredSmall pre
+  else StoredBig pre c suf.
+
+Lemma stored_make_seq :
+  forall (A X : Type) (flat : X -> list A)
+         (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    stored_to_list flat (stored_make pre c suf)
+    = buf6_flatten flat pre
+        ++ cad_to_list flat c
+        ++ buf6_flatten flat suf.
+Proof.
+  intros A X flat pre c [suf_xs].
+  unfold stored_make, is_empty_cadeque, is_empty_buf6, buf6_elems.
+  destruct c as [|t|tL tR]; cbn.
+  - destruct suf_xs as [|y ys]; cbn.
+    + (* CEmpty + empty suffix: StoredSmall pre, flattens to just pre *)
+      rewrite app_nil_r. reflexivity.
+    + reflexivity.
+  - destruct suf_xs as [|y ys]; reflexivity.
+  - destruct suf_xs as [|y ys]; reflexivity.
+Qed.
