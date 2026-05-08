@@ -224,3 +224,66 @@ Lemma push_empty_color :
   forall (X : Type) (x : X),
     triple_color (TOnly (buf6_singleton x) CEmpty buf6_empty) = Green4.
 Proof. intros. reflexivity. Qed.
+
+(** ** Buffer-colour transitions on push.
+
+    Push grows a buffer's size by 1.  Combining with the §10.6
+    thresholds (5/6/7/8+ → R/O/Y/G), we get:
+
+    Yellow (size 7) push   → Green (size 8)
+    Green  (size ≥ 8) push → Green (size ≥ 9)
+
+    Stated as a single lemma keyed on size ≥ 7: in either case the
+    result is Green.  The Orange→Yellow and Red→Orange transitions
+    are similar but rarely useful for preservation since regular
+    cadeques avoid Red triples in colour-determining positions. *)
+
+Lemma buf6_color_push_grows_to_green :
+  forall (X : Type) (x : X) (b : Buf6 X),
+    buf6_size b >= 7 ->
+    buf6_color (buf6_push x b) = Green4.
+Proof.
+  intros X x b Hsz.
+  unfold buf6_color. rewrite buf6_push_size.
+  remember (buf6_size b) as n eqn:Hn.
+  destruct n as [|[|[|[|[|[|[|[|n']]]]]]]];
+    cbn in Hsz; try lia; reflexivity.
+Qed.
+
+(** ** Symmetric for inject. *)
+
+Lemma buf6_color_inject_grows_to_green :
+  forall (X : Type) (b : Buf6 X) (x : X),
+    buf6_size b >= 7 ->
+    buf6_color (buf6_inject b x) = Green4.
+Proof.
+  intros X b x Hsz.
+  unfold buf6_color. rewrite buf6_inject_size.
+  remember (buf6_size b) as n eqn:Hn.
+  destruct n as [|[|[|[|[|[|[|[|n']]]]]]]];
+    cbn in Hsz; try lia; reflexivity.
+Qed.
+
+(** ** A Green buffer (in the proper size range, ≥ 8) stays Green
+    after push.
+
+    This is the workhorse for regularity preservation: if a Green
+    triple's prefix has size ≥ 8 (the "true" Green range, not the
+    defensive default for sizes 0..4), then push keeps the prefix
+    Green. *)
+
+Lemma buf6_color_push_green_stays_green :
+  forall (X : Type) (x : X) (b : Buf6 X),
+    buf6_size b >= 8 ->
+    buf6_color (buf6_push x b) = Green4.
+Proof.
+  intros. apply buf6_color_push_grows_to_green. lia.
+Qed.
+
+Lemma buf6_color_inject_green_stays_green :
+  forall (X : Type) (b : Buf6 X) (x : X),
+    buf6_size b >= 8 ->
+    buf6_color (buf6_inject b x) = Green4.
+Proof.
+  intros. apply buf6_color_inject_grows_to_green. lia.
+Qed.
