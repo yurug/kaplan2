@@ -1137,11 +1137,90 @@ Qed.
 (** ** [semiregular_local] is monotone-inverse in colour: a "better"
     colour has weaker (or vacuous) requirements.
 
-    Sketch (full proof deferred): if old colour is Red, old has
-    RC2 (every child Green); new colour ≥ Red could be R/O/Y/G,
-    each with weaker conditions implied by RC2.  If old is
-    Orange, old has RC3 (non-preferred Green); new is O/Y/G with
-    same-or-weaker.  If old is Yellow/Green, both old and new are
-    True.  Implementation requires one nested destruct per
-    colour-pair × child-shape; deferred until preservation theorem
-    needs it. *)
+    For all three triple kinds, [semiregular_local] reads:
+      Red    -> RC2 (all children's preferred paths Green)
+      Orange -> RC3 (non-preferred child's preferred path Green,
+                     for arity 2 only; vacuous for arity 1)
+      Yellow -> True
+      Green  -> True
+
+    Improving colour relaxes the constraint: G/Y are vacuous, O is
+    weaker than R (RC3 ⊂ RC2 in the sense that RC2 implies RC3
+    for CDouble children).  So if old [semiregular_local] holds
+    and new colour ≥ old colour (in goodness), new
+    [semiregular_local] holds. *)
+
+Lemma semiregular_local_relax_TOnly :
+  forall (X : Type) (pre suf pre' suf' : Buf6 X) (c : Cadeque X),
+    color4_le (triple_color (TOnly pre c suf))
+              (triple_color (TOnly pre' c suf')) ->
+    semiregular_local (TOnly pre c suf) ->
+    semiregular_local (TOnly pre' c suf').
+Proof.
+  intros X pre suf pre' suf' c Hle Hsr.
+  destruct c as [|ct|tL tR].
+  - cbn. exact I.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+      destruct (color4_meet (buf6_color pre') (buf6_color suf')) eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+      destruct (color4_meet (buf6_color pre') (buf6_color suf')) eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+    destruct Hsr as [HL _]. exact HL.
+Qed.
+
+Lemma semiregular_local_relax_TLeft :
+  forall (X : Type) (pre suf pre' suf' : Buf6 X) (c : Cadeque X),
+    color4_le (triple_color (TLeft pre c suf))
+              (triple_color (TLeft pre' c suf')) ->
+    semiregular_local (TLeft pre c suf) ->
+    semiregular_local (TLeft pre' c suf').
+Proof.
+  intros X pre suf pre' suf' c Hle Hsr.
+  destruct c as [|ct|tL tR].
+  - cbn. exact I.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (buf6_color pre) eqn:Hold;
+      destruct (buf6_color pre') eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (buf6_color pre) eqn:Hold;
+      destruct (buf6_color pre') eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+    destruct Hsr as [HL _]. exact HL.
+Qed.
+
+Lemma semiregular_local_relax_TRight :
+  forall (X : Type) (pre suf pre' suf' : Buf6 X) (c : Cadeque X),
+    color4_le (triple_color (TRight pre c suf))
+              (triple_color (TRight pre' c suf')) ->
+    semiregular_local (TRight pre c suf) ->
+    semiregular_local (TRight pre' c suf').
+Proof.
+  intros X pre suf pre' suf' c Hle Hsr.
+  destruct c as [|ct|tL tR].
+  - cbn. exact I.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (buf6_color suf) eqn:Hold;
+      destruct (buf6_color suf') eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+  - unfold semiregular_local in Hsr |- *.
+    cbn [triple_color] in Hsr, Hle |- *.
+    destruct (buf6_color suf) eqn:Hold;
+      destruct (buf6_color suf') eqn:Hnew;
+      unfold color4_le, color4_rank in Hle; cbn in Hle; try lia;
+      cbn in Hsr |- *; try exact I; try exact Hsr.
+    destruct Hsr as [HL _]. exact HL.
+Qed.
