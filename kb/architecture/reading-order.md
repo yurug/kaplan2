@@ -162,6 +162,44 @@ If you care that the C and OCaml *agree*:
   empirical confirmation that KT/Vi/C are flat (WC O(1)) while D4
   rises (amortised O(log n)).
 
+## Stop 7 — The catenable extension (work in progress, 20 min)
+
+If you want to follow the headline KT99 result — concatenation in
+`O(log log min(m, n))` while every other op stays at WC O(1) —
+read in this order:
+
+1. **[`kb/spec/why-catenable.md`](../spec/why-catenable.md)** — the
+   intuition layer for catenation, paralleling
+   [`why-bounded-cascade.md`](../spec/why-bounded-cascade.md).
+   Covers the "deque of deques" trick, the new `Buf6` /
+   `Triple` / `Stored` vocabulary, and why the recursion depth is
+   `log log` rather than `log`.
+
+2. **[`kb/plan-catenable.md`](../plan-catenable.md)** — the eight-
+   phase project plan with current status.  Phases 0-3 are done as
+   of this writing (intuition + Buf6 foundation + Cadeque6 types +
+   abstract operations with sequence preservation).  Phases 4-8
+   (cost bound, regularity, OCaml ABI, C port, literate polish)
+   are still pending.
+
+3. **[`Buffer6/SizedBuffer.v`](../../rocq/KTDeque/Buffer6/SizedBuffer.v)**
+   and **[`SmallMoves.v`](../../rocq/KTDeque/Buffer6/SmallMoves.v)**
+   — the abstract `Buf6` (a record wrapping a list of elements) and
+   the take/concat/halve primitives used by Section-6 repair cases.
+
+4. **[`Cadeque6/Model.v`](../../rocq/KTDeque/Cadeque6/Model.v)** —
+   the cadeque types (`Triple`, `Cadeque`, `Stored`) and the
+   sequence-flattening `cad_to_list_base`.
+
+5. **[`Cadeque6/OpsAbstract.v`](../../rocq/KTDeque/Cadeque6/OpsAbstract.v)**
+   — the five abstract operations (`cad_push`, `cad_inject`,
+   `cad_pop`, `cad_eject`, `cad_concat`) plus the headline theorem
+   `cad_concat_seq : cad_to_list (concat a b) = cad_to_list a ++
+   cad_to_list b`.
+
+The catenable code is intentionally NOT yet exposed via the public
+OCaml or C surface — that's Phase 6/7 of the catenable plan.
+
 ## Where to look next
 
 If you want to extend / modify the codebase:

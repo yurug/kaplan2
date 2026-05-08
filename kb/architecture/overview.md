@@ -135,8 +135,31 @@ A warm-up module for the redundant binary representation (KT99 §3).
 Not on the dependency path of the deque development.
 
 ### `rocq/KTDeque/Buffer6/`, `rocq/KTDeque/Cadeque6/`, `rocq/KTDeque/Public/`
-Empty placeholders for the catenable Section-6 extension. Out of scope
-for this engagement (see `domain/prd.md`).
+
+The catenable Section-6 extension.  In progress as of this writing.
+
+- **`Buffer6/`** — the abstract `Buf6` (a record wrapping `list X`)
+  plus the small-move primitives (`buf6_take_first2`,
+  `buf6_take_first3`, `buf6_take_last2`, `buf6_take_last3`,
+  `buf6_concat`, `buf6_halve`, `buf6_move_all_*`) used by the
+  Section-6 repair cases.  Status: complete with sequence + size
+  laws.
+
+- **`Cadeque6/`** — the catenable deque types (`Triple X`,
+  `Cadeque X`, `Stored X`) and the abstract operations on them
+  (`cad_push`, `cad_inject`, `cad_pop`, `cad_eject`, `cad_concat`).
+  All five sequence-preservation theorems are proved.  Cost bounds
+  (Phase 4 — `O(log log min(m, n))` for concat) and regularity
+  (Phase 5) are pending.
+
+- **`Public/`** — Empty as of this writing.  Will hold the
+  user-facing module-type interface for the catenable cadeque
+  (analogue of `DequePtr/Interface.v`).
+
+See [`../plan-catenable.md`](../plan-catenable.md) for the eight-
+phase project plan and current status, and
+[`../spec/why-catenable.md`](../spec/why-catenable.md) for the
+intuition behind the algorithm.
 
 ## Three structural facts to keep in mind
 
