@@ -1043,3 +1043,93 @@ Proof.
                 (triple_inject_suffix (TRight pre c suf) x) Hg) as Hpath.
   rewrite Hpath. exact Hg.
 Qed.
+
+(** ** Triple-level colour monotonicity under push/inject.
+
+    Composes [buf6_color_push_monotone] with [color4_meet_monotone].
+    Push grows the prefix and never worsens its colour (size ≥ 5);
+    the triple's colour is then either unchanged or improved.
+
+    Per kind:
+    - [TLeft]: colour = prefix colour, push improves it directly.
+    - [TRight]: colour = suffix colour, push doesn't touch it; unchanged.
+    - [TOnly]: colour = meet(pre, suf), monotone via meet_monotone_left.
+
+    Plus the empty-child case where the colour is unconditionally
+    Green by §10.6. *)
+
+Lemma triple_push_prefix_color_monotone_TLeft :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    color4_le (triple_color (TLeft pre c suf))
+              (triple_color (triple_push_prefix x (TLeft pre c suf))).
+Proof.
+  intros X x pre c suf Hsz. cbn.
+  destruct c as [|ct|tL tR].
+  - apply color4_le_refl.
+  - apply (buf6_color_push_monotone _ x). exact Hsz.
+  - apply (buf6_color_push_monotone _ x). exact Hsz.
+Qed.
+
+Lemma triple_push_prefix_color_monotone_TRight :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    color4_le (triple_color (TRight pre c suf))
+              (triple_color (triple_push_prefix x (TRight pre c suf))).
+Proof.
+  intros X x pre c suf. cbn.
+  destruct c as [|ct|tL tR]; apply color4_le_refl.
+Qed.
+
+Lemma triple_push_prefix_color_monotone_TOnly :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    color4_le (triple_color (TOnly pre c suf))
+              (triple_color (triple_push_prefix x (TOnly pre c suf))).
+Proof.
+  intros X x pre c suf Hsz. cbn.
+  destruct c as [|ct|tL tR].
+  - apply color4_le_refl.
+  - apply color4_meet_monotone_left.
+    apply (buf6_color_push_monotone _ x). exact Hsz.
+  - apply color4_meet_monotone_left.
+    apply (buf6_color_push_monotone _ x). exact Hsz.
+Qed.
+
+(** ** Symmetric for inject (suffix-side push). *)
+
+Lemma triple_inject_suffix_color_monotone_TLeft :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    color4_le (triple_color (TLeft pre c suf))
+              (triple_color (triple_inject_suffix (TLeft pre c suf) x)).
+Proof.
+  intros X pre c suf x. cbn.
+  destruct c as [|ct|tL tR]; apply color4_le_refl.
+Qed.
+
+Lemma triple_inject_suffix_color_monotone_TRight :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    color4_le (triple_color (TRight pre c suf))
+              (triple_color (triple_inject_suffix (TRight pre c suf) x)).
+Proof.
+  intros X pre c suf x Hsz. cbn.
+  destruct c as [|ct|tL tR].
+  - apply color4_le_refl.
+  - apply (buf6_color_inject_monotone _ _ x). exact Hsz.
+  - apply (buf6_color_inject_monotone _ _ x). exact Hsz.
+Qed.
+
+Lemma triple_inject_suffix_color_monotone_TOnly :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    color4_le (triple_color (TOnly pre c suf))
+              (triple_color (triple_inject_suffix (TOnly pre c suf) x)).
+Proof.
+  intros X pre c suf x Hsz. cbn.
+  destruct c as [|ct|tL tR].
+  - apply color4_le_refl.
+  - apply color4_meet_monotone_right.
+    apply (buf6_color_inject_monotone _ _ x). exact Hsz.
+  - apply color4_meet_monotone_right.
+    apply (buf6_color_inject_monotone _ _ x). exact Hsz.
+Qed.
