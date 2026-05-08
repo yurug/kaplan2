@@ -54,7 +54,7 @@
     - [kb/plan-catenable.md]        -- the project phase plan.
 *)
 
-From Stdlib Require Import List.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From KTDeque.Buffer6 Require Import SizedBuffer SmallMoves.
@@ -426,4 +426,63 @@ Theorem cad_concat_assoc_seq :
 Proof.
   intros X a b c. rewrite !cad_concat_seq.
   rewrite app_assoc. reflexivity.
+Qed.
+
+(** * Cadeque size as the length of the abstract sequence.
+
+    These size laws derive immediately from the sequence laws above
+    via [length (xs ++ ys) = length xs + length ys] and friends.
+    They are useful as the input shape that Phase 4's cost-bound
+    proofs will take ("the per-op cost is bounded by [c1 + c2 *
+    log_2 (log_2 (cad_size q))]"). *)
+
+Definition cad_size {X : Type} (q : Cadeque X) : nat :=
+  length (cad_to_list_base q).
+
+Lemma cad_size_empty :
+  forall (X : Type), cad_size (@CEmpty X) = 0.
+Proof. intros X. reflexivity. Qed.
+
+Theorem cad_size_push :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    cad_size (cad_push x q) = S (cad_size q).
+Proof.
+  intros X x q. unfold cad_size.
+  rewrite cad_push_seq. reflexivity.
+Qed.
+
+Theorem cad_size_inject :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    cad_size (cad_inject q x) = S (cad_size q).
+Proof.
+  intros X q x. unfold cad_size.
+  rewrite cad_inject_seq, length_app. cbn. lia.
+Qed.
+
+Theorem cad_size_pop :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') ->
+    cad_size q = S (cad_size q').
+Proof.
+  intros X q x q' Hp. unfold cad_size.
+  apply cad_pop_seq in Hp.
+  rewrite Hp. cbn. reflexivity.
+Qed.
+
+Theorem cad_size_eject :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) ->
+    cad_size q = S (cad_size q').
+Proof.
+  intros X q q' x He. unfold cad_size.
+  apply cad_eject_seq in He.
+  rewrite He, length_app. cbn. lia.
+Qed.
+
+Theorem cad_size_concat :
+  forall (X : Type) (a b : Cadeque X),
+    cad_size (cad_concat a b) = cad_size a + cad_size b.
+Proof.
+  intros X a b. unfold cad_size.
+  rewrite cad_concat_seq, length_app. reflexivity.
 Qed.

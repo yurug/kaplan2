@@ -243,30 +243,21 @@ every level.
 | 0 — intuition doc                | ✅ done           | `b2857cb` |
 | 1 — Buf6 foundation              | ✅ done           | `b2857cb` |
 | 2 — Cadeque6/Model.v types       | ✅ done           | `8503b29` |
-| 3 — abstract operations + main `_seq`s | 🟡 partial   | `b5b04bd` |
-| 3.5 — finish `cad_inject_seq` / `cad_pop_seq` / `cad_eject_seq` | ⏳ deferred | — |
+| 3 — abstract operations + all `_seq`s | ✅ done       | `5b78040` |
 | 4 — cost bound (`O(log log min)`) | ⏳ pending       | — |
-| 5 — regularity invariant         | ⏳ pending        | — |
+| 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
+| 5.5 — full Section-6 colour invariant | ⏳ deferred  | — |
 | 6 — OCaml ABI extension          | ⏳ pending        | — |
 | 7 — C port                       | ⏳ pending        | — |
-| 8 — literate-programming pass    | ⏳ pending        | — |
+| 8 — literate-programming pass    | ✅ in progress    | continuous |
 
-Phase 3.5 note: the operations are defined (`cad_inject`, `cad_pop`,
-`cad_eject`) but their sequence-preservation proofs need a cleaner
-proof setup than I converged on this session.  The shape of each
-proof is straightforward — each op's effect on
-`flat_concat (fun y => [y]) (xs ++ [a])` reduces to a
-`flat_concat ... xs ++ [a]` plus an `app_assoc` rearrangement —
-but the rewrites under `cbn`-folded `flat_concat` don't fire
-cleanly with the obvious tactic scripts.  A future approach worth
-trying: redefine `triple_to_list` and `cad_to_list` to use the
-buffer's `buf6_elems` projection directly (bypassing `buf6_flatten`)
-so the goals after `cbn` are pure list-concat expressions amenable
-to `simpl + reflexivity` after a single `flat_concat_singleton_id`.
-
-The headline `cad_concat_seq` IS proved (via `cad_from_list_seq` +
-`cad_push_seq`).  That's the load-bearing theorem for the catenable
-correctness story.
+The headline `cad_concat_seq` is proved.  Phase 5's *operational*
+foundation (`cad_nonempty` + totality of `cad_pop` / `cad_eject`)
+is also proved.  The full Section-6 colour invariant
+(`regular_cad` with Green/Yellow/Red/arity discipline) is deferred
+because it requires a careful formulation of KT99 §6.2's colour
+rules; see TODO note in [Cadeque6/Regularity.v](
+../rocq/KTDeque/Cadeque6/Regularity.v).
 
 ## Where to start
 
