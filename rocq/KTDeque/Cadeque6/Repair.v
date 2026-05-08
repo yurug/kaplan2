@@ -673,3 +673,103 @@ Proof.
   intros X x q [_ [_ [_ Htk]]].
   apply cad_push_op_top_kinds_preserved. exact Htk.
 Qed.
+
+(** * Symmetric bundled preservation for [cad_inject_op]. *)
+
+Lemma cad_inject_op_well_sized_when_TOnly_only :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    well_sized_cad (CSingle (TOnly pre c suf)) ->
+    (buf6_elems suf <> [] \/ c <> CEmpty) ->
+    well_sized_cad (cad_inject_op (CSingle (TOnly pre c suf)) x).
+Proof.
+  intros X [pre_xs] c [suf_xs] x Hws Hsuf.
+  cbn in Hws. destruct Hws as [Hwscad Hws].
+  cbn [cad_inject_op].
+  destruct c as [|ct|tL tR].
+  - (* CEmpty: suf must be nonempty per Hsuf *)
+    destruct Hsuf as [Hsuf_nonempty | Hcontra]; [|exfalso; apply Hcontra; reflexivity].
+    cbn [buf6_elems] in Hsuf_nonempty.
+    destruct suf_xs as [|s ss]; [contradiction|].
+    cbn [buf6_elems].
+    cbn. split; [exact Hwscad |].
+    cbn in Hws.
+    destruct Hws as [[Hp Hs] | [[Hs Hp] | [Hp Hs]]].
+    + (* original: pre=0, suf>0 *)
+      left.
+      unfold buf6_size, buf6_inject, buf6_elems. cbn.
+      split; [exact Hp | rewrite length_app; cbn; lia].
+    + (* original: suf=0, pre>0 -- but suf_xs = s::ss, contradiction *)
+      cbn in Hs. discriminate.
+    + (* original: both >= 5 *)
+      right; right.
+      unfold buf6_size, buf6_inject, buf6_elems. cbn.
+      cbn in Hp, Hs. rewrite length_app; cbn. lia.
+  - (* CSingle ct *)
+    cbn. split; [exact Hwscad |].
+    cbn in Hws.
+    unfold buf6_size, buf6_inject, buf6_elems. cbn.
+    cbn in Hws. rewrite length_app; cbn. lia.
+  - (* CDouble *)
+    cbn. split; [exact Hwscad |].
+    cbn in Hws.
+    unfold buf6_size, buf6_inject, buf6_elems. cbn.
+    cbn in Hws. rewrite length_app; cbn. lia.
+Qed.
+
+Lemma cad_inject_op_well_sized_double :
+  forall (X : Type) (tL tR : Triple X) (x : X),
+    well_sized_cad (CDouble tL tR) ->
+    triple_kind tR = KRight ->
+    well_sized_cad (cad_inject_op (CDouble tL tR) x).
+Proof.
+  intros X tL tR x Hws HtR.
+  cbn in Hws. destruct Hws as [HwsL HwsR].
+  cbn [cad_inject_op].
+  destruct tR as [pre c suf | pre c suf | pre c suf];
+    cbn in HtR; try discriminate.
+  cbn in HwsR. destruct HwsR as [Hwscad [Hpre Hsuf]].
+  cbn. split; [exact HwsL |].
+  cbn. split; [exact Hwscad |].
+  cbn. split.
+  - exact Hpre.
+  - unfold buf6_size, buf6_inject, buf6_elems in *. cbn in Hsuf. cbn.
+    rewrite length_app. cbn. lia.
+Qed.
+
+Theorem cad_inject_op_preserves_well_sized :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    regular_cad q ->
+    well_sized_cad (cad_inject_op q x).
+Proof.
+  intros X q x [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - cbn [cad_inject_op]. cbn.
+    split; [exact I |].
+    left. cbn. split; [reflexivity | lia].
+  - cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|ctL ctR].
+    + destruct suf as [suf_xs].
+      destruct suf_xs as [|s ss].
+      * cbn [cad_inject_op buf6_elems].
+        apply normalize_only_empty_child_well_sized.
+      * apply cad_inject_op_well_sized_when_TOnly_only;
+          [exact Hws|].
+        left. cbn [buf6_elems]. discriminate.
+    + apply cad_inject_op_well_sized_when_TOnly_only;
+        [exact Hws|]. right. discriminate.
+    + apply cad_inject_op_well_sized_when_TOnly_only;
+        [exact Hws|]. right. discriminate.
+  - apply cad_inject_op_well_sized_double; [exact Hws|].
+    cbn in Htk. destruct Htk as [_ HtR]. exact HtR.
+Qed.
+
+Theorem cad_inject_op_preserves_top_kinds :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    regular_cad q ->
+    top_kinds_well_formed (cad_inject_op q x).
+Proof.
+  intros X q x [_ [_ [_ Htk]]].
+  apply cad_inject_op_top_kinds_preserved. exact Htk.
+Qed.
