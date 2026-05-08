@@ -238,6 +238,8 @@ every level.
 
 ## Where to start
 
+**Phase 0 is done**: see [`spec/why-catenable.md`](spec/why-catenable.md).
+
 I suggest **Phase 0 first**.  ~600–1000 words of prose explaining
 the catenable trick, before any code.  This is the same pattern
 that worked for the Section-4 deque (the why-bounded-cascade doc

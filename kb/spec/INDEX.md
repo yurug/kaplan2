@@ -21,7 +21,8 @@ repair cases) readable rather than mystical.
 
 | If you need…                                          | Read                              |
 |-------------------------------------------------------|------------------------------------|
-| The intuition behind the WC O(1) bound                 | `why-bounded-cascade.md`           |
+| The intuition behind the WC O(1) bound (Section 4)     | `why-bounded-cascade.md`           |
+| The intuition behind catenation O(log log min) (§6–7)  | `why-catenable.md`                 |
 | Type definitions and invariants                        | `data-model.md`                    |
 | How operations work                                    | `algorithms.md`                    |
 | The public surface and laws                            | `api-contracts.md`                 |
