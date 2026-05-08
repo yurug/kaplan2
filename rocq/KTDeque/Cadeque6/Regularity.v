@@ -691,3 +691,109 @@ Proof.
   - (* CDouble *)
     intros tL tR IHtL IHtR. cbn. split; assumption.
 Qed.
+
+(** ** Manual §10.9 structural lemma 3:
+    if a triple is Red, its child cadeque is regular.
+
+    Intuition: a Red triple's [semiregular_local] check requires
+    that every top-level triple of the child cadeque has a Green
+    preferred-path tail — which is exactly [top_level_paths_green]
+    of the child.  Combined with the recursive part
+    [semiregular_cad (triple_child t)] inside [semiregular_triple],
+    we get [regular_cad (triple_child t)]. *)
+
+Theorem red_triple_child_regular :
+  forall (X : Type) (t : Triple X),
+    triple_color t = Red4 ->
+    semiregular_triple t ->
+    regular_cad (triple_child t).
+Proof.
+  intros X t Hred Hsr.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+    cbn in Hsr; destruct Hsr as [Hcad Hloc];
+    destruct c as [|ct|tL tR];
+    cbn in Hred, Hloc;
+    try discriminate;
+    rewrite Hred in Hloc;
+    cbn; split; try exact Hcad; cbn; exact Hloc.
+Qed.
+
+(** ** Manual §10.9 structural lemma 4:
+    if a triple is Orange, its non-preferred child (if it has one)
+    begins a Green preferred path.
+
+    For arity-1 Orange triples (Only/Left/Right with a [CSingle]
+    child), the only child is the preferred one — there is no
+    non-preferred child, lemma vacuous.
+
+    For arity-2 Orange triples ([CDouble tL tR]):
+    - [TOnly] cannot have arity-2 children syntactically — actually
+      yes it can; arity is determined by [CDouble] in the child,
+      not by the triple kind.  But (RC3) for [TOnly] is vacuous
+      because [TOnly] under §10.7's arity-1 rule for orange only
+      considers single-child cases when its colour is orange.
+      Manual §10.7 says: arity-1 orange → only child preferred;
+      arity-2 orange → right child preferred.
+    - [TLeft] / [TRight] arity-2 Orange: non-preferred is [tL].
+
+    The proof reads off [semiregular_local] in the Orange branch. *)
+
+Theorem orange_nonpreferred_child_green :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    triple_color (TLeft pre (CDouble tL tR) suf) = Orange4 ->
+    semiregular_triple (TLeft pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail tL) = Green4.
+Proof.
+  intros X pre tL tR suf Horange Hsr.
+  destruct Hsr as [_ Hloc].
+  cbn in Horange, Hloc.
+  rewrite Horange in Hloc. exact Hloc.
+Qed.
+
+Theorem orange_right_nonpreferred_child_green :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    triple_color (TRight pre (CDouble tL tR) suf) = Orange4 ->
+    semiregular_triple (TRight pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail tL) = Green4.
+Proof.
+  intros X pre tL tR suf Horange Hsr.
+  destruct Hsr as [_ Hloc].
+  cbn in Horange, Hloc.
+  rewrite Horange in Hloc. exact Hloc.
+Qed.
+
+(** * Preservation: trivial cases.
+
+    The hard preservation theorems (push/inject/pop/eject/concat
+    preserve [regular_cad]) require the operational layer's repair
+    machinery (Phase 5.6 / 6 — [make_red_*], [green_of_red_*]).
+    The trivial cases below are the no-op shapes where preservation
+    is immediate.
+
+    Public-operation preservation in general is deferred. *)
+
+Lemma regular_cad_push_to_empty :
+  forall (X : Type) (x : X),
+    regular_cad (cad_push x (@CEmpty X)).
+Proof.
+  intros X x. cbn. unfold regular_cad. split.
+  - (* semiregular *)
+    cbn. split.
+    + (* semiregular_cad CEmpty inside the new triple *)
+      exact I.
+    + (* semiregular_local *)
+      cbn. exact I.
+  - (* top_level_paths_green: the new triple is Green (child empty) *)
+    cbn. reflexivity.
+Qed.
+
+Lemma regular_cad_inject_to_empty :
+  forall (X : Type) (x : X),
+    regular_cad (cad_inject (@CEmpty X) x).
+Proof.
+  intros X x. cbn. unfold regular_cad. split.
+  - cbn. split.
+    + exact I.
+    + cbn. exact I.
+  - cbn. reflexivity.
+Qed.
