@@ -210,6 +210,136 @@ Proof.
   cbn; rewrite !flat_concat_singleton_id; reflexivity.
 Qed.
 
+(** ** Helper for the inject-side proof: under singleton-flatten,
+    [flat_concat] of [xs ++ [a]] equals [xs ++ [a]]. *)
+
+Lemma flat_concat_singleton_app1 :
+  forall (X : Type) (xs : list X) (a : X),
+    flat_concat (fun y => [y]) (xs ++ [a]) = xs ++ [a].
+Proof.
+  intros X xs a. apply flat_concat_singleton_id.
+Qed.
+
+(** ** Helper: [triple_inject_suffix t x] appends [x] under
+    singleton-flatten.  The structure mirrors [triple_push_prefix_seq]
+    but for the suffix side. *)
+
+Lemma triple_inject_suffix_seq :
+  forall (X : Type) (t : Triple X) (x : X),
+    triple_to_list (fun y => [y]) (triple_inject_suffix t x)
+    = triple_to_list (fun y => [y]) t ++ [x].
+Proof.
+  intros X t x.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+  destruct pre as [pre_xs]; destruct suf as [suf_xs]; cbn;
+  rewrite flat_concat_singleton_app1, !flat_concat_singleton_id;
+  symmetry; rewrite <- !app_assoc; reflexivity.
+Qed.
+
+(** ** [cad_inject_seq]: injecting appends to the abstract sequence. *)
+
+Theorem cad_inject_seq :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    cad_to_list_base (cad_inject q x) = cad_to_list_base q ++ [x].
+Proof.
+  intros X q x. unfold cad_to_list_base, cad_inject.
+  destruct q as [|t|tL tR].
+  - (* CEmpty *) reflexivity.
+  - (* CSingle *) cbn. apply triple_inject_suffix_seq.
+  - (* CDouble *)
+    cbn. rewrite triple_inject_suffix_seq.
+    rewrite app_assoc. reflexivity.
+Qed.
+
+(** ** Helper: [triple_pop_prefix t = Some (x, t')] preserves the
+    sequence under singleton-flatten. *)
+
+Lemma triple_pop_prefix_seq :
+  forall (X : Type) (t : Triple X) (x : X) (t' : Triple X),
+    triple_pop_prefix t = Some (x, t') ->
+    triple_to_list (fun y => [y]) t
+    = x :: triple_to_list (fun y => [y]) t'.
+Proof.
+  intros X t x t' Hp.
+  destruct t as [pre c suf | pre c suf | pre c suf]; cbn in Hp;
+    destruct (buf6_pop pre) as [[xp pre']|] eqn:Hpp; try discriminate;
+    inversion Hp; subst; clear Hp;
+    apply buf6_pop_seq_some in Hpp;
+    destruct pre as [pre_xs]; destruct suf as [suf_xs];
+    destruct pre' as [pre'_xs]; cbn;
+    rewrite !flat_concat_singleton_id;
+    unfold buf6_to_list, buf6_elems in Hpp;
+    rewrite Hpp; reflexivity.
+Qed.
+
+(** ** Helper: [triple_eject_suffix t = Some (t', x)] preserves the
+    sequence. *)
+
+Lemma triple_eject_suffix_seq :
+  forall (X : Type) (t : Triple X) (t' : Triple X) (x : X),
+    triple_eject_suffix t = Some (t', x) ->
+    triple_to_list (fun y => [y]) t
+    = triple_to_list (fun y => [y]) t' ++ [x].
+Proof.
+  intros X t t' x He.
+  destruct t as [pre c suf | pre c suf | pre c suf]; cbn in He;
+    destruct (buf6_eject suf) as [[suf' xs]|] eqn:Hes; try discriminate;
+    inversion He; subst; clear He;
+    apply buf6_eject_seq_some in Hes;
+    destruct pre as [pre_xs]; destruct suf as [suf_xs0]; cbn;
+    rewrite !flat_concat_singleton_id;
+    unfold buf6_to_list, buf6_elems in Hes;
+    destruct suf' as [suf'_xs]; cbn;
+    rewrite !flat_concat_singleton_id;
+    rewrite Hes; rewrite <- !app_assoc; reflexivity.
+Qed.
+
+(** ** [cad_pop_seq]: when [cad_pop] succeeds, the popped element
+    is the head of the abstract sequence. *)
+
+Theorem cad_pop_seq :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') ->
+    cad_to_list_base q = x :: cad_to_list_base q'.
+Proof.
+  intros X q x q' Hp. unfold cad_to_list_base in *.
+  destruct q as [|t|tL tR]; cbn in Hp.
+  - discriminate.
+  - destruct (triple_pop_prefix t) as [[xp t']|] eqn:Htp;
+      try discriminate.
+    inversion Hp; subst; clear Hp.
+    apply triple_pop_prefix_seq in Htp.
+    cbn. exact Htp.
+  - destruct (triple_pop_prefix tL) as [[xp tL']|] eqn:Htp;
+      try discriminate.
+    inversion Hp; subst; clear Hp.
+    apply triple_pop_prefix_seq in Htp.
+    cbn. rewrite Htp. cbn. reflexivity.
+Qed.
+
+(** ** [cad_eject_seq]: when [cad_eject] succeeds, the ejected
+    element is the last of the abstract sequence. *)
+
+Theorem cad_eject_seq :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) ->
+    cad_to_list_base q = cad_to_list_base q' ++ [x].
+Proof.
+  intros X q q' x He. unfold cad_to_list_base in *.
+  destruct q as [|t|tL tR]; cbn in He.
+  - discriminate.
+  - destruct (triple_eject_suffix t) as [[t' xt]|] eqn:Hes;
+      try discriminate.
+    inversion He; subst; clear He.
+    apply triple_eject_suffix_seq in Hes.
+    cbn. exact Hes.
+  - destruct (triple_eject_suffix tR) as [[tR' xt]|] eqn:Hes;
+      try discriminate.
+    inversion He; subst; clear He.
+    apply triple_eject_suffix_seq in Hes.
+    cbn. rewrite Hes. rewrite app_assoc. reflexivity.
+Qed.
+
 (** ** [cad_push_seq]: pushing prepends to the abstract sequence. *)
 
 Theorem cad_push_seq :

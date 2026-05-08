@@ -236,9 +236,39 @@ every level.
 - **Lines of proof**: hard to estimate; probably 1500–3000 lines
   of Rocq, dominated by Phase 3's `concat_seq`.
 
-## Where to start
+## Status (last updated 2026-05-08)
 
-**Phase 0 is done**: see [`spec/why-catenable.md`](spec/why-catenable.md).
+| Phase | Status | Commit |
+| ----: | ------ | ------ |
+| 0 — intuition doc                | ✅ done           | `b2857cb` |
+| 1 — Buf6 foundation              | ✅ done           | `b2857cb` |
+| 2 — Cadeque6/Model.v types       | ✅ done           | `8503b29` |
+| 3 — abstract operations + main `_seq`s | 🟡 partial   | `b5b04bd` |
+| 3.5 — finish `cad_inject_seq` / `cad_pop_seq` / `cad_eject_seq` | ⏳ deferred | — |
+| 4 — cost bound (`O(log log min)`) | ⏳ pending       | — |
+| 5 — regularity invariant         | ⏳ pending        | — |
+| 6 — OCaml ABI extension          | ⏳ pending        | — |
+| 7 — C port                       | ⏳ pending        | — |
+| 8 — literate-programming pass    | ⏳ pending        | — |
+
+Phase 3.5 note: the operations are defined (`cad_inject`, `cad_pop`,
+`cad_eject`) but their sequence-preservation proofs need a cleaner
+proof setup than I converged on this session.  The shape of each
+proof is straightforward — each op's effect on
+`flat_concat (fun y => [y]) (xs ++ [a])` reduces to a
+`flat_concat ... xs ++ [a]` plus an `app_assoc` rearrangement —
+but the rewrites under `cbn`-folded `flat_concat` don't fire
+cleanly with the obvious tactic scripts.  A future approach worth
+trying: redefine `triple_to_list` and `cad_to_list` to use the
+buffer's `buf6_elems` projection directly (bypassing `buf6_flatten`)
+so the goals after `cbn` are pure list-concat expressions amenable
+to `simpl + reflexivity` after a single `flat_concat_singleton_id`.
+
+The headline `cad_concat_seq` IS proved (via `cad_from_list_seq` +
+`cad_push_seq`).  That's the load-bearing theorem for the catenable
+correctness story.
+
+## Where to start
 
 I suggest **Phase 0 first**.  ~600–1000 words of prose explaining
 the catenable trick, before any code.  This is the same pattern
