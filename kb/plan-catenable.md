@@ -266,10 +266,41 @@ every level.
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
-| 5.5 — full Section-6 colour invariant | ⏳ deferred  | — |
+| 5.5 — Section-6 colour discipline + regularity predicate | 🟡 in progress | `a10b314`–`b7b7bcf` |
 | 6 — `KTCatenableDeque` module + extraction | 🟡 module type drafted | `61e7eff` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
+
+Phase 5.5 progress (this session, 6 commits):
+
+- `a10b314` Color foundation: `Color4` inductive, `color4_meet`,
+  `buf6_color`, `triple_color`, `stored_color` per manual §10.6.
+- `376e57c` `triple_child` projection + `preferred_path_tail`
+  Fixpoint per manual §10.7.  Coq accepts the structural recursion.
+- `946ea66` `semiregular_local` / `semiregular_cad` / `regular_cad`
+  predicates per manual §10.8 (RC2/RC3/RC4) via mutual Fixpoint.
+- `b2cc0fd` `preferred_path_tail_color_G_or_R`: every preferred
+  path terminates at Green or Red.  Proof uses Scheme-generated
+  mutual induction principle on Triple/Cadeque.
+- `b7b7bcf` Manual §10.9 structural lemmas 3 (red→child regular)
+  and 4 (orange's non-preferred is green); push/inject-to-empty
+  preservation.
+
+Phase 5.5 deferred:
+
+- §10.9 lemma 2 (top-level red preferred path tail uniqueness):
+  semantically unclear without operational context — likely lands
+  alongside the repair primitives.
+- General `cad_push` / `cad_inject` regularity preservation:
+  needs the colour-improves-on-push lemma plus the size-from-
+  regular-triple lemma; tractable but case-heavy, deferred to a
+  next session.
+- `cad_pop` / `cad_eject` / `cad_concat` regularity preservation:
+  these *cannot* be proved with the abstract operations alone
+  because pop/eject/concat may temporarily produce non-regular
+  shapes that need a repair pass.  Phase 5.6 will introduce the
+  five repair cases (1a/1b/2a/2b/2c per manual §12.4) and prove
+  preservation as `op_with_repair` lemmas.
 
 The Phase 6 module type (`CADEQUE` + `AbstractCadeque` impl) is
 now in [`rocq/KTDeque/Public/CadequeInterface.v`] with all seven

@@ -1,24 +1,39 @@
 (** * Module: KTDeque.Cadeque6.Correctness -- re-export bundle.
 
-    Single import point for the abstract Cadeque6 spec.
+    Single import point for the entire Cadeque6 development.
 
-    A file that needs the Cadeque6 types and the abstract
-    operations can write
+    A file that needs the Cadeque6 types, the abstract operations,
+    the colour discipline, or the regularity predicate can write
 
       [From KTDeque.Cadeque6 Require Import Correctness.]
 
-    and have the [Triple] / [Cadeque] / [Stored] types, the
-    flattening machinery, and the abstract operations + their
-    proved sequence laws all in scope.
+    and have everything in scope:
 
-    This file does not introduce any new definitions or theorems;
-    it is purely a convenience.
+    - Types ([Triple], [Cadeque], [Stored]) and flattening.
+    - Abstract operations ([cad_push] / [cad_inject] / [cad_pop] /
+      [cad_eject] / [cad_concat] / [cad_singleton] / [cad_is_empty] /
+      [cad_rev] / [cad_size] / fold_left / fold_right) + every
+      proved sequence and algebra law.
+    - Colour discipline ([Color4], [color4_meet], [buf6_color],
+      [triple_color], [stored_color]).
+    - Regularity predicates ([cad_nonempty], [semiregular_local],
+      [semiregular_cad], [semiregular_triple], [regular_cad],
+      [top_level_paths_green], [preferred_path_tail], plus the
+      §10.9 structural lemmas).
+
+    This file introduces no new definitions or theorems; it is
+    purely a convenience.
 
     ## Cross-references
 
-    - [Cadeque6/Model.v]            -- types + flattening.
-    - [Cadeque6/OpsAbstract.v]      -- operations + sequence laws.
-    - [kb/spec/why-catenable.md]    -- intuition layer.
+    - [Cadeque6/Model.v]        -- types + flattening.
+    - [Cadeque6/OpsAbstract.v]  -- operations + algebra laws.
+    - [Cadeque6/Color.v]        -- four-colour discipline.
+    - [Cadeque6/Regularity.v]   -- non-emptiness + preferred-path
+                                   + (semi)regular invariants.
+    - [Cadeque6/Examples.v]     -- worked examples (not exported here
+                                   to avoid polluting the namespace).
+    - [kb/spec/why-catenable.md] -- intuition layer.
 *)
 
-From KTDeque.Cadeque6 Require Export Model OpsAbstract.
+From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity.
