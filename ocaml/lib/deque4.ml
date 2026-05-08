@@ -11,7 +11,8 @@
     a different functional design point.  Not part of the public
     [ktdeque] opam package.
 
-    Cross-references:
+    Cross-references (all in the project monorepo at
+    https://github.com/yurug/kaplan2 ):
     - kb/architecture/decisions/adr-0009-deque4-end-to-end.md
     - kb/spec/api-contracts.md (Section-4 API)
 *)

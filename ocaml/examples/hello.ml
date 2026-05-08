@@ -5,8 +5,13 @@
  *
  * For the algorithm intuition (why this deque is worst-case O(1) per
  * op when the natural "spill on overflow" approach would be O(log n)),
- * read kb/spec/why-bounded-cascade.md.  For the public OCaml surface,
- * see ../extracted/kTDeque.mli (the {1 KTDeque} module-level docstring).
+ * read the why-bounded-cascade note in the project monorepo:
+ *
+ *     https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
+ *
+ * For the public OCaml surface, see the {1 KTDeque} module-level
+ * docstring of [KTDeque] (i.e. the .mli file shipped with the
+ * [ktdeque] opam package).
  *
  * Build (after `opam install .` from the repo root):
  *

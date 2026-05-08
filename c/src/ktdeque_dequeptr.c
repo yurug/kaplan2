@@ -1,12 +1,16 @@
 /* ktdeque_dequeptr.c — packets-and-chains C implementation with FLAT
  * packet allocation and DIFF-link encoding.
  *
- * READ FIRST: kb/spec/why-bounded-cascade.md.  That document explains
- * the algorithm at the intuition layer (why "no two reds adjacent"
- * gives WC O(1), why packets aggregate yellow runs); this file is the
- * C realisation of that algorithm.  The vocabulary used below — Green,
- * Yellow, Red, packet, chain, ensure_green, make_small, green_of_red —
- * is defined and motivated there.
+ * READ FIRST: the project's "why-bounded-cascade" note, hosted at
+ *
+ *     https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
+ *
+ * That document explains the algorithm at the intuition layer (why
+ * "no two reds adjacent" gives WC O(1), why packets aggregate yellow
+ * runs); this file is the C realisation of that algorithm.  The
+ * vocabulary used below — Green, Yellow, Red, packet, chain,
+ * ensure_green, make_small, green_of_red — is defined and motivated
+ * there.
  *
  * Each Rocq `Packet A` value (a yellow run of k nested levels) maps
  * to one FULL chain link allocation containing 2*k contiguous `kt_buf`s.
@@ -416,7 +420,8 @@ static inline int buf_eject(const kt_buf* b, kt_buf* out_rest, kt_elem* out_x) {
 /* The KT99 / Viennot algorithm requires that an entire yellow run lives   */
 /* in a SINGLE allocation unit — otherwise a chain repair would touch     */
 /* O(yellow-run-length) cells, defeating the worst-case O(1) bound (see   */
-/* kb/spec/why-bounded-cascade.md §3 for why).                            */
+/* §3 of why-bounded-cascade.md in the project monorepo for why:          */
+/*   https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md ) */
 /*                                                                         */
 /* A chain is a NULL-terminated linked list of links.  Each link is one   */
 /* of two flavours:                                                        */
@@ -1286,8 +1291,8 @@ size_t kt_arena_compact_full(kt_deque* roots, size_t n_roots) {
 /* Why packets must aggregate yellow runs (rather than one chain link    */
 /* per level): a chain repair re-threads the chain after the cascade.    */
 /* If each level were its own allocation, re-threading would touch       */
-/* O(yellow-run-length) cells, defeating WC O(1).  See                   */
-/* kb/spec/why-bounded-cascade.md §3.                                     */
+/* O(yellow-run-length) cells, defeating WC O(1).  See §3 of:            */
+/*   https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md */
 /* ====================================================================== */
 
 /* Helper: extract the "overflow pair" from a B5 prefix buffer — i.e.,
@@ -1748,8 +1753,11 @@ static kt_chain_link* make_small(uint8_t cp, kt_buf p1, kt_buf b2, kt_buf s1) {
 /* The "[green_]_*_concat" pair handles the depth-1 (outer-meets-tail)    */
 /* case; the "_concat" pair handles the depth-≥2 (outer-meets-inner)      */
 /* case.  See the corresponding [Definition green_prefix_concat] etc. in  */
-/* rocq/KTDeque/DequePtr/OpsKT.v for the abstract spec, and OpsKTSeq.v   */
-/* [green_prefix_concat_seq] for the sequence-preservation lemma.          */
+/* the project monorepo's Rocq spec for the abstract definition, and      */
+/* the [green_prefix_concat_seq] lemma in OpsKTSeq.v for the sequence-    */
+/* preservation proof:                                                     */
+/*   https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKT.v */
+/*   https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v */
 /* ====================================================================== */
 
 /* These are the Viennot helpers used in green_of_red Cases 2 & 3.  They
@@ -1935,8 +1943,10 @@ static inline void suffix_concat(int level,
 /* operation leaves the chain head Red (one of its outer buffers overflew  */
 /* or underflew), green_of_red converts that single Red link into a Green  */
 /* one.  Crucially, by the regularity invariant ("no two Reds adjacent",  */
-/* see kb/spec/why-bounded-cascade.md §2) the link below the Red top is   */
-/* either Green or absent — so green_of_red itself is non-recursive.       */
+/* see §2 of                                                               */
+/*   https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md ) */
+/* the link below the Red top is either Green or absent — so green_of_red */
+/* itself is non-recursive.                                                */
 /*                                                                         */
 /* Three structural cases, mirroring Viennot:                              */
 /*                                                                         */
@@ -2083,7 +2093,9 @@ static kt_chain_link* ensure_green(kt_chain_link* L) {
 /* inlining-disabling builds.                                              */
 /*                                                                         */
 /* Both step 1 and step 2 do O(1) work — that's the worst-case bound.     */
-/* See kb/spec/why-bounded-cascade.md §4 for the full argument.            */
+/* See §4 of why-bounded-cascade.md in the project monorepo for the full  */
+/* argument:                                                               */
+/*   https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md */
 /* ====================================================================== */
 
 /* ====================================================================== */

@@ -22,8 +22,10 @@
  *                          push/inject phase, then exercises the deepest
  *                          green→red cascades on the drain phase.  This
  *                          is the workload class the KT99 worst-case
- *                          analysis is about; see kb/reports/c-ocaml-
- *                          equivalence.md for why this layer matters.
+ *                          analysis is about; see the C/OCaml
+ *                          equivalence report at
+ *                          https://github.com/yurug/kaplan2/blob/main/kb/reports/c-ocaml-equivalence.md
+ *                          for why this layer matters.
  */
 #include "ktdeque.h"
 #include <stdio.h>

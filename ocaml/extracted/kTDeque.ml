@@ -1,27 +1,32 @@
 (** {1 KTDeque (implementation)}
 
     This file is the Rocq-extracted implementation.  The user-facing
-    documentation lives in [kTDeque.mli] — read that for the public
-    API; do not duplicate it here.
+    documentation lives in [kTDeque.mli] (the file beside this one) —
+    read that for the public API; do not duplicate it here.
 
-    Every [let] in this file has a Rocq-side counterpart:
+    Every [let] in this file has a Rocq-side counterpart in the
+    project monorepo at https://github.com/yurug/kaplan2 :
     - production WC-O(1) ops [push_kt2 / pop_kt2 / inject_kt2 /
       eject_kt2] (and their [_kt3] / [_kt4] siblings) come from
-      [DequePtr/OpsKT.v];
-    - buffer helpers from [Common/Buf5.v];
+      [rocq/KTDeque/DequePtr/OpsKT.v];
+    - buffer helpers from [rocq/KTDeque/Common/Buf5.v];
     - element-tree machinery ([ElementTree], [Coq_E]) from
-      [Common/Element.v];
+      [rocq/KTDeque/Common/Element.v];
     - [_chain_full] / [_chain_rec] proof artefacts from
-      [DequePtr/OpsAbstract.v] and [DequePtr/Repair.v].
+      [rocq/KTDeque/DequePtr/OpsAbstract.v] and
+      [rocq/KTDeque/DequePtr/Repair.v].
 
-    Re-extraction: build [rocq/KTDeque/Extract] from the project root
-    and copy the resulting [.ml]/[.mli] over.  Preserve the literate
-    headers and per-binding [(** ... *)] comments in [.mli].
+    Re-extraction (developers only): clone the monorepo, build
+    [rocq/KTDeque/Extract] from the project root, and copy the
+    resulting [.ml] / [.mli] over.  Preserve the literate headers
+    and per-binding [(** ... *)] comments in [.mli].
 
     For *why* this code is correct and elegant — why "no two reds
     adjacent" delivers worst-case O(1), why packets aggregate yellow
-    runs into a single allocation — read
-    [kb/spec/why-bounded-cascade.md].
+    runs into a single allocation — read the why-bounded-cascade
+    note in the project monorepo:
+
+      https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
 *)
 
 type __ = Obj.t

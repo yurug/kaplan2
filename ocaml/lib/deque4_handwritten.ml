@@ -9,27 +9,31 @@
 
     Specifically:
 
-    - In [bench/sweep.sh] (the scaling sweep), D4 looks competitive
-      with the WC-O(1) KT and Viennot impls on most ops, sometimes
-      even faster — because amortisation works in its favour for
-      sequential build workloads.
+    - In the bench harness's scaling sweep
+      ({{:https://github.com/yurug/kaplan2/blob/main/bench/sweep.sh}bench/sweep.sh}),
+      D4 looks competitive with the WC-O(1) KT and Viennot impls on
+      most ops, sometimes even faster — because amortisation works
+      in its favour for sequential build workloads.
 
-    - In [bench/adversarial.sh] (the persistent-fork microbench), D4
-      shows the linear-in-cascade-depth growth that the WC-O(1)
+    - In the bench harness's persistent-fork microbench
+      ({{:https://github.com/yurug/kaplan2/blob/main/bench/adversarial.sh}bench/adversarial.sh}),
+      D4 shows the linear-in-cascade-depth growth that the WC-O(1)
       bound is designed to avoid, while KT, Viennot, and our C
       runtime stay flat at ~25-30 ns/op across six orders of
       magnitude of N.  At depth 18 (size ≈ 2.6M), KT pays 25 ns/op
       while D4 pays ~190 ns/op.
 
     The contrast is *the operational evidence* of the WC-O(1) story
-    discussed in [kb/spec/why-bounded-cascade.md] §1: amortised
-    analyses don't survive forking; WC O(1) does.
+    discussed in §1 of
+    {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md}:
+    amortised analyses don't survive forking; WC O(1) does.
 
     ## What it actually is
 
     A Section-4 non-catenable deque.  Mirrors the cell layout from
-    [KTDeque/Deque4/HeapCells.v] (the older Rocq Deque4 development,
-    superseded by the packets-and-chains DequePtr formalisation):
+    the older Rocq Deque4 development (superseded by the packets-
+    and-chains DequePtr formalisation; both live in the project
+    monorepo):
 
     - each cell holds a prefix buffer, optional child, suffix buffer;
     - element type changes per level (level [l]: [α^(2^l)]).
@@ -44,19 +48,13 @@
     sharing structurally with the old one.  Cells are immutable
     records; the GC handles deallocation.
 
-    Cross-references:
-    - [bench/adversarial.sh]                            -- the bench
-                                                           that exposes
-                                                           D4's WC.
-    - [kb/spec/why-bounded-cascade.md] §1               -- why
-                                                           amortised
-                                                           fails on
-                                                           persistent
-                                                           workloads.
-    - [kb/architecture/decisions/adr-0009-deque4-end-to-end.md]
-    - [kb/spec/section4-repair-cases.md]                -- verbatim
-                                                           KT99 §4.2
-                                                           trace.
+    Cross-references (all in the project monorepo at
+    https://github.com/yurug/kaplan2 ):
+    - bench/adversarial.sh             -- the bench that exposes D4's WC.
+    - kb/spec/why-bounded-cascade.md §1 -- why amortised fails on
+                                          persistent workloads.
+    - kb/architecture/decisions/adr-0009-deque4-end-to-end.md
+    - kb/spec/section4-repair-cases.md  -- verbatim KT99 §4.2 trace.
     - manual §§5-7.
 *)
 

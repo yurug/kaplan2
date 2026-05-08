@@ -3,7 +3,8 @@
  * The simple test_persistence in test.c forks the deque exactly once and
  * checks the original is unaffected.  That covers the basic COW
  * invariant but does not stress the shared-internal-cells case the
- * report calls out (kb/reports/c-ocaml-equivalence.md, point G).
+ * report calls out (point G of the C/OCaml equivalence report at
+ * https://github.com/yurug/kaplan2/blob/main/kb/reports/c-ocaml-equivalence.md ).
  *
  * This stress test:
  *   1. Builds a "trunk" of N snapshots S[0..N], where S[i+1] = inject S[i] v_i.

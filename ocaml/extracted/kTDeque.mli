@@ -7,12 +7,15 @@
     penalty — you can fork the deque, mutate one branch, and the
     other branch is unaffected.
 
-    This module is the OCaml extraction of the Rocq formalisation in
-    [rocq/KTDeque/].  The sequence-preservation theorems live in
-    [rocq/KTDeque/DequePtr/OpsKTSeq.v].  For *why* the algorithm is
-    correct and elegant — why "no two reds adjacent" delivers
-    worst-case O(1), why packets aggregate yellow runs into a single
-    allocation — read [kb/spec/why-bounded-cascade.md] first.
+    This module is the OCaml extraction of the Rocq formalisation,
+    hosted at {{:https://github.com/yurug/kaplan2}https://github.com/yurug/kaplan2}.
+    The sequence-preservation theorems live in
+    {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}rocq/KTDeque/DequePtr/OpsKTSeq.v}.
+    For *why* the algorithm is correct and elegant — why "no two reds
+    adjacent" delivers worst-case O(1), why packets aggregate yellow
+    runs into a single allocation — read
+    {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}kb/spec/why-bounded-cascade.md}
+    first.
 
     {2 Quick start}
 
@@ -32,7 +35,9 @@
       let xs = kchain_to_list q  (* [2; 1] *)
     ]}
 
-    See also [ocaml/examples/hello.ml] for a fully runnable example.
+    See also the
+    {{:https://github.com/yurug/kaplan2/blob/main/ocaml/examples/hello.ml}hello example in the project monorepo}
+    for a fully runnable program.
 
     {2 Public API: where to look}
 
@@ -69,7 +74,8 @@
       overflow handling).  Internal building block.
     - [push_chain_full] / [push_chain_rec]: recursive cascade.
       O(log n) per call — these are *proof artefacts*, not for
-      production use.  See [kb/spec/why-bounded-cascade.md] §5.
+      production use.  See §5 of
+      {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md}.
     - [push_kt]: an early version with implicit colours.  Superseded.
     - [push_kt2]: explicit-colour, non-recursive, WC O(1).  This is
       the production code.
@@ -84,11 +90,11 @@
 
     {2 A note for re-extraction}
 
-    This [.mli] file is checked into git as a snapshot.  The body
-    (every [type] and [val] declaration) is verbatim Coq extraction
-    output; the surrounding [(** ... *)] documentation is hand-
-    written.  When regenerating, please preserve the literate
-    headers and per-binding doc comments.
+    This [.mli] file is checked into git as a snapshot in the project
+    monorepo.  The body (every [type] and [val] declaration) is
+    verbatim Coq extraction output; the surrounding [(** ... *)]
+    documentation is hand-written.  When regenerating, please
+    preserve the literate headers and per-binding doc comments.
 *)
 
 (** {1:internal Internal: extraction prelude}
@@ -123,7 +129,7 @@ val xflat : int -> 'a1 xpow -> 'a1 list
     [\'a]; at level 1 it is a pair of two [\'a]s; at level [l] it is
     a balanced binary tree of [2^l] base values.  This is what makes
     the deque branch binarily as it descends through nested packets
-    (see [kb/spec/why-bounded-cascade.md] §1 for the structural
+    (see {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md} §1 for the structural
     picture).
 
     User code only needs three of these functions:
@@ -165,7 +171,7 @@ module ElementTree :
     {- 1 or 4 elements: Yellow — next op safe in at least one direction;}
     {- 2 or 3 elements: Green — next op safe in both directions.}}
 
-    See [kb/spec/why-bounded-cascade.md] §2 for the regularity
+    See {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md} §2 for the regularity
     invariant that combines these colours.  User code never sees
     [buf5] directly. *)
 
@@ -233,7 +239,7 @@ type 'a chain =
     These work on the older implicit-colour {!chain} type.  The
     [_full] / [_rec] families are *recursive* (O(log n) per call) —
     they are proof artefacts used as targets for some Rocq lemmas,
-    NOT for end-user consumption.  See [kb/spec/why-bounded-cascade.md]
+    NOT for end-user consumption.  See {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md}
     §5 for the proof-artefact-vs-production-code distinction.
 
     For the production WC O(1) ops, use the {!kt2} or {!kt4} family
@@ -296,7 +302,7 @@ type color =
 | Green
 | Yellow
 | Red
-(** Buffer / packet colour.  See [kb/spec/why-bounded-cascade.md] §2
+(** Buffer / packet colour.  See {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md} §2
     for the regularity invariant ("no two Reds adjacent") that this
     type encodes. *)
 
@@ -426,7 +432,7 @@ val suffix_concat :
     {!make_small} (the depth-1 collapse), {!green_of_red} (the three-
     case red-to-green fix), {!ensure_green} (the fire-or-noop
     dispatch).  These are the heart of the WC-O(1) bound — see
-    [kb/spec/why-bounded-cascade.md] §2-§3.  Public callers should
+    {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md} §2-§3.  Public callers should
     use {!push_kt2} / {!push_kt4} etc., which compose these
     primitives correctly. *)
 
@@ -483,7 +489,7 @@ val eject_kt : 'a1 chain -> ('a1 chain * 'a1 Coq_E.t) option
       extracted ops are total functions over arbitrary [kChain]
       values, not only the ones reachable from empty).
 
-    Sequence semantics (proved in [OpsKTSeq.v]):
+    Sequence semantics (proved in {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}OpsKTSeq.v}):
     {ul
     {- [push_kt2 x q = Some q'] implies
        [kchain_to_list q' = Coq_E.to_list x @ kchain_to_list q].}
@@ -494,7 +500,7 @@ val eject_kt : 'a1 chain -> ('a1 chain * 'a1 Coq_E.t) option
     {- [eject_kt2 q = Some (q', x)] implies
        [kchain_to_list q = kchain_to_list q' @ Coq_E.to_list x].}}
 
-    Cost (proved in [Footprint.v]): each op runs in worst-case O(1)
+    Cost (proved in {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/Footprint.v}Footprint.v}): each op runs in worst-case O(1)
     primitive heap operations. *)
 
 type 'a kChain =
@@ -503,7 +509,7 @@ type 'a kChain =
 (** A KT-style chain.  [KEnding b] is a single-buffer chain (typically
     a small deque); [KCons c p tl] adjoins a {!packet} [p] tagged
     with {!color} [c] to a tail chain.  The colour tag is contextual,
-    not derivable from buffer sizes alone — see [OpsKT.v] header for
+    not derivable from buffer sizes alone — see {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKT.v}OpsKT.v} header for
     why. *)
 
 val empty_kchain : 'a1 kChain
@@ -520,12 +526,12 @@ val kchain_to_list : 'a1 kChain -> 'a1 list
 (** [kchain_to_list q] is the abstract sequence of [q], from front
     to back.  This is the *specification* of every operation: each
     op's effect on [kchain_to_list] is what its [_seq] lemma in
-    [OpsKTSeq.v] proves. *)
+    {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}OpsKTSeq.v} proves. *)
 
 val green_of_red_k : 'a1 kChain -> 'a1 kChain option
 (** Internal: convert a Red-headed chain to a Green-headed chain in
     O(1).  The three structural cases are described in
-    [kb/spec/why-bounded-cascade.md] §2 and [OpsKT.v]'s
+    {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md} §2 and {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKT.v}OpsKT.v}'s
     [green_of_red] section. *)
 
 val ensure_green_k : 'a1 kChain -> 'a1 kChain option
@@ -550,7 +556,7 @@ val push_kt2 : 'a1 Coq_E.t -> 'a1 kChain -> 'a1 kChain option
     [Some q'] with [kchain_to_list q' = Coq_E.to_list x @
     kchain_to_list q] on success.
 
-    Worst-case O(1).  See [OpsKTSeq.v] [push_kt2_seq] for the proof.
+    Worst-case O(1).  See {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}OpsKTSeq.v} [push_kt2_seq] for the proof.
 
     Use [Coq_E.base v] to wrap a base value [v : \'a] for this call. *)
 
@@ -576,7 +582,7 @@ val eject_kt2 : 'a1 kChain -> ('a1 kChain * 'a1 Coq_E.t) option
     inline [yellow_wrap] / [ensure_green_k] / [make_red_k] into the
     body of each op and special-case the common "tail is not Red"
     path.  Same return types as [kt2]; same correctness theorems
-    (proved by [_kt3_seq] equivalences in [OpsKTSeq.v]).  Smaller
+    (proved by [_kt3_seq] equivalences in {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}OpsKTSeq.v}).  Smaller
     constant factor in extracted OCaml code. *)
 
 val yellow_wrap :
@@ -611,7 +617,7 @@ val eject_kt3 : 'a1 kChain -> ('a1 kChain * 'a1 Coq_E.t) option
     numbers.
 
     Same correctness as [kt2]: the [_kt4 = _kt2] equivalence is
-    proved at the bottom of [OpsKTSeq.v]. *)
+    proved at the bottom of {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}OpsKTSeq.v}. *)
 
 type 'a push_result =
 | PushFail

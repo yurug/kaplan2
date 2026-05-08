@@ -12,8 +12,13 @@
  *
  * For the *intuition* — why "no two reds adjacent" delivers worst-case
  * O(1), why packets aggregate yellow runs into a single allocation —
- * read kb/spec/why-bounded-cascade.md.  The implementation in
- * src/ktdeque_dequeptr.c mirrors that document section by section.
+ * read the project's "why-bounded-cascade" note, hosted at
+ *
+ *     https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
+ *
+ * The implementation source (ktdeque_dequeptr.c, in the project's
+ * monorepo at https://github.com/yurug/kaplan2/blob/main/c/src/ktdeque_dequeptr.c)
+ * mirrors that document section by section.
  *
  *   --------------------------------------------------------------------
  *   QUICK START
@@ -46,9 +51,10 @@
  *     - You want a small inline scalar: cast to (kt_elem) (size_t).
  *
  *   The low 3 bits of every kt_elem stored in the deque must be zero
- *   (see src/ktdeque_dequeptr.c, "Buffer (Buf5)" section, for why —
- *   the buffer's size is encoded in those bits).  All malloc-aligned
- *   pointers and 8-byte-aligned scalars satisfy this.
+ *   (the buffer's size is encoded in those bits — see the "Buffer
+ *   (Buf5)" section of ktdeque_dequeptr.c in the project monorepo
+ *   for why).  All malloc-aligned pointers and 8-byte-aligned scalars
+ *   satisfy this.
  *
  *   --------------------------------------------------------------------
  *   THREADING
@@ -73,8 +79,11 @@
  *   collector specialized to the deque shape).  The roots[] array MUST
  *   list every currently-live deque value.
  *
- *   See COMPARISON.md for benchmark numbers, ../../README.md for the
- *   project overview, and ../../kb/architecture/decisions/ for ADRs.
+ *   For benchmark numbers, the project overview, and the design
+ *   decisions (ADRs) behind the implementation, see the project
+ *   repository:
+ *
+ *     https://github.com/yurug/kaplan2
  */
 
 #ifndef KT_DEQUE_H
@@ -124,7 +133,8 @@ typedef void* kt_deque;
 kt_deque kt_empty(void);
 
 /** Prepend [x] to the front of [d]; return the resulting deque.
- *  Worst-case O(1).  See kb/spec/why-bounded-cascade.md §4 for why. */
+ *  Worst-case O(1).  See §4 of why-bounded-cascade.md
+ *  (https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md) for why. */
 kt_deque kt_push   (kt_elem x, kt_deque d);
 
 /** Append [x] to the back of [d]; return the resulting deque.

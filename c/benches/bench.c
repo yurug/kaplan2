@@ -324,7 +324,9 @@ static void warmup_runtime(void) {
 
 /* If invoked with one or more numeric arguments, run the core `bench`
  * (no region workload) at exactly those sizes — used by the sweep
- * harness in bench/sweep.sh.  With no arguments, run the default
+ * harness sweep.sh in the project monorepo
+ * (https://github.com/yurug/kaplan2/blob/main/bench/sweep.sh).
+ * With no arguments, run the default
  * three-size sweep + the region workload. */
 int main(int argc, char** argv) {
     warmup_runtime();

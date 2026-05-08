@@ -1,6 +1,8 @@
 /* bench_adversarial.c — persistent-fork microbench for the C library.
  *
- * Mirror of ocaml/bench/adversarial.ml on the C side: build a deque to
+ * Mirror of the OCaml-side adversarial bench (paired with
+ * https://github.com/yurug/kaplan2/blob/main/ocaml/bench/adversarial.ml ):
+ * build a deque to
  * a target logical size by sequential pushes (cost ignored), then time
  * M push operations using the *same saved state* as LHS each time.
  * Persistence: each call returns a new deque; the saved state never
@@ -31,7 +33,8 @@ static double now_sec(void) {
 }
 
 /* Logical size of the primed-d4 chain at given depth: matches
- * ocaml/bench/adversarial.ml so the X-axis matches across plots. */
+ * the OCaml-side adversarial.ml so the X-axis matches across plots
+ * (https://github.com/yurug/kaplan2/blob/main/ocaml/bench/adversarial.ml). */
 static long logical_size(int depth) {
     return 5L * ((1L << (depth + 1)) - 1L);
 }

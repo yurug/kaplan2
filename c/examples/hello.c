@@ -5,8 +5,12 @@
  *
  * For the algorithm intuition (why this deque is worst-case O(1) per
  * op when the natural "spill on overflow" approach would be O(log n)),
- * read kb/spec/why-bounded-cascade.md.  For the public C surface,
- * see ../include/ktdeque.h.
+ * read the why-bounded-cascade note in the project monorepo:
+ *
+ *     https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
+ *
+ * For the public C surface (the four ops + the arena API), see
+ * ktdeque.h, which is shipped alongside this example.
  *
  * Build (after `make install` from c/):
  *
