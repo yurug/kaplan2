@@ -521,3 +521,34 @@ Proof.
       cbn in HtR; try discriminate;
       cbn; reflexivity.
 Qed.
+
+(** * Refinement: operational ops observationally equal abstract ops.
+
+    The operational [cad_push_op] / [cad_inject_op] preserve
+    [regular_cad] (under appropriate preconditions, partially
+    proven), while the abstract [cad_push] / [cad_inject] preserve
+    [to_list] (proven completely in [OpsAbstract.v]).  The
+    operational and abstract versions agree at the [to_list]
+    level: this is the *refinement* theorem connecting the two
+    layers, mirroring Section 4's pattern (where [push_chain]
+    is the abstract spec and [exec_push_C] is the cost-bounded
+    operational form).
+
+    Once Phase 5.6's full preservation theorem lands, the
+    public-facing OCaml extraction will use the operational
+    versions, with sequence correctness inherited via these
+    refinement theorems. *)
+
+Theorem cad_push_op_refines_cad_push :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    cad_to_list_base (cad_push_op x q) = cad_to_list_base (cad_push x q).
+Proof.
+  intros X x q. rewrite cad_push_op_seq, cad_push_seq. reflexivity.
+Qed.
+
+Theorem cad_inject_op_refines_cad_inject :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    cad_to_list_base (cad_inject_op q x) = cad_to_list_base (cad_inject q x).
+Proof.
+  intros X q x. rewrite cad_inject_op_seq, cad_inject_seq. reflexivity.
+Qed.
