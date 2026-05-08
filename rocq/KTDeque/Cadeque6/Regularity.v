@@ -50,7 +50,7 @@ From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From KTDeque.Buffer6 Require Import SizedBuffer.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract Color.
 
 (** ** [triple_outer_prefix_nonempty] and [triple_outer_suffix_nonempty].
 
@@ -254,4 +254,155 @@ Proof.
   - destruct Hq as [_ Hsuf].
     apply triple_eject_suffix_total_when_nonempty in Hsuf as [tR' [x He]].
     cbn. rewrite He. eauto.
+Qed.
+
+(** * Phase 5.5: preferred children + preferred-path tail.
+
+    Manual §10.7 defines the preferred child of a triple based on
+    its colour and its child cadeque's arity:
+
+    - Green/Red triples have *no* preferred child (the path stops).
+    - Yellow arity-1 triples: the only child is preferred.
+    - Yellow arity-2 triples: the *left* child is preferred.
+    - Orange arity-1 triples: the only child is preferred.
+    - Orange arity-2 triples: the *right* child is preferred.
+
+    The *preferred path* starting at a triple [t] is the maximal
+    downward sequence obtained by repeatedly following the
+    preferred child.  Its *tail* is the first green or red triple
+    along the path.  This is what Phase 5.5's regularity rules
+    quantify over (manual §10.8 (RC2), (RC3), (RC4)).
+
+    The function [preferred_path_tail] computes the tail directly
+    by structural recursion on the triple.  Termination is
+    structural: each recursive call descends to a sub-component
+    (the child cadeque's [CSingle ct], [CDouble tL _], or
+    [CDouble _ tR]), which is strictly smaller than the parent
+    triple. *)
+
+(** ** [triple_child]: the child cadeque projection. *)
+
+Definition triple_child {X : Type} (t : Triple X) : Cadeque X :=
+  match t with
+  | TOnly  _ c _ => c
+  | TLeft  _ c _ => c
+  | TRight _ c _ => c
+  end.
+
+Lemma triple_child_only :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    triple_child (TOnly pre c suf) = c.
+Proof. reflexivity. Qed.
+
+Lemma triple_child_left :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    triple_child (TLeft pre c suf) = c.
+Proof. reflexivity. Qed.
+
+Lemma triple_child_right :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    triple_child (TRight pre c suf) = c.
+Proof. reflexivity. Qed.
+
+(** ** [preferred_path_tail t]: the tail of the preferred path
+    starting at triple [t].
+
+    Walks down via preferred children until hitting a green or red
+    triple.  Each recursive call descends through the child cadeque
+    to a structurally smaller triple, so Coq accepts the
+    [Fixpoint].
+
+    Edge cases:
+    - If [t] itself is green or red, [preferred_path_tail t = t].
+    - If [t] is yellow/orange but the child is structurally [CEmpty]:
+      this can't happen in a regular cadeque (manual §10.6 says
+      child-empty triples are green), but we return [t] defensively. *)
+
+Fixpoint preferred_path_tail {X : Type} (t : Triple X) : Triple X :=
+  match t with
+  | TOnly pre c suf =>
+      match c with
+      | CEmpty => t
+      | CSingle ct =>
+          match color4_meet (buf6_color pre) (buf6_color suf) with
+          | Green4 | Red4 => t
+          | _             => preferred_path_tail ct
+          end
+      | CDouble tL tR =>
+          match color4_meet (buf6_color pre) (buf6_color suf) with
+          | Green4 | Red4 => t
+          | Yellow4       => preferred_path_tail tL
+          | Orange4       => preferred_path_tail tR
+          end
+      end
+  | TLeft pre c _ =>
+      match c with
+      | CEmpty => t
+      | CSingle ct =>
+          match buf6_color pre with
+          | Green4 | Red4 => t
+          | _             => preferred_path_tail ct
+          end
+      | CDouble tL tR =>
+          match buf6_color pre with
+          | Green4 | Red4 => t
+          | Yellow4       => preferred_path_tail tL
+          | Orange4       => preferred_path_tail tR
+          end
+      end
+  | TRight _ c suf =>
+      match c with
+      | CEmpty => t
+      | CSingle ct =>
+          match buf6_color suf with
+          | Green4 | Red4 => t
+          | _             => preferred_path_tail ct
+          end
+      | CDouble tL tR =>
+          match buf6_color suf with
+          | Green4 | Red4 => t
+          | Yellow4       => preferred_path_tail tL
+          | Orange4       => preferred_path_tail tR
+          end
+      end
+  end.
+
+(** ** [preferred_tail_color]: the colour of the tail of a
+    preferred path is always Green or Red.
+
+    This is the basic "the path terminates at a G or R" property
+    that manual §10.7 promises.  We don't prove it here (it
+    requires the regularity invariant or termination on
+    well-formed inputs); it's stated as a target for Phase 5.5's
+    next chunk. *)
+
+Definition preferred_tail_color {X : Type} (t : Triple X) : Color4 :=
+  triple_color (preferred_path_tail t).
+
+(** ** Sanity: a triple that is already Green is its own preferred
+    tail. *)
+
+Lemma preferred_path_tail_green_self :
+  forall (X : Type) (t : Triple X),
+    triple_color t = Green4 ->
+    preferred_path_tail t = t.
+Proof.
+  intros X t Hg.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+    destruct c as [|ct|tL tR]; cbn in *; try reflexivity;
+    rewrite Hg; reflexivity.
+Qed.
+
+(** ** Sanity: a triple that is already Red is its own preferred
+    tail. *)
+
+Lemma preferred_path_tail_red_self :
+  forall (X : Type) (t : Triple X),
+    triple_color t = Red4 ->
+    preferred_path_tail t = t.
+Proof.
+  intros X t Hr.
+  destruct t as [pre c suf | pre c suf | pre c suf];
+    destruct c as [|ct|tL tR]; cbn in *; try reflexivity;
+    rewrite Hr; reflexivity.
 Qed.
