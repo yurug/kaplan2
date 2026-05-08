@@ -197,3 +197,78 @@ Proof.
   - apply normalize_only_empty_child_well_sized.
   - apply normalize_only_empty_child_top_kinds.
 Qed.
+
+(** * [cad_push_op]: operational push.
+
+    Differs from the abstract [cad_push] only when the input is a
+    [CSingle (TOnly pre CEmpty suf)] with [pre] empty -- the case
+    where naive push would create a TOnly with both buffers
+    non-empty under an empty child (violating OT2).  In that case
+    we [normalize_only_empty_child] to merge the new element and
+    the suffix into a single prefix buffer.
+
+    For all other shapes, the abstract push already preserves
+    well-sizedness, so we delegate. *)
+
+Definition cad_push_op {X : Type} (x : X) (q : Cadeque X) : Cadeque X :=
+  match q with
+  | CEmpty => CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)
+  | CSingle t =>
+      match t with
+      | TOnly pre c suf =>
+          match c with
+          | CEmpty =>
+              match buf6_elems pre with
+              | [] => normalize_only_empty_child (buf6_push x pre) suf
+              | _  => CSingle (TOnly (buf6_push x pre) CEmpty suf)
+              end
+          | _ => CSingle (TOnly (buf6_push x pre) c suf)
+          end
+      | _ => CSingle (triple_push_prefix x t)
+      end
+  | CDouble tL tR => CDouble (triple_push_prefix x tL) tR
+  end.
+
+(** ** Sequence law: [cad_push_op] prepends [x] to the abstract sequence. *)
+
+Theorem cad_push_op_seq :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    cad_to_list_base (cad_push_op x q) = x :: cad_to_list_base q.
+Proof.
+  intros X x q. destruct q as [|t|tL tR].
+  - reflexivity.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + (* TOnly *)
+      destruct c as [|ct|ctL ctR].
+      * (* CEmpty: pivot on pre_xs *)
+        destruct pre as [pre_xs]. destruct suf as [suf_xs].
+        destruct pre_xs as [|p ps]; cbn [cad_push_op buf6_elems].
+        -- (* pre empty: use normalize *)
+           rewrite normalize_only_empty_child_seq.
+           unfold buf6_to_list, buf6_push, buf6_elems. cbn [app].
+           f_equal.
+           unfold cad_to_list_base.
+           rewrite cad_to_list_single, triple_to_list_only.
+           unfold buf6_flatten, buf6_elems.
+           rewrite cad_to_list_empty.
+           cbn [flat_concat].
+           rewrite (flat_concat_singleton_id X suf_xs). reflexivity.
+        -- (* pre non-empty: direct match against cad_push_seq *)
+           apply (cad_push_seq X x (CSingle
+             (TOnly (mkBuf6 (p :: ps)) CEmpty (mkBuf6 suf_xs)))).
+      * (* CSingle: same as cad_push *)
+        cbn [cad_push_op].
+        apply (cad_push_seq X x (CSingle (TOnly pre (CSingle ct) suf))).
+      * (* CDouble: same as cad_push *)
+        cbn [cad_push_op].
+        apply (cad_push_seq X x (CSingle (TOnly pre (CDouble ctL ctR) suf))).
+    + (* TLeft *)
+      cbn [cad_push_op].
+      apply (cad_push_seq X x (CSingle (TLeft pre c suf))).
+    + (* TRight *)
+      cbn [cad_push_op].
+      apply (cad_push_seq X x (CSingle (TRight pre c suf))).
+  - (* CDouble *)
+    cbn [cad_push_op].
+    apply (cad_push_seq X x (CDouble tL tR)).
+Qed.
