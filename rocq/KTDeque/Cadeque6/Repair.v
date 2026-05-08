@@ -404,3 +404,120 @@ Proof.
       cbn in HtL; try discriminate;
       cbn; reflexivity.
 Qed.
+
+(** * [cad_inject_op]: operational inject (symmetric to push).
+
+    Mirrors [cad_push_op]: differs from the abstract [cad_inject]
+    only when input is [CSingle (TOnly pre CEmpty suf)] with [suf]
+    empty -- naive inject would create an OT2-violating shape.
+    Normalizes by merging into one prefix buffer. *)
+
+Definition cad_inject_op {X : Type} (q : Cadeque X) (x : X) : Cadeque X :=
+  match q with
+  | CEmpty => CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))
+  | CSingle t =>
+      match t with
+      | TOnly pre c suf =>
+          match c with
+          | CEmpty =>
+              match buf6_elems suf with
+              | [] => normalize_only_empty_child pre (buf6_inject suf x)
+              | _  => CSingle (TOnly pre CEmpty (buf6_inject suf x))
+              end
+          | _ => CSingle (TOnly pre c (buf6_inject suf x))
+          end
+      | _ => CSingle (triple_inject_suffix t x)
+      end
+  | CDouble tL tR => CDouble tL (triple_inject_suffix tR x)
+  end.
+
+(** ** Sequence law: [cad_inject_op] appends [x] to the abstract sequence. *)
+
+Theorem cad_inject_op_seq :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    cad_to_list_base (cad_inject_op q x) = cad_to_list_base q ++ [x].
+Proof.
+  intros X q x. destruct q as [|t|tL tR].
+  - reflexivity.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + (* TOnly *)
+      destruct c as [|ct|ctL ctR].
+      * (* CEmpty: pivot on suf_xs *)
+        destruct pre as [pre_xs]. destruct suf as [suf_xs].
+        destruct suf_xs as [|s ss]; cbn [cad_inject_op buf6_elems].
+        -- (* suf empty: use normalize *)
+           rewrite normalize_only_empty_child_seq.
+           unfold buf6_to_list, buf6_inject, buf6_elems. cbn [app].
+           f_equal.
+           unfold cad_to_list_base.
+           rewrite cad_to_list_single, triple_to_list_only.
+           unfold buf6_flatten, buf6_elems.
+           rewrite cad_to_list_empty.
+           rewrite (flat_concat_singleton_id X pre_xs).
+           cbn [flat_concat]. rewrite app_nil_r. reflexivity.
+        -- (* suf non-empty: direct match against cad_inject_seq *)
+           apply (cad_inject_seq X (CSingle
+             (TOnly (mkBuf6 pre_xs) CEmpty (mkBuf6 (s :: ss)))) x).
+      * (* CSingle: same as cad_inject *)
+        cbn [cad_inject_op].
+        apply (cad_inject_seq X (CSingle (TOnly pre (CSingle ct) suf)) x).
+      * (* CDouble: same as cad_inject *)
+        cbn [cad_inject_op].
+        apply (cad_inject_seq X (CSingle (TOnly pre (CDouble ctL ctR) suf)) x).
+    + (* TLeft *)
+      cbn [cad_inject_op].
+      apply (cad_inject_seq X (CSingle (TLeft pre c suf)) x).
+    + (* TRight *)
+      cbn [cad_inject_op].
+      apply (cad_inject_seq X (CSingle (TRight pre c suf)) x).
+  - (* CDouble *)
+    cbn [cad_inject_op].
+    apply (cad_inject_seq X (CDouble tL tR) x).
+Qed.
+
+(** ** Preservation: trivial cases.
+
+    Inject from CEmpty: by [regular_cad_inject_to_empty].
+    Normalize-fired case: by [normalize_only_empty_child_regular]. *)
+
+Lemma cad_inject_op_preserves_regular_empty :
+  forall (X : Type) (x : X),
+    regular_cad (cad_inject_op (@CEmpty X) x).
+Proof.
+  intros X x. cbn [cad_inject_op]. apply regular_cad_inject_to_empty.
+Qed.
+
+Lemma cad_inject_op_preserves_regular_normalize :
+  forall (X : Type) (pre : Buf6 X) (x : X),
+    regular_cad (cad_inject_op (CSingle (TOnly pre CEmpty buf6_empty)) x).
+Proof.
+  intros X pre x. cbn [cad_inject_op buf6_elems buf6_empty].
+  apply normalize_only_empty_child_regular.
+Qed.
+
+(** ** Top-kinds preservation: unconditional. *)
+
+Lemma cad_inject_op_top_kinds_preserved :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    top_kinds_well_formed q ->
+    top_kinds_well_formed (cad_inject_op q x).
+Proof.
+  intros X q x Htk.
+  destruct q as [|t|tL tR]; cbn [cad_inject_op].
+  - cbn. reflexivity.
+  - cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|tcL tcR].
+    + destruct suf as [suf_xs].
+      destruct suf_xs as [|s ss]; cbn [buf6_elems].
+      * apply normalize_only_empty_child_top_kinds.
+      * cbn. reflexivity.
+    + cbn. reflexivity.
+    + cbn. reflexivity.
+  - cbn in Htk. destruct Htk as [HtL HtR].
+    cbn. split; [exact HtL |].
+    destruct tR as [pre c suf | pre c suf | pre c suf];
+      cbn in HtR; try discriminate;
+      cbn; reflexivity.
+Qed.
