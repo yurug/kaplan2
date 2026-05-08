@@ -1,20 +1,39 @@
 (** * Module: KTDeque.DequePtr.Regularity -- regularity invariant +
     preservation theorems for the abstract chain ops.
 
-    The Kaplan-Tarjan worst-case O(1) bound is non-trivial precisely
-    because it requires a regularity invariant that is preserved by every
-    operation.  In the packet/chain representation, regularity has two
-    components:
+    ## Status
 
-    1. **No-overflow at top.**  The top-level buffer (in [Ending b], the
-       single buffer; in [ChainCons (PNode pre _ suf) _], the prefix and
-       suffix) must not be [B5] -- otherwise the next push would
-       immediately overflow.
+    This file defines regularity for the *older* colour-less [Chain]
+    type ([Model.v]).  The *production* regularity invariant is
+    [regular_kt] in [OpsKTRegular.v], defined over the colour-tagged
+    [KChain] type.  The [KChain] formulation is local (a chain is
+    regular iff every [KCons]'s colour is consistent with its tail's
+    top colour); this older formulation is extrinsic and global.
+
+    Why the older formulation is still maintained: some refinement
+    proofs target [Chain] rather than [KChain], so the abstract
+    cost-bounds story in [Footprint.v] still depends on this file's
+    regularity definition.  The two are equivalent on chains that
+    arise from public ops, modulo the colour tag.
+
+    For the intuition story (why regularity is the load-bearing fact
+    in WC O(1) at all), read [kb/spec/why-bounded-cascade.md] §2.
+
+    ## What regularity means here
+
+    The Kaplan-Tarjan worst-case O(1) bound requires a regularity
+    invariant preserved by every operation.  In the packet/chain
+    representation, regularity has two components:
+
+    1. **No-overflow at top.**  The top-level buffer (in [Ending b],
+       the single buffer; in [ChainCons (PNode pre _ suf) _], the
+       prefix and suffix) must not be [B5] — otherwise the next push
+       would immediately overflow.
 
     2. **Absorbable chain spine.**  Every link below the top must be
-       able to absorb a make_red overflow without itself overflowing —
-       i.e. its prefix and suffix must be of size ≤ 3 (i.e. not [B4]
-       and not [B5]).
+       able to absorb a [make_red] overflow without itself
+       overflowing — i.e. its prefix and suffix must be of size ≤ 3
+       (not [B4] and not [B5]).
 
     Together, these guarantee that a push or inject either produces a
     non-overflowing top, OR fires [make_red] which lands the overflow
@@ -23,19 +42,23 @@
     surface invariant.
 
     A stronger version, [regular_chain_strict], requires the *whole*
-    chain (including the top) to be absorbable.  This is what's needed
-    to prove that a single push from a regular-strict chain yields
+    chain (including the top) to be absorbable.  This is needed to
+    prove that a single push from a regular-strict chain yields
     another regular chain (full preservation under push/inject).
 
     This module:
     - Defines [regular_packet], [regular_chain], [absorbable_chain],
       [regular_chain_strict] inductively.
-    - Proves preservation under [push_chain_full], [inject_chain_full],
-      [pop_chain], [eject_chain].
+    - Proves preservation under [push_chain_full],
+      [inject_chain_full], [pop_chain], [eject_chain].
 
     Cross-references:
-    - [KTDeque/DequePtr/OpsAbstract.v] -- the abstract ops being preserved.
-    - kb/spec/section4-repair-cases.md -- the abstract repair design.
+    - [kb/spec/why-bounded-cascade.md]   -- the intuition layer.
+    - [KTDeque/DequePtr/OpsKTRegular.v]  -- the production [regular_kt]
+                                            for colour-tagged chains.
+    - [KTDeque/DequePtr/OpsAbstract.v]   -- the abstract ops preserved
+                                            here.
+    - [kb/spec/section4-repair-cases.md] -- the abstract repair design.
 *)
 
 From KTDeque.Common Require Import Prelude Element Buf5 Buf5Ops.

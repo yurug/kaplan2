@@ -1,28 +1,58 @@
 (** * Module: KTDeque.DequePtr.Correctness -- functional refinement of the
     cost-instrumented packet ops to the abstract chain operations.
 
-    Pairs the WC O(1) cost bounds of [Footprint.v] with sequence
-    preservation (the abstract surface does what the imperative tier
-    does, modulo [E.to_list]).  The headline theorems here:
+    ## Why this file exists
 
-    - The four bidirectional refinement theorems linking heap state
-      to abstract chain via [chain_repr]:
-        [exec_push_pkt_C_refines_push_chain],
-        [exec_inject_pkt_C_refines_inject_chain],
-        [exec_pop_pkt_C_refines_pop_chain],
-        [exec_eject_pkt_C_refines_eject_chain].
+    The bridge between the abstract spec and the cost-bounded
+    imperative DSL.  We have:
+
+    - [OpsAbstract.v] defines [push_chain : E.t A -> Chain A ->
+      option (Chain A)] etc.  Pure functions over the abstract type
+      [Chain A].
+    - [Footprint.v] defines [exec_push_pkt_C] etc.  Cost-tracked
+      computations in [MC] over a heap of [PCell] records.
+
+    The cost bounds in [Footprint.v] are about heap operations.  The
+    sequence semantics in [OpsAbstract.v] is about [Chain]-level
+    structure.  Without a bridge, the cost story doesn't tell us
+    anything about what the imperative ops *do* to user data.
+
+    This file proves the bridge:
+
+      Imperative op  ≡  Abstract op  (modulo heap layout)
+
+    via four refinement theorems:
+      [exec_push_pkt_C_refines_push_chain]
+      [exec_inject_pkt_C_refines_inject_chain]
+      [exec_pop_pkt_C_refines_pop_chain]
+      [exec_eject_pkt_C_refines_eject_chain]
+
+    Each says: if the heap [H] currently represents abstract chain
+    [c] (via [chain_repr c H]), and the abstract op succeeds with
+    result [c'], then [exec_*_pkt_C] on [H] produces a heap [H']
+    that represents [c'].  The combination with [Footprint.v]'s
+    cost bounds is "WC O(1) per op AND functionally correct" — the
+    full operational meaning of "verified worst-case O(1) deque".
+
+    ## A subtlety: the [B5] precondition
 
     Each refinement is conditioned on (a) the abstract op succeeding,
     AND (b) the result not having a [B5] buffer at the top.  Condition
     (b) excludes the overflow case: in the imperative tier, overflow
     fires [make_red] producing a different chain shape than the naive
     abstract [push_chain] / [inject_chain] yields.  In well-formed
-    Kaplan-Tarjan code, a regularity invariant ensures (b) holds when
-    overflow would actually fire.
+    Kaplan-Tarjan code, the regularity invariant
+    ([Regularity.v] / [OpsKTRegular.v]) ensures (b) holds when overflow
+    would actually fire — that's the whole point of regularity.
 
     Cross-references:
-    - [KTDeque/DequePtr/Footprint.v]    -- the cost-bounded ops.
+    - [KTDeque/DequePtr/Footprint.v]   -- the cost-bounded ops.
     - [KTDeque/DequePtr/OpsAbstract.v] -- the abstract surface.
+    - [KTDeque/DequePtr/Regularity.v]  -- the invariant that makes
+                                          (b) hold in production code.
+    - [kb/spec/why-bounded-cascade.md] -- the intuition for why
+                                          regularity + WC O(1) is
+                                          the central correctness story.
 *)
 
 From KTDeque.Common Require Import Prelude FinMapHeap HeapExt Monad
