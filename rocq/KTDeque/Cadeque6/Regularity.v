@@ -797,3 +797,123 @@ Proof.
     + cbn. exact I.
   - cbn. reflexivity.
 Qed.
+
+(** ** Triple-level colour after push: per-kind lemmas.
+
+    [triple_push_prefix x t] grows [t]'s prefix by 1.  Each triple
+    kind has different colour behaviour:
+
+    - [TLeft]:  colour = prefix colour, so push at size ≥ 8
+                keeps colour Green (since size ≥ 9 maps to Green).
+    - [TRight]: colour = suffix colour, unchanged by prefix-push.
+    - [TOnly]:  colour = worse-of(prefix, suffix); push at prefix
+                size ≥ 8 leaves prefix Green, so the meet equals
+                the suffix colour.  To get Green out, need suffix
+                colour Green too.
+
+    These are the unitary lemmas the regularity preservation
+    theorem will compose. *)
+
+Lemma triple_push_prefix_TLeft_green_when_prefix_8 :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    buf6_size pre >= 8 ->
+    triple_color (triple_push_prefix x (TLeft pre c suf)) = Green4.
+Proof.
+  intros X x pre c suf Hsz. cbn.
+  destruct c as [|ct|tL tR]; try reflexivity.
+  - apply (buf6_color_push_grows_to_green _ x). lia.
+  - apply (buf6_color_push_grows_to_green _ x). lia.
+Qed.
+
+Lemma triple_push_prefix_TRight_color_unchanged :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    triple_color (triple_push_prefix x (TRight pre c suf))
+    = triple_color (TRight pre c suf).
+Proof.
+  intros X x pre c suf. cbn. destruct c; reflexivity.
+Qed.
+
+Lemma triple_push_prefix_TOnly_green_when_both_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    buf6_size pre >= 8 ->
+    buf6_color suf = Green4 ->
+    triple_color (triple_push_prefix x (TOnly pre c suf)) = Green4.
+Proof.
+  intros X x pre c suf Hpre Hsuf.
+  pose proof (buf6_color_push_grows_to_green X x pre ltac:(lia)) as Hp.
+  destruct c as [|ct|tL tR];
+    cbn [triple_push_prefix triple_color];
+    try reflexivity;
+    rewrite Hp, Hsuf;
+    reflexivity.
+Qed.
+
+(** ** Symmetric lemmas for inject (suffix-side push). *)
+
+Lemma triple_inject_suffix_TRight_green_when_suffix_8 :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 8 ->
+    triple_color (triple_inject_suffix (TRight pre c suf) x) = Green4.
+Proof.
+  intros X pre c suf x Hsz. cbn.
+  destruct c as [|ct|tL tR];
+    try reflexivity;
+    apply buf6_color_inject_grows_to_green; lia.
+Qed.
+
+Lemma triple_inject_suffix_TLeft_color_unchanged :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    triple_color (triple_inject_suffix (TLeft pre c suf) x)
+    = triple_color (TLeft pre c suf).
+Proof.
+  intros X pre c suf x. cbn. destruct c; reflexivity.
+Qed.
+
+Lemma triple_inject_suffix_TOnly_green_when_both_green :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    buf6_color pre = Green4 ->
+    buf6_size suf >= 8 ->
+    triple_color (triple_inject_suffix (TOnly pre c suf) x) = Green4.
+Proof.
+  intros X pre c suf x Hpre Hsuf. cbn.
+  destruct c as [|ct|tL tR]; try reflexivity;
+    rewrite buf6_color_inject_grows_to_green by lia;
+    rewrite Hpre; reflexivity.
+Qed.
+
+(** ** Push/inject preserve preferred-path tail when the triple
+    starts as Green at the top.
+
+    If a triple [t] is itself Green, its [preferred_path_tail] is
+    [t] (proved earlier).  Push/inject then change the prefix /
+    suffix; the new triple's colour depends on the per-kind lemmas
+    above.  When the new colour is also Green, the new
+    [preferred_path_tail] is the new triple — Green. *)
+
+Lemma preferred_path_tail_TLeft_after_push_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X),
+    buf6_size pre >= 8 ->
+    triple_color
+      (preferred_path_tail (triple_push_prefix x (TLeft pre c suf)))
+    = Green4.
+Proof.
+  intros X x pre c suf Hsz.
+  pose proof (triple_push_prefix_TLeft_green_when_prefix_8 X x pre c suf Hsz) as Hg.
+  pose proof (preferred_path_tail_green_self X
+                (triple_push_prefix x (TLeft pre c suf)) Hg) as Hpath.
+  rewrite Hpath. exact Hg.
+Qed.
+
+Lemma preferred_path_tail_TRight_after_inject_green :
+  forall (X : Type) (pre : Buf6 X) (c : Cadeque X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 8 ->
+    triple_color
+      (preferred_path_tail (triple_inject_suffix (TRight pre c suf) x))
+    = Green4.
+Proof.
+  intros X pre c suf x Hsz.
+  pose proof (triple_inject_suffix_TRight_green_when_suffix_8 X pre c suf x Hsz) as Hg.
+  pose proof (preferred_path_tail_green_self X
+                (triple_inject_suffix (TRight pre c suf) x) Hg) as Hpath.
+  rewrite Hpath. exact Hg.
+Qed.
