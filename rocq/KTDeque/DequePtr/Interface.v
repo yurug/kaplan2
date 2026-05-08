@@ -1,20 +1,38 @@
 (** * Module: KTDeque.DequePtr.Interface -- abstract module-type interface
     + opaque implementation.
 
-    Exposes the deque API to clients via a Module Type that hides the
-    [Chain]/[PNode]/[Hole] internals.  Users see only [t], [empty],
-    [push], [inject], [pop], [eject] and the sequence-preservation
-    properties.
+    ## Status
 
-    The implementation [RegularPacketDeque] uses the [Chain] / [Packet]
-    representation from [Model.v] under the hood.  Per [Regularity.v]
-    we additionally maintain a [regular_chain] invariant; the module
-    type does not expose this invariant — it's an internal contract.
+    This is the *older* abstract interface, built over the colour-less
+    [Chain] type from [Model.v].  It is retained because some
+    refinement proofs still target it.
+
+    The *production* interface for OCaml / C consumers is the [kt2]
+    family of operations in [OpsKT.v], which works on the colour-
+    tagged [KChain] type and is the ABI that the OCaml extraction
+    ([ocaml/extracted/kTDeque.mli]) and the C runtime
+    ([c/include/ktdeque.h]) expose.  See [kb/spec/why-bounded-cascade.md]
+    for why the colour-tagged type is the right one for end-user
+    consumption.
+
+    ## What this file gives you
+
+    A Module Type that hides the [Chain] / [PNode] / [Hole] internals.
+    Users see only [t], [empty], [push], [inject], [pop], [eject] and
+    the sequence-preservation properties.  The implementation
+    [RegularPacketDeque] uses the [Chain] / [Packet] representation
+    from [Model.v] under the hood.  Per [Regularity.v] we maintain a
+    [regular_chain] invariant; the module type does not expose this
+    invariant — it's an internal contract.
 
     Cross-references:
     - [KTDeque/DequePtr/Model.v]       -- [Chain] / [Packet] internal types.
     - [KTDeque/DequePtr/OpsAbstract.v] -- the underlying ops.
     - [KTDeque/DequePtr/Regularity.v]  -- the invariant.
+    - [KTDeque/DequePtr/OpsKT.v]       -- the production [kt2] family
+                                          (the ABI OCaml/C consumers see).
+    - [kb/spec/why-bounded-cascade.md] -- intuition: WC O(1) and the
+                                          regularity invariant.
 *)
 
 From KTDeque.Common Require Import Prelude Element Buf5 Buf5Ops.

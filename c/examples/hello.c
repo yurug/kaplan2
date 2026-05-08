@@ -1,5 +1,13 @@
 /* hello.c — minimal example of using the ktdeque C library.
  *
+ * Walks through the four core operations (push / inject / pop / eject)
+ * plus a brief persistence demonstration.  Every line is annotated.
+ *
+ * For the algorithm intuition (why this deque is worst-case O(1) per
+ * op when the natural "spill on overflow" approach would be O(log n)),
+ * read kb/spec/why-bounded-cascade.md.  For the public C surface,
+ * see ../include/ktdeque.h.
+ *
  * Build (after `make install` from c/):
  *
  *     cc hello.c -lktdeque -o hello

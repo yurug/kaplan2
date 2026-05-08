@@ -1,5 +1,13 @@
 (** hello.ml — minimal example of using the ktdeque OCaml library.
  *
+ * Walks through the four core operations (push / inject / pop / eject)
+ * plus a brief persistence demonstration.
+ *
+ * For the algorithm intuition (why this deque is worst-case O(1) per
+ * op when the natural "spill on overflow" approach would be O(log n)),
+ * read kb/spec/why-bounded-cascade.md.  For the public OCaml surface,
+ * see ../extracted/kTDeque.mli (the {1 KTDeque} module-level docstring).
+ *
  * Build (after `opam install .` from the repo root):
  *
  *     ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello
