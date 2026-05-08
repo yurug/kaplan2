@@ -762,3 +762,83 @@ Proof.
           rev_app_distr.
   cbn. reflexivity.
 Qed.
+
+(** * Folds over a cadeque.
+
+    Defined via the abstract sequence so the laws are by inspection.
+    Operationally these will iterate the cadeque structurally
+    (Phase 4) without materialising the intermediate list, but the
+    semantics are the same. *)
+
+Definition cad_fold_left {A B : Type}
+                         (f : B -> A -> B) (z : B) (q : Cadeque A)
+                       : B :=
+  fold_left f (cad_to_list_base q) z.
+
+Definition cad_fold_right {A B : Type}
+                          (f : A -> B -> B) (q : Cadeque A) (z : B)
+                        : B :=
+  fold_right f z (cad_to_list_base q).
+
+Lemma cad_fold_left_empty :
+  forall (A B : Type) (f : B -> A -> B) (z : B),
+    cad_fold_left f z (@CEmpty A) = z.
+Proof. intros. reflexivity. Qed.
+
+Lemma cad_fold_right_empty :
+  forall (A B : Type) (f : A -> B -> B) (z : B),
+    cad_fold_right f (@CEmpty A) z = z.
+Proof. intros. reflexivity. Qed.
+
+Lemma cad_fold_left_push :
+  forall (A B : Type) (f : B -> A -> B) (z : B) (x : A) (q : Cadeque A),
+    cad_fold_left f z (cad_push x q) = cad_fold_left f (f z x) q.
+Proof.
+  intros A B f z x q. unfold cad_fold_left.
+  rewrite cad_push_seq. reflexivity.
+Qed.
+
+Lemma cad_fold_right_inject :
+  forall (A B : Type) (f : A -> B -> B) (q : Cadeque A) (x : A) (z : B),
+    cad_fold_right f (cad_inject q x) z = cad_fold_right f q (f x z).
+Proof.
+  intros A B f q x z. unfold cad_fold_right.
+  rewrite cad_inject_seq, fold_right_app. cbn. reflexivity.
+Qed.
+
+Lemma cad_fold_left_concat :
+  forall (A B : Type) (f : B -> A -> B) (z : B) (a b : Cadeque A),
+    cad_fold_left f z (cad_concat a b)
+    = cad_fold_left f (cad_fold_left f z a) b.
+Proof.
+  intros A B f z a b. unfold cad_fold_left.
+  rewrite cad_concat_seq, fold_left_app. reflexivity.
+Qed.
+
+Lemma cad_fold_right_concat :
+  forall (A B : Type) (f : A -> B -> B) (a b : Cadeque A) (z : B),
+    cad_fold_right f (cad_concat a b) z
+    = cad_fold_right f a (cad_fold_right f b z).
+Proof.
+  intros A B f a b z. unfold cad_fold_right.
+  rewrite cad_concat_seq, fold_right_app. reflexivity.
+Qed.
+
+(** * Size-strict-decrease corollaries.
+
+    Useful as termination measures for client recursive functions
+    that consume a cadeque element-by-element. *)
+
+Theorem cad_size_pop_lt :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') -> cad_size q' < cad_size q.
+Proof.
+  intros X q x q' Hp. apply cad_size_pop in Hp. lia.
+Qed.
+
+Theorem cad_size_eject_lt :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) -> cad_size q' < cad_size q.
+Proof.
+  intros X q q' x He. apply cad_size_eject in He. lia.
+Qed.

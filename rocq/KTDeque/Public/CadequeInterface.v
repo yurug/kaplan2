@@ -92,6 +92,7 @@ Module Type CADEQUE.
   Parameter eject     : forall (A : Type), t A -> option (t A * A).
   Parameter concat    : forall (A : Type), t A -> t A -> t A.
   Parameter rev       : forall (A : Type), t A -> t A.
+  Parameter length    : forall (A : Type), t A -> nat.
 
   (** Denotational view. *)
   Parameter to_list : forall (A : Type), t A -> list A.
@@ -142,6 +143,10 @@ Module Type CADEQUE.
     forall (A : Type) (q : t A),
       to_list A (rev A q) = List.rev (to_list A q).
 
+  Axiom length_to_list :
+    forall (A : Type) (q : t A),
+      length A q = List.length (to_list A q).
+
 End CADEQUE.
 
 (** ** Implementation [AbstractCadeque].
@@ -181,6 +186,9 @@ Module AbstractCadeque <: CADEQUE.
 
   Definition rev (A : Type) (q : t A) : t A :=
     cad_rev q.
+
+  Definition length (A : Type) (q : t A) : nat :=
+    cad_size q.
 
   Definition to_list (A : Type) (q : t A) : list A :=
     cad_to_list_base q.
@@ -233,6 +241,11 @@ Module AbstractCadeque <: CADEQUE.
     forall (A : Type) (q : t A),
       to_list A (rev A q) = List.rev (to_list A q).
   Proof. intros. apply cad_rev_seq. Qed.
+
+  Theorem length_to_list :
+    forall (A : Type) (q : t A),
+      length A q = List.length (to_list A q).
+  Proof. intros. reflexivity. Qed.
 
 End AbstractCadeque.
 
