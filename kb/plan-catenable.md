@@ -300,20 +300,42 @@ Phase 5.5 deferred:
   semantically unclear without operational context — likely lands
   alongside the repair primitives.
 
-- General `cad_push` / `cad_inject` regularity preservation:
-  the *building blocks* are now in place (`triple_push_prefix_T*`
-  colour-after-push lemmas, `preferred_path_tail_T*_after_*_green`
-  composers).  What blocks the general theorem: the top triple's
-  prefix size is required to be ≥ 8 (true Green range) for the
-  TLeft / TOnly cases, and that size constraint is *not* part of
-  the current `regular_cad` invariant.  Two paths forward:
-  (a) extend `regular_cad` with manual §10.5 (OT1-OT4) size
-      constraints and re-prove the existing lemmas accordingly,
-      then prove preservation;
-  (b) state preservation with a side-condition like
-      `regular_cad q /\ all_top_buffers_size_ge_8 q`.
-  Path (a) is more elegant; path (b) is a quicker sticky note.
-  Decision deferred to next session.
+- General `cad_push` / `cad_inject` regularity preservation: path
+  (a) -- extend `regular_cad` with §10.5 (OT1-OT4) size constraints
+  -- is **done** (`492fcba`).  The invariant now bakes in
+  `well_sized_cad`, the existing lemmas (`regular_cad_empty`,
+  `regular_cad_push_to_empty`, `regular_cad_inject_to_empty`,
+  `red_triple_child_regular`) are migrated.
+
+  **However**: investigation showed the abstract `cad_push` /
+  `cad_inject` *do not* preserve the strengthened invariant.
+  Counter-example:
+
+  ```
+  q := cad_inject CEmpty 7
+     = CSingle (TOnly empty CEmpty [7])     -- regular: OT2 first branch
+  cad_push 0 q
+     = CSingle (TOnly [0] CEmpty [7])       -- pre=1, suf=1, child=CEmpty
+                                            -- violates OT2 (neither empty,
+                                            -- neither >= 5)
+  ```
+
+  This is structural, not a proof gap: the abstract operations
+  don't reshape buffers when the result would be ill-sized.  The
+  operational layer (Phase 5.6) introduces `make_small` and the
+  five repair cases (1a/1b/2a/2b/2c per manual §12.4) that
+  reshape between push/inject and final state.  Preservation is a
+  property of the operational `cad_*_op` operations, not the
+  abstract ones.
+
+  Implication: the path-(a) extension is *correct foundation*
+  for Phase 5.6; the preservation theorem itself is reformulated
+  as `cad_*_op` preservation, with refinement connecting `cad_*`
+  (abstract, sequence-only) and `cad_*_op` (operational,
+  regularity-preserving + sequence-preserving).  This matches the
+  Section-4 pattern: `push_chain` is the abstract spec,
+  `exec_push_C` is the cost-bounded operational form, and the
+  refinement theorem connects them.
 
 - `cad_pop` / `cad_eject` / `cad_concat` regularity preservation:
   these *cannot* be proved with the abstract operations alone
