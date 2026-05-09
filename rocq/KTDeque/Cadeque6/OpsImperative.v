@@ -3269,12 +3269,35 @@ Qed.
     - [cad_concat_imp_sd_inputs_persist]  : SD path
     - [cad_concat_imp_dd_inputs_persist]  : DD path
 
+    Plus empty-case inputs-persistence (trivial since H'=H):
+    - [cad_concat_imp_inputs_persist_when_A_empty]
+    - [cad_concat_imp_inputs_persist_when_B_empty]
+
     Each shows: under the SS/DS/SD/DD shape preconditions, if A is
     represented at lA in H AND B is represented at lB in H, then
     BOTH representations carry over UNCHANGED to H'.  Anyone holding
     a pointer to A or B before [cad_concat_imp] still sees the same
     abstract cadeque after.  Combined with the seq theorems, this
     is the full purely-functional contract.
+
+    *** FLAGSHIP "FULL CONTRACT" theorems:
+
+    Per shape, a single theorem bundling all four guarantees:
+
+    - [cad_concat_imp_ss_full_contract]  : CSingle × CSingle
+    - [cad_concat_imp_ds_full_contract]  : CDouble × CSingle
+    - [cad_concat_imp_sd_full_contract]  : CSingle × CDouble
+    - [cad_concat_imp_dd_full_contract]  : CDouble × CDouble
+
+    Conclusion of each: from cad_concat_imp lA lB H = Some (H', l', k):
+        (1) k <= 8                                (WC O(1) cost)
+        (2) heap_represents_cad H' lA qA           (input A persists)
+        (3) heap_represents_cad H' lB qB           (input B persists)
+        (4) heap_represents_cad H' l' qjoined      (output represents join)
+        (5) qResult's list = qA's list ++ qB's list   (list refinement)
+
+    These are the one-stop entry points for downstream consumers — every
+    guarantee Kaplan-Tarjan §6 promises, in one theorem per shape.
 
     *** Persistence under alloc (foundational):
 
