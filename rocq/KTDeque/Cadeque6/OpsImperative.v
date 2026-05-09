@@ -1495,6 +1495,87 @@ Proof.
   - apply heap_represents_triple_persists_two_allocs; assumption.
 Qed.
 
+(** Persistence over a single alloc — for the DD case (one alloc only). *)
+Lemma heap_represents_cad_persists_one_alloc :
+  forall (A : Type) (c : CadCell A) (q : Cadeque A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_cad H l q ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    heap_represents_cad (snd (alloc c H)) l q.
+Proof.
+  intros. apply heap_represents_cad_persists_alloc; assumption.
+Qed.
+
+Lemma heap_represents_triple_persists_one_alloc :
+  forall (A : Type) (c : CadCell A) (t : Triple A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_triple H l t ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    heap_represents_triple (snd (alloc c H)) l t.
+Proof.
+  intros. apply heap_represents_triple_persists_alloc; assumption.
+Qed.
+
+(** ** Full general sequence-correctness for the DD-simple case.
+
+    Both A and B are CDouble.  The simple op fires only when the
+    middle triples (tRA, tLB) have all empty buffers, dropping
+    them.  In that case, the result represents
+    [CDouble (tLA, tRB)] where the abstract sequence is
+    list(tLA) ++ list(tRB).
+
+    To match the abstract concat semantics under this drop, we
+    require the middle triples to abstractly equal triples whose
+    sequence is empty (i.e. [TRight buf6_empty CEmpty buf6_empty]
+    and [TLeft buf6_empty CEmpty buf6_empty]).  Under those
+    hypotheses, the dropped triples contribute nothing to the
+    abstract sequence, and the result is correct. *)
+
+Theorem cad_concat_imp_double_double_simple_seq :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (tLA tRB : Triple A),
+    heap_represents_cad H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp_double_double_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble tLA tRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip
+         H' l' k Hop.
+  unfold cad_concat_imp_double_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl.
+  eapply HRC_Double.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne];
+      [reflexivity|contradiction].
+  - apply heap_represents_triple_persists_one_alloc; assumption.
+  - apply heap_represents_triple_persists_one_alloc; assumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
