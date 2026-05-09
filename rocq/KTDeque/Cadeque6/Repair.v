@@ -1534,3 +1534,61 @@ Proof.
     + cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
   - cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
 Qed.
+
+(** ** Partial preservation for pop/eject: empty-child case.
+
+    When the input is [CSingle (TOnly pre CEmpty suf)], the
+    operational pop/eject's reshape via [normalize_only_empty_child]
+    yields a regular result.  Cases with non-empty child or CDouble
+    require the cascade machinery (deferred). *)
+
+Theorem cad_pop_op_preserves_regular_TOnly_CEmpty :
+  forall (X : Type) (pre suf : Buf6 X) (x : X) (q' : Cadeque X),
+    cad_pop_op (CSingle (TOnly pre CEmpty suf)) = Some (x, q') ->
+    regular_cad q'.
+Proof.
+  intros X pre suf x q' Hp.
+  cbn [cad_pop_op] in Hp.
+  destruct (buf6_pop pre) as [[y pre']|] eqn:Hpre.
+  - injection Hp as Hxy Hq'. subst y q'.
+    apply normalize_only_empty_child_regular.
+  - destruct (buf6_pop suf) as [[y suf']|] eqn:Hsuf.
+    + injection Hp as Hxy Hq'. subst y q'.
+      apply normalize_only_empty_child_regular.
+    + discriminate.
+Qed.
+
+Theorem cad_eject_op_preserves_regular_TOnly_CEmpty :
+  forall (X : Type) (pre suf : Buf6 X) (x : X) (q' : Cadeque X),
+    cad_eject_op (CSingle (TOnly pre CEmpty suf)) = Some (q', x) ->
+    regular_cad q'.
+Proof.
+  intros X pre suf x q' He.
+  cbn [cad_eject_op] in He.
+  destruct (buf6_eject suf) as [[suf' y]|] eqn:Hsuf.
+  - injection He as Hq' Hxy. subst q' y.
+    apply normalize_only_empty_child_regular.
+  - destruct (buf6_eject pre) as [[pre' y]|] eqn:Hpre.
+    + injection He as Hq' Hxy. subst q' y.
+      apply normalize_only_empty_child_regular.
+    + discriminate.
+Qed.
+
+(** ** Sequence-None law for the empty-child cases.
+
+    When the empty-child cad_pop_op returns None, both buffers
+    are empty (so the cadeque's flattened sequence is empty too). *)
+
+Theorem cad_pop_op_TOnly_CEmpty_none_iff_buffers_empty :
+  forall (X : Type) (pre suf : Buf6 X),
+    cad_pop_op (CSingle (TOnly pre CEmpty suf)) = None ->
+    buf6_to_list pre = [] /\ buf6_to_list suf = [].
+Proof.
+  intros X pre suf Hp.
+  cbn [cad_pop_op] in Hp.
+  destruct (buf6_pop pre) as [[y pre']|] eqn:Hpre; [discriminate|].
+  destruct (buf6_pop suf) as [[y suf']|] eqn:Hsuf; [discriminate|].
+  apply buf6_pop_seq_none in Hpre.
+  apply buf6_pop_seq_none in Hsuf.
+  split; assumption.
+Qed.
