@@ -501,3 +501,18 @@ Proof.
   rewrite cad_concat_seq. cbn [cad_to_list_base cad_to_list].
   reflexivity.
 Qed.
+
+(** ** General WC O(1) bound for [cad_concat_imp]: pending.
+
+    The per-path cost theorems above (when_A_empty, when_B_empty,
+    when_singleton_singleton) cover the three implemented success
+    paths with cost ≤ 11.  Every other shape combination
+    short-circuits to retC with cost 1-2.
+
+    A fully mechanized "for all inputs k ≤ 11" theorem requires a
+    long case split on the 8 × 8 = 64 cell-shape combinations of
+    cA and cB, plus the inner triple-cell combinations for the
+    CC_CadSingle, CC_CadSingle case.  The proof technique is
+    identical to [DequePtr/Footprint.v]'s [NF_PUSH_PKT_FULL = 9];
+    we omit the long enumeration here and rely on the per-path
+    statements as the operationally-meaningful WC O(1) claim. *)
