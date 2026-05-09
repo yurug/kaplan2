@@ -503,7 +503,13 @@ Definition cad_concat_imp {A : Type} (lA lB : Loc) : MC (CadCell A) Loc :=
               match cA, cB with
               | CC_CadSingle _, CC_CadSingle _ =>
                   cad_concat_imp_singleton_singleton_simple lA lB
-              | _, _ => retC lA  (* CDouble cases: TODO *)
+              | CC_CadSingle _, CC_CadDouble _ _ =>
+                  cad_concat_imp_single_double_simple lA lB
+              | CC_CadDouble _ _, CC_CadSingle _ =>
+                  cad_concat_imp_double_single_simple lA lB
+              | CC_CadDouble _ _, CC_CadDouble _ _ =>
+                  cad_concat_imp_double_double_simple lA lB
+              | _, _ => retC lA  (* unreachable for valid cadeque cells *)
               end
           end)
     end).
@@ -560,13 +566,75 @@ Qed.
 
 Definition CAD_CONCAT_IMP_COST : nat := 8.
 
+(** ** Cost theorems for the new dispatch paths. *)
+
+(* CSingle + CDouble path: cost = 2 (entry reads) + 6 (sd_simple) = 8. *)
+Theorem cad_concat_imp_cost_when_single_double_empty_boundary :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    cost_of (cad_concat_imp lA lB) H = Some 8.
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB HA HB HtA HtLB.
+  unfold cad_concat_imp, cost_of, bindC, read_MC, retC.
+  rewrite HA, HB. cbn.
+  unfold cad_concat_imp_single_double_simple, bindC, read_MC,
+         alloc_MC, retC.
+  rewrite HA, HB, HtA, HtLB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
+(* CDouble + CSingle path: cost = 2 (entry reads) + 6 (ds_simple) = 8. *)
+Theorem cad_concat_imp_cost_when_double_single_empty_boundary :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    cost_of (cad_concat_imp lA lB) H = Some 8.
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' HA HB HtRA HtB.
+  unfold cad_concat_imp, cost_of, bindC, read_MC, retC.
+  rewrite HA, HB. cbn.
+  unfold cad_concat_imp_double_single_simple, bindC, read_MC,
+         alloc_MC, retC.
+  rewrite HA, HB, HtRA, HtB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
+(* CDouble + CDouble path: cost = 2 (entry reads) + 5 (dd_simple) = 7. *)
+Theorem cad_concat_imp_cost_when_double_double_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    cost_of (cad_concat_imp lA lB) H = Some 7.
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB HA HB HtRA HtLB.
+  unfold cad_concat_imp, cost_of, bindC, read_MC, retC.
+  rewrite HA, HB. cbn.
+  unfold cad_concat_imp_double_double_simple, bindC, read_MC,
+         alloc_MC, retC.
+  rewrite HA, HB, HtRA, HtLB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
 (** ** Cost overview table for [cad_concat_imp].
 
     Path                                                       | Cost
     -----------------------------------------------------------+------
     A is CC_CadEmpty                                           |  1
     A non-empty, B is CC_CadEmpty                              |  2
-    Both CC_CadSingle, TripleOnly inputs, sufA=preB=[]         |  8
+    Both CC_CadSingle, TripleOnly inputs, empty boundary       |  8
+    CSingle + CDouble (TLeft start), empty boundary            |  8
+    CDouble + CSingle (TRight end), empty boundary             |  8
+    CDouble + CDouble, all middle empty                        |  7
     All other shape combinations                               |  ≤ 8
 
     The headline: every successful path costs at most 8 cell
