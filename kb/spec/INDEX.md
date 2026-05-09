@@ -29,6 +29,7 @@ repair cases) readable rather than mystical.
 | Build/extraction config and project layout             | `config-and-formats.md`            |
 | Error / failure classes                                | `error-taxonomy.md`                |
 | Verbatim KT99 §4.2 Section-4 repair cases              | `section4-repair-cases.md`         |
+| Phase 4b design: heap-based DSL for WC O(1) catenable concat | `phase-4b-imperative-dsl.md`  |
 
 ## §22 Acceptance Checklist mapping
 
