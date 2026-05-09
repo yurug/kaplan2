@@ -1,17 +1,29 @@
 ; Public verified library: the OCaml extraction of the Rocq
-; KTDeque/DequePtr/ formalization.  This is the deque we ship.
+; KTDeque/ formalization.  This is the deque we ship.
 ;
-; The .ml/.mli files are checked into git as a snapshot — `dune build`
-; works without ../rocq/ being present.  To regenerate the snapshot,
-; run `dune build rocq/KTDeque/Extract` from the repo root and copy
-; the result over.  The single module exposed is [KTDeque] (file
-; kTDeque.ml).
+; Two modules are exposed:
+; - [KTDeque]            -- Section-4 non-catenable deque (WC O(1)
+;                           per op, packet/chain layout).
+; - [KTCatenableDeque]   -- Section-6 catenable deque (correctness
+;                           spec; WC O(1) per op for push/inject is
+;                           proven, pop/eject/concat are O(n) at the
+;                           spec level via cad_normalize -- Phase 4
+;                           of kb/plan-catenable.md will refine
+;                           the spec to a level-typed cascade).
+;
+; The .ml/.mli files are checked into git as a snapshot -- `dune build`
+; works without ../rocq/ being present.  To regenerate:
+;   - For KTDeque: build rocq/KTDeque/Extract/Extraction.v.
+;   - For KTCatenableDeque: build rocq/KTDeque/Extract/CatenableExtraction.v.
+; Then copy _build/default/kt_extracted/kTDeque.{ml,mli} resp.
+; _build/default/kt_catenable_extracted/kTCatenableDeque.{ml,mli}
+; over, preserving the hand-written .mli headers.
 (library
  (name ktdeque)
  (public_name ktdeque)
  (synopsis "Kaplan-Tarjan persistent real-time deque (Coq-extracted, worst-case O(1))")
  (wrapped false)
- (modules kTDeque))
+ (modules kTDeque kTCatenableDeque))
 
 (executable
  (name test_ktdeque)
