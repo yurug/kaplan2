@@ -397,6 +397,48 @@ Qed.
 
 Definition CAD_CONCAT_IMP_DS_SIMPLE_COST : nat := 6.
 
+Theorem cad_concat_imp_double_single_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_double_single_simple lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_DS_SIMPLE_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold CAD_CONCAT_IMP_DS_SIMPLE_COST.
+  unfold cad_concat_imp_double_single_simple, cost_of, bindC,
+         read_MC, retC, alloc_MC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA;
+    destruct (lookup H lB) as [cB|];
+    [destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  (* Surviving: cA = CC_CadDouble, cB = CC_CadSingle *)
+  destruct (lookup H _) as [tRA|]; [|discriminate Hcost].
+  destruct tRA;
+    destruct (lookup H _) as [tB|];
+    [destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  (* Surviving: tRA = CC_TripleRight, tB = CC_TripleOnly *)
+  destruct (buf6_elems _);
+    [destruct (buf6_elems _)|];
+    cbn in Hcost; injection Hcost as Hk; lia.
+Qed.
+
 (** ** [cad_concat_imp_single_double_simple]: A is CSingle, B is CDouble.
 
     Mirror of the above: A's triple combines with B's left triple.
@@ -445,6 +487,46 @@ Proof.
 Qed.
 
 Definition CAD_CONCAT_IMP_SD_SIMPLE_COST : nat := 6.
+
+Theorem cad_concat_imp_single_double_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_single_double_simple lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_SD_SIMPLE_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold CAD_CONCAT_IMP_SD_SIMPLE_COST.
+  unfold cad_concat_imp_single_double_simple, cost_of, bindC,
+         read_MC, retC, alloc_MC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA;
+    destruct (lookup H lB) as [cB|];
+    [destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  destruct (lookup H _) as [tA|]; [|discriminate Hcost].
+  destruct tA;
+    destruct (lookup H _) as [tLB|];
+    [destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  destruct (buf6_elems _);
+    [destruct (buf6_elems _)|];
+    cbn in Hcost; injection Hcost as Hk; lia.
+Qed.
 
 (** ** [cad_concat_imp_double_double_simple]: A is CDouble, B is CDouble.
 
@@ -512,6 +594,49 @@ Proof.
 Qed.
 
 Definition CAD_CONCAT_IMP_DD_SIMPLE_COST : nat := 5.
+
+Theorem cad_concat_imp_double_double_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_double_double_simple lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_DD_SIMPLE_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold CAD_CONCAT_IMP_DD_SIMPLE_COST.
+  unfold cad_concat_imp_double_double_simple, cost_of, bindC,
+         read_MC, retC, alloc_MC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA;
+    destruct (lookup H lB) as [cB|];
+    [destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  destruct (lookup H _) as [tRA|]; [|discriminate Hcost].
+  destruct tRA;
+    destruct (lookup H _) as [tLB|];
+    [destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost
+    |destruct tLB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  (* Surviving: tRA = CC_TripleRight, tLB = CC_TripleLeft *)
+  destruct (buf6_elems _);
+    [destruct (buf6_elems _);
+     [destruct (buf6_elems _);
+      [destruct (buf6_elems _) | ] | ] | ];
+    cbn in Hcost; injection Hcost as Hk; lia.
+Qed.
 
 (** ** Unified [cad_concat_imp]: dispatch to the implemented cases.
 
