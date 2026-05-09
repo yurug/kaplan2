@@ -1560,9 +1560,9 @@ Qed.
 
     *** Sequence-correctness (result heap represents abstract [cad_concat]):
 
+    Sub-op correctness:
     - [cad_concat_imp_left_empty_correct]                     : when A=CC_CadEmpty
     - [cad_concat_imp_right_empty_correct]                    : when B=CC_CadEmpty
-    - [cad_concat_imp_correct_when_A_empty]                   : unified entry, A empty
     - [cad_concat_imp_singleton_singleton_simple_correct]     : SS case w/ preconds
     - [cad_concat_imp_singleton_singleton_simple_correct_strong] : SS w/ persistence
     - [cad_concat_imp_singleton_singleton_buffers_correct]    : SS w/ non-empty boundary
@@ -1570,10 +1570,17 @@ Qed.
     - [cad_concat_imp_single_double_simple_correct]           : SD case w/ preconds
     - [cad_concat_imp_double_double_simple_correct]           : DD case w/ preconds
 
+    Unified entry correctness (composes dispatch + sub-op):
+    - [cad_concat_imp_correct_when_A_empty]                   : unified, A=CEmpty
+    - [cad_concat_imp_correct_when_singleton_singleton]       : unified, SS dispatch
+    - [cad_concat_imp_correct_when_double_single]             : unified, DS dispatch
+    - [cad_concat_imp_correct_when_single_double]             : unified, SD dispatch
+    - [cad_concat_imp_correct_when_double_double]             : unified, DD dispatch
+
     All four shape combinations (CSingle×CSingle, CSingle×CDouble,
-    CDouble×CSingle, CDouble×CDouble) have proven correctness under
-    appropriate preconditions (empty middle buffers + relevant
-    children resolve to CEmpty).
+    CDouble×CSingle, CDouble×CDouble) have proven correctness for
+    BOTH the sub-op and the unified entry, under appropriate
+    preconditions.
 
     The STRONG simple-SS correctness theorem additionally proves
     that A and B's existing cells are preserved verbatim in H'
