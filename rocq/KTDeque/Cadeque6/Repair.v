@@ -1592,3 +1592,58 @@ Proof.
   apply buf6_pop_seq_none in Hsuf.
   split; assumption.
 Qed.
+
+(** * [cad_concat_op]: operational concat with trivial-case
+    handling.
+
+    The full operational concat needs all five repair cases per
+    manual §12.4 and the [adopt6] shortcut machinery; that is the
+    headline pending work for Phase 5.6+.
+
+    For now, [cad_concat_op] handles the trivial cases (one side
+    empty) directly and delegates to abstract [cad_concat] for
+    the substantive case.  In the trivial cases, the result equals
+    the non-empty side, so regularity is inherited. *)
+
+Definition cad_concat_op {X : Type} (a b : Cadeque X) : Cadeque X :=
+  match a, b with
+  | CEmpty, _ => b
+  | _, CEmpty => a
+  | _, _ => cad_concat a b
+  end.
+
+Theorem cad_concat_op_seq :
+  forall (X : Type) (a b : Cadeque X),
+    cad_to_list_base (cad_concat_op a b)
+    = cad_to_list_base a ++ cad_to_list_base b.
+Proof.
+  intros X a b. destruct a as [|ta|aL aR]; destruct b as [|tb|bL bR];
+    cbn [cad_concat_op]; try (apply cad_concat_seq);
+    try (cbn; rewrite ?app_nil_r; reflexivity).
+Qed.
+
+Theorem cad_concat_op_refines_cad_concat :
+  forall (X : Type) (a b : Cadeque X),
+    cad_to_list_base (cad_concat_op a b) = cad_to_list_base (cad_concat a b).
+Proof.
+  intros X a b. rewrite cad_concat_op_seq, cad_concat_seq. reflexivity.
+Qed.
+
+(** ** Trivial-case preservation: when one side is empty, the
+    result equals the other side, so regularity is inherited. *)
+
+Theorem cad_concat_op_preserves_regular_left_empty :
+  forall (X : Type) (b : Cadeque X),
+    regular_cad b ->
+    regular_cad (cad_concat_op (@CEmpty X) b).
+Proof.
+  intros X b Hb. cbn [cad_concat_op]. exact Hb.
+Qed.
+
+Theorem cad_concat_op_preserves_regular_right_empty :
+  forall (X : Type) (a : Cadeque X),
+    regular_cad a ->
+    regular_cad (cad_concat_op a (@CEmpty X)).
+Proof.
+  intros X a Ha. destruct a; cbn [cad_concat_op]; exact Ha.
+Qed.
