@@ -27,22 +27,31 @@
       sequence law.  Push and inject have full [regular_cad]
       preservation; the others have partial preservation for the
       simpler cases.
+    - **Imperative DSL** ([OpsImperative.v]): heap-based [cad_concat_imp]
+      with WC O(1) cost (≤ 8), input-persistence, list-level
+      sequence-refinement, and the flagship 6-path FULL CONTRACT
+      bundle.  Foundation: [heap_represents_cad] / [_triple]
+      inductive relations + persistence-under-alloc + determinism.
 
     This file introduces no new definitions or theorems; it is
     purely a convenience.
 
     ## Cross-references
 
-    - [Cadeque6/Model.v]        -- types + flattening.
-    - [Cadeque6/OpsAbstract.v]  -- operations + algebra laws.
-    - [Cadeque6/Color.v]        -- four-colour discipline.
-    - [Cadeque6/Regularity.v]   -- non-emptiness + preferred-path
-                                   + (semi)regular invariants.
-    - [Cadeque6/Repair.v]       -- operational repair primitives
-                                   + cad_*_op operations.
-    - [Cadeque6/Examples.v]     -- worked examples (not exported here
-                                   to avoid polluting the namespace).
+    - [Cadeque6/Model.v]         -- types + flattening.
+    - [Cadeque6/OpsAbstract.v]   -- operations + algebra laws.
+    - [Cadeque6/Color.v]         -- four-colour discipline.
+    - [Cadeque6/Regularity.v]    -- non-emptiness + preferred-path
+                                    + (semi)regular invariants.
+    - [Cadeque6/Repair.v]        -- operational repair primitives
+                                    + cad_*_op operations.
+    - [Cadeque6/HeapCells.v]     -- CadCell type + embed/extract.
+    - [Cadeque6/OpsImperative.v] -- WC O(1) catenable concat in the cost
+                                    monad on [Heap (CadCell A)].
+    - [Cadeque6/Examples.v]      -- worked examples (not exported here
+                                    to avoid polluting the namespace).
     - [kb/spec/why-catenable.md] -- intuition layer.
 *)
 
-From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity Repair Cost HeapCells.
+From KTDeque.Cadeque6 Require Export
+  Model OpsAbstract Color Regularity Repair Cost HeapCells OpsImperative.
