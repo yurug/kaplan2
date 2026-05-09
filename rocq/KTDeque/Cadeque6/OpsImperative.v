@@ -822,6 +822,114 @@ Definition cad_concat_imp {A : Type} (lA lB : Loc) : MC (CadCell A) Loc :=
           end)
     end).
 
+(** ** [cad_push_imp]: heap-based imperative push, WC O(1).
+
+    Reads at most 2 cells (the top + the leftmost triple), allocates
+    at most 2 cells (new triple + new top wrapper).  Cost ≤ 4.
+
+    For CSingle the leftmost triple is the TOnly; for CDouble it is
+    the TLeft.  Buffers grow by one without size-checking — the
+    resulting Buf6 may exceed nominal size 6, but [Buf6] is a thin
+    wrapper around [list] without an enforced bound at the type
+    level, so this is fine for sequence-correctness.  Size-policed
+    variants can wrap this with cascade. *)
+
+Definition cad_push_imp {A : Type} (x : A) (lA : Loc) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CC_CadEmpty =>
+        bindC (alloc_MC (CC_TripleOnly (buf6_singleton x) lA buf6_empty))
+              (fun lt => alloc_MC (CC_CadSingle lt))
+    | CC_CadSingle lt =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CC_TripleOnly pre c suf =>
+              bindC (alloc_MC (CC_TripleOnly (buf6_push x pre) c suf))
+                    (fun lt' => alloc_MC (CC_CadSingle lt'))
+          | _ => retC lA
+          end)
+    | CC_CadDouble ltL ltR =>
+        bindC (read_MC ltL) (fun tL =>
+          match tL with
+          | CC_TripleLeft pre c suf =>
+              bindC (alloc_MC (CC_TripleLeft (buf6_push x pre) c suf))
+                    (fun ltL' => alloc_MC (CC_CadDouble ltL' ltR))
+          | _ => retC lA
+          end)
+    | _ => retC lA
+    end).
+
+(** Cost = 3 when input is CC_CadEmpty (1 read + 2 allocs). *)
+Theorem cad_push_imp_cost_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc),
+    lookup H lA = Some CC_CadEmpty ->
+    cost_of (cad_push_imp x lA) H = Some 3.
+Proof.
+  intros A H x lA HA.
+  unfold cad_push_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA. cbn. reflexivity.
+Qed.
+
+(** Cost = 4 when input is CC_CadSingle (2 reads + 2 allocs). *)
+Theorem cad_push_imp_cost_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA lt : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre c suf) ->
+    cost_of (cad_push_imp x lA) H = Some 4.
+Proof.
+  intros A H x lA lt pre suf c HA Ht.
+  unfold cad_push_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. reflexivity.
+Qed.
+
+(** Cost = 4 when input is CC_CadDouble (2 reads + 2 allocs). *)
+Theorem cad_push_imp_cost_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA ltL ltR : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltL = Some (CC_TripleLeft pre c suf) ->
+    cost_of (cad_push_imp x lA) H = Some 4.
+Proof.
+  intros A H x lA ltL ltR pre suf c HA HtL.
+  unfold cad_push_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HtL. cbn. reflexivity.
+Qed.
+
+(** Universal WC O(1) bound: cost ≤ 4 over ALL inputs. *)
+Definition CAD_PUSH_IMP_COST : nat := 4.
+
+Theorem cad_push_imp_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc) (k : nat),
+    cost_of (cad_push_imp x lA) H = Some k ->
+    k <= CAD_PUSH_IMP_COST.
+Proof.
+  intros A H x lA k Hcost.
+  unfold cad_push_imp, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost.
+  (* CC_TripleOnly: hits the catch-all retC, cost = 1. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+  (* CC_TripleLeft: catch-all. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+  (* CC_TripleRight: catch-all. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+  (* CC_CadEmpty: 1 read + 2 allocs, cost = 3. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+  (* CC_CadSingle: depends on lookup at the triple loc. *)
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_PUSH_IMP_COST; lia.
+  (* CC_CadDouble: depends on lookup at the leftmost triple loc. *)
+  - destruct (lookup H l) as [tL|] eqn:HlL; [|discriminate].
+    destruct tL; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_PUSH_IMP_COST; lia.
+  (* CC_StoredSmall: catch-all. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+  (* CC_StoredBig: catch-all. *)
+  - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
+Qed.
+
 (** ** [cad_concat_imp] success-path cost statements. *)
 
 (* When A is CC_CadEmpty: the entire computation is one read and a
