@@ -2170,6 +2170,145 @@ Proof.
   apply cad_concat_imp_WC_O1 in Hcost. exact Hcost.
 Qed.
 
+(** ** FLAGSHIP "FULL CONTRACT" theorems: bundle the four guarantees.
+
+    Per shape, gives a single bottom-line statement that
+    [cad_concat_imp]:
+      (1) terminates with cost ≤ 8 (WC O(1));
+      (2) preserves the input snapshots in H' (purely-functional);
+      (3) emits a result heap that represents the correctly-joined
+          abstract cadeque;
+      (4) any heap_represents witness for the result has list equal
+          to inputs' lists concatenated.
+
+    These compose the four matrix theorems
+        cad_concat_imp_WC_O1
+        cad_concat_imp_*_inputs_persist
+        cad_concat_imp_seq_when_*
+        cad_concat_imp_*_list_correct
+    into one statement per shape — a one-stop entry point for
+    consumers. *)
+
+Theorem cad_concat_imp_ss_full_contract :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (cA' : Cadeque A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      (* (1) WC O(1) cost. *)
+      k <= CAD_CONCAT_IMP_COST /\
+      (* (2) Inputs persist as snapshots. *)
+      heap_represents_cad H' lA (CSingle (TOnly preA cA' buf6_empty)) /\
+      heap_represents_cad H' lB (CSingle (TOnly buf6_empty CEmpty sufB)) /\
+      (* (3) Result represents the joined cadeque. *)
+      heap_represents_cad H' l' (CSingle (TOnly preA cA' sufB)) /\
+      (* (4) List-level: result list = inputs' lists ++. *)
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CSingle (TOnly preA cA' buf6_empty)) ++
+           cad_to_list_base (CSingle (TOnly buf6_empty CEmpty sufB))).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild cA'
+         HrepA HrepB HA HB HtA HtB HrepCA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  assert (Hpersist : heap_represents_cad H' lA (CSingle (TOnly preA cA' buf6_empty)) /\
+                     heap_represents_cad H' lB (CSingle (TOnly buf6_empty CEmpty sufB))).
+  { eapply cad_concat_imp_ss_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad H' l' (CSingle (TOnly preA cA' sufB))).
+  { eapply cad_concat_imp_seq_when_singleton_singleton;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact HrepCA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_terminates_with_constant_cost; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_ss_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact HrepCA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_concat_imp_dd_full_contract :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (tLA tRB : Triple A),
+    heap_represents_cad H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      k <= CAD_CONCAT_IMP_COST /\
+      heap_represents_cad H' lA (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) /\
+      heap_represents_cad H' lB (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) /\
+      heap_represents_cad H' l' (CDouble tLA tRB) /\
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ++
+           cad_to_list_base (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip
+         H' l' k Hop.
+  assert (Hpersist : heap_represents_cad H' lA
+                       (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) /\
+                     heap_represents_cad H' lB
+                       (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB)).
+  { eapply cad_concat_imp_dd_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact Hwf_cad | exact Hwf_trip | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad H' l' (CDouble tLA tRB)).
+  { eapply cad_concat_imp_seq_when_double_double;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_terminates_with_constant_cost; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_dd_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+       | exact Hop | exact Hres].
+Qed.
+
 (** ** Persistence under alloc: foundational lemma.
 
     For any [l] that's strictly less than [next_loc H], [lookup l]
