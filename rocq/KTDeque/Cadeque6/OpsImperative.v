@@ -197,16 +197,52 @@ Qed.
 
 Definition CAD_CONCAT_IMP_SS_SIMPLE_COST : nat := 6.
 
-(** ** General WC O(1) bound for [cad_concat_imp_singleton_singleton_simple]:
-    deferred to follow-up Phase 4b chunk.
+(** ** General WC O(1) bound for [cad_concat_imp_singleton_singleton_simple].
 
-    The per-path cost theorem [cad_concat_imp_singleton_singleton_simple_cost_exact]
-    establishes cost = 6 in the success path; failure paths short-circuit
-    with cost 1-4.  A fully mechanized "for all inputs k ≤ 6" theorem
-    requires careful unfolding of the bindC chain through 4 reads, the
-    inner case-on-shapes, and the buf6_elems dispatch -- the proof
-    technique mirrors [DequePtr/Footprint.v] but the elaborate
-    enumeration is left for a focused follow-up. *)
+    For any heap and any [Loc] inputs, if the operation succeeds,
+    cost ≤ 6.  Proved via systematic case enumeration. *)
+
+Theorem cad_concat_imp_singleton_singleton_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_singleton_singleton_simple lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_SS_SIMPLE_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold CAD_CONCAT_IMP_SS_SIMPLE_COST.
+  unfold cad_concat_imp_singleton_singleton_simple, cost_of, bindC,
+         read_MC, retC, alloc_MC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA;
+    destruct (lookup H lB) as [cB|];
+    [destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  (* Surviving: cA = CC_CadSingle, cB = CC_CadSingle.  Read inner triples. *)
+  destruct (lookup H _) as [tA|]; [|discriminate Hcost].
+  destruct tA;
+    destruct (lookup H _) as [tB|];
+    [destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  (* Surviving: tA = CC_TripleOnly, tB = CC_TripleOnly *)
+  destruct (buf6_elems _);
+    [destruct (buf6_elems _)|];
+    cbn in Hcost; injection Hcost as Hk; lia.
+Qed.
 
 (** ** Headline: [cad_concat_imp_left_empty] achieves WC O(1).
 
