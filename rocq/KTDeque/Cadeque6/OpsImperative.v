@@ -1035,6 +1035,100 @@ Proof.
   reflexivity.
 Qed.
 
+(** ** Sequence-correctness for the CDouble simple cases.
+
+    Each of the three CDouble simple operations is sequence-correct
+    under specific preconditions: empty middle buffers AND the
+    relevant inner children resolve to [CC_CadEmpty].  The structural
+    pattern follows the SS-simple case proof. *)
+
+Theorem cad_concat_imp_double_single_simple_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    forall H' l' k,
+      cad_concat_imp_double_single_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleRight preRA cRA sufB)
+      /\ lookup H' l' = Some (CC_CadDouble ltLA lt).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' HA HB HtRA HtB
+         H' l' k Hop.
+  unfold cad_concat_imp_double_single_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_single_double_simple_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    forall H' l' k,
+      cad_concat_imp_single_double_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleLeft preA cA' sufLB)
+      /\ lookup H' l' = Some (CC_CadDouble lt ltRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB HA HB HtA HtLB
+         H' l' k Hop.
+  unfold cad_concat_imp_single_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_double_double_simple_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    forall H' l' k,
+      cad_concat_imp_double_double_simple lA lB H = Some (H', l', k) ->
+      lookup H' l' = Some (CC_CadDouble ltLA ltRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB HA HB HtRA HtLB
+         H' l' k Hop.
+  unfold cad_concat_imp_double_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl. unfold lookup. cbn.
+  destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne];
+    [reflexivity|contradiction].
+Qed.
+
 (** ** Headline summary: WC O(1) catenable concat in Coq.
 
     What's proven in the cost monad on [Heap (CadCell A)]:
@@ -1073,13 +1167,19 @@ Qed.
     - [cad_concat_imp_right_empty_correct]                    : when B=CC_CadEmpty
     - [cad_concat_imp_correct_when_A_empty]                   : unified entry, A empty
     - [cad_concat_imp_singleton_singleton_simple_correct]     : SS case w/ preconds
+    - [cad_concat_imp_double_single_simple_correct]           : DS case w/ preconds
+    - [cad_concat_imp_single_double_simple_correct]           : SD case w/ preconds
+    - [cad_concat_imp_double_double_simple_correct]           : DD case w/ preconds
+
+    All four shape combinations (CSingle×CSingle, CSingle×CDouble,
+    CDouble×CSingle, CDouble×CDouble) have proven correctness under
+    appropriate preconditions (empty middle buffers + relevant
+    children resolve to CEmpty).
 
     *** What's deferred:
 
-    - Sequence-correctness for the 3 CDouble simple cases (current
-      ops drop middle cells when present; correctness only under
-      empty-middle preconditions).
     - Non-empty joining boundary + non-trivial children: requires
       adopt6 shortcut + level-typed cascade per
       [kb/spec/phase-4b-imperative-dsl.md].
-    - The five §12.4 repair cases for non-trivial children. *)
+    - The five §12.4 repair cases for non-trivial children.
+    - Bundled refinement linking imperative ops to abstract spec. *)
