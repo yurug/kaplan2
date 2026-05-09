@@ -2306,9 +2306,27 @@ Qed.
     - [cad_concat_imp_single_double_simple_correct_strong]
     - [cad_concat_imp_double_double_simple_correct_strong]
 
-    All four shape combinations have proven strong correctness,
-    validating the persistence-of-persistence property critical for
-    purely-functional snapshots.
+    *** FULL GENERAL SEQUENCE-CORRECTNESS via heap_represents_cad:
+    - [cad_concat_imp_singleton_singleton_simple_seq]
+    - [cad_concat_imp_double_single_simple_seq]
+    - [cad_concat_imp_single_double_simple_seq]
+    - [cad_concat_imp_double_double_simple_seq]
+
+    Each proves that under the standard shape preconditions PLUS
+    structural well-formedness, the result heap H' represents the
+    joined abstract cadeque (computed compositionally from the
+    inputs' abstract values).  The arbitrary middle children are
+    handled via persistence — no longer requiring "trivial child"
+    preconditions for SS, DS, SD.
+
+    Foundation: [heap_represents_cad] / [heap_represents_triple]
+    inductive relations, with mutual persistence theorems
+    [heap_represents_*_persists_alloc] and convenience helpers for
+    1-alloc and 2-alloc patterns.
+
+    All four shape combinations have proven strong correctness AND
+    full general sequence-correctness, validating the persistence-
+    of-persistence property critical for purely-functional snapshots.
 
     *** Persistence under alloc (foundational):
 
