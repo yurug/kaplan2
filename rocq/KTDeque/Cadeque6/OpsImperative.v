@@ -1522,6 +1522,64 @@ Proof.
   intros. apply heap_represents_triple_persists_alloc; assumption.
 Qed.
 
+(** ** Determinism of heap_represents_cad / heap_represents_triple.
+
+    Two abstract cadeques (resp. triples) represented at the same
+    loc in the same heap must be equal.  This pins down the abstract
+    value of any heap_represents witness, letting us go from "H'
+    represents some q'" to "q' = a SPECIFIC computed cadeque". *)
+Lemma heap_represents_cad_det :
+  forall (A : Type) (H : Heap (CadCell A)) (l : Loc) (q1 q2 : Cadeque A),
+    heap_represents_cad H l q1 ->
+    heap_represents_cad H l q2 ->
+    q1 = q2
+with heap_represents_triple_det :
+  forall (A : Type) (H : Heap (CadCell A)) (l : Loc) (t1 t2 : Triple A),
+    heap_represents_triple H l t1 ->
+    heap_represents_triple H l t2 ->
+    t1 = t2.
+Proof.
+  - intros A H l q1 q2 H1 H2.
+    destruct H1 as [H l Hlk
+                   | H l lt t Hlk Ht
+                   | H l ltL ltR tL tR Hlk HtL HtR ];
+    inversion H2 as [H'' l'' Hlk'
+                    | H'' l'' lt' t' Hlk' Ht'
+                    | H'' l'' ltL' ltR' tL' tR' Hlk' HtL' HtR' ];
+      subst.
+    + reflexivity.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as ->.
+      f_equal. eapply heap_represents_triple_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> ->.
+      f_equal; eapply heap_represents_triple_det; eassumption.
+  - intros A H l t1 t2 H1 H2.
+    destruct H1 as [H l pre lc suf c Hlk Hc
+                   | H l pre lc suf c Hlk Hc
+                   | H l pre lc suf c Hlk Hc ];
+    inversion H2 as [H'' l'' pre' lc' suf' c' Hlk' Hc'
+                    | H'' l'' pre' lc' suf' c' Hlk' Hc'
+                    | H'' l'' pre' lc' suf' c' Hlk' Hc' ];
+      subst.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_det; eassumption.
+Qed.
+
 (** ** Full general sequence-correctness for the DD-simple case.
 
     Both A and B are CDouble.  The simple op fires only when the
@@ -1736,6 +1794,174 @@ Proof.
   injection Hop as HH Hl Hk. subst H' l'.
   eapply cad_concat_imp_double_double_simple_seq;
     try eassumption.
+Qed.
+
+(** ** List-level refinement corollaries.
+
+    Builds on the heap_represents seq theorems via determinism: any
+    qResult witnessing [heap_represents_cad H' l' qResult] must equal
+    the specific shape proven by the seq theorem.  We then unfold
+    [cad_to_list_base] on both sides and verify the list equation
+    [list(qResult) = list(qA) ++ list(qB)] — the bottom-line
+    sequence-correctness statement most consumers care about. *)
+
+Theorem cad_concat_imp_ss_list_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (cA' : Cadeque A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base (CSingle (TOnly preA cA' buf6_empty)) ++
+        cad_to_list_base (CSingle (TOnly buf6_empty CEmpty sufB)).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild cA'
+         HrepA HrepB HA HB HtA HtB HrepCA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k qResult Hop Hres.
+  assert (Hjoin : heap_represents_cad H' l' (CSingle (TOnly preA cA' sufB))).
+  { eapply cad_concat_imp_seq_when_singleton_singleton; eassumption. }
+  assert (Heq : qResult = _) by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  rewrite app_nil_r, app_assoc. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_ds_list_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (tLA : Triple A) (cRA' : Cadeque A),
+    heap_represents_cad H lA (CDouble tLA (TRight preRA cRA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_cad H cRA cRA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base (CDouble tLA (TRight preRA cRA' buf6_empty)) ++
+        cad_to_list_base (CSingle (TOnly buf6_empty CEmpty sufB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' tLA cRA'
+         HrepA HrepB HA HB HtRA HtB HrepTLA HrepCRA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k qResult Hop Hres.
+  assert (Hjoin : heap_represents_cad H' l'
+                    (CDouble tLA (TRight preRA cRA' sufB))).
+  { eapply cad_concat_imp_seq_when_double_single; eassumption. }
+  assert (Heq : qResult = _) by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  rewrite !app_nil_r, !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_sd_list_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (cA_ab : Cadeque A) (tRB : Triple A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA_ab buf6_empty)) ->
+    heap_represents_cad H lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    heap_represents_cad H cA' cA_ab ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base (CSingle (TOnly preA cA_ab buf6_empty)) ++
+        cad_to_list_base (CDouble (TLeft buf6_empty CEmpty sufLB) tRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB cA_ab tRB
+         HrepA HrepB HA HB HtA HtLB HrepCA HrepTRB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k qResult Hop Hres.
+  assert (Hjoin : heap_represents_cad H' l'
+                    (CDouble (TLeft preA cA_ab sufLB) tRB)).
+  { eapply cad_concat_imp_seq_when_single_double; eassumption. }
+  assert (Heq : qResult = _) by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  rewrite !app_nil_r, !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_dd_list_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (tLA tRB : Triple A),
+    heap_represents_cad H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ++
+        cad_to_list_base (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip
+         H' l' k qResult Hop Hres.
+  assert (Hjoin : heap_represents_cad H' l' (CDouble tLA tRB)).
+  { eapply cad_concat_imp_seq_when_double_double; eassumption. }
+  assert (Heq : qResult = _) by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  rewrite !app_nil_r. reflexivity.
 Qed.
 
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
