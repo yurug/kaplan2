@@ -1143,6 +1143,73 @@ Proof.
     cbn. apply Pos.lt_lt_succ. exact Hlt.
 Qed.
 
+(** ** Strengthened sequence-correctness for simple SS concat.
+
+    Under the simple-case preconditions PLUS well-formedness of H
+    (the relevant locs are all < next_loc H), the result heap H'
+    preserves ALL cells of A and B's structure that were in H,
+    AND contains the freshly-allocated triple + cad cells. *)
+
+Theorem cad_concat_imp_singleton_singleton_simple_correct_strong :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    lookup H cBchild = Some CC_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    Pos.lt lB (next_loc H) ->
+    Pos.lt ltA (next_loc H) ->
+    Pos.lt ltB (next_loc H) ->
+    Pos.lt cAchild (next_loc H) ->
+    Pos.lt cBchild (next_loc H) ->
+    forall H' l' k,
+      cad_concat_imp_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      (* New cells *)
+      lookup H' lt = Some (CC_TripleOnly preA cAchild sufB)
+      /\ lookup H' l' = Some (CC_CadSingle lt)
+      (* Old cells preserved (via persistence) *)
+      /\ lookup H' lA = Some (CC_CadSingle ltA)
+      /\ lookup H' lB = Some (CC_CadSingle ltB)
+      /\ lookup H' ltA = Some (CC_TripleOnly preA cAchild buf6_empty)
+      /\ lookup H' ltB = Some (CC_TripleOnly buf6_empty cBchild sufB)
+      /\ lookup H' cAchild = lookup H cAchild
+      /\ lookup H' cBchild = Some CC_CadEmpty.
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild
+         HA HB HtA HtB Hcb HltA HltB HltA' HltB' HltCA HltCB
+         H' l' k Hop.
+  unfold cad_concat_imp_singleton_singleton_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  (* Key insight: H' = snd (alloc cad_cell (snd (alloc triple_cell H))).
+     For any l < next_loc H, lookup H' l = lookup H l by persistence. *)
+  assert (Hpers : forall l, Pos.lt l (next_loc H) ->
+                  lookup H' l = lookup H l).
+  { intros l Hl_lt. rewrite <- HH. cbn.
+    apply lookup_persists_after_two_allocs. exact Hl_lt. }
+  split; [|split; [|split; [|split; [|split; [|split; [|split]]]]]].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; [reflexivity|assumption].
+  - rewrite Hpers; assumption.
+Qed.
+
 (** ** Sequence-correctness for the empty cases.
 
     When the left input cell is [CC_CadEmpty], it represents the
