@@ -3314,16 +3314,18 @@ Qed.
 
     The bottom-line statement most callers care about — that the
     imperative concat's RESULT LIST equals the inputs' lists
-    concatenated — is proven for all 4 shapes:
+    concatenated — is proven for all 6 dispatch paths:
 
-    - [cad_concat_imp_ss_list_correct]  : SS path
-    - [cad_concat_imp_ds_list_correct]  : DS path
-    - [cad_concat_imp_sd_list_correct]  : SD path
-    - [cad_concat_imp_dd_list_correct]  : DD path
+    - [cad_concat_imp_ss_list_correct]            : SS path
+    - [cad_concat_imp_ds_list_correct]            : DS path
+    - [cad_concat_imp_sd_list_correct]            : SD path
+    - [cad_concat_imp_dd_list_correct]            : DD path
+    - [cad_concat_imp_list_correct_when_A_empty]  : A=CEmpty
+    - [cad_concat_imp_list_correct_when_B_empty]  : B=CEmpty
 
-    Each takes the SS/DS/SD/DD preconditions of the seq theorem
-    plus an arbitrary witness [heap_represents_cad H' l' qResult],
-    and concludes
+    Each takes the corresponding shape preconditions plus an
+    arbitrary witness [heap_represents_cad H' l' qResult] and
+    concludes
         cad_to_list_base qResult
         = cad_to_list_base qA ++ cad_to_list_base qB.
 
