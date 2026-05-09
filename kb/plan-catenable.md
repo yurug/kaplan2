@@ -264,7 +264,8 @@ every level.
 | 3+ — algebra (inverse, distribution, recovery laws) | ✅ done | `5a99712` |
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
-| 4 — cost bound (`O(1)` WC for concat) | ⏳ pending (structural blocker, see below) | — |
+| 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
+| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | ⏳ pending | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
@@ -272,6 +273,28 @@ every level.
 | 6 — `KTCatenableDeque` module + extraction | ✅ done | `7f0acaa` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
+
+Phase 4a (commit `8dd7442`): synthetic structural cost bounds.
+For each of `cad_push_op` / `cad_inject_op` / `cad_pop_op` /
+`cad_eject_op`, [Cadeque6/Cost.v] defines a `*_topcost` function that
+mirrors the operation's AST and counts each pattern-match + newly
+allocated top-level cell as one unit.  All four are bounded by the
+constant 5 (`CAD_*_OP_COST_BOUND`).  Shape-decomposition theorems
+(`cad_*_op_shape_*`) make explicit that the deep substructure of the
+input (the child cadeque inside a `TOnly` / `TLeft` / `TRight`) is
+reused verbatim — no recursion on the `Cadeque X` argument.  This is
+the abstract-layer analogue of [DequePtr/Footprint.v]'s
+`NF_PUSH_PKT_FULL = 9`.
+
+Phase 4b (pending): the abstract layer's `cad_*_op_full` variants and
+`cad_concat_op` are `O(n)` (`cad_normalize` is a list rebuild;
+`cad_concat` delegates to `cad_from_list`).  The WC O(1) catenation
+of KT99 §6 — the headline result — requires a heap-based imperative
+DSL on `Heap (CadCell (E.t A))` mirroring [DequePtr/OpsImperative.v],
+with non-recursive `cad_*_C` operations and the five repair cases
+(1a/1b/2a/2b/2c) plus the `adopt6` shortcut pointer.  This is months
+of work, structurally analogous to the Section-4 imperative DSL
+already done.
 
 Phase 5.6 progress (15 commits):
 
