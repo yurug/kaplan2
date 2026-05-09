@@ -1262,6 +1262,99 @@ Proof.
       * apply heap_represents_cad_persists_alloc; assumption.
 Qed.
 
+(** Persistence over two consecutive allocs (the pattern in the
+    simple-case ops). *)
+Lemma heap_represents_cad_persists_two_allocs :
+  forall (A : Type) (c1 c2 : CadCell A) (q : Cadeque A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_cad H l q ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc c1 H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc c1 H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc c1 H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc c1 H)))) ->
+    heap_represents_cad (snd (alloc c2 (snd (alloc c1 H)))) l q.
+Proof.
+  intros A c1 c2 q H l Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'.
+  apply heap_represents_cad_persists_alloc; try assumption.
+  apply heap_represents_cad_persists_alloc; assumption.
+Qed.
+
+(** ** Full general sequence-correctness for the simple SS case.
+
+    Given that [lA] in [H] represents [CSingle (TOnly preA cA' [])]
+    where the inner buffer is empty, [lB] in [H] represents
+    [CSingle (TOnly [] cB' sufB)] where the inner prefix is empty,
+    AND cB' represents [CEmpty] (trivial right child),
+    AND structural well-formedness holds,
+
+    THEN the result heap [H'] represents
+      [CSingle (TOnly preA cA' sufB)]
+    at the result loc [l'], which by [cad_to_list_base] flattens to
+      preA ++ list(cA') ++ sufB
+    = list(qA) ++ list(qB)
+    as required by sequence-correctness for [cad_concat]. *)
+
+Theorem cad_concat_imp_singleton_singleton_simple_seq :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (cA' : Cadeque A),
+    (* Inputs are well-represented in H. *)
+    heap_represents_cad H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    (* Cell-level layout matches. *)
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad H cAchild cA' ->
+    (* Well-formedness: every loc reachable in H is < next_loc H. *)
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CSingle (TOnly preA cA' sufB)).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild cA'
+         HrepA HrepB HA HB HtA HtB HrepCA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp_singleton_singleton_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl.
+  (* Build heap_represents_cad of the result. *)
+  eapply HRC_Single.
+  - (* Lookup of new top cad cell gives CC_CadSingle (next_loc H). *)
+    cbn. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - (* Inner triple represents (TOnly preA cA' sufB). *)
+    eapply HRT_TOnly.
+    + (* Lookup of new triple cell. *)
+      cbn. unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + (* cAchild's representation persists across the two allocs. *)
+      apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
