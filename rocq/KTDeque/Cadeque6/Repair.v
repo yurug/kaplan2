@@ -1370,3 +1370,105 @@ Proof.
   - apply cad_inject_op_preserves_well_sized. exact Hreg.
   - apply cad_inject_op_preserves_top_kinds. exact Hreg.
 Qed.
+
+(** ** Helper: flatten of a TOnly with empty child = pre ++ suf. *)
+
+Lemma cad_to_list_base_TOnly_CEmpty :
+  forall (X : Type) (pre suf : Buf6 X),
+    cad_to_list_base (CSingle (TOnly pre CEmpty suf))
+    = buf6_to_list pre ++ buf6_to_list suf.
+Proof.
+  intros X [pre_xs] [suf_xs].
+  unfold cad_to_list_base, buf6_to_list, buf6_elems.
+  rewrite cad_to_list_single, triple_to_list_only.
+  unfold buf6_flatten, buf6_elems.
+  rewrite cad_to_list_empty.
+  rewrite (flat_concat_singleton_id X pre_xs).
+  rewrite (flat_concat_singleton_id X suf_xs).
+  cbn [app]. reflexivity.
+Qed.
+
+(** * [cad_pop_op]: operational pop.
+
+    More complex than push because:
+    1. Returns [option] (cadeque might be empty).
+    2. Pop can shrink the leftmost outer prefix below the OT
+       threshold; the algorithm needs to reshape.
+    3. The abstract [cad_pop] returns [None] when [pre] is empty
+       even if elements exist in [suf]; the operational version
+       must handle that.
+
+    For [CSingle (TOnly pre CEmpty suf)] (the empty-child case),
+    we can fully handle pop:
+    - try [buf6_pop pre] first;
+    - if [pre] is empty, pop the suffix instead;
+    - normalize the result into a well-sized shape.
+
+    For other cases (non-empty child, CDouble) the cascade
+    primitives are needed; we delegate to abstract [cad_pop].
+    Full preservation for those cases awaits the [make_small] /
+    cascade work. *)
+
+Definition cad_pop_op {X : Type} (q : Cadeque X) : option (X * Cadeque X) :=
+  match q with
+  | CEmpty => None
+  | CSingle (TOnly pre c suf) =>
+      match c with
+      | CEmpty =>
+          match buf6_pop pre with
+          | Some (x, pre') => Some (x, normalize_only_empty_child pre' suf)
+          | None =>
+              match buf6_pop suf with
+              | Some (x, suf') => Some (x, normalize_only_empty_child buf6_empty suf')
+              | None => None
+              end
+          end
+      | _ => cad_pop q
+      end
+  | _ => cad_pop q
+  end.
+
+(** ** Sequence law: when [cad_pop_op] returns [Some], the original
+    sequence is the popped element followed by the result's sequence. *)
+
+Theorem cad_pop_op_seq :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop_op q = Some (x, q') ->
+    cad_to_list_base q = x :: cad_to_list_base q'.
+Proof.
+  intros X q x q' Hp.
+  destruct q as [|t|tL tR].
+  - cbn in Hp. discriminate.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + destruct c as [|ct|ctL ctR].
+      * (* CSingle (TOnly _ CEmpty _) *)
+        cbn [cad_pop_op] in Hp.
+        destruct (buf6_pop pre) as [[y pre']|] eqn:Hpre.
+        -- (* pop pre succeeded *)
+           injection Hp as Hxy Hq'. subst y q'.
+           rewrite normalize_only_empty_child_seq.
+           apply buf6_pop_seq_some in Hpre.
+           rewrite cad_to_list_base_TOnly_CEmpty.
+           rewrite Hpre. reflexivity.
+        -- (* pop pre failed: pre empty *)
+           destruct (buf6_pop suf) as [[y suf']|] eqn:Hsuf.
+           ++ injection Hp as Hxy Hq'. subst y q'.
+              rewrite normalize_only_empty_child_seq.
+              apply buf6_pop_seq_none in Hpre.
+              apply buf6_pop_seq_some in Hsuf.
+              rewrite cad_to_list_base_TOnly_CEmpty.
+              rewrite Hpre, Hsuf. cbn.
+              unfold buf6_to_list, buf6_empty, buf6_elems. cbn.
+              reflexivity.
+           ++ discriminate.
+      * (* CSingle ct: delegate to cad_pop *)
+        cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+      * (* CDouble: delegate *)
+        cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+    + (* TLeft: delegate *)
+      cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+    + (* TRight: delegate *)
+      cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+  - (* CDouble: delegate *)
+    cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+Qed.
