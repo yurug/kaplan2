@@ -1964,6 +1964,179 @@ Proof.
   rewrite !app_nil_r. reflexivity.
 Qed.
 
+(** ** Input-persistence: A and B remain valid snapshots in H'.
+
+    The bottom-line purely-functional property: after [cad_concat_imp]
+    runs, the original input pointers [lA] and [lB] still resolve to
+    the SAME abstract cadeques in the result heap [H'].  This is the
+    snapshot-validity statement the catenable cadeque claims to deliver.
+
+    Proven for all 4 shape combinations.  Each follows the same recipe:
+    apply the seq theorem's prefix to obtain
+        [H' = snd (alloc cell2 (snd (alloc cell1 H)))],
+    then invoke [heap_represents_cad_persists_two_allocs] (or the
+    one-alloc variant for the DD case which only allocates once). *)
+
+Theorem cad_concat_imp_ss_inputs_persist :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild qA qB
+         HrepA HrepB HA HB HtA HtB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_singleton_singleton_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  split.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_concat_imp_dd_inputs_persist :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB qA qB
+         HrepA HrepB HA HB HtRA HtLB
+         Hwf_cad Hwf_trip
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_double_double_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  split.
+  - apply heap_represents_cad_persists_one_alloc; assumption.
+  - apply heap_represents_cad_persists_one_alloc; assumption.
+Qed.
+
+Theorem cad_concat_imp_ds_inputs_persist :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' qA qB
+         HrepA HrepB HA HB HtRA HtB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_double_single_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  split.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_concat_imp_sd_inputs_persist :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB qA qB
+         HrepA HrepB HA HB HtA HtLB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_single_double_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  split.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+  - apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
@@ -2747,6 +2920,23 @@ Qed.
     Built atop [heap_represents_cad_det] (resp. _triple_det), which
     pin down the abstract value that any heap_represents witness at
     a given loc must take.
+
+    *** Input-persistence (purely-functional snapshot validity):
+
+    The catenable cadeque's headline persistence claim — that A and B
+    REMAIN valid snapshots in H' — is mechanized for all 4 shapes:
+
+    - [cad_concat_imp_ss_inputs_persist]  : SS path
+    - [cad_concat_imp_ds_inputs_persist]  : DS path
+    - [cad_concat_imp_sd_inputs_persist]  : SD path
+    - [cad_concat_imp_dd_inputs_persist]  : DD path
+
+    Each shows: under the SS/DS/SD/DD shape preconditions, if A is
+    represented at lA in H AND B is represented at lB in H, then
+    BOTH representations carry over UNCHANGED to H'.  Anyone holding
+    a pointer to A or B before [cad_concat_imp] still sees the same
+    abstract cadeque after.  Combined with the seq theorems, this
+    is the full purely-functional contract.
 
     *** Persistence under alloc (foundational):
 
