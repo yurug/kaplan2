@@ -1576,6 +1576,88 @@ Proof.
   - apply heap_represents_triple_persists_one_alloc; assumption.
 Qed.
 
+(** ** Full general sequence-correctness for the unified cad_concat_imp.
+
+    Composes the dispatch with each sub-op's general seq theorem.
+    Under the appropriate shape preconditions + well-formedness, the
+    unified entry produces a heap that represents the joined abstract
+    cadeque. *)
+
+Theorem cad_concat_imp_seq_when_singleton_singleton :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (cA' : Cadeque A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CSingle (TOnly preA cA' sufB)).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild cA'
+         HrepA HrepB HA HB HtA HtB HrepCA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  (* Hop is now [match ss_simple ... with Some (H2,y,k2) => Some (H2,y,2+k2) | None => None end = Some (H',l',k)].
+     Destructure the inner ss_simple call and apply its seq theorem. *)
+  destruct (cad_concat_imp_singleton_singleton_simple lA lB H)
+    as [[[H'' l''] k'']|] eqn:Hss; [|discriminate].
+  injection Hop as HH Hl Hk. subst H' l'.
+  eapply cad_concat_imp_singleton_singleton_simple_seq;
+    try eassumption.
+Qed.
+
+Theorem cad_concat_imp_seq_when_double_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (tLA tRB : Triple A),
+    heap_represents_cad H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble tLA tRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_double_double_simple lA lB H)
+    as [[[H'' l''] k'']|] eqn:Hdd; [|discriminate].
+  injection Hop as HH Hl Hk. subst H' l'.
+  eapply cad_concat_imp_double_double_simple_seq;
+    try eassumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
