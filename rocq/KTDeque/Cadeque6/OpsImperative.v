@@ -930,6 +930,34 @@ Proof.
   - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
 Qed.
 
+(** ** [cad_push_imp] success-path lookups: the freshly-allocated
+    cells in H'. *)
+
+Theorem cad_push_imp_lookup_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc),
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleOnly (buf6_singleton x) lA buf6_empty)
+      /\ lookup H' l' = Some (CC_CadSingle lt).
+Proof.
+  intros A H x lA HA H' l' k Hop.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
 (** ** [cad_concat_imp] success-path cost statements. *)
 
 (* When A is CC_CadEmpty: the entire computation is one read and a
