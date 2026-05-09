@@ -45,4 +45,4 @@
     - [kb/spec/why-catenable.md] -- intuition layer.
 *)
 
-From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity Repair.
+From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity Repair Cost.
