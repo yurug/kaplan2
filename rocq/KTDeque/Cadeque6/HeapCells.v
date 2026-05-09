@@ -319,3 +319,38 @@ Proof.
   cbn [extract_cadeque lookup bindings empty_heap loc_eqb].
   reflexivity.
 Qed.
+
+(** ** Round-trip on a simple single-triple cadeque.
+
+    Sanity check the full embed-then-extract round-trip on
+    [CSingle (TOnly buf6_empty CEmpty buf6_empty)] — a depth-2 cadeque
+    that allocates 3 cells (CC_CadEmpty, CC_TripleOnly, CC_CadSingle).
+    Computational proof; validates the cell layout end-to-end on a
+    non-trivial shape. *)
+
+Theorem embed_extract_single_TOnly_empty :
+  forall (A : Type),
+    let (l, H) := embed_cadeque (CSingle (TOnly (@buf6_empty A) CEmpty buf6_empty))
+                                empty_heap in
+    extract_cadeque 3 H l
+    = Some (CSingle (TOnly (@buf6_empty A) CEmpty buf6_empty)).
+Proof.
+  intros A. cbn. reflexivity.
+Qed.
+
+(** ** Round-trip on a CDouble shape.
+
+    Validates the CDouble case: a depth-2 cadeque with two distinct
+    sub-triples.  Allocates 5 cells (2 × CC_CadEmpty for the children,
+    2 × CC_TripleOnly for the triples, 1 × CC_CadDouble for the top). *)
+
+Theorem embed_extract_double_TOnly_empty :
+  forall (A : Type),
+    let q : Cadeque A :=
+      CDouble (TOnly buf6_empty CEmpty buf6_empty)
+              (TOnly buf6_empty CEmpty buf6_empty) in
+    let (l, H) := embed_cadeque q empty_heap in
+    extract_cadeque 3 H l = Some q.
+Proof.
+  intros A. cbn. reflexivity.
+Qed.
