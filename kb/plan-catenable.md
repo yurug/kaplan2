@@ -264,11 +264,12 @@ every level.
 | 3+ — algebra (inverse, distribution, recovery laws) | ✅ done | `5a99712` |
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
-| 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
+| 4 — cost bound (`O(1)` WC for concat) | ⏳ pending (structural blocker, see below) | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
-| 6 — `KTCatenableDeque` module + extraction | 🟡 module type drafted | `61e7eff` |
+| 1 (consolidated) — full regular_cad preservation for all 5 ops | ✅ done | `d6d9a25` (cad_normalize) + `3acd284` (algebra) |
+| 6 — `KTCatenableDeque` module + extraction | ✅ done | `7f0acaa` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
 
