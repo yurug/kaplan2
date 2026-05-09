@@ -3427,24 +3427,32 @@ Qed.
     abstract cadeque after.  Combined with the seq theorems, this
     is the full purely-functional contract.
 
-    *** FLAGSHIP "FULL CONTRACT" theorems:
+    *** FLAGSHIP "FULL CONTRACT" theorems (all 6 dispatch paths):
 
-    Per shape, a single theorem bundling all four guarantees:
+    Per case, a single theorem bundling all four guarantees:
 
-    - [cad_concat_imp_ss_full_contract]  : CSingle × CSingle
-    - [cad_concat_imp_ds_full_contract]  : CDouble × CSingle
-    - [cad_concat_imp_sd_full_contract]  : CSingle × CDouble
-    - [cad_concat_imp_dd_full_contract]  : CDouble × CDouble
+    - [cad_concat_imp_ss_full_contract]              : CSingle × CSingle
+    - [cad_concat_imp_ds_full_contract]              : CDouble × CSingle
+    - [cad_concat_imp_sd_full_contract]              : CSingle × CDouble
+    - [cad_concat_imp_dd_full_contract]              : CDouble × CDouble
+    - [cad_concat_imp_full_contract_when_A_empty]    : qA = CEmpty
+    - [cad_concat_imp_full_contract_when_B_empty]    : qB = CEmpty
 
     Conclusion of each: from cad_concat_imp lA lB H = Some (H', l', k):
-        (1) k <= 8                                (WC O(1) cost)
-        (2) heap_represents_cad H' lA qA           (input A persists)
-        (3) heap_represents_cad H' lB qB           (input B persists)
-        (4) heap_represents_cad H' l' qjoined      (output represents join)
-        (5) qResult's list = qA's list ++ qB's list   (list refinement)
+        (1) k <= 8                                    (WC O(1) cost)
+        (2) heap_represents_cad H' lA qA              (input A persists)
+        (3) heap_represents_cad H' lB qB              (input B persists)
+        (4) [4-shape only] heap_represents_cad H' l' qjoined
+                                                       (output represents join)
+        (5) for any qResult heap_represented at l' in H',
+              cad_to_list_base qResult =
+                cad_to_list_base qA ++ cad_to_list_base qB    (list refinement)
 
-    These are the one-stop entry points for downstream consumers — every
-    guarantee Kaplan-Tarjan §6 promises, in one theorem per shape.
+    These are the one-stop entry points for downstream consumers —
+    every guarantee Kaplan-Tarjan §6 promises, in one theorem per
+    dispatch path.  The empty-case full contracts have a 4-conjunct
+    conclusion (no separate "shape" claim, since the result is
+    literally the other input pointer).
 
     *** Persistence under alloc (foundational):
 
