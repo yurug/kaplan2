@@ -1095,6 +1095,23 @@ Proof.
     destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
 Qed.
 
+(** ** Headline corollary: WC O(1) catenable concat (cost = O(1)).
+
+    Bundles the WC cost bound + termination property:
+    if the operation succeeds, it does so with cost ≤ 8 cells. *)
+
+Theorem cad_concat_imp_terminates_with_constant_cost :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc),
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      k <= CAD_CONCAT_IMP_COST.
+Proof.
+  intros A H lA lB H' l' k Hop.
+  assert (Hcost : cost_of (cad_concat_imp lA lB) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_concat_imp_WC_O1 in Hcost. exact Hcost.
+Qed.
+
 (** ** Sequence-correctness for the empty cases.
 
     When the left input cell is [CC_CadEmpty], it represents the
