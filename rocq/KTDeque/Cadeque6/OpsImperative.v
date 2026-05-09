@@ -1746,10 +1746,16 @@ Qed.
     BOTH the sub-op and the unified entry, under appropriate
     preconditions.
 
-    The STRONG simple-SS correctness theorem additionally proves
-    that A and B's existing cells are preserved verbatim in H'
-    (via persistence lemmas under alloc) — the persistence-of-
-    persistence property critical for purely-functional snapshots.
+    Strong correctness theorems (with persistence: A and B's cells
+    preserved verbatim in H'):
+    - [cad_concat_imp_singleton_singleton_simple_correct_strong]
+    - [cad_concat_imp_double_single_simple_correct_strong]
+    - [cad_concat_imp_single_double_simple_correct_strong]
+    - [cad_concat_imp_double_double_simple_correct_strong]
+
+    All four shape combinations have proven strong correctness,
+    validating the persistence-of-persistence property critical for
+    purely-functional snapshots.
 
     *** Persistence under alloc (foundational):
 
