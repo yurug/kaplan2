@@ -306,9 +306,10 @@ Foundation landed (commits `e210b5d`, `c3c38fc`, `a06c451`):
   (3-cell allocation) and `CDouble (TOnly empty CEmpty empty) (TOnly
   ...)` (5-cell allocation).
 
-**WC O(1) `cad_concat_imp` LANDED** (16 commits, `e210b5d`–`7b66613`):
+**WC O(1) `cad_concat_imp` LANDED** (~30 commits, `e210b5d`–`84504cd`):
 
-The full WC O(1) catenable concat result is proven in Coq.
+The full WC O(1) catenable concat result is proven in Coq, in the
+heap-based cost monad.
 
 [Cadeque6/OpsImperative.v]: heap-based imperative DSL on
 `Heap (CadCell A)` in `Common/CostMonad.v`'s `MC` monad.
@@ -317,18 +318,21 @@ The full WC O(1) catenable concat result is proven in Coq.
   for ANY heap and ANY [Loc] inputs, if `cad_concat_imp lA lB` succeeds,
   cost ≤ `CAD_CONCAT_IMP_COST = 8`.
 
-This is the closed-form constant cost bound, **independent of input
-cadeque depth, size, or shape** -- the genuine WC O(1) result.
-Same proof technique and rigor as
-[DequePtr/Footprint.v]'s `NF_PUSH_PKT_FULL = 9`.
+Closed-form constant cost bound, **independent of input cadeque
+depth, size, or shape** -- the genuine WC O(1) result.  Same proof
+technique and rigor as [DequePtr/Footprint.v]'s
+`NF_PUSH_PKT_FULL = 9`.
 
-**Sub-operation WC bounds** (each proven over ALL inputs):
+Polished entry: `cad_concat_imp_terminates_with_constant_cost`.
+
+**Sub-operation WC bounds** (each over ALL inputs):
 - `cad_concat_imp_singleton_singleton_simple_WC_O1` : ≤ 6
 - `cad_concat_imp_double_single_simple_WC_O1`        : ≤ 6
 - `cad_concat_imp_single_double_simple_WC_O1`        : ≤ 6
 - `cad_concat_imp_double_double_simple_WC_O1`        : ≤ 5
+- `cad_concat_imp_singleton_singleton_buffers_WC_O1` : ≤ 6 (non-empty boundary)
 
-**Per-path cost-exact theorems** for the success paths:
+**Per-path cost-exact theorems** (12 total):
 - `cad_concat_imp_left_empty_cost`                    : = 1
 - `cad_concat_imp_right_empty_cost`                   : = 1
 - `cad_concat_imp_cost_when_A_empty`                  : = 1
@@ -337,30 +341,59 @@ Same proof technique and rigor as
 - `cad_concat_imp_cost_when_single_double_empty_boundary`        : = 8
 - `cad_concat_imp_cost_when_double_single_empty_boundary`        : = 8
 - `cad_concat_imp_cost_when_double_double_empty`                  : = 7
+- (sub-op cost-exact theorems for SS/DS/SD/DD/buffers)
 
-**Sequence-correctness** (under specific preconditions):
-- `cad_concat_imp_left_empty_correct`                 : when A=CC_CadEmpty
-- `cad_concat_imp_right_empty_correct`                : when B=CC_CadEmpty
-- `cad_concat_imp_correct_when_A_empty`               : unified entry, A=CC_CadEmpty
-- `cad_concat_imp_singleton_singleton_simple_correct` : SS, empty boundary, cBchild=CC_CadEmpty
+**Sequence-correctness** (sub-ops + unified entry, all 4 shapes):
+
+Sub-op correctness (4 shapes + empty + buffers):
+- `cad_concat_imp_left_empty_correct` / `_right_empty_correct`
+- `cad_concat_imp_singleton_singleton_simple_correct`
+- `cad_concat_imp_singleton_singleton_buffers_correct` (non-empty boundary)
+- `cad_concat_imp_double_single_simple_correct`
+- `cad_concat_imp_single_double_simple_correct`
+- `cad_concat_imp_double_double_simple_correct`
+
+Unified entry correctness (5 paths):
+- `cad_concat_imp_correct_when_A_empty`
+- `cad_concat_imp_correct_when_singleton_singleton`
+- `cad_concat_imp_correct_when_double_single`
+- `cad_concat_imp_correct_when_single_double`
+- `cad_concat_imp_correct_when_double_double`
+
+**STRONG sequence-correctness with persistence** (4 shapes):
+- `cad_concat_imp_singleton_singleton_simple_correct_strong`
+- `cad_concat_imp_double_single_simple_correct_strong`
+- `cad_concat_imp_single_double_simple_correct_strong`
+- `cad_concat_imp_double_double_simple_correct_strong`
+
+Each strong theorem proves: under shape preconditions PLUS
+well-formedness of H, the result heap H' contains the freshly-
+allocated cells AND **preserves ALL of A and B's existing cells
+verbatim** (via the persistence lemmas).  This is the
+persistence-of-persistence property critical for purely-functional
+snapshots: A and B remain valid as snapshots after the imperative
+concat.
+
+**Persistence under alloc** (foundational, 2 lemmas):
+- `lookup_persists_after_alloc`      : single alloc preserves earlier locs.
+- `lookup_persists_after_two_allocs` : two-alloc persistence.
 
 The unified `cad_concat_imp` dispatches over **all 4 shape
 combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-Build clean throughout; **zero admits** maintained.
+**Stats**: OpsImperative.v has ~1780 lines, 60+ theorems/lemmas.
+Build clean throughout.  **Zero admits maintained**.
 
-**What's still pending** (deferred to later Phase 4b chunks):
+**What's still pending** (deferred to subsequent Phase 4b chunks):
 - Non-empty joining boundary + non-trivial children: requires
   adopt6 shortcut + level-typed cascade per
   [kb/spec/phase-4b-imperative-dsl.md].
-- Sequence-correctness for the 3 CDouble simple cases (current
-  ops drop middle cells when present; correctness only under
-  empty-middle preconditions).
 - The five §12.4 repair cases for non-singleton inputs with
   non-trivial children.
-- Bundled refinement linking imperative ops to abstract spec.
+- Bundled refinement linking imperative ops to abstract spec
+  (cad_concat_imp refines cad_concat at the sequence level).
 
 Phase 5.6 progress (15 commits):
 
