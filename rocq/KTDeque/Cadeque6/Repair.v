@@ -729,6 +729,48 @@ Proof.
     cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
 Qed.
 
+(** ** Same for [TOnly] with [CDouble] child.  The novel case is
+    (Orange, Yellow): the path tail switches from [tR] (orange's
+    preferred) to [tL] (yellow's preferred).  RC3 says the
+    non-preferred (tL) of an Orange triple has Green preferred
+    tail -- exactly what's needed. *)
+
+Lemma cad_push_op_top_paths_green_TOnly_CDouble :
+  forall (X : Type) (x : X) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    top_level_paths_green (CSingle (TOnly pre (CDouble tL tR) suf)) ->
+    semiregular_local (TOnly pre (CDouble tL tR) suf) ->
+    top_level_paths_green (CSingle (TOnly (buf6_push x pre) (CDouble tL tR) suf)).
+Proof.
+  intros X x pre tL tR suf Hpre Htop Hloc.
+  unfold top_level_paths_green in Htop |- *.
+  rewrite preferred_path_tail_TOnly_CDouble in Htop.
+  rewrite preferred_path_tail_TOnly_CDouble.
+  pose proof (triple_push_prefix_color_monotone_TOnly _ x pre (CDouble tL tR) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color (buf6_push x pre)) (buf6_color suf)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - (* (G, G) *) cbn [triple_color]. exact Hnew.
+  - (* (Y, G) *) cbn [triple_color]. exact Hnew.
+  - (* (Y, Y) *) exact Htop.
+  - (* (O, G) *) cbn [triple_color]. exact Hnew.
+  - (* (O, Y): the orange→yellow shift, needs RC3. *)
+    unfold semiregular_local in Hloc.
+    cbn [triple_color] in Hloc. rewrite Hold in Hloc. exact Hloc.
+  - (* (O, O) *) exact Htop.
+  - (* (R, G) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, Y) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, O) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, R) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
 Theorem cad_push_op_preserves_semiregular :
   forall (X : Type) (x : X) (q : Cadeque X),
     regular_cad q ->
