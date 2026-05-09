@@ -1461,14 +1461,76 @@ Proof.
               unfold buf6_to_list, buf6_empty, buf6_elems. cbn.
               reflexivity.
            ++ discriminate.
-      * (* CSingle ct: delegate to cad_pop *)
+      * (* CSingle ct: delegate *)
         cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
-      * (* CDouble: delegate *)
+      * (* CDouble ctL ctR: delegate *)
         cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
-    + (* TLeft: delegate *)
+    + (* TLeft *)
       cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
-    + (* TRight: delegate *)
+    + (* TRight *)
       cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
-  - (* CDouble: delegate *)
+  - (* CDouble *)
     cbn [cad_pop_op] in Hp. apply cad_pop_seq. exact Hp.
+Qed.
+
+(** ** [cad_eject_op]: operational eject (symmetric to pop).
+
+    Mirror of cad_pop_op for the back end:
+    - try buf6_eject suf first;
+    - if suf is empty, fall through to buf6_eject pre;
+    - normalize_only_empty_child to keep the result well-sized. *)
+
+Definition cad_eject_op {X : Type} (q : Cadeque X)
+                      : option (Cadeque X * X) :=
+  match q with
+  | CEmpty => None
+  | CSingle (TOnly pre c suf) =>
+      match c with
+      | CEmpty =>
+          match buf6_eject suf with
+          | Some (suf', x) => Some (normalize_only_empty_child pre suf', x)
+          | None =>
+              match buf6_eject pre with
+              | Some (pre', x) => Some (normalize_only_empty_child pre' buf6_empty, x)
+              | None => None
+              end
+          end
+      | _ => cad_eject q
+      end
+  | _ => cad_eject q
+  end.
+
+Theorem cad_eject_op_seq :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject_op q = Some (q', x) ->
+    cad_to_list_base q = cad_to_list_base q' ++ [x].
+Proof.
+  intros X q q' x He.
+  destruct q as [|t|tL tR].
+  - cbn in He. discriminate.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + destruct c as [|ct|ctL ctR].
+      * (* CSingle (TOnly _ CEmpty _) *)
+        cbn [cad_eject_op] in He.
+        destruct (buf6_eject suf) as [[suf' y]|] eqn:Hsuf.
+        -- injection He as Hq' Hxy. subst q' y.
+           rewrite normalize_only_empty_child_seq.
+           apply buf6_eject_seq_some in Hsuf.
+           rewrite cad_to_list_base_TOnly_CEmpty.
+           rewrite Hsuf. rewrite app_assoc. reflexivity.
+        -- destruct (buf6_eject pre) as [[pre' y]|] eqn:Hpre.
+           ++ injection He as Hq' Hxy. subst q' y.
+              rewrite normalize_only_empty_child_seq.
+              apply buf6_eject_seq_none in Hsuf.
+              apply buf6_eject_seq_some in Hpre.
+              rewrite cad_to_list_base_TOnly_CEmpty.
+              rewrite Hpre, Hsuf.
+              unfold buf6_to_list, buf6_empty, buf6_elems. cbn [app].
+              rewrite app_nil_r, app_nil_r. reflexivity.
+           ++ discriminate.
+      * cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
+      * cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
+    + cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
+    + cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
+  - cbn [cad_eject_op] in He. apply cad_eject_seq. exact He.
 Qed.
