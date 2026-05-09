@@ -401,6 +401,25 @@ inductive relations, with mutual persistence theorems
 `heap_represents_*_persists_alloc` and convenience helpers for
 1-alloc and 2-alloc patterns.
 
+**List-level (consumer-facing) sequence refinement** (4 shapes):
+- `cad_concat_imp_ss_list_correct`
+- `cad_concat_imp_ds_list_correct`
+- `cad_concat_imp_sd_list_correct`
+- `cad_concat_imp_dd_list_correct`
+
+Each takes the same shape preconditions as the seq theorem plus
+an arbitrary witness `heap_represents_cad H' l' qResult`, and
+concludes the bottom-line statement consumers care about:
+
+```coq
+cad_to_list_base qResult =
+  cad_to_list_base qA ++ cad_to_list_base qB
+```
+
+Built on top of the new determinism lemma `heap_represents_cad_det`
+(resp. `_triple_det`), which pins down the abstract value that any
+witness at a given loc must take.
+
 **Persistence under alloc** (foundational, 2 lemmas):
 - `lookup_persists_after_alloc`      : single alloc preserves earlier locs.
 - `lookup_persists_after_two_allocs` : two-alloc persistence.
@@ -410,7 +429,7 @@ combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-**Stats**: OpsImperative.v has ~2520 lines, 75+ theorems/lemmas/
+**Stats**: OpsImperative.v has ~2770 lines, 80+ theorems/lemmas/
 definitions.  Build clean throughout.  **Zero admits maintained**.
 
 **What's still pending** (deferred to subsequent Phase 4b chunks):
