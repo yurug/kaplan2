@@ -57,7 +57,7 @@ Import ListNotations.
 
 From KTDeque.Common Require Import FinMapHeap CostMonad.
 From KTDeque.Buffer6 Require Import SizedBuffer SmallMoves.
-From KTDeque.Cadeque6 Require Import Model HeapCells.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract HeapCells.
 
 (** ** Concat with CEmpty on either side.
 
@@ -414,3 +414,90 @@ Definition CAD_CONCAT_IMP_COST : nat := 11.
 
     The headline: every successful path costs at most 11 cell
     operations -- a closed-form constant.  Hence WC O(1). *)
+
+(** ** Sequence-correctness for the empty cases.
+
+    When the left input cell is [CC_CadEmpty], it represents the
+    abstract [CEmpty] cadeque; the result pointer is the right
+    input's, and the heap is unchanged.  By [cad_concat_seq], the
+    result represents the concatenation of [CEmpty] with the right
+    input's abstract cadeque, which equals the right input alone.
+
+    These theorems link the imperative cad_concat_imp to the
+    abstract cad_concat semantics via embed/extract round-trip. *)
+
+Lemma extract_cadeque_of_CCadEmpty :
+  forall (A : Type) (H : Heap (CadCell A)) (l : Loc) (n : nat),
+    lookup H l = Some CC_CadEmpty ->
+    extract_cadeque (S n) H l = Some CEmpty.
+Proof.
+  intros A H l n Hlk. cbn [extract_cadeque]. rewrite Hlk. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_left_empty_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc)
+         (qB : Cadeque A) (n : nat),
+    lookup H lA = Some CC_CadEmpty ->
+    extract_cadeque n H lB = Some qB ->
+    forall H' l' k,
+      cad_concat_imp_left_empty lA lB H = Some (H', l', k) ->
+      H' = H /\ l' = lB /\
+      cad_to_list_base qB
+      = cad_to_list_base (cad_concat (@CEmpty A) qB).
+Proof.
+  intros A H lA lB qB n HA HB H' l' k Hop.
+  pose proof (@cad_concat_imp_left_empty_returns_right_when_left_is_empty
+                A H lA lB HA) as Hret.
+  rewrite Hret in Hop. injection Hop as HH Hl Hk.
+  split; [symmetry; exact HH | split; [symmetry; exact Hl |]].
+  rewrite cad_concat_seq. cbn [cad_to_list_base cad_to_list].
+  reflexivity.
+Qed.
+
+Theorem cad_concat_imp_right_empty_correct :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc)
+         (qA : Cadeque A) (n : nat),
+    lookup H lB = Some CC_CadEmpty ->
+    extract_cadeque n H lA = Some qA ->
+    forall H' l' k,
+      cad_concat_imp_right_empty lA lB H = Some (H', l', k) ->
+      H' = H /\ l' = lA /\
+      cad_to_list_base qA
+      = cad_to_list_base (cad_concat qA (@CEmpty A)).
+Proof.
+  intros A H lA lB qA n HB HA H' l' k Hop.
+  pose proof (@cad_concat_imp_right_empty_returns_left_when_right_is_empty
+                A H lA lB HB) as Hret.
+  rewrite Hret in Hop. injection Hop as HH Hl Hk.
+  split; [symmetry; exact HH | split; [symmetry; exact Hl |]].
+  rewrite cad_concat_seq. cbn [cad_to_list_base cad_to_list].
+  rewrite app_nil_r. reflexivity.
+Qed.
+
+(** ** Headline sequence-correctness for [cad_concat_imp] (empty cases).
+
+    When [cad_concat_imp lA lB] is invoked and the left is empty,
+    the result represents [cad_concat qA qB] where qA = CEmpty.
+    The full sequence-correctness for the singleton-singleton
+    case requires the embed/extract round-trip on the post-allocation
+    heap, deferred to a follow-up chunk. *)
+
+Theorem cad_concat_imp_correct_when_A_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc)
+         (qB : Cadeque A) (n : nat),
+    lookup H lA = Some CC_CadEmpty ->
+    extract_cadeque n H lB = Some qB ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      H' = H /\ l' = lB /\
+      cad_to_list_base qB
+      = cad_to_list_base (cad_concat (@CEmpty A) qB).
+Proof.
+  intros A H lA lB qB n HA HB H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  split; [symmetry; exact HH | split; [symmetry; exact Hl |]].
+  rewrite cad_concat_seq. cbn [cad_to_list_base cad_to_list].
+  reflexivity.
+Qed.
