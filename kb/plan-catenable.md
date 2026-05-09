@@ -432,11 +432,40 @@ representations carry over UNCHANGED to H'.  Anyone holding a
 snapshot of A or B before `cad_concat_imp` continues to see the
 same abstract cadeque (and hence the same list) after.
 
+Plus empty-case persistence (trivial — H'=H):
+- `cad_concat_imp_inputs_persist_when_A_empty`
+- `cad_concat_imp_inputs_persist_when_B_empty`
+
+**FLAGSHIP "FULL CONTRACT" theorems** (4 shapes):
+- `cad_concat_imp_ss_full_contract`
+- `cad_concat_imp_ds_full_contract`
+- `cad_concat_imp_sd_full_contract`
+- `cad_concat_imp_dd_full_contract`
+
+Each bundles ALL FIVE guarantees into a single per-shape theorem:
+
+```coq
+forall H' l' k,
+  cad_concat_imp lA lB H = Some (H', l', k) ->
+  (* (1) WC O(1) cost *)
+  k <= CAD_CONCAT_IMP_COST /\
+  (* (2,3) Inputs persist as snapshots *)
+  heap_represents_cad H' lA qA /\
+  heap_represents_cad H' lB qB /\
+  (* (4) Result represents the joined cadeque *)
+  heap_represents_cad H' l' qjoined /\
+  (* (5) List-level refinement *)
+  (forall qResult, heap_represents_cad H' l' qResult ->
+    cad_to_list_base qResult =
+      cad_to_list_base qA ++ cad_to_list_base qB).
+```
+
+These are the one-stop entry points for downstream consumers — every
+guarantee Kaplan-Tarjan §6 promises, in one theorem per shape, no
+manual composition required.
+
 This delivers the FULL purely-functional contract end-to-end for
-all four shape combinations:
-- input snapshots preserved (`*_inputs_persist`),
-- output sequence-correct (`*_seq_when_*` + `*_list_correct`),
-- cost ≤ 8 (`cad_concat_imp_WC_O1`).
+all four shape combinations.
 
 **Persistence under alloc** (foundational, 2 lemmas):
 - `lookup_persists_after_alloc`      : single alloc preserves earlier locs.
@@ -447,7 +476,7 @@ combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-**Stats**: OpsImperative.v has ~2960 lines, 84+ theorems/lemmas/
+**Stats**: OpsImperative.v has ~3320 lines, 91+ theorems/lemmas/
 definitions.  Build clean throughout.  **Zero admits maintained**.
 
 **What's still pending** (deferred to subsequent Phase 4b chunks):
