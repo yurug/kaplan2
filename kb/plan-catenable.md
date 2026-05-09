@@ -253,7 +253,7 @@ every level.
 - **Lines of proof**: hard to estimate; probably 1500–3000 lines
   of Rocq, dominated by Phase 3's `concat_seq`.
 
-## Status (last updated 2026-05-08)
+## Status (last updated 2026-05-09)
 
 | Phase | Status | Commit |
 | ----: | ------ | ------ |
@@ -265,7 +265,7 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | ✅ **GENERAL WC O(1) bound proven**: cad_concat_imp ≤ 8 over ALL inputs (4 shape combinations dispatched, sequence-correct for the simple cases) | `e210b5d`–`7b66613` (16 commits) |
+| 4b — heap-based imperative DSL: WC O(1) for concat | ✅ **FULL CONTRACT MATRIX at all 6 dispatch paths** (4 shapes + 2 empty cases): cost ≤ 8, input-persistence, list-level refinement, output represents join.  Foundation: `heap_represents_cad`/`_triple` inductive relations + persistence-under-alloc + determinism. | `e210b5d`–`38bb4ed` (40+ commits) |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
