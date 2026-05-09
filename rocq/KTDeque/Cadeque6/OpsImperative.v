@@ -2727,6 +2727,27 @@ Qed.
     persistence-of-persistence property critical for purely-
     functional snapshots.
 
+    *** List-level (consumer-facing) sequence refinement:
+
+    The bottom-line statement most callers care about — that the
+    imperative concat's RESULT LIST equals the inputs' lists
+    concatenated — is proven for all 4 shapes:
+
+    - [cad_concat_imp_ss_list_correct]  : SS path
+    - [cad_concat_imp_ds_list_correct]  : DS path
+    - [cad_concat_imp_sd_list_correct]  : SD path
+    - [cad_concat_imp_dd_list_correct]  : DD path
+
+    Each takes the SS/DS/SD/DD preconditions of the seq theorem
+    plus an arbitrary witness [heap_represents_cad H' l' qResult],
+    and concludes
+        cad_to_list_base qResult
+        = cad_to_list_base qA ++ cad_to_list_base qB.
+
+    Built atop [heap_represents_cad_det] (resp. _triple_det), which
+    pin down the abstract value that any heap_represents witness at
+    a given loc must take.
+
     *** Persistence under alloc (foundational):
 
     - [lookup_persists_after_alloc]      : 1-alloc persistence
