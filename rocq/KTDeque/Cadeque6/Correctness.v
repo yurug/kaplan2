@@ -20,6 +20,13 @@
       [semiregular_cad], [semiregular_triple], [regular_cad],
       [top_level_paths_green], [preferred_path_tail], plus the
       §10.9 structural lemmas).
+    - Operational layer: [normalize_only_empty_child] reshape
+      primitive plus operational versions of all five public
+      operations: [cad_push_op], [cad_inject_op], [cad_pop_op],
+      [cad_eject_op], [cad_concat_op].  Each comes with a
+      sequence law.  Push and inject have full [regular_cad]
+      preservation; the others have partial preservation for the
+      simpler cases.
 
     This file introduces no new definitions or theorems; it is
     purely a convenience.
@@ -31,9 +38,11 @@
     - [Cadeque6/Color.v]        -- four-colour discipline.
     - [Cadeque6/Regularity.v]   -- non-emptiness + preferred-path
                                    + (semi)regular invariants.
+    - [Cadeque6/Repair.v]       -- operational repair primitives
+                                   + cad_*_op operations.
     - [Cadeque6/Examples.v]     -- worked examples (not exported here
                                    to avoid polluting the namespace).
     - [kb/spec/why-catenable.md] -- intuition layer.
 *)
 
-From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity.
+From KTDeque.Cadeque6 Require Export Model OpsAbstract Color Regularity Repair.
