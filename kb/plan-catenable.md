@@ -312,25 +312,30 @@ Phase 5.6 progress (15 commits):
   for the Y→G and O→Y colour-shift reasoning needed to complete
   the semantic-conjunct preservation theorems.
 
-Phase 5.6 — push/inject **DONE**.  Full preservation proven:
+Phase 5.6 — endpoint operations:
 
-  ✓ cad_push_op_preserves_regular_cad   (`2b32d44`)
-  ✓ cad_inject_op_preserves_regular_cad (`78fb4a4`)
-  ✓ cad_push_op_refines_cad_push        (observational equivalence)
-  ✓ cad_inject_op_refines_cad_inject
+  Push / Inject — **fully certified** end-to-end:
+    ✓ cad_push_op_preserves_regular_cad     (`2b32d44`)
+    ✓ cad_inject_op_preserves_regular_cad   (`78fb4a4`)
+    ✓ cad_push_op_refines_cad_push          (observational equivalence)
+    ✓ cad_inject_op_refines_cad_inject
 
-Each preservation theorem proven by composing 6+ triple-level
-helpers (3 kinds × 2 child shapes per side) that dispatch the
-10 surviving (Hold, Hnew) colour pairs after lia eliminates
-infeasible.
+  Pop / Eject — operational versions defined with sequence laws:
+    ✓ cad_pop_op + cad_pop_op_seq           (`5452162`)
+    ✓ cad_eject_op + cad_eject_op_seq       (`0cbae56`)
+
+  Pop/eject preservation is partial: the CSingle TOnly + CEmpty
+  child case is handled via normalize_only_empty_child; other
+  cases delegate to abstract.  Full preservation requires the
+  cascade machinery (`make_small` / `make_red` / `green_of_red`
+  analogues), which is a substantive next-session task.
 
 Phase 5.6+ remaining:
 
-- `cad_pop_op` / `cad_eject_op`: pop's reshape cases include
-  trivial pop, normalize after pop, empty-result detection, and
-  the harder "cascade from child" case when pre = 5 with
-  non-empty child.  The first three are tractable like push;
-  the cascade case needs the make_red / green_of_red primitives.
+- Full `cad_pop_op_preserves_regular_cad` /
+  `cad_eject_op_preserves_regular_cad`: needs cascade primitives
+  for the OT1 cases when the popped buffer hits size 4 with a
+  non-empty child.
 
 - `cad_concat_op`: needs all five repair cases (1a/1b/2a/2b/2c
   per manual §12.4).  The headline operation; substantive.
