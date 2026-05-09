@@ -2693,6 +2693,78 @@ Proof.
   - contradiction HcAne. reflexivity.
 Qed.
 
+(** ** List-level refinement for the empty cases.
+
+    Closes the consumer-facing matrix: when one input is CEmpty,
+    the result's list equals the inputs' lists concatenated.  These
+    use [heap_represents_cad] uniformly (matching the *_list_correct
+    style for the four non-empty shapes), rather than the
+    [extract_cadeque]-based [cad_concat_imp_correct_when_*_empty]. *)
+
+Theorem cad_concat_imp_list_correct_when_A_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB qA qB HrepA HrepB HA H' l' k qResult Hop Hres.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  subst H'. subst l'.
+  (* qA must be CEmpty since heap_represents_cad H lA qA + lookup H lA = CC_CadEmpty. *)
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  subst qA.
+  (* qB = qResult by determinism. *)
+  assert (Heq : qResult = qB)
+    by (eapply heap_represents_cad_det; eassumption).
+  subst qResult. cbn. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_list_correct_when_B_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A)
+         (cA : CadCell A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some cA ->
+    cA <> CC_CadEmpty ->
+    lookup H lB = Some CC_CadEmpty ->
+    forall H' l' k qResult,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult =
+        cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB qA qB cA HrepA HrepB HA HcAne HB
+         H' l' k qResult Hop Hres.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop.
+  (* qB must be CEmpty since lookup H lB = CC_CadEmpty + heap_represents_cad H lB qB. *)
+  assert (HqB : qB = CEmpty).
+  { inversion HrepB as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; rewrite HB in Hlk; try discriminate; reflexivity. }
+  subst qB.
+  destruct cA;
+    try (cbn in Hop; rewrite HB in Hop; cbn in Hop;
+         injection Hop as HH Hl _; subst H'; subst l';
+         assert (Heq : qResult = qA)
+           by (eapply heap_represents_cad_det; eassumption);
+         subst qResult; cbn;
+         rewrite app_nil_r; reflexivity).
+  - contradiction HcAne. reflexivity.
+Qed.
+
 (** ** Sequence-correctness for the CDouble simple cases.
 
     Each of the three CDouble simple operations is sequence-correct
