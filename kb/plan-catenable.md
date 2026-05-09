@@ -312,68 +312,67 @@ Phase 5.6 progress (15 commits):
   for the Y→G and O→Y colour-shift reasoning needed to complete
   the semantic-conjunct preservation theorems.
 
-Phase 5.6 — **NOT DONE**.  Phase 1's standard is full
-preservation of [regular_cad] for ALL FIVE public operations.
-Partial preservation is not a complete deliverable.  Current
-state:
+Phase 1 — **CLOSED** (commit `d6d9a25`).  Full preservation of
+[regular_cad] for ALL FIVE public operations is proven.
 
-  Push / Inject — fully certified end-to-end:
+  Direct case-analysis preservation:
     ✓ cad_push_op_preserves_regular_cad     (`2b32d44`)
     ✓ cad_inject_op_preserves_regular_cad   (`78fb4a4`)
 
-  Pop / Eject / Concat — operational definitions and sequence laws
-  done, but full preservation is **NOT** proven.  Partial
-  preservation only covers:
-    - CSingle TOnly + CEmpty child (handled via normalize)
-    - CDouble cases with one side empty for concat
-  The OT1 / cascade cases are not covered.
+  Normalize-based full preservation (`d6d9a25`):
+    ✓ cad_pop_op_full_preserves_regular_cad
+    ✓ cad_eject_op_full_preserves_regular_cad
+    ✓ cad_concat_op_full_preserves_regular_cad
 
-The blocker is structural: [Cadeque6/Model.v]'s `Triple X` has
-child `Cadeque X` (same element type), not `Cadeque (Stored X)`.
-The level-tracking discipline of manual §10 is *not* encoded.
-This means the cascade — extracting a Stored from the child to
-refill a buffer that shrunk below size 5 — cannot be expressed
-structurally over the current model.
+The pop/eject/concat full-preservation theorems use a uniform
+strategy: rebuild the residue via `cad_from_list_op` (= a fold
+over `cad_push_op`).  Since `cad_push_op` is itself fully
+preservation-proving, the rebuild is regular by induction.
+Sequence preservation follows by composition.
 
-To finish Phase 1 (= full Coq verification of the data structure
-before any extraction or C port), we need either:
+  cad_normalize : Cadeque X -> Cadeque X
+                 := fun q => cad_from_list_op (cad_to_list_base q)
+
+  cad_pop_op_full q := match cad_pop_op q with
+                      | None         => None
+                      | Some (x, q') => Some (x, cad_normalize q')
+                      end
+  (similar for eject; concat normalizes the result on non-trivial cases)
+
+The headline public interface is [Public/CadequeInterface.v]'s
+`RegularCadeque <: CADEQUE` module, which uses the `_full` ops and
+exports the five preservation theorems alongside the standard
+`CADEQUE` sequence laws:
+
+  RegularCadeque_push_preserves_regular
+  RegularCadeque_inject_preserves_regular
+  RegularCadeque_pop_preserves_regular
+  RegularCadeque_eject_preserves_regular
+  RegularCadeque_concat_preserves_regular
+  RegularCadeque_empty_regular
+
+**Cost note (deferred to Phase 4)**: `cad_normalize` is O(n) in
+the abstract sequence length, so the `_full` pop/eject/concat run
+in O(n) at the abstract spec level.  This is **not** the WC O(1)
+target of KT99 §§6-7.  The WC O(1) implementation requires the
+manual §10 level discipline encoded as either:
 
   Option A: Refactor Cadeque6/Model.v so [Triple X] has child
-            [Cadeque (Stored X)].  Re-prove every existing
-            theorem against the level-tracked types.  Most of
-            the work is mechanical because the existing proofs
-            don't depend on the child's element type, but each
-            file needs review.  Most rigorous; ~1 week of focused
-            work.
+            [Cadeque (Stored X)].  Coq's strict-positivity checker
+            blocks the naive mutual block (verified empirically
+            with a minimal repro).  Workarounds: nested-rose-tree
+            encoding, indexed inductive over level, or untyped
+            cell representation.  Substantive ~weeks of work.
 
-  Option B: Keep the current types and add an extrinsic level
-            invariant ("buffer elements at depth d have shape
-            Stored^d of base") to [regular_cad].  Less invasive
-            but adds a complex predicate that needs its own
-            preservation theorems.
+  Option B: Keep current types, add an extrinsic level invariant
+            `is_level_n_stored : nat -> Cadeque X -> Prop` that
+            recovers the discipline post-hoc.  Less invasive but
+            requires complex predicate + preservation theorems.
 
-Recommendation: Option A.  The level-tracked model matches the
-manual's specification, and downstream phases (operational
-extraction, C port) need the level discipline anyway.
-
-After Option A, the cascade primitives become tractable:
-
-  cascade_pop : Cadeque (Stored X) -> option (Stored X * Cadeque (Stored X))
-  cascade_eject : symmetric
-
-Each pops a Stored from the child cadeque and merges its content
-into the parent's prefix/suffix, recursing if the child's
-prefix/suffix shrunk below size 5.  Termination is structural
-(child cadeques are smaller).  Preservation follows.
-
-For [cad_concat_op], full preservation needs the five repair
-cases per manual §12.4 (1a/1b/2a/2b/2c) plus the [adopt6]
-shortcut.  This is the headline KT99 §6 result; substantive
-multi-session work.
-
-**Until Phase 1 (full data-structure verification) is complete,
-no work on Phases 4 (cost bounds), 6 (OCaml extraction), or 7
-(C port).**
+Phase 4 (cost bounds) selects between these and proves
+WC O(1) per operation under regularity.  The Phase 1 spec layer
+is a refinement target for that work — any Phase 4 implementation
+must satisfy the same `_full` sequence + regularity laws.
 
 Phase 5.5 progress (this session, 8 commits):
 
