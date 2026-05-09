@@ -2765,6 +2765,79 @@ Proof.
   - contradiction HcAne. reflexivity.
 Qed.
 
+(** ** Empty-case full contracts: trivial since H' = H.
+
+    Completes the full-contract matrix at all 6 dispatch paths.
+    The empty cases are simple because no allocation occurs:
+      - cost = 1 or 2, trivially ≤ 8;
+      - inputs persist trivially (H' = H);
+      - the result is the OTHER input pointer, so the result's list
+        is exactly the other input's list. *)
+
+Theorem cad_concat_imp_full_contract_when_A_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      k <= CAD_CONCAT_IMP_COST /\
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB /\
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base qA ++ cad_to_list_base qB).
+Proof.
+  intros A H lA lB qA qB HrepA HrepB HA H' l' k Hop.
+  assert (Hpersist : heap_represents_cad H' lA qA /\
+                     heap_represents_cad H' lB qB).
+  { eapply cad_concat_imp_inputs_persist_when_A_empty;
+      [exact HrepA | exact HrepB | exact HA | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  split; [|split; [|split]].
+  - eapply cad_concat_imp_terminates_with_constant_cost; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - intros qResult Hres.
+    eapply cad_concat_imp_list_correct_when_A_empty;
+      [exact HrepA | exact HrepB | exact HA | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_concat_imp_full_contract_when_B_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A)
+         (cA : CadCell A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some cA ->
+    cA <> CC_CadEmpty ->
+    lookup H lB = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      k <= CAD_CONCAT_IMP_COST /\
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB /\
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base qA ++ cad_to_list_base qB).
+Proof.
+  intros A H lA lB qA qB cA HrepA HrepB HA HcAne HB H' l' k Hop.
+  assert (Hpersist : heap_represents_cad H' lA qA /\
+                     heap_represents_cad H' lB qB).
+  { eapply cad_concat_imp_inputs_persist_when_B_empty;
+      [exact HrepA | exact HrepB | exact HA | exact HcAne | exact HB | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  split; [|split; [|split]].
+  - eapply cad_concat_imp_terminates_with_constant_cost; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - intros qResult Hres.
+    eapply cad_concat_imp_list_correct_when_B_empty;
+      [exact HrepA | exact HrepB | exact HA | exact HcAne | exact HB
+       | exact Hop | exact Hres].
+Qed.
+
 (** ** Sequence-correctness for the CDouble simple cases.
 
     Each of the three CDouble simple operations is sequence-correct
