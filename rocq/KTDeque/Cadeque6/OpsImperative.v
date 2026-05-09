@@ -482,14 +482,46 @@ Qed.
 (** ** General WC O(1) bound for [cad_concat_imp]: pending.
 
     The per-path cost theorems above (when_A_empty, when_B_empty,
-    when_singleton_singleton) cover the three implemented success
-    paths with cost ≤ 11.  Every other shape combination
+    when_singleton_singleton_empty_boundary) cover the implemented
+    success paths with cost ≤ 8.  Every other shape combination
     short-circuits to retC with cost 1-2.
 
-    A fully mechanized "for all inputs k ≤ 11" theorem requires a
+    A fully mechanized "for all inputs k ≤ 8" theorem requires a
     long case split on the 8 × 8 = 64 cell-shape combinations of
     cA and cB, plus the inner triple-cell combinations for the
     CC_CadSingle, CC_CadSingle case.  The proof technique is
     identical to [DequePtr/Footprint.v]'s [NF_PUSH_PKT_FULL = 9];
     we omit the long enumeration here and rely on the per-path
     statements as the operationally-meaningful WC O(1) claim. *)
+
+(** ** Headline summary: WC O(1) catenable concat in Coq.
+
+    What's proven, in the cost monad on [Heap (CadCell A)]:
+
+    Cost bounds (closed-form constants, independent of input depth/size):
+    - [cad_concat_imp_left_empty_WC_O1]    : cost ≤ 1
+    - [cad_concat_imp_right_empty_WC_O1]   : cost ≤ 1
+    - [cad_concat_imp_singleton_singleton_simple_cost_exact]  : cost = 6
+    - [cad_concat_imp_cost_when_A_empty]                       : cost = 1
+    - [cad_concat_imp_cost_when_B_empty]                       : cost = 2
+    - [cad_concat_imp_cost_when_singleton_singleton_empty_boundary]
+                                                                : cost = 8
+
+    Sequence-correctness (the result heap represents the abstract
+    [cad_concat qA qB]):
+    - [cad_concat_imp_left_empty_correct]
+    - [cad_concat_imp_right_empty_correct]
+    - [cad_concat_imp_correct_when_A_empty]
+    - [cad_concat_imp_singleton_singleton_simple_correct]
+
+    The simple-case sequence-correctness is the key result: given
+    inputs satisfying the precondition (empty boundary buffers,
+    [cBchild = CC_CadEmpty]), the freshly-allocated cells in H'
+    correctly represent [cad_concat qA qB].
+
+    What's deferred to subsequent Phase 4b chunks:
+    - Non-empty joining boundary (sufA ++ preB ≠ []).
+    - Non-trivial cBchild (B's child has elements).
+    - CDouble inputs.
+    - The five repair cases (1a/1b/2a/2b/2c per manual §12.4).
+    - [adopt6] shortcut for the constant-time deep-cell access. *)
