@@ -226,83 +226,64 @@ Proof.
   destruct cB; inversion Hcost; subst; lia.
 Qed.
 
-(** ** General singleton-singleton concat with allocated boundary.
+(** ** Sequence-correctness for the simple singleton-singleton case.
 
-    Like [cad_concat_imp_singleton_singleton_simple] but handles the
-    case where the joining boundary [sufA ++ preB] is non-empty.
+    [cad_concat_imp_singleton_singleton_simple] is correct (= produces
+    a heap representing the concatenated abstract cadeque) when the
+    inputs satisfy:
+    - sufA = empty
+    - preB = empty
+    - cBchild's cell is CC_CadEmpty (B's child is the empty cadeque)
 
-    Strategy: allocate a [CC_StoredSmall] cell holding the merged
-    boundary buffer, then a [CC_CadEmpty] cell representing the
-    new triple's child cadeque (which is, conceptually, a single
-    Stored — but we encode it as an empty child here, with the
-    boundary stored inline in the suffix), then a new triple cell
-    [CC_TripleOnly preA child sufB], then a new cadeque cell
-    [CC_CadSingle].
+    Under these preconditions, the concatenation is just
+    [preA ++ list_of(cAchild) ++ sufB], which the operation faithfully
+    constructs as [CSingle (TOnly preA cAchild sufB)].
 
-    The simpler encoding used here: just merge sufA + preB + sufB
-    into the new suffix and reuse cAchild (when sufA + preB ≤ 6).
-    This is correct only when the merged buffer fits in Buf6.
+    Without those preconditions, the operation drops elements (cBchild's
+    contents and the boundary [sufA ++ preB] are not represented in
+    the result).  The general WC O(1) concat that handles all shapes
+    requires the [adopt6] shortcut and cell-graph traversal at deeper
+    levels -- see [kb/spec/phase-4b-imperative-dsl.md].
 
-    Cost: 4 reads + 3 allocs = 7.
+    The cost-correct WC O(1) "skeleton" we already have demonstrates
+    the proof technique; the headline general-case sequence-correctness
+    is a follow-up Phase 4b chunk. *)
 
-    The level discipline of manual §10 is the hard structural
-    blocker preventing a fully general WC O(1) concat at this layer;
-    this case demonstrates the technique on a tractable sub-case. *)
-
-Definition cad_concat_imp_singleton_singleton {A : Type}
-    (lA lB : Loc) : MC (CadCell A) Loc :=
-  bindC (read_MC lA) (fun cA =>
-    bindC (read_MC lB) (fun cB =>
-      match cA, cB with
-      | CC_CadSingle ltA, CC_CadSingle ltB =>
-          bindC (read_MC ltA) (fun tA =>
-            bindC (read_MC ltB) (fun tB =>
-              match tA, tB with
-              | CC_TripleOnly preA cAchild sufA,
-                CC_TripleOnly preB cBchild sufB =>
-                  (* Combine sufA + preB into a single boundary buffer.
-                     Allocate that as a Stored, allocate a CadSingle
-                     wrapping a triple holding it, then build the
-                     final result. *)
-                  let boundary := buf6_concat sufA preB in
-                  bindC (alloc_MC (CC_StoredSmall boundary)) (fun lstored =>
-                    bindC (alloc_MC (CC_TripleOnly buf6_empty cAchild buf6_empty))
-                          (fun lboundary_triple =>
-                      bindC (alloc_MC (CC_CadSingle lboundary_triple)) (fun lboundary_cad =>
-                        bindC (alloc_MC (CC_TripleOnly preA lboundary_cad sufB)) (fun newt =>
-                          alloc_MC (CC_CadSingle newt)))))
-              | _, _ => retC lA
-              end))
-      | _, _ => retC lA
-      end)).
-
-(** ** Cost: WC O(1).  In the success path, exactly 9.
-
-    Reads: 4 (top of A, top of B, triple of A, triple of B).
-    Allocs: 5 (Stored, boundary triple, boundary cad, new triple, new cad).
-    Total: 9.
-
-    All other paths short-circuit to retC with cost 1-2.  Hence the
-    operation is bounded by 9 in every path. *)
-
-Theorem cad_concat_imp_singleton_singleton_cost_exact :
+Theorem cad_concat_imp_singleton_singleton_simple_correct :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
-         (preA preB sufA sufB : Buf6 A) (cAchild cBchild : Loc),
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc),
     lookup H lA = Some (CC_CadSingle ltA) ->
     lookup H lB = Some (CC_CadSingle ltB) ->
-    lookup H ltA = Some (CC_TripleOnly preA cAchild sufA) ->
-    lookup H ltB = Some (CC_TripleOnly preB cBchild sufB) ->
-    cost_of (cad_concat_imp_singleton_singleton lA lB) H
-    = Some 9.
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    lookup H cBchild = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleOnly preA cAchild sufB)
+      /\ lookup H' l' = Some (CC_CadSingle lt).
 Proof.
-  intros A H lA lB ltA ltB preA preB sufA sufB cAchild cBchild
-         HA HB HtA HtB.
-  unfold cad_concat_imp_singleton_singleton,
-         cost_of, bindC, read_MC, alloc_MC, retC.
-  rewrite HA, HB, HtA, HtB. cbn. reflexivity.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild
+         HA HB HtA HtB Hcb H' l' k Hop.
+  unfold cad_concat_imp_singleton_singleton_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - (* lookup H' (next_loc H) = Some triple *)
+    rewrite <- HH.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
 Qed.
-
-Definition CAD_CONCAT_IMP_SS_COST : nat := 9.
 
 (** ** Headline: in the success path, cost is exactly 9.
 
@@ -341,7 +322,7 @@ Definition cad_concat_imp {A : Type} (lA lB : Loc) : MC (CadCell A) Loc :=
           | _ =>
               match cA, cB with
               | CC_CadSingle _, CC_CadSingle _ =>
-                  cad_concat_imp_singleton_singleton lA lB
+                  cad_concat_imp_singleton_singleton_simple lA lB
               | _, _ => retC lA  (* CDouble cases: TODO *)
               end
           end)
@@ -374,45 +355,41 @@ Proof.
   rewrite HA, HB. cbn. reflexivity.
 Qed.
 
-(* When both A and B are CSingle, delegate to the singleton-singleton
-   case.  Cost = 1 (read A) + 1 (read B) + 9 (singleton-singleton)
-   = 11.
+(* When both A and B are CSingle, delegate to the simple
+   singleton-singleton case (sufA = preB = []).  Cost = 2 reads
+   (entry) + 6 (simple sub-case = 4 inner reads + 2 allocs) = 8. *)
 
-   Wait: actually the bindC structure means the singleton-singleton
-   re-reads lA and lB.  So cost = 1 + 1 + 9 = 11.
-
-   This is still WC O(1), with bound CAD_CONCAT_IMP_COST = 11. *)
-Theorem cad_concat_imp_cost_when_singleton_singleton :
+Theorem cad_concat_imp_cost_when_singleton_singleton_empty_boundary :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
-         (preA preB sufA sufB : Buf6 A) (cAchild cBchild : Loc),
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc),
     lookup H lA = Some (CC_CadSingle ltA) ->
     lookup H lB = Some (CC_CadSingle ltB) ->
-    lookup H ltA = Some (CC_TripleOnly preA cAchild sufA) ->
-    lookup H ltB = Some (CC_TripleOnly preB cBchild sufB) ->
-    cost_of (cad_concat_imp lA lB) H = Some 11.
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    cost_of (cad_concat_imp lA lB) H = Some 8.
 Proof.
-  intros A H lA lB ltA ltB preA preB sufA sufB cAchild cBchild
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild
          HA HB HtA HtB.
   unfold cad_concat_imp, cost_of, bindC, read_MC, retC.
   rewrite HA, HB. cbn.
-  (* Now we hit cad_concat_imp_singleton_singleton. *)
-  unfold cad_concat_imp_singleton_singleton, bindC, read_MC,
+  unfold cad_concat_imp_singleton_singleton_simple, bindC, read_MC,
          alloc_MC, retC.
-  rewrite HA, HB, HtA, HtB. cbn. reflexivity.
+  rewrite HA, HB, HtA, HtB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
 Qed.
 
-Definition CAD_CONCAT_IMP_COST : nat := 11.
+Definition CAD_CONCAT_IMP_COST : nat := 8.
 
 (** ** Cost overview table for [cad_concat_imp].
 
-    Path                                              | Cost
-    --------------------------------------------------+------
-    A is CC_CadEmpty                                  |  1
-    A non-empty, B is CC_CadEmpty                     |  2
-    Both CC_CadSingle, both inner triples TripleOnly  | 11
-    All other shape combinations                      |  ≤ 11
+    Path                                                       | Cost
+    -----------------------------------------------------------+------
+    A is CC_CadEmpty                                           |  1
+    A non-empty, B is CC_CadEmpty                              |  2
+    Both CC_CadSingle, TripleOnly inputs, sufA=preB=[]         |  8
+    All other shape combinations                               |  ≤ 8
 
-    The headline: every successful path costs at most 11 cell
+    The headline: every successful path costs at most 8 cell
     operations -- a closed-form constant.  Hence WC O(1). *)
 
 (** ** Sequence-correctness for the empty cases.
