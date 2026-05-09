@@ -1095,6 +1095,22 @@ Proof.
     destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
 Qed.
 
+(** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
+
+Lemma alloc_monotone :
+  forall (Cell : Type) (c : Cell) (H : Heap Cell),
+    Pos.le (next_loc H) (next_loc (snd (alloc c H))).
+Proof.
+  intros Cell c H. cbn. apply Pos.lt_le_incl. apply Pos.lt_succ_diag_r.
+Qed.
+
+Lemma alloc_extends_next_loc_strict :
+  forall (Cell : Type) (c : Cell) (H : Heap Cell),
+    Pos.lt (next_loc H) (next_loc (snd (alloc c H))).
+Proof.
+  intros Cell c H. cbn. apply Pos.lt_succ_diag_r.
+Qed.
+
 (** ** Headline corollary: WC O(1) catenable concat (cost = O(1)).
 
     Bundles the WC cost bound + termination property:
