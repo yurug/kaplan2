@@ -265,7 +265,7 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | ⏳ pending | — |
+| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | 🟡 foundation in (CadCell + embed/extract) | `e210b5d`, `c3c38fc`, `a06c451` |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
@@ -286,15 +286,37 @@ reused verbatim — no recursion on the `Cadeque X` argument.  This is
 the abstract-layer analogue of [DequePtr/Footprint.v]'s
 `NF_PUSH_PKT_FULL = 9`.
 
-Phase 4b (pending): the abstract layer's `cad_*_op_full` variants and
-`cad_concat_op` are `O(n)` (`cad_normalize` is a list rebuild;
-`cad_concat` delegates to `cad_from_list`).  The WC O(1) catenation
-of KT99 §6 — the headline result — requires a heap-based imperative
-DSL on `Heap (CadCell (E.t A))` mirroring [DequePtr/OpsImperative.v],
-with non-recursive `cad_*_C` operations and the five repair cases
-(1a/1b/2a/2b/2c) plus the `adopt6` shortcut pointer.  This is months
-of work, structurally analogous to the Section-4 imperative DSL
-already done.
+Phase 4b (foundation in, operations pending): the abstract layer's
+`cad_*_op_full` variants and `cad_concat_op` are `O(n)`
+(`cad_normalize` is a list rebuild; `cad_concat` delegates to
+`cad_from_list`).  The WC O(1) catenation of KT99 §6 — the headline
+result — requires a heap-based imperative DSL on
+`Heap (CadCell (E.t A))` mirroring [DequePtr/]'s pattern, with
+non-recursive `cad_*_imp` operations and the five repair cases
+(1a/1b/2a/2b/2c) plus the `adopt6` shortcut pointer.
+
+Foundation landed (commits `e210b5d`, `c3c38fc`, `a06c451`):
+
+- [Cadeque6/HeapCells.v]: `CadCell A` inductive (8 constructors with
+  `Loc` payloads for sharing); `cell_kind` / `cell_subpointers` /
+  `cell_buffers` projections; `embed_cadeque` / `embed_triple` mutual
+  recursion that lays out an abstract cadeque in the heap;
+  fuel-bounded `extract_cadeque` / `extract_triple` round-trip.
+- Round-trip sanity checks on `CSingle (TOnly empty CEmpty empty)`
+  (3-cell allocation) and `CDouble (TOnly empty CEmpty empty) (TOnly
+  ...)` (5-cell allocation).
+
+Next 4b chunks (per [kb/spec/phase-4b-imperative-dsl.md]):
+
+1. General `embed_extract_correct` theorem (mutual induction on the
+   abstract tree, using `alloc_extends` from [Common/HeapExt.v]).
+2. `adopt6` shortcut field on cadeque cells + maintenance lemmas.
+3. `cad_push_imp` / `cad_inject_imp` in MC monad + cost bounds.
+4. `cad_pop_imp` / `cad_eject_imp` with cascade.
+5. `cad_concat_imp` with five repair cases (the headline).
+6. Bundled refinement linking imperative to abstract.
+
+Remaining estimated effort: 6–10 sessions.
 
 Phase 5.6 progress (15 commits):
 
