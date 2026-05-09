@@ -1623,6 +1623,86 @@ Proof.
     try eassumption.
 Qed.
 
+Theorem cad_concat_imp_seq_when_double_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (tLA : Triple A) (cRA' : Cadeque A),
+    heap_represents_cad H lA (CDouble tLA (TRight preRA cRA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_cad H cRA cRA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble tLA (TRight preRA cRA' sufB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' tLA cRA'
+         HrepA HrepB HA HB HtRA HtB HrepTLA HrepCRA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_double_single_simple lA lB H)
+    as [[[H'' l''] k'']|] eqn:Hds; [|discriminate].
+  injection Hop as HH Hl Hk. subst H' l'.
+  eapply cad_concat_imp_double_single_simple_seq;
+    try eassumption.
+Qed.
+
+Theorem cad_concat_imp_seq_when_single_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (cA_ab : Cadeque A) (tRB : Triple A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA_ab buf6_empty)) ->
+    heap_represents_cad H lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    heap_represents_cad H cA' cA_ab ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble (TLeft preA cA_ab sufLB) tRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB cA_ab tRB
+         HrepA HrepB HA HB HtA HtLB HrepCA HrepTRB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_single_double_simple lA lB H)
+    as [[[H'' l''] k'']|] eqn:Hsd; [|discriminate].
+  injection Hop as HH Hl Hk. subst H' l'.
+  eapply cad_concat_imp_single_double_simple_seq;
+    try eassumption.
+Qed.
+
 Theorem cad_concat_imp_seq_when_double_double :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
          (cRA cLB : Loc) (tLA tRB : Triple A),
