@@ -420,6 +420,24 @@ Built on top of the new determinism lemma `heap_represents_cad_det`
 (resp. `_triple_det`), which pins down the abstract value that any
 witness at a given loc must take.
 
+**Input-persistence — purely-functional snapshot validity** (4 shapes):
+- `cad_concat_imp_ss_inputs_persist`
+- `cad_concat_imp_ds_inputs_persist`
+- `cad_concat_imp_sd_inputs_persist`
+- `cad_concat_imp_dd_inputs_persist`
+
+Each shows: under the SS/DS/SD/DD shape preconditions, if A is
+represented at lA in H AND B is represented at lB in H, then BOTH
+representations carry over UNCHANGED to H'.  Anyone holding a
+snapshot of A or B before `cad_concat_imp` continues to see the
+same abstract cadeque (and hence the same list) after.
+
+This delivers the FULL purely-functional contract end-to-end for
+all four shape combinations:
+- input snapshots preserved (`*_inputs_persist`),
+- output sequence-correct (`*_seq_when_*` + `*_list_correct`),
+- cost ≤ 8 (`cad_concat_imp_WC_O1`).
+
 **Persistence under alloc** (foundational, 2 lemmas):
 - `lookup_persists_after_alloc`      : single alloc preserves earlier locs.
 - `lookup_persists_after_two_allocs` : two-alloc persistence.
@@ -429,7 +447,7 @@ combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-**Stats**: OpsImperative.v has ~2770 lines, 80+ theorems/lemmas/
+**Stats**: OpsImperative.v has ~2960 lines, 84+ theorems/lemmas/
 definitions.  Build clean throughout.  **Zero admits maintained**.
 
 **What's still pending** (deferred to subsequent Phase 4b chunks):
