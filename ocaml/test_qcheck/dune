@@ -9,3 +9,11 @@
 (test
  (name test_ktdeque)
  (libraries ktdeque qcheck))
+
+; QCheck tests for the catenable extracted module KTCatenableDeque.
+; Exercises the new concat operation plus push/pop/inject/eject in
+; both their abstract (cad_*) and fully-regularity-preserving
+; (cad_*_op_full) flavours.
+(test
+ (name test_ktcatenable)
+ (libraries ktdeque qcheck))
