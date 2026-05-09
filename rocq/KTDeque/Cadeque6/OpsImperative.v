@@ -1095,6 +1095,173 @@ Proof.
     destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
 Qed.
 
+(** ** Persistence under alloc: foundational lemmas (also stated below
+    in their original location for consumers there).
+
+    Forwarded here so that the [heap_represents_cad_persists_alloc]
+    proof below has them in scope. *)
+
+Lemma lookup_persists_after_alloc_fwd :
+  forall (Cell : Type) (c : Cell) (H : Heap Cell) (l : Loc),
+    Pos.lt l (next_loc H) ->
+    lookup (snd (alloc c H)) l = lookup H l.
+Proof.
+  intros Cell c H l Hlt.
+  apply lookup_after_alloc.
+  intros Heq. rewrite Heq in Hlt. exact (Pos.lt_irrefl _ Hlt).
+Qed.
+
+(** ** [heap_represents_cad] / [heap_represents_triple]: relational
+    semantics linking a heap + loc to an abstract cadeque value.
+
+    These are inductive relations (in [Prop]), independent of the
+    fuel-bounded [extract_cadeque] function but providing the same
+    semantics structurally.  Sequence-correctness theorems for the
+    imperative ops are stated in terms of these relations. *)
+
+Inductive heap_represents_cad {A : Type}
+  : Heap (CadCell A) -> Loc -> Cadeque A -> Prop :=
+| HRC_Empty :
+    forall H l, lookup H l = Some CC_CadEmpty ->
+                heap_represents_cad H l CEmpty
+| HRC_Single :
+    forall H l lt t,
+      lookup H l = Some (CC_CadSingle lt) ->
+      heap_represents_triple H lt t ->
+      heap_represents_cad H l (CSingle t)
+| HRC_Double :
+    forall H l ltL ltR tL tR,
+      lookup H l = Some (CC_CadDouble ltL ltR) ->
+      heap_represents_triple H ltL tL ->
+      heap_represents_triple H ltR tR ->
+      heap_represents_cad H l (CDouble tL tR)
+
+with heap_represents_triple {A : Type}
+  : Heap (CadCell A) -> Loc -> Triple A -> Prop :=
+| HRT_TOnly :
+    forall H l pre lc suf c,
+      lookup H l = Some (CC_TripleOnly pre lc suf) ->
+      heap_represents_cad H lc c ->
+      heap_represents_triple H l (TOnly pre c suf)
+| HRT_TLeft :
+    forall H l pre lc suf c,
+      lookup H l = Some (CC_TripleLeft pre lc suf) ->
+      heap_represents_cad H lc c ->
+      heap_represents_triple H l (TLeft pre c suf)
+| HRT_TRight :
+    forall H l pre lc suf c,
+      lookup H l = Some (CC_TripleRight pre lc suf) ->
+      heap_represents_cad H lc c ->
+      heap_represents_triple H l (TRight pre c suf).
+
+(** ** Well-formed cadeque heap: every cell's sub-pointers point
+    within the allocated region. *)
+
+Definition wf_cad_heap_at {A : Type} (H : Heap (CadCell A)) (l : Loc) : Prop :=
+  Pos.lt l (next_loc H) /\
+  forall c, lookup H l = Some c ->
+            forall l', In l' (cell_subpointers c) ->
+                       Pos.lt l' (next_loc H).
+
+(** ** Persistence of [heap_represents_cad] under alloc.
+
+    Key foundational theorem: if [H] represents the cadeque [q] at [l]
+    and [l] is below [next_loc H] (i.e. allocated), then after a fresh
+    alloc into [H] (yielding [H']), [H'] still represents [q] at [l].
+
+    The proof is a mutual induction over [heap_represents_cad] /
+    [heap_represents_triple].  The induction hypothesis preserves the
+    representation through the recursive cell-graph traversal, since
+    every reachable loc is preserved by [lookup_persists_after_alloc].
+
+    This is the "alloc preserves earlier reachability" property —
+    the foundation for proving that imperative concat preserves A
+    and B's abstract sequences. *)
+
+(** Mutual scheme for heap_represents_cad / heap_represents_triple. *)
+Scheme heap_represents_cad_mut := Induction for heap_represents_cad Sort Prop
+  with heap_represents_triple_mut := Induction for heap_represents_triple Sort Prop.
+
+(** Persistence under a single alloc.  Requires structural well-formedness:
+    every loc reachable from the top of the represented cadeque must be
+    < next_loc H. *)
+
+(** A pair of mutual lemmas: the represented cadeque/triple persists if
+    the witnessing locs are all < next_loc H.  Stated with an explicit
+    well-formedness assumption [wf]: a predicate that holds for the
+    [Pos.lt l (next_loc H)] condition on each step.
+
+    For the simplest formulation, we use a *strong* hypothesis: ALL
+    locs in the heap are < next_loc.  In a well-formed heap, every
+    cell's bindings have keys < next_loc, AND every cell's subpointers
+    point to other allocated locs (also < next_loc).
+
+    For our purposes here, we just assume the top-level loc is < next_loc
+    AND propagate through the structure. *)
+
+(** Lemma: heap_represents_cad survives one alloc, given that all
+    sub-locs in the represented structure are < next_loc H.
+
+    Proof uses structural induction on the abstract Cadeque/Triple
+    via mutual induction principle on the [Cadeque] / [Triple] AST. *)
+
+Lemma heap_represents_cad_persists_alloc :
+  forall (A : Type) (c_new : CadCell A) (q : Cadeque A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_cad H l q ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    heap_represents_cad (snd (alloc c_new H)) l q
+with heap_represents_triple_persists_alloc :
+  forall (A : Type) (c_new : CadCell A) (t : Triple A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_triple H l t ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    heap_represents_triple (snd (alloc c_new H)) l t.
+Proof.
+  - intros A c_new q H l Hrep Hwf_cad Hwf_trip.
+    inversion Hrep as [H' l' Hlk Heq1 Heq2 | H' l' lt t Hlk Hrep_t Heq1 Heq2 |
+                       H' l' ltL ltR tL tR Hlk Hrep_tL Hrep_tR Heq1 Heq2];
+      subst.
+    + (* CEmpty *)
+      apply HRC_Empty.
+      rewrite lookup_persists_after_alloc_fwd; [assumption|].
+      eapply Hwf_cad. exact Hrep.
+    + (* CSingle *)
+      eapply HRC_Single.
+      * rewrite lookup_persists_after_alloc_fwd; [exact Hlk|].
+        eapply Hwf_cad. exact Hrep.
+      * apply heap_represents_triple_persists_alloc; assumption.
+    + (* CDouble *)
+      eapply HRC_Double.
+      * rewrite lookup_persists_after_alloc_fwd; [exact Hlk|].
+        eapply Hwf_cad. exact Hrep.
+      * apply heap_represents_triple_persists_alloc; assumption.
+      * apply heap_represents_triple_persists_alloc; assumption.
+  - intros A c_new t H l Hrep Hwf_cad Hwf_trip.
+    inversion Hrep as [H' l' pre lc suf c Hlk Hrep_c Heq1 Heq2 |
+                       H' l' pre lc suf c Hlk Hrep_c Heq1 Heq2 |
+                       H' l' pre lc suf c Hlk Hrep_c Heq1 Heq2];
+      subst.
+    + eapply HRT_TOnly.
+      * rewrite lookup_persists_after_alloc_fwd; [exact Hlk|].
+        eapply Hwf_trip. exact Hrep.
+      * apply heap_represents_cad_persists_alloc; assumption.
+    + eapply HRT_TLeft.
+      * rewrite lookup_persists_after_alloc_fwd; [exact Hlk|].
+        eapply Hwf_trip. exact Hrep.
+      * apply heap_represents_cad_persists_alloc; assumption.
+    + eapply HRT_TRight.
+      * rewrite lookup_persists_after_alloc_fwd; [exact Hlk|].
+        eapply Hwf_trip. exact Hrep.
+      * apply heap_represents_cad_persists_alloc; assumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
