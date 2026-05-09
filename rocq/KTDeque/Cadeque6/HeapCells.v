@@ -54,8 +54,9 @@
 From Stdlib Require Import List.
 Import ListNotations.
 
-From KTDeque.Common Require Import FinMapHeap.
+From KTDeque.Common Require Import FinMapHeap HeapExt.
 From KTDeque.Buffer6 Require Import SizedBuffer.
+From KTDeque.Cadeque6 Require Import Model.
 
 (** ** [CadCell A]: the heap-cell type.
 
@@ -197,3 +198,124 @@ Proof. reflexivity. Qed.
     amount of work.  This is the structural prerequisite for the WC
     O(1) cost-bound proofs that will land in subsequent Phase 4b
     chunks. *)
+
+(** ** Embed: lay out an abstract [Cadeque A] in the heap.
+
+    Recursively allocates cells bottom-up, returning the [Loc] of
+    the root cell and the extended heap.  Termination is structural
+    on the [Cadeque] / [Triple] tree.  Allocates one cell per
+    [Triple] / [Cadeque] / [Stored] node in the input.
+
+    Note: this version does not yet carry the [adopt6] shortcut and
+    does not unfold [Stored] inside [Buf6] payloads (the buffers are
+    stored in the parent triple's cell as opaque [Buf6 A] values).
+    Both refinements come in subsequent chunks. *)
+
+Fixpoint embed_triple {A : Type} (t : Triple A) (H : Heap (CadCell A))
+                    : Loc * Heap (CadCell A) :=
+  match t with
+  | TOnly  pre c suf =>
+      let (lc, H1) := embed_cadeque c H in
+      alloc (CC_TripleOnly pre lc suf) H1
+  | TLeft  pre c suf =>
+      let (lc, H1) := embed_cadeque c H in
+      alloc (CC_TripleLeft pre lc suf) H1
+  | TRight pre c suf =>
+      let (lc, H1) := embed_cadeque c H in
+      alloc (CC_TripleRight pre lc suf) H1
+  end
+
+with embed_cadeque {A : Type} (q : Cadeque A) (H : Heap (CadCell A))
+                 : Loc * Heap (CadCell A) :=
+  match q with
+  | CEmpty       => alloc CC_CadEmpty H
+  | CSingle t    =>
+      let (lt, H1) := embed_triple t H in
+      alloc (CC_CadSingle lt) H1
+  | CDouble tL tR =>
+      let (lL, H1) := embed_triple tL H in
+      let (lR, H2) := embed_triple tR H1 in
+      alloc (CC_CadDouble lL lR) H2
+  end.
+
+(** ** Extract: reconstruct an abstract [Cadeque A] by following
+    pointers from a root [Loc].
+
+    Termination is non-trivial: the heap is finite but the cell
+    graph need not be acyclic in general.  We use a fuel parameter
+    [n : nat] that bounds the recursion depth; for any well-formed
+    embedding produced by [embed_*], a fuel of [size_of_cad] suffices
+    (this is left for a follow-up chunk).
+
+    Returns [None] on out-of-fuel or on a structural mismatch (e.g.
+    a Loc that points to a Stored cell where a Cadeque cell was
+    expected). *)
+
+Fixpoint extract_cadeque {A : Type} (n : nat) (H : Heap (CadCell A))
+                         (l : Loc) : option (Cadeque A) :=
+  match n with
+  | O => None
+  | S n' =>
+      match lookup H l with
+      | None => None
+      | Some CC_CadEmpty       => Some CEmpty
+      | Some (CC_CadSingle lt) =>
+          match extract_triple n' H lt with
+          | Some t => Some (CSingle t)
+          | None   => None
+          end
+      | Some (CC_CadDouble lL lR) =>
+          match extract_triple n' H lL with
+          | Some tL =>
+              match extract_triple n' H lR with
+              | Some tR => Some (CDouble tL tR)
+              | None    => None
+              end
+          | None    => None
+          end
+      | _ => None  (* Triple or Stored cell where Cadeque expected *)
+      end
+  end
+
+with extract_triple {A : Type} (n : nat) (H : Heap (CadCell A))
+                    (l : Loc) : option (Triple A) :=
+  match n with
+  | O => None
+  | S n' =>
+      match lookup H l with
+      | Some (CC_TripleOnly pre lc suf) =>
+          match extract_cadeque n' H lc with
+          | Some c => Some (TOnly pre c suf)
+          | None   => None
+          end
+      | Some (CC_TripleLeft pre lc suf) =>
+          match extract_cadeque n' H lc with
+          | Some c => Some (TLeft pre c suf)
+          | None   => None
+          end
+      | Some (CC_TripleRight pre lc suf) =>
+          match extract_cadeque n' H lc with
+          | Some c => Some (TRight pre c suf)
+          | None   => None
+          end
+      | _ => None
+      end
+  end.
+
+(** ** Embed/extract round-trip on the empty cadeque.
+
+    Trivial sanity check: embedding [CEmpty] then extracting from
+    the returned root [Loc] in the resulting heap recovers [CEmpty].
+    This validates the cell layout for the simplest case; the general
+    round-trip theorem is a follow-up chunk (requires alloc /
+    persistence machinery). *)
+
+Theorem embed_extract_empty :
+  forall (A : Type),
+    let (l, H) := embed_cadeque (@CEmpty A) empty_heap in
+    extract_cadeque 1 H l = Some CEmpty.
+Proof.
+  intros A. cbn [embed_cadeque alloc empty_heap].
+  cbn [extract_cadeque lookup bindings empty_heap loc_eqb].
+  reflexivity.
+Qed.
