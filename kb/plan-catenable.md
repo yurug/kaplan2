@@ -436,13 +436,15 @@ Plus empty-case persistence (trivial — H'=H):
 - `cad_concat_imp_inputs_persist_when_A_empty`
 - `cad_concat_imp_inputs_persist_when_B_empty`
 
-**FLAGSHIP "FULL CONTRACT" theorems** (4 shapes):
+**FLAGSHIP "FULL CONTRACT" theorems** (all 6 dispatch paths):
 - `cad_concat_imp_ss_full_contract`
 - `cad_concat_imp_ds_full_contract`
 - `cad_concat_imp_sd_full_contract`
 - `cad_concat_imp_dd_full_contract`
+- `cad_concat_imp_full_contract_when_A_empty`
+- `cad_concat_imp_full_contract_when_B_empty`
 
-Each bundles ALL FIVE guarantees into a single per-shape theorem:
+Each bundles all guarantees into a single per-case theorem:
 
 ```coq
 forall H' l' k,
