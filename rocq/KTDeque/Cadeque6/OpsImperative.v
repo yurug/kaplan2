@@ -801,6 +801,153 @@ Qed.
     The headline: every successful path costs at most 8 cell
     operations -- a closed-form constant.  Hence WC O(1). *)
 
+(** ** General WC O(1) bound for [cad_concat_imp].
+
+    For ANY heap and ANY [Loc] inputs, if the operation succeeds,
+    cost ≤ 8.  This is THE WC O(1) catenable concat theorem in
+    the cost monad.
+
+    Proof strategy: at the dispatch point [cad_concat_imp]'s body
+    is literally `bindC (read_MC lA) ... bindC (read_MC lB) ... call sub_op lA lB`.
+    So [cost_of (cad_concat_imp lA lB) H] = 1 + 1 + cost_of (sub_op lA lB) H.
+    By the sub-op WC theorems, the latter is ≤ 6 (or ≤ 5 for DD).
+    Hence cost ≤ 8.
+
+    Concretely: we enumerate cA / cB shapes and bound each branch.
+    For CC_CadSingle/CC_CadDouble combinations, the body unfolds
+    to [bindC read_MC ... call sub_op ...], giving cost = 2 + cost
+    of sub_op.  The sub-op cost bound is then applied. *)
+
+Theorem cad_concat_imp_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold CAD_CONCAT_IMP_COST.
+  (* Direct enumeration via unfolding: cad_concat_imp's body has
+     constant-bounded cost in every leaf. *)
+  unfold cad_concat_imp, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA.
+  - cbn in Hcost. destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
+  - cbn in Hcost. destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
+  - cbn in Hcost. destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
+  - cbn in Hcost. injection Hcost as Hk. lia.
+  - (* CC_CadSingle: dispatch on cB *)
+    cbn in Hcost.
+    destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+    + (* cA = CC_CadSingle, cB = CC_CadSingle: ss_simple.
+         The body of cad_concat_imp here is structurally
+         [cad_concat_imp_singleton_singleton_simple lA lB] modulo
+         the read_MC unfoldings.  Direct enumeration. *)
+      unfold cad_concat_imp_singleton_singleton_simple,
+             bindC, read_MC, retC, alloc_MC in Hcost.
+      destruct (lookup H lA) as [_cA|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct (lookup H lB) as [_cB|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct _cA, _cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (lookup H _) as [tA|]; [|discriminate Hcost].
+      destruct tA;
+        destruct (lookup H _) as [tB|];
+        [destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost ];
+        cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (buf6_elems _);
+        [destruct (buf6_elems _)|];
+        cbn in Hcost; injection Hcost as Hk; lia.
+    + (* CC_CadSingle, CC_CadDouble: sd_simple *)
+      unfold cad_concat_imp_single_double_simple,
+             bindC, read_MC, retC, alloc_MC in Hcost.
+      destruct (lookup H lA) as [_cA|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct (lookup H lB) as [_cB|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct _cA, _cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (lookup H _) as [tA|]; [|discriminate Hcost].
+      destruct tA;
+        destruct (lookup H _) as [tLB|];
+        [destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost ];
+        cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (buf6_elems _);
+        [destruct (buf6_elems _)|];
+        cbn in Hcost; injection Hcost as Hk; lia.
+  - (* CC_CadDouble *)
+    cbn in Hcost.
+    destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+    + (* CC_CadDouble, CC_CadSingle: ds_simple *)
+      unfold cad_concat_imp_double_single_simple,
+             bindC, read_MC, retC, alloc_MC in Hcost.
+      destruct (lookup H lA) as [_cA|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct (lookup H lB) as [_cB|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct _cA, _cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (lookup H _) as [tRA|]; [|discriminate Hcost].
+      destruct tRA;
+        destruct (lookup H _) as [tB|];
+        [destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost
+        |destruct tB | discriminate Hcost ];
+        cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (buf6_elems _);
+        [destruct (buf6_elems _)|];
+        cbn in Hcost; injection Hcost as Hk; lia.
+    + (* CC_CadDouble, CC_CadDouble: dd_simple *)
+      unfold cad_concat_imp_double_double_simple,
+             bindC, read_MC, retC, alloc_MC in Hcost.
+      destruct (lookup H lA) as [_cA|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct (lookup H lB) as [_cB|]; [|discriminate Hcost].
+      cbn in Hcost.
+      destruct _cA, _cB; cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (lookup H _) as [tRA|]; [|discriminate Hcost].
+      destruct tRA;
+        destruct (lookup H _) as [tLB|];
+        [destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost
+        |destruct tLB | discriminate Hcost ];
+        cbn in Hcost; try (injection Hcost as Hk; lia).
+      destruct (buf6_elems _);
+        [destruct (buf6_elems _);
+         [destruct (buf6_elems _);
+          [destruct (buf6_elems _) | ] | ] | ];
+        cbn in Hcost; injection Hcost as Hk; lia.
+  - cbn in Hcost. destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
+  - cbn in Hcost. destruct (lookup H lB) as [cB|]; [|discriminate Hcost].
+    destruct cB; cbn in Hcost; injection Hcost as Hk; lia.
+Qed.
+
 (** ** Sequence-correctness for the empty cases.
 
     When the left input cell is [CC_CadEmpty], it represents the
