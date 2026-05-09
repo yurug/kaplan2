@@ -312,33 +312,68 @@ Phase 5.6 progress (15 commits):
   for the Y→G and O→Y colour-shift reasoning needed to complete
   the semantic-conjunct preservation theorems.
 
-Phase 5.6 — endpoint operations:
+Phase 5.6 — **NOT DONE**.  Phase 1's standard is full
+preservation of [regular_cad] for ALL FIVE public operations.
+Partial preservation is not a complete deliverable.  Current
+state:
 
-  Push / Inject — **fully certified** end-to-end:
+  Push / Inject — fully certified end-to-end:
     ✓ cad_push_op_preserves_regular_cad     (`2b32d44`)
     ✓ cad_inject_op_preserves_regular_cad   (`78fb4a4`)
-    ✓ cad_push_op_refines_cad_push          (observational equivalence)
-    ✓ cad_inject_op_refines_cad_inject
 
-  Pop / Eject — operational versions defined with sequence laws:
-    ✓ cad_pop_op + cad_pop_op_seq           (`5452162`)
-    ✓ cad_eject_op + cad_eject_op_seq       (`0cbae56`)
+  Pop / Eject / Concat — operational definitions and sequence laws
+  done, but full preservation is **NOT** proven.  Partial
+  preservation only covers:
+    - CSingle TOnly + CEmpty child (handled via normalize)
+    - CDouble cases with one side empty for concat
+  The OT1 / cascade cases are not covered.
 
-  Pop/eject preservation is partial: the CSingle TOnly + CEmpty
-  child case is handled via normalize_only_empty_child; other
-  cases delegate to abstract.  Full preservation requires the
-  cascade machinery (`make_small` / `make_red` / `green_of_red`
-  analogues), which is a substantive next-session task.
+The blocker is structural: [Cadeque6/Model.v]'s `Triple X` has
+child `Cadeque X` (same element type), not `Cadeque (Stored X)`.
+The level-tracking discipline of manual §10 is *not* encoded.
+This means the cascade — extracting a Stored from the child to
+refill a buffer that shrunk below size 5 — cannot be expressed
+structurally over the current model.
 
-Phase 5.6+ remaining:
+To finish Phase 1 (= full Coq verification of the data structure
+before any extraction or C port), we need either:
 
-- Full `cad_pop_op_preserves_regular_cad` /
-  `cad_eject_op_preserves_regular_cad`: needs cascade primitives
-  for the OT1 cases when the popped buffer hits size 4 with a
-  non-empty child.
+  Option A: Refactor Cadeque6/Model.v so [Triple X] has child
+            [Cadeque (Stored X)].  Re-prove every existing
+            theorem against the level-tracked types.  Most of
+            the work is mechanical because the existing proofs
+            don't depend on the child's element type, but each
+            file needs review.  Most rigorous; ~1 week of focused
+            work.
 
-- `cad_concat_op`: needs all five repair cases (1a/1b/2a/2b/2c
-  per manual §12.4).  The headline operation; substantive.
+  Option B: Keep the current types and add an extrinsic level
+            invariant ("buffer elements at depth d have shape
+            Stored^d of base") to [regular_cad].  Less invasive
+            but adds a complex predicate that needs its own
+            preservation theorems.
+
+Recommendation: Option A.  The level-tracked model matches the
+manual's specification, and downstream phases (operational
+extraction, C port) need the level discipline anyway.
+
+After Option A, the cascade primitives become tractable:
+
+  cascade_pop : Cadeque (Stored X) -> option (Stored X * Cadeque (Stored X))
+  cascade_eject : symmetric
+
+Each pops a Stored from the child cadeque and merges its content
+into the parent's prefix/suffix, recursing if the child's
+prefix/suffix shrunk below size 5.  Termination is structural
+(child cadeques are smaller).  Preservation follows.
+
+For [cad_concat_op], full preservation needs the five repair
+cases per manual §12.4 (1a/1b/2a/2b/2c) plus the [adopt6]
+shortcut.  This is the headline KT99 §6 result; substantive
+multi-session work.
+
+**Until Phase 1 (full data-structure verification) is complete,
+no work on Phases 4 (cost bounds), 6 (OCaml extraction), or 7
+(C port).**
 
 Phase 5.5 progress (this session, 8 commits):
 
