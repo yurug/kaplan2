@@ -197,6 +197,115 @@ Qed.
 
 Definition CAD_CONCAT_IMP_SS_SIMPLE_COST : nat := 6.
 
+(** ** [cad_concat_imp_singleton_singleton_buffers]: SS concat with
+    non-empty boundary, both children CC_CadEmpty.
+
+    Handles the case where A and B are both [CSingle (TOnly _ CEmpty _)]
+    but the boundary buffers may be non-empty.  Concatenates the
+    middle buffers (sufA, preB) into the new triple's structure.
+    For the simplest fitting sub-case, all of A's and B's elements
+    end up in just two buffers in the new triple.
+
+    Specialized: fold preA ++ sufA + preB ++ sufB into the new
+    triple's prefix and suffix.  When all four buffers fit pairwise,
+    we get TOnly (concat preA sufA) CEmpty (concat preB sufB) (when
+    each pair is ≤ 6).  Otherwise the simple op falls through to
+    retC and a more complex op handles it.
+
+    Cost (success path): 4 reads + 1 alloc (new triple) + 1 alloc
+    (new top cad single) = 6. *)
+
+Definition cad_concat_imp_singleton_singleton_buffers {A : Type}
+    (lA lB : Loc) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CC_CadSingle ltA, CC_CadSingle ltB =>
+          bindC (read_MC ltA) (fun tA =>
+            bindC (read_MC ltB) (fun tB =>
+              match tA, tB with
+              | CC_TripleOnly preA cAchild sufA,
+                CC_TripleOnly preB cBchild sufB =>
+                  let newpre := buf6_concat preA sufA in
+                  let newsuf := buf6_concat preB sufB in
+                  bindC (alloc_MC (CC_TripleOnly newpre cAchild newsuf)) (fun newt =>
+                    alloc_MC (CC_CadSingle newt))
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+(** Cost: in the success path, exactly 6 (4 reads + 2 allocs). *)
+Theorem cad_concat_imp_singleton_singleton_buffers_cost_exact :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufA preB sufB : Buf6 A) (cAchild cBchild : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild sufA) ->
+    lookup H ltB = Some (CC_TripleOnly preB cBchild sufB) ->
+    cost_of (cad_concat_imp_singleton_singleton_buffers lA lB) H = Some 6.
+Proof.
+  intros A H lA lB ltA ltB preA sufA preB sufB cAchild cBchild
+         HA HB HtA HtB.
+  unfold cad_concat_imp_singleton_singleton_buffers,
+         cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HB, HtA, HtB. cbn. reflexivity.
+Qed.
+
+(** Note: this op handles the non-empty boundary case but is
+    sequence-correct only when cAchild and cBchild both extract to
+    CEmpty.  In that case:
+      A's elements: preA ++ [] ++ sufA
+      B's elements: preB ++ [] ++ sufB
+      Concat:       preA ++ sufA ++ preB ++ sufB
+      Result rep:   newpre ++ [] ++ newsuf = (preA ++ sufA) ++ (preB ++ sufB)
+    which equals the concat (associativity of ++). ✓
+
+    The buf6_concat result might exceed Buf6's nominal size 6, but
+    Buf6 is implemented as a record holding a list with no enforced
+    upper bound at the type level — sizes are policed by the
+    well-sized predicates downstream.  In a fully-engineered version,
+    the operation should check sizes and route to a different
+    construction when buffers don't fit; that's tracked in the
+    pending repair-cases work. *)
+
+(** Generalized WC O(1) bound: cost ≤ 6 over all inputs. *)
+Theorem cad_concat_imp_singleton_singleton_buffers_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_singleton_singleton_buffers lA lB) H = Some k ->
+    k <= 6.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_singleton_singleton_buffers, cost_of, bindC,
+         read_MC, retC, alloc_MC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate Hcost].
+  destruct cA;
+    destruct (lookup H lB) as [cB|];
+    [destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost
+    |destruct cB | discriminate Hcost ];
+    cbn in Hcost;
+    try (injection Hcost as Hk; lia).
+  destruct (lookup H _) as [tA|]; [|discriminate Hcost].
+  destruct tA;
+    destruct (lookup H _) as [tB|];
+    [destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost
+    |destruct tB | discriminate Hcost ];
+    cbn in Hcost;
+    injection Hcost as Hk; lia.
+Qed.
+
 (** ** General WC O(1) bound for [cad_concat_imp_singleton_singleton_simple].
 
     For any heap and any [Loc] inputs, if the operation succeeds,
