@@ -1429,6 +1429,8 @@ Qed.
     - [cad_concat_imp_right_empty_correct]                    : when B=CC_CadEmpty
     - [cad_concat_imp_correct_when_A_empty]                   : unified entry, A empty
     - [cad_concat_imp_singleton_singleton_simple_correct]     : SS case w/ preconds
+    - [cad_concat_imp_singleton_singleton_simple_correct_strong] : SS w/ persistence
+    - [cad_concat_imp_singleton_singleton_buffers_correct]    : SS w/ non-empty boundary
     - [cad_concat_imp_double_single_simple_correct]           : DS case w/ preconds
     - [cad_concat_imp_single_double_simple_correct]           : SD case w/ preconds
     - [cad_concat_imp_double_double_simple_correct]           : DD case w/ preconds
@@ -1437,6 +1439,16 @@ Qed.
     CDouble×CSingle, CDouble×CDouble) have proven correctness under
     appropriate preconditions (empty middle buffers + relevant
     children resolve to CEmpty).
+
+    The STRONG simple-SS correctness theorem additionally proves
+    that A and B's existing cells are preserved verbatim in H'
+    (via persistence lemmas under alloc) — the persistence-of-
+    persistence property critical for purely-functional snapshots.
+
+    *** Persistence under alloc (foundational):
+
+    - [lookup_persists_after_alloc]      : 1-alloc persistence
+    - [lookup_persists_after_two_allocs] : 2-alloc persistence
 
     *** Non-empty boundary:
 
