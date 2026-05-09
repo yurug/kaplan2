@@ -1112,6 +1112,37 @@ Proof.
   apply cad_concat_imp_WC_O1 in Hcost. exact Hcost.
 Qed.
 
+(** ** Persistence under alloc: foundational lemma.
+
+    For any [l] that's strictly less than [next_loc H], [lookup l]
+    is preserved across an [alloc].  Since fresh allocation always
+    happens at [next_loc H] (which equals [l] is impossible if
+    [l < next_loc H]), the existing binding for [l] is unchanged. *)
+
+Lemma lookup_persists_after_alloc :
+  forall (Cell : Type) (c : Cell) (H : Heap Cell) (l : Loc),
+    Pos.lt l (next_loc H) ->
+    lookup (snd (alloc c H)) l = lookup H l.
+Proof.
+  intros Cell c H l Hlt.
+  apply lookup_after_alloc.
+  intros Heq. rewrite Heq in Hlt. exact (Pos.lt_irrefl _ Hlt).
+Qed.
+
+(** Persistence over two consecutive allocs (the pattern in
+    [cad_concat_imp_singleton_singleton_simple]). *)
+Lemma lookup_persists_after_two_allocs :
+  forall (Cell : Type) (c1 c2 : Cell) (H : Heap Cell) (l : Loc),
+    Pos.lt l (next_loc H) ->
+    lookup (snd (alloc c2 (snd (alloc c1 H)))) l = lookup H l.
+Proof.
+  intros Cell c1 c2 H l Hlt.
+  rewrite lookup_persists_after_alloc.
+  - apply lookup_persists_after_alloc. exact Hlt.
+  - (* Pos.lt l (next_loc (snd (alloc c1 H))) = Pos.lt l (Pos.succ (next_loc H)) *)
+    cbn. apply Pos.lt_lt_succ. exact Hlt.
+Qed.
+
 (** ** Sequence-correctness for the empty cases.
 
     When the left input cell is [CC_CadEmpty], it represents the
