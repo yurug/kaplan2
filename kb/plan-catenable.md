@@ -374,6 +374,33 @@ persistence-of-persistence property critical for purely-functional
 snapshots: A and B remain valid as snapshots after the imperative
 concat.
 
+**FULL GENERAL SEQUENCE-CORRECTNESS via heap_represents_cad**:
+
+Sub-op level (4 shapes):
+- `cad_concat_imp_singleton_singleton_simple_seq`
+- `cad_concat_imp_double_single_simple_seq`
+- `cad_concat_imp_single_double_simple_seq`
+- `cad_concat_imp_double_double_simple_seq`
+
+**Unified-entry level (4 shapes, completes the 4-shape matrix at
+the public-facing entry):**
+- `cad_concat_imp_seq_when_singleton_singleton`
+- `cad_concat_imp_seq_when_double_single`
+- `cad_concat_imp_seq_when_single_double`
+- `cad_concat_imp_seq_when_double_double`
+
+Each proves: under shape preconditions PLUS structural
+well-formedness, the result heap `H'` *represents* the joined
+abstract cadeque (the value computed compositionally from the
+abstract values of the inputs).  Arbitrary middle children are
+handled via the persistence-under-alloc machinery — no longer
+requiring "trivial child" preconditions for SS / DS / SD / DD.
+
+Foundation: `heap_represents_cad` / `heap_represents_triple`
+inductive relations, with mutual persistence theorems
+`heap_represents_*_persists_alloc` and convenience helpers for
+1-alloc and 2-alloc patterns.
+
 **Persistence under alloc** (foundational, 2 lemmas):
 - `lookup_persists_after_alloc`      : single alloc preserves earlier locs.
 - `lookup_persists_after_two_allocs` : two-alloc persistence.
@@ -383,8 +410,8 @@ combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-**Stats**: OpsImperative.v has ~1780 lines, 60+ theorems/lemmas.
-Build clean throughout.  **Zero admits maintained**.
+**Stats**: OpsImperative.v has ~2520 lines, 75+ theorems/lemmas/
+definitions.  Build clean throughout.  **Zero admits maintained**.
 
 **What's still pending** (deferred to subsequent Phase 4b chunks):
 - Non-empty joining boundary + non-trivial children: requires
