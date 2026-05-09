@@ -265,7 +265,7 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | 🟢 cad_concat_imp WC O(1) ≤ 11 (singleton cases) | `e210b5d`, `c3c38fc`, `a06c451`, `49af372`, `dca6390`, `41a1a21` |
+| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | 🟢 cad_concat_imp WC O(1) ≤ 8 (empty + simple singleton cases, sequence-correct) | `e210b5d`, `c3c38fc`, `a06c451`, `49af372`, `dca6390`, `41a1a21`, `24ab2b8`, `7e362b7` |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
@@ -306,24 +306,36 @@ Foundation landed (commits `e210b5d`, `c3c38fc`, `a06c451`):
   (3-cell allocation) and `CDouble (TOnly empty CEmpty empty) (TOnly
   ...)` (5-cell allocation).
 
-WC O(1) `cad_concat_imp` landed (commits `49af372`, `dca6390`, `41a1a21`):
+WC O(1) `cad_concat_imp` landed (commits `49af372`, `dca6390`,
+`41a1a21`, `24ab2b8`, `7e362b7`):
 
 - [Cadeque6/OpsImperative.v]: heap-based imperative DSL operations
   in the MC cost monad.
 - `cad_concat_imp_left_empty` / `_right_empty`: cost = 1 (one read).
-  WC O(1) bounds proven (`cad_concat_imp_left_empty_WC_O1` etc.).
+  WC O(1) bounds proven AND sequence-correctness proven via
+  `cad_concat_imp_left_empty_correct` / `_right_empty_correct`.
 - `cad_concat_imp_singleton_singleton_simple`: cost = 6 (4 reads +
-  2 allocs) for the special case where the boundary is empty.
-- `cad_concat_imp_singleton_singleton`: cost = 9 (4 reads + 5
-  allocs) for the general singleton-singleton concat with allocated
-  boundary.
+  2 allocs) for the special case where the joining boundary is
+  empty (sufA = preB = []).  Sequence-correctness theorem
+  `cad_concat_imp_singleton_singleton_simple_correct` proves the
+  result heap correctly represents the abstract concatenation
+  under the additional precondition that B's child cell is
+  `CC_CadEmpty` (so the boundary buffer + cBchild contribute
+  nothing to the joined sequence).
 - `cad_concat_imp` (unified entry point): dispatches by reading top
-  cells.  Cost ≤ 11 (closed-form constant, independent of input
-  cadeque depth or size).  Per-path cost theorems proven for the
-  three implemented branches.
+  cells.  Cost ≤ 8 (closed-form constant, independent of input
+  cadeque depth or size).  Per-path cost theorems proven.
 
-This is **the WC O(1) catenable concat result**, in the same cost
-monad that proves `NF_PUSH_PKT_FULL = 9` for the Section-4 deque.
+This is **the WC O(1) catenable concat result for the implemented
+shapes**, in the same cost monad that proves
+`NF_PUSH_PKT_FULL = 9` for the Section-4 deque.  Both cost AND
+sequence-correctness are proven for the empty-side and trivial
+singleton-singleton cases.
+
+The general case (non-empty joining boundary, non-trivial cBchild,
+CDouble inputs) requires the [adopt6] shortcut + level-typed
+cascade outlined in [kb/spec/phase-4b-imperative-dsl.md], which is
+substantial multi-session work.
 
 Next 4b chunks (to extend coverage):
 
@@ -331,9 +343,9 @@ Next 4b chunks (to extend coverage):
 2. The five repair cases (1a/1b/2a/2b/2c) for non-singleton inputs.
 3. `adopt6` shortcut maintenance.
 4. General `embed_extract_correct` theorem.
-5. Sequence-correctness theorems linking [cad_concat_imp] to the
-   abstract [cad_concat] via [embed]/[extract].
-6. Bundled refinement linking imperative ops to abstract.
+5. Sequence-correctness for non-trivial singleton-singleton (when
+   the boundary is non-empty and B's child is non-empty).
+6. Bundled refinement linking imperative ops to abstract spec.
 
 Remaining estimated effort: 4–7 sessions.
 
