@@ -1391,6 +1391,141 @@ Proof.
     [reflexivity|contradiction].
 Qed.
 
+(** ** Sequence-correctness for the unified [cad_concat_imp] dispatch
+    paths (composes dispatch with sub-op correctness). *)
+
+(** When the unified entry is called with a CSingle×CSingle shape
+    that satisfies the simple-case preconditions, the underlying
+    sub-op fires and produces the correctly-allocated cells. *)
+
+Theorem cad_concat_imp_correct_when_singleton_singleton :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cBchild sufB) ->
+    lookup H cBchild = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleOnly preA cAchild sufB)
+      /\ lookup H' l' = Some (CC_CadSingle lt).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild
+         HA HB HtA HtB Hcb H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_singleton_singleton_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_correct_when_double_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleRight preRA cRA sufB)
+      /\ lookup H' l' = Some (CC_CadDouble ltLA lt).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' HA HB HtRA HtB
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_double_single_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_correct_when_single_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleLeft preA cA' sufLB)
+      /\ lookup H' l' = Some (CC_CadDouble lt ltRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB HA HB HtA HtLB
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_single_double_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_correct_when_double_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      lookup H' l' = Some (CC_CadDouble ltLA ltRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB HA HB HtRA HtLB
+         H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  unfold cad_concat_imp_double_double_simple, bindC, read_MC,
+         alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl. unfold lookup. cbn.
+  destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne];
+    [reflexivity|contradiction].
+Qed.
+
 (** ** Headline summary: WC O(1) catenable concat in Coq.
 
     What's proven in the cost monad on [Heap (CadCell A)]:
