@@ -1647,3 +1647,176 @@ Theorem cad_concat_op_preserves_regular_right_empty :
 Proof.
   intros X a Ha. destruct a; cbn [cad_concat_op]; exact Ha.
 Qed.
+
+(** * [cad_from_list_op] / [cad_normalize]: rebuild via [cad_push_op].
+
+    [cad_from_list_op xs] folds [cad_push_op] over [xs] starting from
+    [CEmpty].  Each push step applies [cad_push_op] which is fully
+    regularity-preserving (proven in [cad_push_op_preserves_regular_cad]).
+    Hence [cad_from_list_op xs] is regular for any [xs].
+
+    [cad_normalize q := cad_from_list_op (cad_to_list_base q)] takes any
+    [Cadeque X] and produces an observably-equal [Cadeque X] that is
+    [regular_cad].  This lets us close [regular_cad] preservation for
+    operations that would otherwise deliver an irregular result, by
+    composing them with [cad_normalize].
+
+    Cost note: [cad_normalize] is [O(n)] in the abstract sequence
+    length.  This is acceptable for the abstract-spec layer, which
+    targets correctness rather than cost.  Phase 4 (cost bounds) will
+    refine to a level-typed cascade with [O(1)] reshape; that
+    refinement is a separate enterprise sketched in
+    [kb/plan-catenable.md]. *)
+
+Fixpoint cad_from_list_op {X : Type} (xs : list X) : Cadeque X :=
+  match xs with
+  | []      => CEmpty
+  | y :: ys => cad_push_op y (cad_from_list_op ys)
+  end.
+
+Lemma cad_from_list_op_seq :
+  forall (X : Type) (xs : list X),
+    cad_to_list_base (cad_from_list_op xs) = xs.
+Proof.
+  intros X xs. induction xs as [|y ys IH].
+  - reflexivity.
+  - cbn [cad_from_list_op].
+    rewrite cad_push_op_seq, IH. reflexivity.
+Qed.
+
+Lemma cad_from_list_op_regular :
+  forall (X : Type) (xs : list X),
+    regular_cad (cad_from_list_op xs).
+Proof.
+  intros X xs. induction xs as [|y ys IH]; cbn.
+  - apply regular_cad_empty.
+  - apply cad_push_op_preserves_regular_cad. exact IH.
+Qed.
+
+Definition cad_normalize {X : Type} (q : Cadeque X) : Cadeque X :=
+  cad_from_list_op (cad_to_list_base q).
+
+Lemma cad_normalize_seq :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_normalize q) = cad_to_list_base q.
+Proof.
+  intros X q. unfold cad_normalize. apply cad_from_list_op_seq.
+Qed.
+
+Lemma cad_normalize_regular :
+  forall (X : Type) (q : Cadeque X),
+    regular_cad (cad_normalize q).
+Proof.
+  intros X q. unfold cad_normalize. apply cad_from_list_op_regular.
+Qed.
+
+(** * [cad_pop_op_full] / [cad_eject_op_full] / [cad_concat_op_full]:
+    fully regularity-preserving variants.
+
+    Each composes its underlying op with [cad_normalize] on the
+    residue.  Sequence laws are inherited via [cad_normalize_seq];
+    full [regular_cad] preservation is by [cad_normalize_regular]. *)
+
+Definition cad_pop_op_full {X : Type} (q : Cadeque X)
+                         : option (X * Cadeque X) :=
+  match cad_pop_op q with
+  | None         => None
+  | Some (x, q') => Some (x, cad_normalize q')
+  end.
+
+Definition cad_eject_op_full {X : Type} (q : Cadeque X)
+                           : option (Cadeque X * X) :=
+  match cad_eject_op q with
+  | None         => None
+  | Some (q', x) => Some (cad_normalize q', x)
+  end.
+
+Definition cad_concat_op_full {X : Type} (a b : Cadeque X) : Cadeque X :=
+  match a, b with
+  | CEmpty, _ => b
+  | _, CEmpty => a
+  | _, _      => cad_normalize (cad_concat a b)
+  end.
+
+(** ** Sequence laws. *)
+
+Theorem cad_pop_op_full_seq :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop_op_full q = Some (x, q') ->
+    cad_to_list_base q = x :: cad_to_list_base q'.
+Proof.
+  intros X q x q' Hp. unfold cad_pop_op_full in Hp.
+  destruct (cad_pop_op q) as [[y q'']|] eqn:Hpop; [|discriminate].
+  injection Hp as Hxy Hq'. subst y q'.
+  rewrite cad_normalize_seq.
+  apply (cad_pop_op_seq X q x q''). exact Hpop.
+Qed.
+
+Theorem cad_eject_op_full_seq :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject_op_full q = Some (q', x) ->
+    cad_to_list_base q = cad_to_list_base q' ++ [x].
+Proof.
+  intros X q q' x He. unfold cad_eject_op_full in He.
+  destruct (cad_eject_op q) as [[q'' y]|] eqn:Hej; [|discriminate].
+  injection He as Hq' Hxy. subst q' y.
+  rewrite cad_normalize_seq.
+  apply (cad_eject_op_seq X q q'' x). exact Hej.
+Qed.
+
+Theorem cad_concat_op_full_seq :
+  forall (X : Type) (a b : Cadeque X),
+    cad_to_list_base (cad_concat_op_full a b)
+    = cad_to_list_base a ++ cad_to_list_base b.
+Proof.
+  intros X a b. unfold cad_concat_op_full.
+  destruct a as [|ta|aL aR]; destruct b as [|tb|bL bR];
+    try reflexivity;
+    try (cbn [cad_to_list_base cad_to_list]; rewrite app_nil_r; reflexivity);
+    rewrite cad_normalize_seq, cad_concat_seq; reflexivity.
+Qed.
+
+(** ** Full [regular_cad] preservation. *)
+
+Theorem cad_pop_op_full_preserves_regular_cad :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop_op_full q = Some (x, q') ->
+    regular_cad q'.
+Proof.
+  intros X q x q' Hp. unfold cad_pop_op_full in Hp.
+  destruct (cad_pop_op q) as [[y q'']|] eqn:Hpop; [|discriminate].
+  injection Hp as _ Hq'. subst q'.
+  apply cad_normalize_regular.
+Qed.
+
+Theorem cad_eject_op_full_preserves_regular_cad :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject_op_full q = Some (q', x) ->
+    regular_cad q'.
+Proof.
+  intros X q q' x He. unfold cad_eject_op_full in He.
+  destruct (cad_eject_op q) as [[q'' y]|] eqn:Hej; [|discriminate].
+  injection He as Hq' _. subst q'.
+  apply cad_normalize_regular.
+Qed.
+
+Theorem cad_concat_op_full_preserves_regular_cad :
+  forall (X : Type) (a b : Cadeque X),
+    regular_cad a ->
+    regular_cad b ->
+    regular_cad (cad_concat_op_full a b).
+Proof.
+  intros X a b Ha Hb. unfold cad_concat_op_full.
+  destruct a as [|ta|aL aR]; destruct b as [|tb|bL bR];
+    try exact Hb; try exact Ha;
+    apply cad_normalize_regular.
+Qed.
+
+(** ** Refinement: [_full] variants are observationally equivalent to
+    the abstract ops at the [cad_to_list_base] level (already given by
+    [cad_pop_op_full_seq] etc.).  We do not state a constructor-level
+    refinement: [cad_pop_op] and [cad_pop] can disagree on which
+    constructor witnesses the [Some] result (different residue
+    shape), and the [_full] form additionally normalizes via
+    [cad_from_list_op].  Sequence-level equivalence is the relevant
+    correctness statement. *)

@@ -214,3 +214,38 @@ Example op_inject_eject_roundtrip :
   | None         => False
   end.
 Proof. cbn. split; reflexivity. Qed.
+
+(** ** _full operational variants: full regular_cad preservation. *)
+
+Example full_pop_observable :
+  match cad_pop_op_full q_left with
+  | Some (x, q') => x = 0 /\ cad_to_list_base q' = [1; 2]
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
+
+Example full_eject_observable :
+  match cad_eject_op_full q_left with
+  | Some (q', x) => x = 2 /\ cad_to_list_base q' = [0; 1]
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
+
+Example full_concat_observable :
+  cad_to_list_base (cad_concat_op_full q_left q_right) = [0; 1; 2; 3; 4; 5].
+Proof. reflexivity. Qed.
+
+Example full_concat_left_empty :
+  cad_to_list_base (cad_concat_op_full CEmpty q_left) = cad_to_list_base q_left.
+Proof. reflexivity. Qed.
+
+Example full_concat_right_empty :
+  cad_to_list_base (cad_concat_op_full q_left CEmpty) = cad_to_list_base q_left.
+Proof. reflexivity. Qed.
+
+Example full_pop_eject_roundtrip :
+  match cad_pop_op_full (cad_push_op 7 q_left) with
+  | Some (x, q') => x = 7 /\ cad_to_list_base q' = cad_to_list_base q_left
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.

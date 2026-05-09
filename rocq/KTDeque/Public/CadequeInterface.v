@@ -375,3 +375,166 @@ Qed.
 
 (** ** Operational namespace alias. *)
 Module COp := OperationalCadeque.
+
+(** ** Implementation [RegularCadeque]: full [regular_cad] preservation
+    for all five public operations.
+
+    Uses the [_full] variants from [Cadeque6/Repair.v]: push and inject
+    inherit the regularity-preserving operational versions; pop, eject,
+    and concat compose the operational versions with [cad_normalize]
+    (rebuild via regularity-preserving [cad_push_op]).  This guarantees
+    every operation produces a [regular_cad] result whenever the input
+    is regular.
+
+    Cost note: pop/eject/concat are [O(n)] in the abstract sequence.
+    A WC [O(1)] implementation is the target of Phase 4 of
+    [kb/plan-catenable.md]; that phase will introduce a level-typed
+    cascade that refines the present operational layer. *)
+
+Module RegularCadeque <: CADEQUE.
+
+  Definition t (A : Type) : Type := Cadeque A.
+
+  Definition empty (A : Type) : t A := @CEmpty A.
+
+  Definition singleton (A : Type) (x : A) : t A :=
+    cad_singleton x.
+
+  Definition is_empty (A : Type) (q : t A) : bool :=
+    cad_is_empty q.
+
+  Definition push (A : Type) (x : A) (q : t A) : t A :=
+    cad_push_op x q.
+
+  Definition inject (A : Type) (q : t A) (x : A) : t A :=
+    cad_inject_op q x.
+
+  Definition pop (A : Type) (q : t A) : option (A * t A) :=
+    cad_pop_op_full q.
+
+  Definition eject (A : Type) (q : t A) : option (t A * A) :=
+    cad_eject_op_full q.
+
+  Definition concat (A : Type) (a b : t A) : t A :=
+    cad_concat_op_full a b.
+
+  Definition rev (A : Type) (q : t A) : t A :=
+    cad_rev q.
+
+  Definition length (A : Type) (q : t A) : nat :=
+    cad_size q.
+
+  Definition to_list (A : Type) (q : t A) : list A :=
+    cad_to_list_base q.
+
+  Theorem empty_to_list :
+    forall (A : Type), to_list A (empty A) = [].
+  Proof. intros. reflexivity. Qed.
+
+  Theorem push_to_list :
+    forall (A : Type) (x : A) (q : t A),
+      to_list A (push A x q) = x :: to_list A q.
+  Proof. intros. apply cad_push_op_seq. Qed.
+
+  Theorem inject_to_list :
+    forall (A : Type) (q : t A) (x : A),
+      to_list A (inject A q x) = to_list A q ++ [x].
+  Proof. intros. apply cad_inject_op_seq. Qed.
+
+  Theorem pop_to_list :
+    forall (A : Type) (q : t A) (x : A) (q' : t A),
+      pop A q = Some (x, q') ->
+      to_list A q = x :: to_list A q'.
+  Proof. intros A q x q' H. apply cad_pop_op_full_seq. exact H. Qed.
+
+  Theorem eject_to_list :
+    forall (A : Type) (q : t A) (q' : t A) (x : A),
+      eject A q = Some (q', x) ->
+      to_list A q = to_list A q' ++ [x].
+  Proof. intros A q q' x H. apply cad_eject_op_full_seq. exact H. Qed.
+
+  Theorem concat_to_list :
+    forall (A : Type) (a b : t A),
+      to_list A (concat A a b) = to_list A a ++ to_list A b.
+  Proof. intros. apply cad_concat_op_full_seq. Qed.
+
+  Theorem singleton_to_list :
+    forall (A : Type) (x : A),
+      to_list A (singleton A x) = [x].
+  Proof. intros. apply cad_singleton_seq. Qed.
+
+  Theorem is_empty_to_list :
+    forall (A : Type) (q : t A),
+      is_empty A q = true -> to_list A q = [].
+  Proof.
+    intros A q H. unfold is_empty, to_list in *.
+    apply cad_is_empty_iff_nil in H. subst. reflexivity.
+  Qed.
+
+  Theorem rev_to_list :
+    forall (A : Type) (q : t A),
+      to_list A (rev A q) = List.rev (to_list A q).
+  Proof. intros. apply cad_rev_seq. Qed.
+
+  Theorem length_to_list :
+    forall (A : Type) (q : t A),
+      length A q = List.length (to_list A q).
+  Proof. intros. reflexivity. Qed.
+
+End RegularCadeque.
+
+(** ** Headline bonus: every public operation in [RegularCadeque]
+    preserves [regular_cad].  This is the Phase-1 deliverable of
+    [kb/plan-catenable.md]: full structural correctness for all five
+    operations, with the abstract sequence semantics inherited from
+    the [CADEQUE] module type. *)
+
+Theorem RegularCadeque_push_preserves_regular :
+  forall (A : Type) (x : A) (q : RegularCadeque.t A),
+    Regularity.regular_cad q ->
+    Regularity.regular_cad (RegularCadeque.push A x q).
+Proof.
+  intros A x q. apply cad_push_op_preserves_regular_cad.
+Qed.
+
+Theorem RegularCadeque_inject_preserves_regular :
+  forall (A : Type) (q : RegularCadeque.t A) (x : A),
+    Regularity.regular_cad q ->
+    Regularity.regular_cad (RegularCadeque.inject A q x).
+Proof.
+  intros A q x. apply cad_inject_op_preserves_regular_cad.
+Qed.
+
+Theorem RegularCadeque_pop_preserves_regular :
+  forall (A : Type) (q : RegularCadeque.t A) (x : A) (q' : RegularCadeque.t A),
+    RegularCadeque.pop A q = Some (x, q') ->
+    Regularity.regular_cad q'.
+Proof.
+  intros A q x q' H. apply cad_pop_op_full_preserves_regular_cad in H. exact H.
+Qed.
+
+Theorem RegularCadeque_eject_preserves_regular :
+  forall (A : Type) (q : RegularCadeque.t A) (q' : RegularCadeque.t A) (x : A),
+    RegularCadeque.eject A q = Some (q', x) ->
+    Regularity.regular_cad q'.
+Proof.
+  intros A q q' x H. apply cad_eject_op_full_preserves_regular_cad in H. exact H.
+Qed.
+
+Theorem RegularCadeque_concat_preserves_regular :
+  forall (A : Type) (a b : RegularCadeque.t A),
+    Regularity.regular_cad a ->
+    Regularity.regular_cad b ->
+    Regularity.regular_cad (RegularCadeque.concat A a b).
+Proof.
+  intros A a b Ha Hb. apply cad_concat_op_full_preserves_regular_cad; assumption.
+Qed.
+
+Theorem RegularCadeque_empty_regular :
+  forall (A : Type), Regularity.regular_cad (RegularCadeque.empty A).
+Proof.
+  intros A. apply Regularity.regular_cad_empty.
+Qed.
+
+(** ** Regular-cadeque namespace alias. *)
+Module CReg := RegularCadeque.
