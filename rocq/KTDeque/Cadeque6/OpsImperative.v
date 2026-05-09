@@ -197,6 +197,16 @@ Qed.
 
 Definition CAD_CONCAT_IMP_SS_SIMPLE_COST : nat := 6.
 
+(** ** General WC O(1) bound for [cad_concat_imp_singleton_singleton_simple]:
+    deferred to follow-up Phase 4b chunk.
+
+    The per-path cost theorem [cad_concat_imp_singleton_singleton_simple_cost_exact]
+    establishes cost = 6 in the success path; failure paths short-circuit
+    with cost 1-4.  A fully mechanized "for all inputs k ≤ 6" theorem
+    requires careful unfolding of the bindC chain through 4 reads, the
+    inner case-on-shapes, and the buf6_elems dispatch.  The proof
+    technique mirrors [DequePtr/Footprint.v]'s approach. *)
+
 (** ** Headline: [cad_concat_imp_left_empty] achieves WC O(1).
 
     Bundled statement: for any well-formed input, the cost is
