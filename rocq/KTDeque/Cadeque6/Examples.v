@@ -21,7 +21,7 @@ From Stdlib Require Import List.
 Import ListNotations.
 
 From KTDeque.Buffer6 Require Import SizedBuffer.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract Repair.
 
 (** ** Tiny convenience constructors used in the examples below.
     These would normally be hidden in client code via the
@@ -147,3 +147,70 @@ Example size_after_alternating_ops :
   cad_size (cad_inject (cad_pop_or_self (cad_push 99 q_left)) 100)
   = S (cad_size q_left).
 Proof. reflexivity. Qed.
+
+(** ** Operational examples: cad_*_op observably equal cad_*. *)
+
+Example op_push_observable :
+  cad_to_list_base (cad_push_op 0 q_left) = [0; 0; 1; 2].
+Proof. reflexivity. Qed.
+
+Example op_inject_observable :
+  cad_to_list_base (cad_inject_op q_left 99) = [0; 1; 2; 99].
+Proof. reflexivity. Qed.
+
+Example op_pop_observable :
+  match cad_pop_op q_left with
+  | Some (x, q') => x = 0 /\ cad_to_list_base q' = [1; 2]
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
+
+Example op_eject_observable :
+  match cad_eject_op q_left with
+  | Some (q', x) => x = 2 /\ cad_to_list_base q' = [0; 1]
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
+
+Example op_concat_observable :
+  cad_to_list_base (cad_concat_op q_left q_right) = [0; 1; 2; 3; 4; 5].
+Proof. reflexivity. Qed.
+
+Example op_concat_left_empty :
+  cad_to_list_base (cad_concat_op CEmpty q_left) = cad_to_list_base q_left.
+Proof. reflexivity. Qed.
+
+Example op_concat_right_empty :
+  cad_to_list_base (cad_concat_op q_left CEmpty) = cad_to_list_base q_left.
+Proof. reflexivity. Qed.
+
+(** ** Operational vs abstract: same observable behavior. *)
+
+Example op_push_eq_abstract :
+  cad_to_list_base (cad_push_op 0 q_left) = cad_to_list_base (cad_push 0 q_left).
+Proof. reflexivity. Qed.
+
+Example op_inject_eq_abstract :
+  cad_to_list_base (cad_inject_op q_left 99) = cad_to_list_base (cad_inject q_left 99).
+Proof. reflexivity. Qed.
+
+Example op_concat_eq_abstract :
+  cad_to_list_base (cad_concat_op q_left q_right)
+  = cad_to_list_base (cad_concat q_left q_right).
+Proof. reflexivity. Qed.
+
+(** ** Round-trip via operational push then operational pop. *)
+
+Example op_push_pop_roundtrip :
+  match cad_pop_op (cad_push_op 7 q_left) with
+  | Some (x, q') => x = 7 /\ cad_to_list_base q' = cad_to_list_base q_left
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
+
+Example op_inject_eject_roundtrip :
+  match cad_eject_op (cad_inject_op q_right 7) with
+  | Some (q', x) => x = 7 /\ cad_to_list_base q' = cad_to_list_base q_right
+  | None         => False
+  end.
+Proof. cbn. split; reflexivity. Qed.
