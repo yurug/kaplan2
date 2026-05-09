@@ -685,38 +685,49 @@ Qed.
     The local check at the modified triple is relaxed since its
     colour improved. *)
 
-(** ** Full [top_level_paths_green] preservation: deferred.
+(** ** Helper: TOnly with non-empty CSingle child preserves top
+    path Green under push at pre-size ≥ 5.
 
-    Sketch (full proof requires per-case enumeration not finished
-    in this session):
+    Per-case proof for the 10 surviving (Hold, Hnew) colour pairs.
+    Each case dispatched by one of three patterns:
+    - [exact Htop] when path-tail target is the same (Y→Y, O→Y, O→O).
+    - [cbn [triple_color]; exact Hnew] when new colour is G
+      (target becomes self_new with colour Hnew = G).
+    - Discriminate on [Hold] giving R while RC4 demands G
+      (R-prefixed cases). *)
 
-    - CEmpty: trivial.
-    - CSingle TOnly + CEmpty child: covered by
-      [cad_push_op_top_paths_green_when_top_child_empty].
-    - CSingle TOnly + non-empty child: 10 surviving (old, new)
-      colour pairs to enumerate.  For new ∈ {G, R}: path tail is
-      self; need triple_color new_self = Green.  For new R:
-      eliminated by RC4 propagation (would require old R, but
-      RC4 says old path tail is Green, contradiction).  For new G:
-      [cbn [triple_color]; exact Hnew] discharges via Hnew = G.
-      For new ∈ {Y, O}: path tail is path_tail ct (CSingle child)
-      or path_tail tL/tR (CDouble child).  When old descended to
-      the same child, [assumption] closes via input RC4.  When the
-      preferred child changes (orange → yellow shift, descent left
-      becomes right), use RC3 (orange's non-preferred has Green
-      preferred path = exactly the new preferred).
-    - CSingle TLeft/TRight: contradicts [top_kinds_well_formed].
-    - CDouble: same case structure as TOnly with non-empty child.
-
-    All building blocks exist:
-      - [preferred_path_tail_T*_C*] for unfolding.
-      - [triple_*_color_monotone_T*] for monotonicity.
-      - [orange_only_nonpreferred_child_green],
-        [orange_nonpreferred_child_green],
-        [orange_right_nonpreferred_child_green] for RC3 application.
-
-    The proof is mechanical but voluminous (≈100 lines per case);
-    deferred to a focused next session. *)
+Lemma cad_push_op_top_paths_green_TOnly_CSingle :
+  forall (X : Type) (x : X) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    top_level_paths_green (CSingle (TOnly pre (CSingle ct) suf)) ->
+    top_level_paths_green (CSingle (TOnly (buf6_push x pre) (CSingle ct) suf)).
+Proof.
+  intros X x pre ct suf Hpre Htop.
+  unfold top_level_paths_green in Htop |- *.
+  rewrite preferred_path_tail_TOnly_CSingle in Htop.
+  rewrite preferred_path_tail_TOnly_CSingle.
+  pose proof (triple_push_prefix_color_monotone_TOnly _ x pre (CSingle ct) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color (buf6_push x pre)) (buf6_color suf)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - (* (G, G) *) cbn [triple_color]. exact Hnew.
+  - (* (Y, G) *) cbn [triple_color]. exact Hnew.
+  - (* (Y, Y) *) exact Htop.
+  - (* (O, G) *) cbn [triple_color]. exact Hnew.
+  - (* (O, Y) *) exact Htop.
+  - (* (O, O) *) exact Htop.
+  - (* (R, G) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, Y) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, O) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - (* (R, R) *)
+    cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
 
 Theorem cad_push_op_preserves_semiregular :
   forall (X : Type) (x : X) (q : Cadeque X),
