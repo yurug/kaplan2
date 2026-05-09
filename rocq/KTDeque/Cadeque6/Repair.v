@@ -771,6 +771,183 @@ Proof.
     cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
 Qed.
 
+(** ** TOnly path-Green preservation -- triple-level form.
+
+    Same proof as the [cad_push_op_top_paths_green_TOnly_C*] helpers
+    but stated at the triple level so they compose into the full
+    theorem cleanly. *)
+
+Lemma triple_push_TOnly_CSingle_path_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    triple_color (preferred_path_tail (TOnly pre (CSingle ct) suf)) = Green4 ->
+    triple_color (preferred_path_tail (TOnly (buf6_push x pre) (CSingle ct) suf)) = Green4.
+Proof.
+  intros X x pre ct suf Hpre Htop.
+  rewrite preferred_path_tail_TOnly_CSingle in Htop.
+  rewrite preferred_path_tail_TOnly_CSingle.
+  pose proof (triple_push_prefix_color_monotone_TOnly _ x pre (CSingle ct) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color (buf6_push x pre)) (buf6_color suf)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+Lemma triple_push_TOnly_CDouble_path_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    triple_color (preferred_path_tail (TOnly pre (CDouble tL tR) suf)) = Green4 ->
+    semiregular_local (TOnly pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail (TOnly (buf6_push x pre) (CDouble tL tR) suf)) = Green4.
+Proof.
+  intros X x pre tL tR suf Hpre Htop Hloc.
+  rewrite preferred_path_tail_TOnly_CDouble in Htop.
+  rewrite preferred_path_tail_TOnly_CDouble.
+  pose proof (triple_push_prefix_color_monotone_TOnly _ x pre (CDouble tL tR) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color (buf6_push x pre)) (buf6_color suf)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - unfold semiregular_local in Hloc.
+    cbn [triple_color] in Hloc. rewrite Hold in Hloc. exact Hloc.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+(** ** TLeft path-Green preservation under prefix push.
+
+    Same case structure as TOnly but the triple's colour is
+    determined by [buf6_color pre] alone (not the meet).  Used in
+    the CDouble case of the full theorem (where tL is TLeft per
+    top_kinds_well_formed). *)
+
+Lemma triple_push_TLeft_CSingle_path_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    triple_color (preferred_path_tail (TLeft pre (CSingle ct) suf)) = Green4 ->
+    triple_color (preferred_path_tail (TLeft (buf6_push x pre) (CSingle ct) suf)) = Green4.
+Proof.
+  intros X x pre ct suf Hpre Htop.
+  rewrite preferred_path_tail_TLeft_CSingle in Htop.
+  rewrite preferred_path_tail_TLeft_CSingle.
+  pose proof (triple_push_prefix_color_monotone_TLeft _ x pre (CSingle ct) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (buf6_color pre) eqn:Hold;
+    destruct (buf6_color (buf6_push x pre)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+Lemma triple_push_TLeft_CDouble_path_green :
+  forall (X : Type) (x : X) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    buf6_size pre >= 5 ->
+    triple_color (preferred_path_tail (TLeft pre (CDouble tL tR) suf)) = Green4 ->
+    semiregular_local (TLeft pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail (TLeft (buf6_push x pre) (CDouble tL tR) suf)) = Green4.
+Proof.
+  intros X x pre tL tR suf Hpre Htop Hloc.
+  rewrite preferred_path_tail_TLeft_CDouble in Htop.
+  rewrite preferred_path_tail_TLeft_CDouble.
+  pose proof (triple_push_prefix_color_monotone_TLeft _ x pre (CDouble tL tR) suf Hpre) as Hmono.
+  cbn [triple_color triple_push_prefix] in Hmono.
+  destruct (buf6_color pre) eqn:Hold;
+    destruct (buf6_color (buf6_push x pre)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - (* (O, Y): RC3 *)
+    unfold semiregular_local in Hloc.
+    cbn [triple_color] in Hloc. rewrite Hold in Hloc. exact Hloc.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+(** ** FULL preservation of [top_level_paths_green] under
+    [cad_push_op].
+
+    Composes the kind-by-kind triple-level helpers above. *)
+
+Theorem cad_push_op_preserves_top_level_paths_green :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    regular_cad q ->
+    top_level_paths_green (cad_push_op x q).
+Proof.
+  intros X x q [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - cbn [cad_push_op]. cbn. reflexivity.
+  - cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    cbn [cad_push_op].
+    destruct c as [|ct|ctL ctR].
+    + (* CEmpty child *)
+      destruct pre as [pre_xs].
+      destruct pre_xs as [|p ps]; cbn [buf6_elems].
+      * apply normalize_only_empty_child_top_paths_green.
+      * cbn. reflexivity.
+    + (* CSingle ct *)
+      cbn in Hws. destruct Hws as [_ [Hpre _]].
+      cbn. apply triple_push_TOnly_CSingle_path_green; assumption.
+    + (* CDouble ctL ctR *)
+      cbn in Hws. destruct Hws as [_ [Hpre _]].
+      cbn in Hsr. destruct Hsr as [_ Hloc].
+      cbn. apply triple_push_TOnly_CDouble_path_green; assumption.
+  - (* CDouble tL tR *)
+    cbn in Htk. destruct Htk as [HtL HtR].
+    cbn [cad_push_op].
+    cbn in Htop. destruct Htop as [HtopL HtopR].
+    cbn. split; [|exact HtopR].
+    destruct tL as [pre c suf | pre c suf | pre c suf];
+      cbn in HtL; try discriminate.
+    cbn in Hws. destruct Hws as [HwsL _].
+    cbn in HwsL. destruct HwsL as [_ [Hpre _]].
+    cbn in Hsr. destruct Hsr as [HsrL _].
+    cbn in HsrL. destruct HsrL as [_ Hloc].
+    destruct c as [|ct|ctL ctR].
+    + cbn. reflexivity.
+    + apply triple_push_TLeft_CSingle_path_green; assumption.
+    + apply triple_push_TLeft_CDouble_path_green; assumption.
+Qed.
+
 Theorem cad_push_op_preserves_semiregular :
   forall (X : Type) (x : X) (q : Cadeque X),
     regular_cad q ->
@@ -828,6 +1005,24 @@ Proof.
                                           (buf6_push x pre) suf c).
     + apply triple_push_prefix_color_monotone_TLeft. exact Hpre.
     + exact Hloc.
+Qed.
+
+(** * Headline: full [regular_cad] preservation under [cad_push_op].
+
+    Bundles the four per-conjunct preservation theorems into the
+    public-facing statement: cad_push_op preserves regular_cad. *)
+
+Theorem cad_push_op_preserves_regular_cad :
+  forall (X : Type) (x : X) (q : Cadeque X),
+    regular_cad q ->
+    regular_cad (cad_push_op x q).
+Proof.
+  intros X x q Hreg.
+  split; [|split; [|split]].
+  - apply cad_push_op_preserves_semiregular. exact Hreg.
+  - apply cad_push_op_preserves_top_level_paths_green. exact Hreg.
+  - apply cad_push_op_preserves_well_sized. exact Hreg.
+  - apply cad_push_op_preserves_top_kinds. exact Hreg.
 Qed.
 
 (** * Symmetric bundled preservation for [cad_inject_op]. *)
