@@ -1993,3 +1993,85 @@ Theorem cad_normalize_idempotent :
 Proof.
   intros X q. rewrite !cad_normalize_seq. reflexivity.
 Qed.
+
+Theorem cad_concat_op_full_refines_cad_concat :
+  forall (X : Type) (a b : Cadeque X),
+    cad_to_list_base (cad_concat_op_full a b) = cad_to_list_base (cad_concat a b).
+Proof.
+  intros X a b. rewrite cad_concat_op_full_seq, cad_concat_seq. reflexivity.
+Qed.
+
+(** *** Pop / Eject refinement (asymmetric).
+
+    [cad_pop_op] is *strictly stronger* than [cad_pop]: it succeeds
+    in some shapes where [cad_pop] returns [None] (e.g. when the
+    [TOnly + CEmpty] front buffer is empty but the back buffer is
+    not).  The refinement is therefore one-directional: whenever
+    [cad_pop] succeeds, so does [cad_pop_op] with the same popped
+    element and an observably-equal residue. *)
+
+Theorem cad_pop_refines_into_cad_pop_op :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') ->
+    exists q'',
+      cad_pop_op q = Some (x, q'')
+      /\ cad_to_list_base q'' = cad_to_list_base q'.
+Proof.
+  intros X q x q' Hp.
+  destruct (cad_pop_op_succeeds_when_cad_pop_does X q x q' Hp) as [q'' Hpop].
+  exists q''. split; [exact Hpop |].
+  pose proof (cad_pop_seq X q x q' Hp) as Hseq_abs.
+  pose proof (cad_pop_op_seq X q x q'' Hpop) as Hseq_op.
+  rewrite Hseq_abs in Hseq_op.
+  injection Hseq_op as Heq. exact (eq_sym Heq).
+Qed.
+
+Theorem cad_eject_refines_into_cad_eject_op :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) ->
+    exists q'',
+      cad_eject_op q = Some (q'', x)
+      /\ cad_to_list_base q'' = cad_to_list_base q'.
+Proof.
+  intros X q q' x He.
+  destruct (cad_eject_op_succeeds_when_cad_eject_does X q q' x He) as [q'' Hej].
+  exists q''. split; [exact Hej |].
+  pose proof (cad_eject_seq X q q' x He) as Hseq_abs.
+  pose proof (cad_eject_op_seq X q q'' x Hej) as Hseq_op.
+  rewrite Hseq_abs in Hseq_op.
+  apply app_inj_tail in Hseq_op as [Heq _]. exact (eq_sym Heq).
+Qed.
+
+(** *** Sequence-level refinement of the [_full] variants to abstract.
+
+    Whenever the abstract [cad_pop] succeeds, so does
+    [cad_pop_op_full] with an observably-equal residue (after
+    [cad_normalize]). *)
+
+Theorem cad_pop_refines_into_cad_pop_op_full :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop q = Some (x, q') ->
+    exists q'',
+      cad_pop_op_full q = Some (x, q'')
+      /\ cad_to_list_base q'' = cad_to_list_base q'.
+Proof.
+  intros X q x q' Hp.
+  destruct (cad_pop_refines_into_cad_pop_op X q x q' Hp) as [q'' [Hpop Hseq]].
+  exists (cad_normalize q''). split.
+  - unfold cad_pop_op_full. rewrite Hpop. reflexivity.
+  - rewrite cad_normalize_seq. exact Hseq.
+Qed.
+
+Theorem cad_eject_refines_into_cad_eject_op_full :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject q = Some (q', x) ->
+    exists q'',
+      cad_eject_op_full q = Some (q'', x)
+      /\ cad_to_list_base q'' = cad_to_list_base q'.
+Proof.
+  intros X q q' x He.
+  destruct (cad_eject_refines_into_cad_eject_op X q q' x He) as [q'' [Hej Hseq]].
+  exists (cad_normalize q''). split.
+  - unfold cad_eject_op_full. rewrite Hej. reflexivity.
+  - rewrite cad_normalize_seq. exact Hseq.
+Qed.
