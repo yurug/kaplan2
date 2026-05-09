@@ -1124,3 +1124,249 @@ Proof.
   intros X q x [_ [_ [_ Htk]]].
   apply cad_inject_op_top_kinds_preserved. exact Htk.
 Qed.
+
+(** ** Triple-level path-Green preservation helpers for inject. *)
+
+Lemma triple_inject_TOnly_CSingle_path_green :
+  forall (X : Type) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    triple_color (preferred_path_tail (TOnly pre (CSingle ct) suf)) = Green4 ->
+    triple_color (preferred_path_tail (TOnly pre (CSingle ct) (buf6_inject suf x))) = Green4.
+Proof.
+  intros X pre ct suf x Hsuf Htop.
+  rewrite preferred_path_tail_TOnly_CSingle in Htop.
+  rewrite preferred_path_tail_TOnly_CSingle.
+  pose proof (triple_inject_suffix_color_monotone_TOnly _ pre (CSingle ct) suf x Hsuf) as Hmono.
+  cbn [triple_color triple_inject_suffix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color pre) (buf6_color (buf6_inject suf x))) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+Lemma triple_inject_TOnly_CDouble_path_green :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    triple_color (preferred_path_tail (TOnly pre (CDouble tL tR) suf)) = Green4 ->
+    semiregular_local (TOnly pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail (TOnly pre (CDouble tL tR) (buf6_inject suf x))) = Green4.
+Proof.
+  intros X pre tL tR suf x Hsuf Htop Hloc.
+  rewrite preferred_path_tail_TOnly_CDouble in Htop.
+  rewrite preferred_path_tail_TOnly_CDouble.
+  pose proof (triple_inject_suffix_color_monotone_TOnly _ pre (CDouble tL tR) suf x Hsuf) as Hmono.
+  cbn [triple_color triple_inject_suffix] in Hmono.
+  destruct (color4_meet (buf6_color pre) (buf6_color suf)) eqn:Hold;
+    destruct (color4_meet (buf6_color pre) (buf6_color (buf6_inject suf x))) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - unfold semiregular_local in Hloc.
+    cbn [triple_color] in Hloc. rewrite Hold in Hloc. exact Hloc.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+Lemma preferred_path_tail_TRight_CSingle :
+  forall (X : Type) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TRight pre (CSingle ct) suf) =
+    match buf6_color suf with
+    | Green4 | Red4 => TRight pre (CSingle ct) suf
+    | _             => preferred_path_tail ct
+    end.
+Proof. intros. reflexivity. Qed.
+
+Lemma preferred_path_tail_TRight_CDouble :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X),
+    preferred_path_tail (TRight pre (CDouble tL tR) suf) =
+    match buf6_color suf with
+    | Green4 | Red4 => TRight pre (CDouble tL tR) suf
+    | Yellow4       => preferred_path_tail tL
+    | Orange4       => preferred_path_tail tR
+    end.
+Proof. intros. reflexivity. Qed.
+
+Lemma triple_inject_TRight_CSingle_path_green :
+  forall (X : Type) (pre : Buf6 X) (ct : Triple X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    triple_color (preferred_path_tail (TRight pre (CSingle ct) suf)) = Green4 ->
+    triple_color (preferred_path_tail (TRight pre (CSingle ct) (buf6_inject suf x))) = Green4.
+Proof.
+  intros X pre ct suf x Hsuf Htop.
+  rewrite preferred_path_tail_TRight_CSingle in Htop.
+  rewrite preferred_path_tail_TRight_CSingle.
+  pose proof (triple_inject_suffix_color_monotone_TRight _ pre (CSingle ct) suf x Hsuf) as Hmono.
+  cbn [triple_color triple_inject_suffix] in Hmono.
+  destruct (buf6_color suf) eqn:Hold;
+    destruct (buf6_color (buf6_inject suf x)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+Lemma triple_inject_TRight_CDouble_path_green :
+  forall (X : Type) (pre : Buf6 X) (tL tR : Triple X) (suf : Buf6 X) (x : X),
+    buf6_size suf >= 5 ->
+    triple_color (preferred_path_tail (TRight pre (CDouble tL tR) suf)) = Green4 ->
+    semiregular_local (TRight pre (CDouble tL tR) suf) ->
+    triple_color (preferred_path_tail (TRight pre (CDouble tL tR) (buf6_inject suf x))) = Green4.
+Proof.
+  intros X pre tL tR suf x Hsuf Htop Hloc.
+  rewrite preferred_path_tail_TRight_CDouble in Htop.
+  rewrite preferred_path_tail_TRight_CDouble.
+  pose proof (triple_inject_suffix_color_monotone_TRight _ pre (CDouble tL tR) suf x Hsuf) as Hmono.
+  cbn [triple_color triple_inject_suffix] in Hmono.
+  destruct (buf6_color suf) eqn:Hold;
+    destruct (buf6_color (buf6_inject suf x)) eqn:Hnew;
+    rewrite ?Hold, ?Hnew in Hmono;
+    unfold color4_le, color4_rank in Hmono; cbn in Hmono; try lia;
+    cbn match in Htop |- *.
+  - cbn [triple_color]. exact Hnew.
+  - cbn [triple_color]. exact Hnew.
+  - exact Htop.
+  - cbn [triple_color]. exact Hnew.
+  - unfold semiregular_local in Hloc.
+    cbn [triple_color] in Hloc. rewrite Hold in Hloc. exact Hloc.
+  - exact Htop.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+  - cbn [triple_color] in Htop. rewrite Hold in Htop. discriminate.
+Qed.
+
+(** ** Full inject preservation theorems for the remaining conjuncts. *)
+
+Theorem cad_inject_op_preserves_top_level_paths_green :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    regular_cad q ->
+    top_level_paths_green (cad_inject_op q x).
+Proof.
+  intros X q x [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - cbn [cad_inject_op]. cbn. reflexivity.
+  - cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    cbn [cad_inject_op].
+    destruct c as [|ct|ctL ctR].
+    + (* CEmpty child *)
+      destruct suf as [suf_xs].
+      destruct suf_xs as [|s ss]; cbn [buf6_elems].
+      * apply normalize_only_empty_child_top_paths_green.
+      * cbn. reflexivity.
+    + (* CSingle ct *)
+      cbn in Hws. destruct Hws as [_ [_ Hsuf]].
+      cbn. apply triple_inject_TOnly_CSingle_path_green; assumption.
+    + (* CDouble ctL ctR *)
+      cbn in Hws. destruct Hws as [_ [_ Hsuf]].
+      cbn in Hsr. destruct Hsr as [_ Hloc].
+      cbn. apply triple_inject_TOnly_CDouble_path_green; assumption.
+  - (* CDouble tL tR *)
+    cbn in Htk. destruct Htk as [HtL HtR].
+    cbn [cad_inject_op].
+    cbn in Htop. destruct Htop as [HtopL HtopR].
+    cbn. split; [exact HtopL |].
+    destruct tR as [pre c suf | pre c suf | pre c suf];
+      cbn in HtR; try discriminate.
+    cbn in Hws. destruct Hws as [_ HwsR].
+    cbn in HwsR. destruct HwsR as [_ [_ Hsuf]].
+    cbn in Hsr. destruct Hsr as [_ HsrR].
+    cbn in HsrR. destruct HsrR as [_ Hloc].
+    destruct c as [|ct|ctL ctR].
+    + cbn. reflexivity.
+    + apply triple_inject_TRight_CSingle_path_green; assumption.
+    + apply triple_inject_TRight_CDouble_path_green; assumption.
+Qed.
+
+Theorem cad_inject_op_preserves_semiregular :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    regular_cad q ->
+    semiregular_cad (cad_inject_op q x).
+Proof.
+  intros X q x [Hsr [Htop [Hws Htk]]].
+  destruct q as [|t|tL tR].
+  - cbn [cad_inject_op]. cbn. split; [exact I | cbn; exact I].
+  - cbn in Htk.
+    destruct t as [pre c suf | pre c suf | pre c suf];
+      cbn in Htk; try discriminate.
+    destruct c as [|ct|ctL ctR].
+    + destruct suf as [suf_xs].
+      destruct suf_xs as [|s ss]; cbn [cad_inject_op buf6_elems].
+      * apply normalize_only_empty_child_semiregular.
+      * cbn. split; [exact I | cbn; exact I].
+    + cbn [cad_inject_op]. cbn.
+      cbn in Hsr. destruct Hsr as [Hwc Hloc].
+      split; [exact Hwc |].
+      cbn in Hws. destruct Hws as [_ [_ Hsuf]].
+      apply (semiregular_local_relax_TOnly _ pre suf
+                                            pre (buf6_inject suf x)
+                                            (CSingle ct)).
+      * apply triple_inject_suffix_color_monotone_TOnly. exact Hsuf.
+      * exact Hloc.
+    + cbn [cad_inject_op]. cbn.
+      cbn in Hsr. destruct Hsr as [Hwc Hloc].
+      split; [exact Hwc |].
+      cbn in Hws. destruct Hws as [_ [_ Hsuf]].
+      apply (semiregular_local_relax_TOnly _ pre suf
+                                            pre (buf6_inject suf x)
+                                            (CDouble ctL ctR)).
+      * apply triple_inject_suffix_color_monotone_TOnly. exact Hsuf.
+      * exact Hloc.
+  - cbn in Htk. destruct Htk as [HtL HtR].
+    cbn [cad_inject_op]. cbn.
+    cbn in Hsr. destruct Hsr as [HsrL HsrR].
+    split; [exact HsrL |].
+    destruct tR as [pre c suf | pre c suf | pre c suf];
+      cbn in HtR; try discriminate.
+    cbn in HsrR. destruct HsrR as [Hwc Hloc].
+    cbn. split; [exact Hwc |].
+    cbn in Hws. destruct Hws as [_ HwsR].
+    cbn in HwsR. destruct HwsR as [_ [_ Hsuf]].
+    apply (semiregular_local_relax_TRight _ pre suf
+                                           pre (buf6_inject suf x) c).
+    + apply triple_inject_suffix_color_monotone_TRight. exact Hsuf.
+    + exact Hloc.
+Qed.
+
+(** * Headline: full [regular_cad] preservation under [cad_inject_op]. *)
+
+Theorem cad_inject_op_preserves_regular_cad :
+  forall (X : Type) (q : Cadeque X) (x : X),
+    regular_cad q ->
+    regular_cad (cad_inject_op q x).
+Proof.
+  intros X q x Hreg.
+  split; [|split; [|split]].
+  - apply cad_inject_op_preserves_semiregular. exact Hreg.
+  - apply cad_inject_op_preserves_top_level_paths_green. exact Hreg.
+  - apply cad_inject_op_preserves_well_sized. exact Hreg.
+  - apply cad_inject_op_preserves_top_kinds. exact Hreg.
+Qed.
