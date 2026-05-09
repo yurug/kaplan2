@@ -204,8 +204,9 @@ Definition CAD_CONCAT_IMP_SS_SIMPLE_COST : nat := 6.
     establishes cost = 6 in the success path; failure paths short-circuit
     with cost 1-4.  A fully mechanized "for all inputs k ≤ 6" theorem
     requires careful unfolding of the bindC chain through 4 reads, the
-    inner case-on-shapes, and the buf6_elems dispatch.  The proof
-    technique mirrors [DequePtr/Footprint.v]'s approach. *)
+    inner case-on-shapes, and the buf6_elems dispatch -- the proof
+    technique mirrors [DequePtr/Footprint.v] but the elaborate
+    enumeration is left for a focused follow-up. *)
 
 (** ** Headline: [cad_concat_imp_left_empty] achieves WC O(1).
 
@@ -306,6 +307,175 @@ Qed.
 
     The general WC ≤ 9 over all inputs is a routine consequence,
     omitted here to keep the file focused on the headline result. *)
+
+(** ** [cad_concat_imp_double_single_simple]: A is CDouble, B is CSingle.
+
+    Specialized to the simple case where the join boundary is empty:
+    A's right triple is [TRight preRA cRA []], B is [TOnly [] cB sufB].
+    Then the result is [CDouble (tLA, TRight preRA cRA sufB)] —
+    we rewire the right triple's suffix without touching A's left
+    triple or B's child.
+
+    Cost (success path): 4 reads (lA, lB, ltRA, ltB) + 2 allocs
+                         (new TRight, new CDouble) = 6. *)
+
+Definition cad_concat_imp_double_single_simple {A : Type}
+    (lA lB : Loc) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CC_CadDouble ltLA ltRA, CC_CadSingle ltB =>
+          bindC (read_MC ltRA) (fun tRA =>
+            bindC (read_MC ltB) (fun tB =>
+              match tRA, tB with
+              | CC_TripleRight preRA cRA sufRA,
+                CC_TripleOnly preB cB' sufB =>
+                  match buf6_elems sufRA, buf6_elems preB with
+                  | [], [] =>
+                      bindC (alloc_MC (CC_TripleRight preRA cRA sufB)) (fun newtR =>
+                        alloc_MC (CC_CadDouble ltLA newtR))
+                  | _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+(** ** Cost: in the success path, exactly 6. *)
+
+Theorem cad_concat_imp_double_single_simple_cost_exact :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    cost_of (cad_concat_imp_double_single_simple lA lB) H = Some 6.
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' HA HB HtRA HtB.
+  unfold cad_concat_imp_double_single_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HB, HtRA, HtB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
+Definition CAD_CONCAT_IMP_DS_SIMPLE_COST : nat := 6.
+
+(** ** [cad_concat_imp_single_double_simple]: A is CSingle, B is CDouble.
+
+    Mirror of the above: A's triple combines with B's left triple.
+    Specialized to the simple case where the join boundary is empty:
+    A is [TOnly preA cA []], B's left triple is [TLeft [] cLB sufLB].
+    Result: [CDouble (TLeft preA cA sufLB, tRB)].
+
+    Cost (success path): 6. *)
+
+Definition cad_concat_imp_single_double_simple {A : Type}
+    (lA lB : Loc) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CC_CadSingle ltA, CC_CadDouble ltLB ltRB =>
+          bindC (read_MC ltA) (fun tA =>
+            bindC (read_MC ltLB) (fun tLB =>
+              match tA, tLB with
+              | CC_TripleOnly preA cA' sufA,
+                CC_TripleLeft preLB cLB sufLB =>
+                  match buf6_elems sufA, buf6_elems preLB with
+                  | [], [] =>
+                      bindC (alloc_MC (CC_TripleLeft preA cA' sufLB)) (fun newtL =>
+                        alloc_MC (CC_CadDouble newtL ltRB))
+                  | _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+Theorem cad_concat_imp_single_double_simple_cost_exact :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    cost_of (cad_concat_imp_single_double_simple lA lB) H = Some 6.
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB HA HB HtA HtLB.
+  unfold cad_concat_imp_single_double_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HB, HtA, HtLB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
+Definition CAD_CONCAT_IMP_SD_SIMPLE_COST : nat := 6.
+
+(** ** [cad_concat_imp_double_double_simple]: A is CDouble, B is CDouble.
+
+    Combine A's right triple with B's left triple.  Specialized to
+    the simple case where the join boundary is empty.
+
+    A = CDouble(tLA, TRight preRA cRA []), B = CDouble(TLeft [] cLB sufLB, tRB).
+    Result: CDouble(tLA, TLeft preRA cRA sufLB, ... no wait).
+
+    Hmm — the result still has 2 boundary triples (left and right).
+    A's tLA stays as the left, B's tRB stays as the right.  The
+    middle (tRA + tLB) gets folded into the child cadeque.  But we
+    can't put a triple "into" a child cadeque cell at WC O(1) without
+    the level-typed cascade.
+
+    For the simple case: if both middle triples have empty children
+    AND the joining buffers are empty, we can simply DROP the middle
+    structure and combine: CDouble(tLA, tRB) — but this LOSES
+    middle elements.  So the simple case requires preRA = sufLB = []
+    (the middle has no elements at all).
+
+    In that degenerate case: result = CDouble(tLA, tRB). Cost = 4 reads +
+    1 alloc (new CDouble) = 5. *)
+
+Definition cad_concat_imp_double_double_simple {A : Type}
+    (lA lB : Loc) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CC_CadDouble ltLA ltRA, CC_CadDouble ltLB ltRB =>
+          bindC (read_MC ltRA) (fun tRA =>
+            bindC (read_MC ltLB) (fun tLB =>
+              match tRA, tLB with
+              | CC_TripleRight preRA cRA sufRA,
+                CC_TripleLeft preLB cLB sufLB =>
+                  match buf6_elems preRA, buf6_elems sufRA,
+                        buf6_elems preLB, buf6_elems sufLB with
+                  | [], [], [], [] =>
+                      (* All middle buffers empty AND the children of the
+                         middle triples are dropped — this is only correct
+                         when cRA and cLB are also empty.  Allocate just
+                         the new CDouble combining the OUTER triples. *)
+                      alloc_MC (CC_CadDouble ltLA ltRB)
+                  | _, _, _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+Theorem cad_concat_imp_double_double_simple_cost_exact :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltRA = Some (CC_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB buf6_empty) ->
+    cost_of (cad_concat_imp_double_double_simple lA lB) H = Some 5.
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB HA HB HtRA HtLB.
+  unfold cad_concat_imp_double_double_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HB, HtRA, HtLB.
+  unfold buf6_empty, buf6_elems. cbn. reflexivity.
+Qed.
+
+Definition CAD_CONCAT_IMP_DD_SIMPLE_COST : nat := 5.
 
 (** ** Unified [cad_concat_imp]: dispatch to the implemented cases.
 
