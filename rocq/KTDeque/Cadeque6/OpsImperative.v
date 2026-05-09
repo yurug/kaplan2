@@ -1391,6 +1391,122 @@ Proof.
     [reflexivity|contradiction].
 Qed.
 
+(** ** Strong sequence-correctness for the other 3 simple cases.
+
+    Mirrors the strong simple-SS theorem: under the standard
+    preconditions PLUS well-formedness of H, the result heap
+    preserves all of A and B's existing cells verbatim. *)
+
+Theorem cad_concat_imp_double_single_simple_correct_strong :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc),
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    Pos.lt lA (next_loc H) ->
+    Pos.lt lB (next_loc H) ->
+    Pos.lt ltLA (next_loc H) ->
+    Pos.lt ltRA (next_loc H) ->
+    Pos.lt ltB (next_loc H) ->
+    Pos.lt cRA (next_loc H) ->
+    Pos.lt cB' (next_loc H) ->
+    forall H' l' k,
+      cad_concat_imp_double_single_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleRight preRA cRA sufB)
+      /\ lookup H' l' = Some (CC_CadDouble ltLA lt)
+      /\ lookup H' lA = Some (CC_CadDouble ltLA ltRA)
+      /\ lookup H' lB = Some (CC_CadSingle ltB)
+      /\ lookup H' ltRA = Some (CC_TripleRight preRA cRA buf6_empty)
+      /\ lookup H' ltB = Some (CC_TripleOnly buf6_empty cB' sufB)
+      /\ lookup H' cRA = lookup H cRA
+      /\ lookup H' cB' = lookup H cB'.
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' HA HB HtRA HtB
+         HltA HltB HltLA HltRA' HltB' HltCRA HltCB H' l' k Hop.
+  unfold cad_concat_imp_double_single_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  assert (Hpers : forall l, Pos.lt l (next_loc H) ->
+                  lookup H' l = lookup H l).
+  { intros l Hl_lt. rewrite <- HH. cbn.
+    apply lookup_persists_after_two_allocs. exact Hl_lt. }
+  split; [|split; [|split; [|split; [|split; [|split; [|split]]]]]].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; [reflexivity|assumption].
+  - rewrite Hpers; [reflexivity|assumption].
+Qed.
+
+Theorem cad_concat_imp_single_double_simple_correct_strong :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc),
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    Pos.lt lA (next_loc H) ->
+    Pos.lt lB (next_loc H) ->
+    Pos.lt ltA (next_loc H) ->
+    Pos.lt ltLB (next_loc H) ->
+    Pos.lt ltRB (next_loc H) ->
+    Pos.lt cA' (next_loc H) ->
+    Pos.lt cLB (next_loc H) ->
+    forall H' l' k,
+      cad_concat_imp_single_double_simple lA lB H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleLeft preA cA' sufLB)
+      /\ lookup H' l' = Some (CC_CadDouble lt ltRB)
+      /\ lookup H' lA = Some (CC_CadSingle ltA)
+      /\ lookup H' lB = Some (CC_CadDouble ltLB ltRB)
+      /\ lookup H' ltA = Some (CC_TripleOnly preA cA' buf6_empty)
+      /\ lookup H' ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB)
+      /\ lookup H' cA' = lookup H cA'
+      /\ lookup H' cLB = lookup H cLB.
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB HA HB HtA HtLB
+         HltA HltB HltA' HltLB' HltRB HltCA HltCLB H' l' k Hop.
+  unfold cad_concat_imp_single_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  cbn.
+  assert (Hpers : forall l, Pos.lt l (next_loc H) ->
+                  lookup H' l = lookup H l).
+  { intros l Hl_lt. rewrite <- HH. cbn.
+    apply lookup_persists_after_two_allocs. exact Hl_lt. }
+  split; [|split; [|split; [|split; [|split; [|split; [|split]]]]]].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; assumption.
+  - rewrite Hpers; [reflexivity|assumption].
+  - rewrite Hpers; [reflexivity|assumption].
+Qed.
+
 (** ** Sequence-correctness for the unified [cad_concat_imp] dispatch
     paths (composes dispatch with sub-op correctness). *)
 
