@@ -24,23 +24,27 @@
 
     ## What's covered now
 
-    - [cad_concat_imp_empty_left] : concat with a CEmpty left input.
-      Cost = 1 (one cell read).  Result is the right input verbatim.
-    - [cad_concat_imp_empty_right] : symmetric.
-    - [cad_concat_imp_singleton_singleton_simple] : concat of two
-      [CSingle (TOnly _ CEmpty _)] cadeques with empty children.
-      Allocates 2 cells (new triple + new top cadeque cell).
-      Cost = 6 (4 reads + 2 allocs).
+    Three of the four imperative DSL ops listed in
+    [kb/spec/phase-4b-imperative-dsl.md]:
 
-    These are the simplest non-trivial WC O(1) concat cases and
-    establish the pattern for the full five repair cases.
+    - [cad_concat_imp]:  WC O(1) ≤ 8.  Sub-op + unified-entry seq
+      theorems for all 4 shape combinations + 2 empty cases.
+      List-level refinement, input-persistence, FULL CONTRACT
+      bundles all proven.  See the headline summary near the bottom
+      of this file for the complete theorem catalogue.
+
+    - [cad_push_imp]:    WC O(1) ≤ 4.  Cost-exact theorems for the
+      three input shapes (CEmpty / CSingle / CDouble).
+
+    - [cad_inject_imp]:  symmetric to push, WC O(1) ≤ 4.
 
     ## What's deferred
 
-    The full five repair cases (1a/1b/2a/2b/2c per manual §12.4)
-    plus the [adopt6] shortcut.  Each follows the same pattern:
-    constant-bounded reads + allocations, sequence-correctness via
-    explicit case analysis, cost bound by structural inspection.
+    - [cad_pop_imp] / [cad_eject_imp]: the cascade case (when the
+      prefix shrinks below 5) requires the level-typed cascade and
+      the [adopt6] shortcut.
+    - The five §12.4 repair cases for [cad_concat_imp] when the
+      middle children are non-trivial.  Same blocker as pop/eject.
 
     ## Cross-references
 
