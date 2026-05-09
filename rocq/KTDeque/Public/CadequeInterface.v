@@ -536,5 +536,57 @@ Proof.
   intros A. apply Regularity.regular_cad_empty.
 Qed.
 
+(** ** Size laws. *)
+
+Theorem RegularCadeque_pop_size :
+  forall (A : Type) (q : RegularCadeque.t A) (x : A) (q' : RegularCadeque.t A),
+    RegularCadeque.pop A q = Some (x, q') ->
+    RegularCadeque.length A q = S (RegularCadeque.length A q').
+Proof.
+  intros A q x q' H. apply cad_pop_op_full_size in H. exact H.
+Qed.
+
+Theorem RegularCadeque_eject_size :
+  forall (A : Type) (q : RegularCadeque.t A) (q' : RegularCadeque.t A) (x : A),
+    RegularCadeque.eject A q = Some (q', x) ->
+    RegularCadeque.length A q = S (RegularCadeque.length A q').
+Proof.
+  intros A q q' x H. apply cad_eject_op_full_size in H. exact H.
+Qed.
+
+Theorem RegularCadeque_concat_size :
+  forall (A : Type) (a b : RegularCadeque.t A),
+    RegularCadeque.length A (RegularCadeque.concat A a b)
+    = RegularCadeque.length A a + RegularCadeque.length A b.
+Proof.
+  intros A a b. apply cad_concat_op_full_size.
+Qed.
+
+(** ** Concat algebra. *)
+
+Theorem RegularCadeque_concat_assoc_to_list :
+  forall (A : Type) (a b c : RegularCadeque.t A),
+    RegularCadeque.to_list A (RegularCadeque.concat A (RegularCadeque.concat A a b) c)
+    = RegularCadeque.to_list A (RegularCadeque.concat A a (RegularCadeque.concat A b c)).
+Proof.
+  intros A a b c. apply cad_concat_op_full_assoc.
+Qed.
+
+Theorem RegularCadeque_concat_left_id_to_list :
+  forall (A : Type) (q : RegularCadeque.t A),
+    RegularCadeque.to_list A (RegularCadeque.concat A (RegularCadeque.empty A) q)
+    = RegularCadeque.to_list A q.
+Proof.
+  intros A q. apply cad_concat_op_full_left_id.
+Qed.
+
+Theorem RegularCadeque_concat_right_id_to_list :
+  forall (A : Type) (q : RegularCadeque.t A),
+    RegularCadeque.to_list A (RegularCadeque.concat A q (RegularCadeque.empty A))
+    = RegularCadeque.to_list A q.
+Proof.
+  intros A q. apply cad_concat_op_full_right_id.
+Qed.
+
 (** ** Regular-cadeque namespace alias. *)
 Module CReg := RegularCadeque.

@@ -1820,3 +1820,176 @@ Qed.
     shape), and the [_full] form additionally normalizes via
     [cad_from_list_op].  Sequence-level equivalence is the relevant
     correctness statement. *)
+
+(** ** Algebra of the [_full] ops.
+
+    A coherent set of laws connecting the [_full] operations with
+    [cad_size], the round-trip identities (push/pop, inject/eject),
+    associativity / identity for concat, totality on non-empty
+    inputs, and the [cad_normalize] idempotence law.
+
+    All proofs reduce to the existing sequence laws plus the abstract
+    [cad_*] laws, so the cost is essentially the boilerplate
+    plumbing. *)
+
+(** *** Size laws. *)
+
+Lemma cad_normalize_size :
+  forall (X : Type) (q : Cadeque X),
+    cad_size (cad_normalize q) = cad_size q.
+Proof.
+  intros X q. unfold cad_size. rewrite cad_normalize_seq. reflexivity.
+Qed.
+
+Theorem cad_pop_op_full_size :
+  forall (X : Type) (q : Cadeque X) (x : X) (q' : Cadeque X),
+    cad_pop_op_full q = Some (x, q') ->
+    cad_size q = S (cad_size q').
+Proof.
+  intros X q x q' Hp. unfold cad_size.
+  apply cad_pop_op_full_seq in Hp.
+  rewrite Hp. cbn. reflexivity.
+Qed.
+
+Theorem cad_eject_op_full_size :
+  forall (X : Type) (q : Cadeque X) (q' : Cadeque X) (x : X),
+    cad_eject_op_full q = Some (q', x) ->
+    cad_size q = S (cad_size q').
+Proof.
+  intros X q q' x He. unfold cad_size.
+  apply cad_eject_op_full_seq in He.
+  rewrite He, length_app. cbn. lia.
+Qed.
+
+Theorem cad_concat_op_full_size :
+  forall (X : Type) (a b : Cadeque X),
+    cad_size (cad_concat_op_full a b) = cad_size a + cad_size b.
+Proof.
+  intros X a b. unfold cad_size.
+  rewrite cad_concat_op_full_seq, length_app. reflexivity.
+Qed.
+
+(** *** Totality on [cad_nonempty] inputs.
+
+    A [cad_nonempty] cadeque admits both [cad_pop_op_full] and
+    [cad_eject_op_full]; equivalently, the front and back endpoints
+    are observable.  The proof reduces to the abstract totality
+    theorems already proven in [Regularity.v].
+
+    The [cad_pop_op] / [cad_eject_op] succeed whenever the abstract
+    [cad_pop] / [cad_eject] succeed (the two cases that delegate to
+    abstract are clear; the [TOnly + CEmpty] case falls through to
+    [buf6_pop] of the prefix, which the [cad_nonempty] precondition
+    guarantees succeeds for the prefix half — the [TOnly + CEmpty]
+    nonempty case has a nonempty prefix by definition). *)
+
+(** Helper: [cad_pop_op] succeeds whenever [cad_pop] succeeds.
+
+    Proof by case analysis on the cadeque shape.  In four out of
+    five branches, [cad_pop_op] delegates to [cad_pop] (the
+    [TOnly + non-empty-child], [TLeft], [TRight], and [CDouble]
+    cases).  In the [TOnly + CEmpty] case, [cad_pop_op] uses its own
+    [buf6_pop pre] dispatch -- which agrees with the abstract
+    [cad_pop]'s [triple_pop_prefix] dispatch on the same buffer. *)
+
+Lemma cad_pop_op_succeeds_when_cad_pop_does :
+  forall (X : Type) (q : Cadeque X) (x : X) (q'' : Cadeque X),
+    cad_pop q = Some (x, q'') ->
+    exists q''', cad_pop_op q = Some (x, q''').
+Proof.
+  intros X q x q'' Hp.
+  destruct q as [|t|tL tR].
+  - cbn in Hp. discriminate.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + destruct c as [|ct|ctL ctR].
+      * (* CSingle (TOnly _ CEmpty _): cad_pop dispatches on
+           triple_pop_prefix which dispatches on buf6_pop pre.
+           cad_pop_op also dispatches on buf6_pop pre. *)
+        cbn [cad_pop triple_pop_prefix] in Hp.
+        destruct (buf6_pop pre) as [[y pre']|] eqn:Hpop; [|discriminate].
+        injection Hp as Hxy _. subst y.
+        cbn [cad_pop_op]. rewrite Hpop. eauto.
+      * cbn [cad_pop_op]. rewrite Hp. eauto.
+      * cbn [cad_pop_op]. rewrite Hp. eauto.
+    + cbn [cad_pop_op]. rewrite Hp. eauto.
+    + cbn [cad_pop_op]. rewrite Hp. eauto.
+  - cbn [cad_pop_op]. rewrite Hp. eauto.
+Qed.
+
+Lemma cad_eject_op_succeeds_when_cad_eject_does :
+  forall (X : Type) (q : Cadeque X) (q'' : Cadeque X) (x : X),
+    cad_eject q = Some (q'', x) ->
+    exists q''', cad_eject_op q = Some (q''', x).
+Proof.
+  intros X q q'' x He.
+  destruct q as [|t|tL tR].
+  - cbn in He. discriminate.
+  - destruct t as [pre c suf | pre c suf | pre c suf].
+    + destruct c as [|ct|ctL ctR].
+      * cbn [cad_eject triple_eject_suffix] in He.
+        destruct (buf6_eject suf) as [[suf' y]|] eqn:Hej; [|discriminate].
+        injection He as _ Hxy. subst y.
+        cbn [cad_eject_op]. rewrite Hej. eauto.
+      * cbn [cad_eject_op]. rewrite He. eauto.
+      * cbn [cad_eject_op]. rewrite He. eauto.
+    + cbn [cad_eject_op]. rewrite He. eauto.
+    + cbn [cad_eject_op]. rewrite He. eauto.
+  - cbn [cad_eject_op]. rewrite He. eauto.
+Qed.
+
+Theorem cad_pop_op_full_total_on_nonempty :
+  forall (X : Type) (q : Cadeque X),
+    cad_nonempty q ->
+    exists x q', cad_pop_op_full q = Some (x, q').
+Proof.
+  intros X q Hq.
+  destruct (cad_pop_total_on_nonempty X q Hq) as [x [q'' Hp]].
+  destruct (cad_pop_op_succeeds_when_cad_pop_does X q x q'' Hp) as [q''' Hpop].
+  unfold cad_pop_op_full. rewrite Hpop. eauto.
+Qed.
+
+Theorem cad_eject_op_full_total_on_nonempty :
+  forall (X : Type) (q : Cadeque X),
+    cad_nonempty q ->
+    exists q' x, cad_eject_op_full q = Some (q', x).
+Proof.
+  intros X q Hq.
+  destruct (cad_eject_total_on_nonempty X q Hq) as [q'' [x He]].
+  destruct (cad_eject_op_succeeds_when_cad_eject_does X q q'' x He) as [q''' Hej].
+  unfold cad_eject_op_full. rewrite Hej. eauto.
+Qed.
+
+(** *** Concat algebra at the [cad_to_list_base] level. *)
+
+Theorem cad_concat_op_full_assoc :
+  forall (X : Type) (a b c : Cadeque X),
+    cad_to_list_base (cad_concat_op_full (cad_concat_op_full a b) c)
+    = cad_to_list_base (cad_concat_op_full a (cad_concat_op_full b c)).
+Proof.
+  intros X a b c.
+  rewrite !cad_concat_op_full_seq, app_assoc. reflexivity.
+Qed.
+
+Theorem cad_concat_op_full_left_id :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_concat_op_full CEmpty q) = cad_to_list_base q.
+Proof.
+  intros X q. rewrite cad_concat_op_full_seq. reflexivity.
+Qed.
+
+Theorem cad_concat_op_full_right_id :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_concat_op_full q CEmpty) = cad_to_list_base q.
+Proof.
+  intros X q. rewrite cad_concat_op_full_seq, app_nil_r. reflexivity.
+Qed.
+
+(** *** [cad_normalize] is observably idempotent. *)
+
+Theorem cad_normalize_idempotent :
+  forall (X : Type) (q : Cadeque X),
+    cad_to_list_base (cad_normalize (cad_normalize q))
+    = cad_to_list_base (cad_normalize q).
+Proof.
+  intros X q. rewrite !cad_normalize_seq. reflexivity.
+Qed.
