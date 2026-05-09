@@ -930,6 +930,95 @@ Proof.
   - injection Hcost as <-. unfold CAD_PUSH_IMP_COST. lia.
 Qed.
 
+(** ** [cad_inject_imp]: heap-based imperative inject (symmetric to push).
+
+    Reads at most 2 cells, allocates at most 2.  WC O(1) cost = 4. *)
+
+Definition cad_inject_imp {A : Type} (lA : Loc) (x : A) : MC (CadCell A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CC_CadEmpty =>
+        bindC (alloc_MC (CC_TripleOnly buf6_empty lA (buf6_singleton x)))
+              (fun lt => alloc_MC (CC_CadSingle lt))
+    | CC_CadSingle lt =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CC_TripleOnly pre c suf =>
+              bindC (alloc_MC (CC_TripleOnly pre c (buf6_inject suf x)))
+                    (fun lt' => alloc_MC (CC_CadSingle lt'))
+          | _ => retC lA
+          end)
+    | CC_CadDouble ltL ltR =>
+        bindC (read_MC ltR) (fun tR =>
+          match tR with
+          | CC_TripleRight pre c suf =>
+              bindC (alloc_MC (CC_TripleRight pre c (buf6_inject suf x)))
+                    (fun ltR' => alloc_MC (CC_CadDouble ltL ltR'))
+          | _ => retC lA
+          end)
+    | _ => retC lA
+    end).
+
+(** Symmetric WC bound: cost ≤ 4 over ALL inputs. *)
+Definition CAD_INJECT_IMP_COST : nat := 4.
+
+Theorem cad_inject_imp_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A) (k : nat),
+    cost_of (cad_inject_imp lA x) H = Some k ->
+    k <= CAD_INJECT_IMP_COST.
+Proof.
+  intros A H lA x k Hcost.
+  unfold cad_inject_imp, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_INJECT_IMP_COST; lia.
+  - destruct (lookup H l0) as [tR|] eqn:HlR; [|discriminate].
+    destruct tR; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_INJECT_IMP_COST; lia.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+  - injection Hcost as <-. unfold CAD_INJECT_IMP_COST. lia.
+Qed.
+
+Theorem cad_inject_imp_cost_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A),
+    lookup H lA = Some CC_CadEmpty ->
+    cost_of (cad_inject_imp lA x) H = Some 3.
+Proof.
+  intros A H lA x HA.
+  unfold cad_inject_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_cost_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lt : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre c suf) ->
+    cost_of (cad_inject_imp lA x) H = Some 4.
+Proof.
+  intros A H lA lt x pre suf c HA Ht.
+  unfold cad_inject_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_cost_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA ltL ltR : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltR = Some (CC_TripleRight pre c suf) ->
+    cost_of (cad_inject_imp lA x) H = Some 4.
+Proof.
+  intros A H lA ltL ltR x pre suf c HA HtR.
+  unfold cad_inject_imp, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HtR. cbn. reflexivity.
+Qed.
+
 (** ** [cad_push_imp] success-path lookups: the freshly-allocated
     cells in H'. *)
 
