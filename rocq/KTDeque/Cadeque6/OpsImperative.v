@@ -1355,6 +1355,146 @@ Proof.
       apply heap_represents_cad_persists_two_allocs; assumption.
 Qed.
 
+(** ** Persistence over a single alloc — for the DD case. *)
+Lemma heap_represents_triple_persists_two_allocs :
+  forall (A : Type) (c1 c2 : CadCell A) (t : Triple A)
+         (H : Heap (CadCell A)) (l : Loc),
+    heap_represents_triple H l t ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc c1 H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc c1 H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc c1 H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc c1 H)))) ->
+    heap_represents_triple (snd (alloc c2 (snd (alloc c1 H)))) l t.
+Proof.
+  intros A c1 c2 t H l Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'.
+  apply heap_represents_triple_persists_alloc; try assumption.
+  apply heap_represents_triple_persists_alloc; assumption.
+Qed.
+
+(** ** Full general sequence-correctness for the DS-simple case.
+
+    A is CDouble, B is CSingle.  Result represents
+    [CDouble (tLA, TRight preRA cRA' sufB)] where tLA is the
+    abstract left triple of A (preserved verbatim) and cRA' is
+    the abstract child cadeque of A's right triple. *)
+
+Theorem cad_concat_imp_double_single_simple_seq :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (tLA : Triple A) (cRA' : Cadeque A),
+    heap_represents_cad H lA (CDouble tLA (TRight preRA cRA' buf6_empty)) ->
+    heap_represents_cad H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CC_CadDouble ltLA ltRA) ->
+    lookup H lB = Some (CC_CadSingle ltB) ->
+    lookup H ltRA = Some (CC_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CC_TripleOnly buf6_empty cB' sufB) ->
+    heap_represents_triple H ltLA tLA ->
+    heap_represents_cad H cRA cRA' ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_double_single_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l'
+        (CDouble tLA (TRight preRA cRA' sufB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' tLA cRA'
+         HrepA HrepB HA HB HtRA HtB HrepTLA HrepCRA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp_double_single_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl.
+  eapply HRC_Double.
+  - cbn. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - (* tLA persists across both allocs. *)
+    apply heap_represents_triple_persists_two_allocs; assumption.
+  - (* New TripleRight cell represents (TRight preRA cRA' sufB). *)
+    eapply HRT_TRight.
+    + cbn. unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+(** ** Full general sequence-correctness for the SD-simple case.
+
+    A is CSingle, B is CDouble.  Result represents
+    [CDouble (TLeft preA cA' sufLB, tRB)] where tRB is preserved
+    and cA' is A's abstract child cadeque. *)
+
+Theorem cad_concat_imp_single_double_simple_seq :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (cA_ab : Cadeque A) (tRB : Triple A),
+    heap_represents_cad H lA (CSingle (TOnly preA cA_ab buf6_empty)) ->
+    heap_represents_cad H lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) ->
+    lookup H lA = Some (CC_CadSingle ltA) ->
+    lookup H lB = Some (CC_CadDouble ltLB ltRB) ->
+    lookup H ltA = Some (CC_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CC_TripleLeft buf6_empty cLB sufLB) ->
+    heap_represents_cad H cA' cA_ab ->
+    heap_represents_triple H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_single_double_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' l'
+        (CDouble (TLeft preA cA_ab sufLB) tRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB cA_ab tRB
+         HrepA HrepB HA HB HtA HtLB HrepCA HrepTRB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' l' k Hop.
+  unfold cad_concat_imp_single_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  rewrite <- HH, <- Hl.
+  eapply HRC_Double.
+  - cbn. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - (* New TripleLeft cell represents (TLeft preA cA_ab sufLB). *)
+    eapply HRT_TLeft.
+    + cbn. unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_persists_two_allocs; assumption.
+  - apply heap_represents_triple_persists_two_allocs; assumption.
+Qed.
+
 (** ** Heap monotonicity: alloc never shrinks [next_loc]. *)
 
 Lemma alloc_monotone :
