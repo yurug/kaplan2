@@ -2355,6 +2355,77 @@ Proof.
   reflexivity.
 Qed.
 
+(** ** Symmetric: when B = CC_CadEmpty.  A must be non-empty (any
+    other shape).  The unified op returns lA, H'=H. *)
+Theorem cad_concat_imp_correct_when_B_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc)
+         (cA : CadCell A) (qA : Cadeque A) (n : nat),
+    lookup H lA = Some cA ->
+    cA <> CC_CadEmpty ->
+    lookup H lB = Some CC_CadEmpty ->
+    extract_cadeque n H lA = Some qA ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      H' = H /\ l' = lA /\
+      cad_to_list_base qA
+      = cad_to_list_base (cad_concat qA (@CEmpty A)).
+Proof.
+  intros A H lA lB cA qA n HA HcAne HB HqA H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop.
+  destruct cA; try (cbn in Hop; rewrite HB in Hop; cbn in Hop;
+                    injection Hop as HH Hl Hk;
+                    split; [symmetry; exact HH | split; [symmetry; exact Hl |]];
+                    rewrite cad_concat_seq; cbn [cad_to_list_base cad_to_list];
+                    rewrite app_nil_r; reflexivity).
+  - contradiction HcAne. reflexivity.
+Qed.
+
+(** ** Empty-case input-persistence: when either input is CEmpty,
+    [cad_concat_imp] does not modify the heap.  So both inputs trivially
+    persist.  This completes the input-persistence matrix at the
+    empty-cases level, matching the [cad_concat_imp_*_inputs_persist]
+    theorems for the four non-empty shape combinations. *)
+
+Theorem cad_concat_imp_inputs_persist_when_A_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB qA qB HrepA HrepB HA H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  split; assumption.
+Qed.
+
+Theorem cad_concat_imp_inputs_persist_when_B_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lB : Loc) (qA qB : Cadeque A)
+         (cA : CadCell A),
+    heap_represents_cad H lA qA ->
+    heap_represents_cad H lB qB ->
+    lookup H lA = Some cA ->
+    cA <> CC_CadEmpty ->
+    lookup H lB = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_concat_imp lA lB H = Some (H', l', k) ->
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' lB qB.
+Proof.
+  intros A H lA lB qA qB cA HrepA HrepB HA HcAne HB H' l' k Hop.
+  unfold cad_concat_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop.
+  destruct cA; try (cbn in Hop; rewrite HB in Hop; cbn in Hop;
+                    injection Hop as HH _ _; subst H'; split; assumption).
+  - contradiction HcAne. reflexivity.
+Qed.
+
 (** ** Sequence-correctness for the CDouble simple cases.
 
     Each of the three CDouble simple operations is sequence-correct
