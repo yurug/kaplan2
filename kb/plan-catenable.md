@@ -267,7 +267,7 @@ every level.
 | 4 — cost bound (`O(1)` WC for concat) | ⏳ pending    | — |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
-| 5.6 — operational repair primitives + cad_*_op | 🟡 in progress | `66edf41`–`6ad57f7` |
+| 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
 | 6 — `KTCatenableDeque` module + extraction | 🟡 module type drafted | `61e7eff` |
 | 7 — C port                       | ⏳ pending        | — |
 | 8 — literate-programming pass    | ✅ in progress    | continuous |
@@ -312,22 +312,19 @@ Phase 5.6 progress (15 commits):
   for the Y→G and O→Y colour-shift reasoning needed to complete
   the semantic-conjunct preservation theorems.
 
-Phase 5.6 deferred (next session):
+Phase 5.6 — push/inject **DONE**.  Full preservation proven:
 
-- Full `cad_push_op_preserves_semiregular` and
-  `cad_push_op_preserves_top_level_paths_green` theorems
-  (and symmetric for inject).  The remaining cases for
-  preservation are:
-  - CSingle (TOnly _ non-empty-child _): need colour-shift
-    reasoning on `color4_meet (buf6_color (push pre)) (buf6_color
-    suf)`.  Building blocks: `buf6_color_push_monotone` (just
-    landed) gives that the meet is monotone non-decreasing.
-  - CDouble (TLeft _ _ _) tR: need colour-shift reasoning on
-    `buf6_color (push pre)` for the TLeft.  RC3 covers the O→Y
-    shift (`orange_nonpreferred_child_green` for TLeft).
+  ✓ cad_push_op_preserves_regular_cad   (`2b32d44`)
+  ✓ cad_inject_op_preserves_regular_cad (`78fb4a4`)
+  ✓ cad_push_op_refines_cad_push        (observational equivalence)
+  ✓ cad_inject_op_refines_cad_inject
 
-  Once all four conjuncts are preserved, bundle into the headline
-  `cad_push_op_preserves_regular_cad` theorem.
+Each preservation theorem proven by composing 6+ triple-level
+helpers (3 kinds × 2 child shapes per side) that dispatch the
+10 surviving (Hold, Hnew) colour pairs after lia eliminates
+infeasible.
+
+Phase 5.6+ remaining:
 
 - `cad_pop_op` / `cad_eject_op`: pop's reshape cases include
   trivial pop, normalize after pop, empty-result detection, and
