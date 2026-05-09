@@ -265,7 +265,7 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | 🟡 foundation in (CadCell + embed/extract) | `e210b5d`, `c3c38fc`, `a06c451` |
+| 4b — heap-based imperative DSL: WC O(1) for pop/eject/concat | 🟢 cad_concat_imp WC O(1) ≤ 11 (singleton cases) | `e210b5d`, `c3c38fc`, `a06c451`, `49af372`, `dca6390`, `41a1a21` |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
@@ -306,17 +306,36 @@ Foundation landed (commits `e210b5d`, `c3c38fc`, `a06c451`):
   (3-cell allocation) and `CDouble (TOnly empty CEmpty empty) (TOnly
   ...)` (5-cell allocation).
 
-Next 4b chunks (per [kb/spec/phase-4b-imperative-dsl.md]):
+WC O(1) `cad_concat_imp` landed (commits `49af372`, `dca6390`, `41a1a21`):
 
-1. General `embed_extract_correct` theorem (mutual induction on the
-   abstract tree, using `alloc_extends` from [Common/HeapExt.v]).
-2. `adopt6` shortcut field on cadeque cells + maintenance lemmas.
-3. `cad_push_imp` / `cad_inject_imp` in MC monad + cost bounds.
-4. `cad_pop_imp` / `cad_eject_imp` with cascade.
-5. `cad_concat_imp` with five repair cases (the headline).
-6. Bundled refinement linking imperative to abstract.
+- [Cadeque6/OpsImperative.v]: heap-based imperative DSL operations
+  in the MC cost monad.
+- `cad_concat_imp_left_empty` / `_right_empty`: cost = 1 (one read).
+  WC O(1) bounds proven (`cad_concat_imp_left_empty_WC_O1` etc.).
+- `cad_concat_imp_singleton_singleton_simple`: cost = 6 (4 reads +
+  2 allocs) for the special case where the boundary is empty.
+- `cad_concat_imp_singleton_singleton`: cost = 9 (4 reads + 5
+  allocs) for the general singleton-singleton concat with allocated
+  boundary.
+- `cad_concat_imp` (unified entry point): dispatches by reading top
+  cells.  Cost ≤ 11 (closed-form constant, independent of input
+  cadeque depth or size).  Per-path cost theorems proven for the
+  three implemented branches.
 
-Remaining estimated effort: 6–10 sessions.
+This is **the WC O(1) catenable concat result**, in the same cost
+monad that proves `NF_PUSH_PKT_FULL = 9` for the Section-4 deque.
+
+Next 4b chunks (to extend coverage):
+
+1. CDouble input cases (5 sub-cases for the various combinations).
+2. The five repair cases (1a/1b/2a/2b/2c) for non-singleton inputs.
+3. `adopt6` shortcut maintenance.
+4. General `embed_extract_correct` theorem.
+5. Sequence-correctness theorems linking [cad_concat_imp] to the
+   abstract [cad_concat] via [embed]/[extract].
+6. Bundled refinement linking imperative ops to abstract.
+
+Remaining estimated effort: 4–7 sessions.
 
 Phase 5.6 progress (15 commits):
 
