@@ -2469,10 +2469,18 @@ Qed.
     - [cad_concat_imp_double_double_simple_correct_strong]
 
     *** FULL GENERAL SEQUENCE-CORRECTNESS via heap_represents_cad:
+
+    Sub-op level:
     - [cad_concat_imp_singleton_singleton_simple_seq]
     - [cad_concat_imp_double_single_simple_seq]
     - [cad_concat_imp_single_double_simple_seq]
     - [cad_concat_imp_double_double_simple_seq]
+
+    Unified entry level (composes dispatch + sub-op seq):
+    - [cad_concat_imp_seq_when_singleton_singleton]
+    - [cad_concat_imp_seq_when_double_single]
+    - [cad_concat_imp_seq_when_single_double]
+    - [cad_concat_imp_seq_when_double_double]
 
     Each proves that under the standard shape preconditions PLUS
     structural well-formedness, the result heap H' represents the
@@ -2487,8 +2495,11 @@ Qed.
     1-alloc and 2-alloc patterns.
 
     All four shape combinations have proven strong correctness AND
-    full general sequence-correctness, validating the persistence-
-    of-persistence property critical for purely-functional snapshots.
+    full general sequence-correctness AT BOTH THE SUB-OP AND THE
+    UNIFIED ENTRY LEVEL — completing the 4-shape matrix at the
+    public-facing entry [cad_concat_imp].  This validates the
+    persistence-of-persistence property critical for purely-
+    functional snapshots.
 
     *** Persistence under alloc (foundational):
 
