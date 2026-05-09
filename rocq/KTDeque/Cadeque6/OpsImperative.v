@@ -1285,9 +1285,16 @@ Qed.
     appropriate preconditions (empty middle buffers + relevant
     children resolve to CEmpty).
 
+    *** Non-empty boundary:
+
+    - [cad_concat_imp_singleton_singleton_buffers]: SS concat with
+      buffer concatenation (handles non-empty preA/sufA/preB/sufB).
+      Cost = 6 (success), ≤ 6 (general WC).  Sequence-correctness
+      holds when both children extract to CEmpty.
+
     *** What's deferred:
 
-    - Non-empty joining boundary + non-trivial children: requires
+    - Sequence-correctness for non-trivial children: requires
       adopt6 shortcut + level-typed cascade per
       [kb/spec/phase-4b-imperative-dsl.md].
     - The five §12.4 repair cases for non-trivial children.
