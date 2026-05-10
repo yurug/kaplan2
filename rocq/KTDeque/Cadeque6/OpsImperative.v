@@ -1529,6 +1529,66 @@ Qed.
     = list(qA) ++ list(qB)
     as required by sequence-correctness for [cad_concat]. *)
 
+(** ** [cad_push_imp] sequence-correctness via heap_represents_cad.
+
+    For the empty-input case: the result heap H' represents a fresh
+    singleton cadeque whose abstract value is
+      [CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)]
+    at the result loc l'.
+
+    Cost = 3 (proven separately).  Persistence: the original lA
+    pointer remains pointing to CC_CadEmpty in H' (handled via
+    [lookup_persists_after_two_allocs]). *)
+
+Theorem cad_push_imp_seq_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc),
+    heap_represents_cad H lA CEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      heap_represents_cad H' l'
+        (CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)).
+Proof.
+  intros A H x lA HrepA HltA H' l' k Hop.
+  (* From HrepA inversion: lookup H lA = Some CC_CadEmpty. *)
+  assert (HA : lookup H lA = Some CC_CadEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; exact Hlk. }
+  (* The fresh-cell lookups in H'. *)
+  assert (Hlookup : let lt := next_loc H in
+                    lookup H' lt = Some (CC_TripleOnly (buf6_singleton x) lA buf6_empty)
+                    /\ lookup H' l' = Some (CC_CadSingle lt)).
+  { eapply cad_push_imp_lookup_when_empty;
+      [exact HA | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  (* Persistence: lA still resolves to CC_CadEmpty in H'.  Reproduce
+     H' = snd(alloc cell2 (snd(alloc cell1 H))) and chain
+     [lookup_persists_after_alloc_fwd] twice. *)
+  assert (HA' : lookup H' lA = Some CC_CadEmpty).
+  { unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA in Hop. cbn in Hop.
+    injection Hop as HH _ _.
+    subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lA (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in HltA.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact HltA|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lA (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in HltA.
+        exact (Pos.lt_irrefl _ HltA).
+      * exact HA. }
+  (* Build the witness using HRC_Single + HRT_TOnly + HRC_Empty. *)
+  eapply HRC_Single.
+  - exact Hl_new.
+  - eapply HRT_TOnly.
+    + exact Hlt_new.
+    + apply HRC_Empty. exact HA'.
+Qed.
+
 Theorem cad_concat_imp_singleton_singleton_simple_seq :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
          (preA sufB : Buf6 A) (cAchild cBchild : Loc)
