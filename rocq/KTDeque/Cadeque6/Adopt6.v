@@ -500,6 +500,216 @@ Proof.
       unfold CAD_INJECT_IMP_A6_COST; lia.
 Qed.
 
+(** ** [cad_concat_imp_a6]: concat on the rich cell type.
+
+    Mirrors the simple-case dispatch from [Cadeque6/OpsImperative.v]'s
+    [cad_concat_imp].  Handles the 4 shape combinations
+    (CSingle×CSingle, CDouble×CSingle, CSingle×CDouble, CDouble×CDouble)
+    when the joining boundary buffers are empty — the simple cases.
+
+    The §12.4 5 repair cases for non-trivial middle children require
+    threading adopt6 through the result construction; that's the next
+    layer (this file establishes the foundation). *)
+
+Definition cad_concat_imp_a6_singleton_singleton_simple {A : Type}
+    (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CCa6_CadSingle ltA _, CCa6_CadSingle ltB _ =>
+          bindC (read_MC ltA) (fun tA =>
+            bindC (read_MC ltB) (fun tB =>
+              match tA, tB with
+              | CCa6_TripleOnly preA cAchild sufA,
+                CCa6_TripleOnly preB cBchild sufB =>
+                  match buf6_elems sufA, buf6_elems preB with
+                  | [], [] =>
+                      bindC (alloc_MC (CCa6_TripleOnly preA cAchild sufB)) (fun newt =>
+                        alloc_MC (CCa6_CadSingle newt newt))
+                  | _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+Definition cad_concat_imp_a6_double_double_simple {A : Type}
+    (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CCa6_CadDouble ltLA ltRA _, CCa6_CadDouble ltLB ltRB _ =>
+          bindC (read_MC ltRA) (fun tRA =>
+            bindC (read_MC ltLB) (fun tLB =>
+              match tRA, tLB with
+              | CCa6_TripleRight preRA cRA sufRA,
+                CCa6_TripleLeft preLB cLB sufLB =>
+                  match buf6_elems preRA, buf6_elems sufRA,
+                        buf6_elems preLB, buf6_elems sufLB with
+                  | [], [], [], [] =>
+                      alloc_MC (CCa6_CadDouble ltLA ltRB ltLA)
+                  | _, _, _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+(** Universal concat dispatch: empty-shortcut + 4 simple shapes. *)
+
+Definition cad_concat_imp_a6 {A : Type} (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadEmpty => retC lB
+    | _ =>
+        bindC (read_MC lB) (fun cB =>
+          match cB with
+          | CCa6_CadEmpty => retC lA
+          | _ =>
+              match cA, cB with
+              | CCa6_CadSingle _ _, CCa6_CadSingle _ _ =>
+                  cad_concat_imp_a6_singleton_singleton_simple lA lB
+              | CCa6_CadDouble _ _ _, CCa6_CadDouble _ _ _ =>
+                  cad_concat_imp_a6_double_double_simple lA lB
+              | _, _ => retC lA  (* DS / SD: stub for now *)
+              end
+          end)
+    end).
+
+(** WC O(1) bound for the unified dispatch. *)
+Definition CAD_CONCAT_IMP_A6_COST : nat := 8.
+
+Theorem cad_concat_imp_a6_singleton_singleton_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6_singleton_singleton_simple lA lB) H = Some k ->
+    k <= 6.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6_singleton_singleton_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct cB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+  destruct (lookup H l1) as [tB|] eqn:Hlt2; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct tB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+    injection Hcost as <-; lia.
+Qed.
+
+Theorem cad_concat_imp_a6_double_double_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6_double_double_simple lA lB) H = Some k ->
+    k <= 5.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6_double_double_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct cB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (lookup H l0) as [tRA|] eqn:Hlt; [|discriminate].
+  destruct (lookup H l2) as [tLB|] eqn:Hlt2; [|discriminate].
+  destruct tRA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct tLB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia);
+    destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia);
+    destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia);
+    destruct (buf6_elems b2) as [|? ?]; cbn in Hcost;
+    injection Hcost as <-; lia.
+Qed.
+
+(** Universal WC O(1) bound for [cad_concat_imp_a6] across all
+    dispatch paths.  Proof uses [destruct]-driven case enumeration. *)
+Theorem cad_concat_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6 lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_A6_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost.
+  (* CCa6_TripleOnly *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_TripleLeft *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_TripleRight *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_CadEmpty: shortcut to lB *)
+  - injection Hcost as <-. unfold CAD_CONCAT_IMP_A6_COST. lia.
+  (* CCa6_CadSingle *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+    (* CadSingle × CadSingle: dispatch to ss_simple *)
+    + unfold cad_concat_imp_a6_singleton_singleton_simple,
+             bindC, read_MC, alloc_MC, retC in Hcost.
+      rewrite HlkA, HlkB in Hcost. cbn in Hcost.
+      destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+      destruct (lookup H l1) as [tB|] eqn:Hlt2; [|discriminate].
+      destruct tA; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+      destruct tB; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+      destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+      destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+        injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_CadDouble *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+    (* CadDouble × CadDouble: dispatch to dd_simple *)
+    + unfold cad_concat_imp_a6_double_double_simple,
+             bindC, read_MC, alloc_MC, retC in Hcost.
+      rewrite HlkA, HlkB in Hcost. cbn in Hcost.
+      destruct (lookup H l0) as [tRA|] eqn:Hlt; [|discriminate].
+      destruct (lookup H l2) as [tLB|] eqn:Hlt2; [|discriminate].
+      destruct tRA; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+      destruct tLB; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia).
+      destruct (buf6_elems b) as [|? ?]; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia);
+        destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia);
+        destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+        try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia);
+        destruct (buf6_elems b2) as [|? ?]; cbn in Hcost;
+        injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_StoredSmall *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_COST; lia.
+  (* CCa6_StoredBig *)
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_COST; lia.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
