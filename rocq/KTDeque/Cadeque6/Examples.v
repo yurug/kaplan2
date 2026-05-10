@@ -21,7 +21,7 @@ From Stdlib Require Import List.
 Import ListNotations.
 
 From KTDeque.Buffer6 Require Import SizedBuffer.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract Repair HeapCells OpsImperative.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract Repair HeapCells OpsImperative Adopt6.
 From KTDeque.Common Require Import FinMapHeap.
 
 (** ** Tiny convenience constructors used in the examples below.
@@ -353,3 +353,72 @@ Example imp_a_empty_cost_one :
   | None                 => False
   end.
 Proof. vm_compute. reflexivity. Qed.
+
+(** ** Adopt6 layer examples: rich-cell DSL on tiny embedded heaps.
+
+    Demonstrates that the cad_*_imp_a6 ops on the [CadCellA6] type
+    succeed on small inputs, with the WC O(1) cost bounds witnessed
+    concretely.  Uses [vm_compute] for the same reason as the plain
+    examples: [cbn] on heap-keyed Pos lookups is pathologically slow. *)
+
+Definition imp_a6_empty_qA : Cadeque nat := CEmpty.
+
+Definition imp_a6_empty_setup
+  : option (Heap (CadCellA6 nat) * Loc * nat) :=
+  let (lA, H1) := embed_cadeque_a6 imp_a6_empty_qA empty_heap in
+  match cad_push_imp_a6 7 lA H1 with
+  | Some (H', l', k) => Some (H', l', k)
+  | None             => None
+  end.
+
+(** cad_push_imp_a6 succeeds on the empty cadeque. *)
+Example imp_a6_push_empty_succeeds : imp_a6_empty_setup <> None.
+Proof. vm_compute. discriminate. Qed.
+
+(** Pop from a fresh embedding of a singleton cadeque returns Some. *)
+Definition imp_a6_singleton_qA : Cadeque nat :=
+  CSingle (TOnly (mkBuf6 [42]) CEmpty buf6_empty).
+
+Definition imp_a6_pop_setup
+  : option (Heap (CadCellA6 nat) * option (nat * Loc) * nat) :=
+  let (lA, H1) := embed_cadeque_a6 imp_a6_singleton_qA empty_heap in
+  cad_pop_imp_a6 lA H1.
+
+Example imp_a6_pop_succeeds : imp_a6_pop_setup <> None.
+Proof. vm_compute. discriminate. Qed.
+
+(** Empty input → None (pop on CCa6_CadEmpty). *)
+Example imp_a6_pop_empty :
+  let (lA, H) := embed_cadeque_a6 (@CEmpty nat) empty_heap in
+  match cad_pop_imp_a6 lA H with
+  | Some (_, None, _) => True
+  | _ => False
+  end.
+Proof. vm_compute. trivial. Qed.
+
+(** Symmetric eject. *)
+Definition imp_a6_eject_setup
+  : option (Heap (CadCellA6 nat) * option (Loc * nat) * nat) :=
+  let (lA, H1) := embed_cadeque_a6 imp_a6_singleton_qA empty_heap in
+  cad_eject_imp_a6 lA H1.
+
+Example imp_a6_eject_succeeds : imp_a6_eject_setup <> None.
+Proof. vm_compute. discriminate. Qed.
+
+(** Concat of two singletons (both with empty children). *)
+Definition imp_a6_qA_ss : Cadeque nat :=
+  CSingle (TOnly (mkBuf6 [1; 2]) CEmpty buf6_empty).
+Definition imp_a6_qB_ss : Cadeque nat :=
+  CSingle (TOnly buf6_empty CEmpty (mkBuf6 [3; 4])).
+
+Definition imp_a6_concat_setup
+  : option (Heap (CadCellA6 nat) * Loc * Loc * Loc * nat) :=
+  let (lA, H1) := embed_cadeque_a6 imp_a6_qA_ss empty_heap in
+  let (lB, H2) := embed_cadeque_a6 imp_a6_qB_ss H1 in
+  match cad_concat_imp_a6 lA lB H2 with
+  | Some (H', l', k) => Some (H', lA, lB, l', k)
+  | None             => None
+  end.
+
+Example imp_a6_concat_succeeds : imp_a6_concat_setup <> None.
+Proof. vm_compute. discriminate. Qed.
