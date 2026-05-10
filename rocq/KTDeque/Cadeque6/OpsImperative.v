@@ -3898,6 +3898,107 @@ Proof.
        | exact Hop | exact Hres].
 Qed.
 
+(** ** FLAGSHIP "FULL CONTRACT" theorems for cad_push_imp / cad_inject_imp.
+
+    Per shape, a single theorem bundling all four guarantees of the
+    WC O(1) imperative push/inject:
+
+      (1) k <= 4                                    (WC O(1) cost)
+      (2) heap_represents_cad H' lA qA               (input persists)
+      (3) heap_represents_cad H' l' qjoined          (output represents)
+      (4) for any qResult, cad_to_list_base qResult  (list refinement)
+            = x :: cad_to_list_base qA  (push)
+            = cad_to_list_base qA ++ [x]  (inject)
+
+    These match the [cad_concat_imp_*_full_contract] structure and are
+    the consumer-facing one-stop entry points for push/inject. *)
+
+Theorem cad_push_imp_full_contract_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc) (qA : Cadeque A),
+    heap_represents_cad H lA qA ->
+    lookup H lA = Some CC_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      k <= CAD_PUSH_IMP_COST /\
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' l'
+        (CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)) /\
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult = x :: cad_to_list_base qA).
+Proof.
+  intros A H x lA qA HrepA HA HltA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  split; [|split; [|split]].
+  - eapply cad_push_imp_terminates_with_constant_cost; eassumption.
+  - eapply cad_push_imp_input_persists_when_empty;
+      [exact HA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - subst qA. eapply cad_push_imp_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop].
+  - intros qResult Hres.
+    eapply cad_push_imp_list_correct_when_empty;
+      [exact HrepA | exact HA | exact HltA | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_inject_imp_full_contract_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A) (qA : Cadeque A),
+    heap_represents_cad H lA qA ->
+    lookup H lA = Some CC_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      k <= CAD_INJECT_IMP_COST /\
+      heap_represents_cad H' lA qA /\
+      heap_represents_cad H' l'
+        (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))) /\
+      (forall qResult,
+         heap_represents_cad H' l' qResult ->
+         cad_to_list_base qResult = cad_to_list_base qA ++ [x]).
+Proof.
+  intros A H lA x qA HrepA HA HltA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  split; [|split; [|split]].
+  - eapply cad_inject_imp_terminates_with_constant_cost; eassumption.
+  - eapply cad_inject_imp_input_persists_when_empty;
+      [exact HA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - subst qA. eapply cad_inject_imp_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop].
+  - intros qResult Hres.
+    eapply cad_inject_imp_list_correct_when_empty;
+      [exact HrepA | exact HA | exact HltA | exact Hop | exact Hres].
+Qed.
+
 (** ** Sequence-correctness for the CDouble simple cases.
 
     Each of the three CDouble simple operations is sequence-correct
