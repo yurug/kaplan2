@@ -1589,6 +1589,82 @@ Proof.
     + apply HRC_Empty. exact HA'.
 Qed.
 
+(** ** [cad_inject_imp] success-path lookup characterization
+    (empty-input case). *)
+
+Theorem cad_inject_imp_lookup_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A),
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CC_TripleOnly buf6_empty lA (buf6_singleton x))
+      /\ lookup H' l' = Some (CC_CadSingle lt).
+Proof.
+  intros A H lA x HA H' l' k Hop.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** ** [cad_inject_imp] sequence-correctness for the empty-input case.
+
+    Symmetric to [cad_push_imp_seq_when_empty]: the result represents
+    [CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))]. *)
+
+Theorem cad_inject_imp_seq_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A),
+    heap_represents_cad H lA CEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l'
+        (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))).
+Proof.
+  intros A H lA x HrepA HltA H' l' k Hop.
+  assert (HA : lookup H lA = Some CC_CadEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; exact Hlk. }
+  assert (Hlookup : let lt := next_loc H in
+                    lookup H' lt = Some (CC_TripleOnly buf6_empty lA (buf6_singleton x))
+                    /\ lookup H' l' = Some (CC_CadSingle lt)).
+  { eapply cad_inject_imp_lookup_when_empty;
+      [exact HA | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  assert (HA' : lookup H' lA = Some CC_CadEmpty).
+  { unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA in Hop. cbn in Hop.
+    injection Hop as HH _ _.
+    subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lA (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in HltA.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact HltA|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lA (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in HltA.
+        exact (Pos.lt_irrefl _ HltA).
+      * exact HA. }
+  eapply HRC_Single.
+  - exact Hl_new.
+  - eapply HRT_TOnly.
+    + exact Hlt_new.
+    + apply HRC_Empty. exact HA'.
+Qed.
+
 Theorem cad_concat_imp_singleton_singleton_simple_seq :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
          (preA sufB : Buf6 A) (cAchild cBchild : Loc)
