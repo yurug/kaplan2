@@ -2,10 +2,41 @@
 id: phase-4b-imperative-dsl
 domain: spec
 related: [why-catenable, plan-catenable, architecture/decisions/adr-0010-imperative-dsl]
-status: draft
+status: in-progress
+last-updated: 2026-05-10
 ---
 
 # Phase 4b — heap-based imperative DSL for the catenable cadeque
+
+## Status snapshot (2026-05-10)
+
+**Plain-CadCell DSL** ([Cadeque6/OpsImperative.v]):
+- All 5 imperative ops (push / inject / pop / eject / concat) at WC O(1)
+  for the *non-cascade* cases.  pop/eject return None when cascade is
+  needed; concat handles the 4 simple shape combinations.
+- 12 flagship FULL CONTRACT theorems bundling cost + input-persistence
+  + output-shape + list-level refinement: 6 paths for concat (4 shapes
+  + 2 empty), 3 paths each for push and inject.
+
+**Adopt6 rich-cell DSL** ([Cadeque6/Adopt6.v]) — new in May 2026:
+- `CadCellA6`: cell type with adopt6 pointer on cadeque cells.
+- `embed_cadeque_a6` / `extract_cadeque_a6`: round-trip embedding.
+- 5 imperative ops on the rich type, all with WC O(1) bounds proven
+  over ANY heap and ANY input pointers.  **pop/eject cascade is now
+  WC O(1) regardless of cadeque depth** — the cascade structural
+  blocker is RESOLVED at the cost-bound level.
+- `cad_pop_imp_a6_WC_O1`, `cad_eject_imp_a6_WC_O1`: ≤ 4 each.
+- `cad_concat_imp_a6_WC_O1`: ≤ 8.
+
+**What's still pending** beyond the cost-bound foundation:
+- adopt6 maintenance theorems (proving adopt6 stays valid across
+  consecutive ops — requires defining the adopt6 well-formedness
+  invariant).
+- §12.4 5 repair cases for concat with non-trivial middle children.
+- Sequence-correctness for the cascade case of pop/eject (the
+  abstract op `cad_pop_op_full` currently composes with the O(n)
+  `cad_normalize`; the imperative version's matching theorem is
+  next).
 
 ## Why this exists
 
@@ -56,21 +87,40 @@ constant.
 ## Cell layout
 
 The catenable cadeque needs a single heap-cell type wrapping all the
-constituent shapes (triples, cadeques, stored).  Sketch:
+constituent shapes (triples, cadeques, stored).  Two flavours now
+coexist in the codebase:
+
+**Plain CadCell** ([Cadeque6/HeapCells.v]) — no adopt6 pointer:
 
 ```coq
 Inductive CadCell (A : Type) : Type :=
-| CC_TripleOnly  : Buf6 A -> Loc -> Buf6 A -> CadCell A    (* TOnly *)
+| CC_TripleOnly  : Buf6 A -> Loc -> Buf6 A -> CadCell A
 | CC_TripleLeft  : Buf6 A -> Loc -> Buf6 A -> CadCell A
 | CC_TripleRight : Buf6 A -> Loc -> Buf6 A -> CadCell A
 | CC_CadEmpty    : CadCell A
-| CC_CadSingle   : Loc -> CadCell A                          (* points to a triple *)
+| CC_CadSingle   : Loc -> CadCell A
 | CC_CadDouble   : Loc -> Loc -> CadCell A
 | CC_StoredSmall : Buf6 A -> CadCell A
 | CC_StoredBig   : Buf6 A -> Loc -> Buf6 A -> CadCell A.
+```
 
-(* The `adopt6` shortcut: each non-empty cadeque cell carries an
-   optional shortcut pointer to the preferred-path tail's triple. *)
+Used for the non-cascade ops.  Carries no shortcut, so cascade in
+this layer requires O(depth) descent.
+
+**Rich CadCellA6** ([Cadeque6/Adopt6.v]) — adopt6 baked in:
+
+```coq
+Inductive CadCellA6 (A : Type) : Type :=
+| CCa6_TripleOnly  : Buf6 A -> Loc -> Buf6 A -> CadCellA6 A
+| CCa6_TripleLeft  : Buf6 A -> Loc -> Buf6 A -> CadCellA6 A
+| CCa6_TripleRight : Buf6 A -> Loc -> Buf6 A -> CadCellA6 A
+| CCa6_CadEmpty    : CadCellA6 A
+| CCa6_CadSingle   : Loc -> Loc -> CadCellA6 A
+                       (* triple_loc, adopt6_target *)
+| CCa6_CadDouble   : Loc -> Loc -> Loc -> CadCellA6 A
+                       (* left_triple, right_triple, adopt6_target *)
+| CCa6_StoredSmall : Buf6 A -> CadCellA6 A
+| CCa6_StoredBig   : Buf6 A -> Loc -> Buf6 A -> CadCellA6 A.
 ```
 
 The `Loc` payloads are heap pointers, allowing structural sharing —
@@ -79,9 +129,9 @@ with the output A++B).
 
 The `adopt6` shortcut field on each cadeque cell points directly to
 the preferred-path tail's triple.  This is what makes WC O(1)
-catenation possible: the repair-case dispatch needs to inspect at
-most a constant number of cells, and `adopt6` reaches the relevant
-target in one read regardless of depth.
+catenation and cascading pop/eject possible: the repair-case dispatch
+needs to inspect at most a constant number of cells, and `adopt6`
+reaches the relevant target in one read regardless of depth.
 
 ## Refinement strategy
 
