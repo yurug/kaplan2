@@ -33,10 +33,14 @@
       bundles all proven.  See the headline summary near the bottom
       of this file for the complete theorem catalogue.
 
-    - [cad_push_imp]:    WC O(1) ≤ 4.  Cost-exact theorems for the
-      three input shapes (CEmpty / CSingle / CDouble).
+    - [cad_push_imp]:    WC O(1) ≤ 4.  Cost-exact theorems +
+      heap_represents_cad seq theorems + list-level refinement
+      ([qResult's list = x :: qA's list]) for all 3 input shapes
+      (CEmpty / CSingle / CDouble).
 
-    - [cad_inject_imp]:  symmetric to push, WC O(1) ≤ 4.
+    - [cad_inject_imp]:  symmetric to push, WC O(1) ≤ 4.  Same
+      coverage with the symmetric list refinement
+      ([qResult's list = qA's list ++ [x]]).
 
     ## What's deferred
 
