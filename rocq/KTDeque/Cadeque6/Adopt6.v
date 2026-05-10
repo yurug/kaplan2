@@ -710,6 +710,80 @@ Proof.
       unfold CAD_CONCAT_IMP_A6_COST; lia.
 Qed.
 
+(** ** Lookup characterization for cad_*_imp_a6 success paths. *)
+
+Theorem cad_push_imp_a6_lookup_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty)
+      /\ lookup H' l' = Some (CCa6_CadSingle lt lt).
+Proof.
+  intros A H x lA HA H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_inject_imp_a6_lookup_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      let lt := next_loc H in
+      lookup H' lt = Some (CCa6_TripleOnly buf6_empty lA (buf6_singleton x))
+      /\ lookup H' l' = Some (CCa6_CadSingle lt lt).
+Proof.
+  intros A H lA x HA H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** ** Cost-exact theorems for the success paths. *)
+
+Theorem cad_push_imp_a6_cost_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    cost_of (cad_push_imp_a6 x lA) H = Some 3.
+Proof.
+  intros A H x lA HA.
+  unfold cad_push_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_cost_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    lookup H lA = Some CCa6_CadEmpty ->
+    cost_of (cad_inject_imp_a6 lA x) H = Some 3.
+Proof.
+  intros A H lA x HA.
+  unfold cad_inject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA. cbn. reflexivity.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
