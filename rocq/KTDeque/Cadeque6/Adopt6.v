@@ -918,6 +918,168 @@ Proof.
     + apply HRCa6_Empty. exact HA'.
 Qed.
 
+(** ** Lookup characterization for cad_push_imp_a6 single/double. *)
+
+Theorem cad_push_imp_a6_lookup_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA lt l_a6 : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre c suf) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      let lt' := next_loc H in
+      lookup H' lt' = Some (CCa6_TripleOnly (buf6_push x pre) c suf)
+      /\ lookup H' l' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H x lA lt l_a6 pre suf c HA Ht H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_push_imp_a6_lookup_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA ltL ltR l_a6 : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltL = Some (CCa6_TripleLeft pre c suf) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      let ltL' := next_loc H in
+      lookup H' ltL' = Some (CCa6_TripleLeft (buf6_push x pre) c suf)
+      /\ lookup H' l' = Some (CCa6_CadDouble ltL' ltR ltL').
+Proof.
+  intros A H x lA ltL ltR l_a6 pre suf c HA HtL H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtL in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Symmetric: cad_inject_imp_a6 single/double lookup. *)
+
+Theorem cad_inject_imp_a6_lookup_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre c suf) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      let lt' := next_loc H in
+      lookup H' lt' = Some (CCa6_TripleOnly pre c (buf6_inject suf x))
+      /\ lookup H' l' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lt l_a6 x pre suf c HA Ht H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_inject_imp_a6_lookup_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltR = Some (CCa6_TripleRight pre c suf) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      let ltR' := next_loc H in
+      lookup H' ltR' = Some (CCa6_TripleRight pre c (buf6_inject suf x))
+      /\ lookup H' l' = Some (CCa6_CadDouble ltL ltR' ltR').
+Proof.
+  intros A H lA ltL ltR l_a6 x pre suf c HA HtR H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtR in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Cost-exact theorems for non-empty cases. *)
+
+Theorem cad_push_imp_a6_cost_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA lt l_a6 : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre c suf) ->
+    cost_of (cad_push_imp_a6 x lA) H = Some 4.
+Proof.
+  intros A H x lA lt l_a6 pre suf c HA Ht.
+  unfold cad_push_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. reflexivity.
+Qed.
+
+Theorem cad_push_imp_a6_cost_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA ltL ltR l_a6 : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltL = Some (CCa6_TripleLeft pre c suf) ->
+    cost_of (cad_push_imp_a6 x lA) H = Some 4.
+Proof.
+  intros A H x lA ltL ltR l_a6 pre suf c HA HtL.
+  unfold cad_push_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HtL. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_cost_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre c suf) ->
+    cost_of (cad_inject_imp_a6 lA x) H = Some 4.
+Proof.
+  intros A H lA lt l_a6 x pre suf c HA Ht.
+  unfold cad_inject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_cost_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltR = Some (CCa6_TripleRight pre c suf) ->
+    cost_of (cad_inject_imp_a6 lA x) H = Some 4.
+Proof.
+  intros A H lA ltL ltR l_a6 x pre suf c HA HtR.
+  unfold cad_inject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, HtR. cbn. reflexivity.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
