@@ -265,7 +265,8 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for concat / push / inject | ✅ **12 FLAGSHIP FULL CONTRACTS**: 6 paths for `cad_concat_imp` (4 shapes + 2 empty), 3 paths each for `cad_push_imp` and `cad_inject_imp`.  Each bundles WC O(1) cost, input-persistence, output-shape, list-level refinement. | `e210b5d`–`3b30bdd` (60+ commits) |
+| 4b — heap-based imperative DSL: WC O(1) for concat / push / inject | ✅ **12 FLAGSHIP FULL CONTRACTS** (plain CadCell layer): 6 paths for `cad_concat_imp` (4 shapes + 2 empty), 3 paths each for `cad_push_imp` and `cad_inject_imp`.  Each bundles WC O(1) cost, input-persistence, output-shape, list-level refinement. | `e210b5d`–`3b30bdd` (60+ commits) |
+| 4b cont. — adopt6 cascade redesign | ✅ **STRUCTURAL BLOCKER RESOLVED**: new `Cadeque6/Adopt6.v` introduces `CadCellA6` with adopt6 pointer on cadeque cells, embed/extract round-trip, and full 5-op imperative DSL on the rich cell type with WC O(1) for ALL ops including pop/eject *cascade* (previously O(depth)).  Cost bounds proven over ANY heap and ANY input: push/inject/pop/eject ≤ 4, concat ≤ 8. | `72096a3`, `82e4b78`, `2f214e1`, `6e66050` |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
