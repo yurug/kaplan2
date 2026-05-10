@@ -784,6 +784,140 @@ Proof.
   rewrite HA. cbn. reflexivity.
 Qed.
 
+(** ** [heap_represents_cad_a6] / [heap_represents_triple_a6]:
+    inductive semantics linking a heap + loc to an abstract Cadeque /
+    Triple value, ignoring the adopt6 hint (it's a hint, not part of
+    the abstract value). *)
+
+Inductive heap_represents_cad_a6 {A : Type}
+  : Heap (CadCellA6 A) -> Loc -> Cadeque A -> Prop :=
+| HRCa6_Empty :
+    forall H l, lookup H l = Some CCa6_CadEmpty ->
+                heap_represents_cad_a6 H l CEmpty
+| HRCa6_Single :
+    forall H l lt l_a6 t,
+      lookup H l = Some (CCa6_CadSingle lt l_a6) ->
+      heap_represents_triple_a6 H lt t ->
+      heap_represents_cad_a6 H l (CSingle t)
+| HRCa6_Double :
+    forall H l ltL ltR l_a6 tL tR,
+      lookup H l = Some (CCa6_CadDouble ltL ltR l_a6) ->
+      heap_represents_triple_a6 H ltL tL ->
+      heap_represents_triple_a6 H ltR tR ->
+      heap_represents_cad_a6 H l (CDouble tL tR)
+
+with heap_represents_triple_a6 {A : Type}
+  : Heap (CadCellA6 A) -> Loc -> Triple A -> Prop :=
+| HRTa6_TOnly :
+    forall H l pre lc suf c,
+      lookup H l = Some (CCa6_TripleOnly pre lc suf) ->
+      heap_represents_cad_a6 H lc c ->
+      heap_represents_triple_a6 H l (TOnly pre c suf)
+| HRTa6_TLeft :
+    forall H l pre lc suf c,
+      lookup H l = Some (CCa6_TripleLeft pre lc suf) ->
+      heap_represents_cad_a6 H lc c ->
+      heap_represents_triple_a6 H l (TLeft pre c suf)
+| HRTa6_TRight :
+    forall H l pre lc suf c,
+      lookup H l = Some (CCa6_TripleRight pre lc suf) ->
+      heap_represents_cad_a6 H lc c ->
+      heap_represents_triple_a6 H l (TRight pre c suf).
+
+(** ** Sequence-correctness for cad_push_imp_a6 on empty input.
+
+    Given that lA represents [CEmpty] in H and lA < next_loc H, the
+    result heap H' represents [CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)]
+    at the result loc l'.  Persistence of lA's CCa6_CadEmpty status
+    across the two allocs is established by direct case analysis on
+    Pos.lt. *)
+
+Theorem cad_push_imp_a6_seq_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    heap_represents_cad_a6 H lA CEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l'
+        (CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)).
+Proof.
+  intros A H x lA HrepA HltA H' l' k Hop.
+  assert (HA : lookup H lA = Some CCa6_CadEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; exact Hlk. }
+  assert (Hlookup : let lt := next_loc H in
+                    lookup H' lt = Some (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty)
+                    /\ lookup H' l' = Some (CCa6_CadSingle lt lt)).
+  { eapply cad_push_imp_a6_lookup_when_empty;
+      [exact HA | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  assert (HA' : lookup H' lA = Some CCa6_CadEmpty).
+  { unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA in Hop. cbn in Hop.
+    injection Hop as HH _ _.
+    subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lA (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in HltA.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact HltA|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lA (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in HltA.
+        exact (Pos.lt_irrefl _ HltA).
+      * exact HA. }
+  eapply HRCa6_Single.
+  - exact Hl_new.
+  - eapply HRTa6_TOnly.
+    + exact Hlt_new.
+    + apply HRCa6_Empty. exact HA'.
+Qed.
+
+Theorem cad_inject_imp_a6_seq_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    heap_represents_cad_a6 H lA CEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l'
+        (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))).
+Proof.
+  intros A H lA x HrepA HltA H' l' k Hop.
+  assert (HA : lookup H lA = Some CCa6_CadEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; exact Hlk. }
+  assert (Hlookup : let lt := next_loc H in
+                    lookup H' lt = Some (CCa6_TripleOnly buf6_empty lA (buf6_singleton x))
+                    /\ lookup H' l' = Some (CCa6_CadSingle lt lt)).
+  { eapply cad_inject_imp_a6_lookup_when_empty;
+      [exact HA | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  assert (HA' : lookup H' lA = Some CCa6_CadEmpty).
+  { unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA in Hop. cbn in Hop.
+    injection Hop as HH _ _.
+    subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lA (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in HltA.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact HltA|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lA (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in HltA.
+        exact (Pos.lt_irrefl _ HltA).
+      * exact HA. }
+  eapply HRCa6_Single.
+  - exact Hl_new.
+  - eapply HRTa6_TOnly.
+    + exact Hlt_new.
+    + apply HRCa6_Empty. exact HA'.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
