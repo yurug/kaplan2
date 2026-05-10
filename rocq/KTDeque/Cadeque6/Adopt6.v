@@ -293,6 +293,113 @@ Proof.
   split; [symmetry; exact HH | symmetry; exact Hk].
 Qed.
 
+(** ** Symmetric: [cad_eject_imp_a6] via adopt6 to the right tail.
+
+    For ejection from a CDouble, adopt6 should point to the RIGHT
+    triple (the preferred eject path).  The simple initial embedding
+    sets adopt6 to the LEFT triple, but the maintenance discipline
+    can rotate it depending on the operation that just fired.
+
+    For this initial implementation, we follow adopt6 wherever it
+    points and dispatch on the triple kind: TLeft → eject from
+    suffix; TRight → eject from suffix; TOnly → eject from suffix
+    (or pre if suf is empty). *)
+
+Definition cad_eject_imp_a6 {A : Type} (lA : Loc)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadEmpty => retC None
+    | CCa6_CadSingle lt l_a6 =>
+        bindC (read_MC l_a6) (fun ta6 =>
+          match ta6 with
+          | CCa6_TripleOnly pre lc suf =>
+              match buf6_eject suf with
+              | Some (suf', x) =>
+                  bindC (alloc_MC (CCa6_TripleOnly pre lc suf')) (fun lt' =>
+                    bindC (alloc_MC (CCa6_CadSingle lt' lt')) (fun lq' =>
+                      retC (Some (lq', x))))
+              | None =>
+                  match buf6_eject pre with
+                  | Some (pre', x) =>
+                      bindC (alloc_MC (CCa6_TripleOnly pre' lc buf6_empty)) (fun lt' =>
+                        bindC (alloc_MC (CCa6_CadSingle lt' lt')) (fun lq' =>
+                          retC (Some (lq', x))))
+                  | None => retC None
+                  end
+              end
+          | _ => retC None
+          end)
+    | CCa6_CadDouble lL lR l_a6 =>
+        bindC (read_MC l_a6) (fun ta6 =>
+          match ta6 with
+          | CCa6_TripleRight pre lc suf =>
+              match buf6_eject suf with
+              | Some (suf', x) =>
+                  bindC (alloc_MC (CCa6_TripleRight pre lc suf')) (fun ltR' =>
+                    bindC (alloc_MC (CCa6_CadDouble lL ltR' ltR')) (fun lq' =>
+                      retC (Some (lq', x))))
+              | None => retC None
+              end
+          | CCa6_TripleOnly pre lc suf =>
+              match buf6_eject suf with
+              | Some (suf', x) =>
+                  bindC (alloc_MC (CCa6_TripleOnly pre lc suf')) (fun lt' =>
+                    bindC (alloc_MC (CCa6_CadDouble lL lR lt')) (fun lq' =>
+                      retC (Some (lq', x))))
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_IMP_A6_COST : nat := 4.
+
+Theorem cad_eject_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (k : nat),
+    cost_of (cad_eject_imp_a6 lA) H = Some k ->
+    k <= CAD_EJECT_IMP_A6_COST.
+Proof.
+  intros A H lA k Hcost.
+  unfold cad_eject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_IMP_A6_COST; lia).
+  - destruct (lookup H l0) as [ta6|] eqn:Hlt; [|discriminate].
+    destruct ta6; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_EJECT_IMP_A6_COST; lia).
+    + destruct (buf6_eject b0) as [[suf' x]|] eqn:Hej; cbn in Hcost.
+      * injection Hcost as <-. unfold CAD_EJECT_IMP_A6_COST. lia.
+      * destruct (buf6_eject b) as [[pre' x]|] eqn:Hej2;
+          cbn in Hcost; injection Hcost as <-;
+          unfold CAD_EJECT_IMP_A6_COST; lia.
+  - destruct (lookup H l1) as [ta6|] eqn:Hlt; [|discriminate].
+    destruct ta6; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_EJECT_IMP_A6_COST; lia).
+    + destruct (buf6_eject b0) as [[suf' x]|] eqn:Hej;
+        cbn in Hcost; injection Hcost as <-;
+        unfold CAD_EJECT_IMP_A6_COST; lia.
+    + destruct (buf6_eject b0) as [[suf' x]|] eqn:Hej;
+        cbn in Hcost; injection Hcost as <-;
+        unfold CAD_EJECT_IMP_A6_COST; lia.
+Qed.
+
+Theorem cad_eject_imp_a6_returns_none_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      lr = None /\ H' = H /\ k = 1.
+Proof.
+  intros A H lA HA H' lr k Hop.
+  unfold cad_eject_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  split; [symmetry; exact Hl |].
+  split; [symmetry; exact HH | symmetry; exact Hk].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
