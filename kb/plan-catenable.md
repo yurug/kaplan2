@@ -265,7 +265,7 @@ every level.
 | 3+ — Stored primitives (triple_to_stored, stored_make) | ✅ done | `28d6c8e` |
 | 3+ — worked-examples file (Cadeque6/Examples.v) | ✅ done | `d546b88` |
 | 4a — structural WC O(1) bound for push/inject/pop/eject | ✅ done | `8dd7442` (Cost.v) |
-| 4b — heap-based imperative DSL: WC O(1) for concat | ✅ **FULL CONTRACT MATRIX at all 6 dispatch paths** (4 shapes + 2 empty cases): cost ≤ 8, input-persistence, list-level refinement, output represents join.  Foundation: `heap_represents_cad`/`_triple` inductive relations + persistence-under-alloc + determinism. | `e210b5d`–`38bb4ed` (40+ commits) |
+| 4b — heap-based imperative DSL: WC O(1) for concat / push / inject | ✅ **12 FLAGSHIP FULL CONTRACTS**: 6 paths for `cad_concat_imp` (4 shapes + 2 empty), 3 paths each for `cad_push_imp` and `cad_inject_imp`.  Each bundles WC O(1) cost, input-persistence, output-shape, list-level refinement. | `e210b5d`–`3b30bdd` (60+ commits) |
 | 5 — non-emptiness invariant + totality | ✅ done       | `0fa681d` |
 | 5.5 — Section-6 colour discipline + regularity predicate | ✅ done | `a10b314`–`492fcba` |
 | 5.6 — operational repair + cad_push_op + cad_inject_op preservation | ✅ done for push/inject | `66edf41`–`78fb4a4` |
@@ -436,13 +436,26 @@ Plus empty-case persistence (trivial — H'=H):
 - `cad_concat_imp_inputs_persist_when_A_empty`
 - `cad_concat_imp_inputs_persist_when_B_empty`
 
-**FLAGSHIP "FULL CONTRACT" theorems** (all 6 dispatch paths):
+**FLAGSHIP "FULL CONTRACT" theorems** — 12 total flagship one-stop
+entry points:
+
+For `cad_concat_imp` (6 dispatch paths):
 - `cad_concat_imp_ss_full_contract`
 - `cad_concat_imp_ds_full_contract`
 - `cad_concat_imp_sd_full_contract`
 - `cad_concat_imp_dd_full_contract`
 - `cad_concat_imp_full_contract_when_A_empty`
 - `cad_concat_imp_full_contract_when_B_empty`
+
+For `cad_push_imp` (3 input shapes):
+- `cad_push_imp_full_contract_when_empty`
+- `cad_push_imp_full_contract_when_single`
+- `cad_push_imp_full_contract_when_double`
+
+For `cad_inject_imp` (3 input shapes):
+- `cad_inject_imp_full_contract_when_empty`
+- `cad_inject_imp_full_contract_when_single`
+- `cad_inject_imp_full_contract_when_double`
 
 Each bundles all guarantees into a single per-case theorem:
 
@@ -478,7 +491,7 @@ combinations** (CSingle/CDouble × CSingle/CDouble) plus the empty
 short-circuits, with the cost bound covering all 64 cell-shape
 combinations of the inputs.
 
-**Stats**: OpsImperative.v has ~3320 lines, 91+ theorems/lemmas/
+**Stats**: OpsImperative.v has ~4810 lines, 139+ theorems/lemmas/
 definitions.  Build clean throughout.  **Zero admits maintained**.
 
 **What's still pending** (deferred to subsequent Phase 4b chunks):
