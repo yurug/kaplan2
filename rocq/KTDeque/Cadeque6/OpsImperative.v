@@ -2996,6 +2996,34 @@ Proof.
   apply heap_represents_cad_persists_two_allocs; assumption.
 Qed.
 
+(** ** [cad_push_imp] / [cad_inject_imp] termination wrappers.
+
+    Closed-form bound: any successful run terminates with cost ≤ 4. *)
+
+Theorem cad_push_imp_terminates_with_constant_cost :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc),
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      k <= CAD_PUSH_IMP_COST.
+Proof.
+  intros A H x lA H' l' k Hop.
+  assert (Hcost : cost_of (cad_push_imp x lA) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_push_imp_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_inject_imp_terminates_with_constant_cost :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A),
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      k <= CAD_INJECT_IMP_COST.
+Proof.
+  intros A H lA x H' l' k Hop.
+  assert (Hcost : cost_of (cad_inject_imp lA x) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_inject_imp_WC_O1 in Hcost. exact Hcost.
+Qed.
+
 (** ** Input-persistence: A and B remain valid snapshots in H'.
 
     The bottom-line purely-functional property: after [cad_concat_imp]
