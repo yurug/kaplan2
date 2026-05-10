@@ -2713,6 +2713,111 @@ Proof.
   unfold cad_to_list_base. cbn. reflexivity.
 Qed.
 
+Theorem cad_inject_imp_list_correct_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A) (qA : Cadeque A),
+    heap_represents_cad H lA qA ->
+    lookup H lA = Some CC_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k qResult,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA x qA HrepA HA HltA H' l' k qResult Hop Hres.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' t' Hlk Ht'
+                       | Hh Hl ltL ltR tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  subst qA.
+  assert (Hjoin : heap_represents_cad H' l'
+                    (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x)))).
+  { eapply cad_inject_imp_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop]. }
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_list_correct_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lt : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre cChild suf) ->
+    heap_represents_cad H cChild c ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k qResult,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA lt x pre suf cChild c qA HrepA HqAeq HA Ht HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad H' l' (CSingle (TOnly pre c (buf6_inject suf x))))
+    by (eapply cad_inject_imp_seq_when_single; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  destruct suf as [suf_elems]. cbn.
+  rewrite flat_concat_singleton_app1.
+  rewrite (flat_concat_singleton_id _ suf_elems).
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_list_correct_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA ltL ltR : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (tL : Triple A)
+         (qA : Cadeque A),
+    heap_represents_cad H lA qA ->
+    qA = CDouble tL (TRight pre c suf) ->
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltR = Some (CC_TripleRight pre cChild suf) ->
+    heap_represents_triple H ltL tL ->
+    heap_represents_cad H cChild c ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k qResult,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA ltL ltR x pre suf cChild c tL qA HrepA HqAeq HA HtR HrepTL HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad H' l' (CDouble tL (TRight pre c (buf6_inject suf x))))
+    by (eapply cad_inject_imp_seq_when_double; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  destruct suf as [suf_elems]. cbn.
+  rewrite flat_concat_singleton_app1.
+  rewrite (flat_concat_singleton_id _ suf_elems).
+  rewrite !app_assoc. reflexivity.
+Qed.
+
 (** ** Input-persistence: A and B remain valid snapshots in H'.
 
     The bottom-line purely-functional property: after [cad_concat_imp]
