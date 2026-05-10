@@ -1373,6 +1373,119 @@ Proof.
     + apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Lookup characterization for cad_pop_imp_a6 in the shallow case.
+
+    Shallow case: CSingle with adopt6 pointing to the cadeque's only
+    triple (the post-embed default), TripleOnly with empty child,
+    non-empty prefix.  Pop from prefix → new triple + new top. *)
+
+Theorem cad_pop_imp_a6_lookup_when_single_pre_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (x : A) (pre' : Buf6 A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_pop pre = Some (x, pre') ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      let lt' := next_loc H in
+      exists lq',
+        lr = Some (x, lq') /\
+        lq' = Pos.succ (next_loc H) /\
+        lookup H' lt' = Some (CCa6_TripleOnly pre' lc suf) /\
+        lookup H' lq' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lt pre suf lc x pre' HA Ht Hpop H' lr k Hop.
+  unfold cad_pop_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  rewrite Hpop in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  cbn.
+  split; [symmetry; exact Hl |].
+  split; [reflexivity |].
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Cost-exact for the shallow pop case: 2 reads + 2 allocs = 4. *)
+Theorem cad_pop_imp_a6_cost_when_single_pre_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (x : A) (pre' : Buf6 A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_pop pre = Some (x, pre') ->
+    cost_of (cad_pop_imp_a6 lA) H = Some 4.
+Proof.
+  intros A H lA lt pre suf lc x pre' HA Ht Hpop.
+  unfold cad_pop_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. rewrite Hpop. cbn. reflexivity.
+Qed.
+
+(** Sequence-correctness for the shallow pop case (CSingle, prefix
+    non-empty): the result heap H' represents
+    [CSingle (TOnly pre' CEmpty suf)] at the result loc, where
+    pre' = buf6_pop pre.
+
+    Requires the input child cell at lc to be CCa6_CadEmpty *and*
+    lc to be allocated (lc < next_loc H), so persistence of the
+    lc → empty binding holds across the 2 allocs the op performs. *)
+
+Theorem cad_pop_imp_a6_seq_when_single_pre_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (x : A) (pre' : Buf6 A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    lookup H lc = Some CCa6_CadEmpty ->
+    Pos.lt lc (next_loc H) ->
+    buf6_pop pre = Some (x, pre') ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      exists lq',
+        lr = Some (x, lq') /\
+        heap_represents_cad_a6 H' lq' (CSingle (TOnly pre' CEmpty suf)).
+Proof.
+  intros A H lA lt pre suf lc x pre' HA Ht Hlc Hltlc Hpop H' lr k Hop.
+  assert (Hchar : let lt' := next_loc H in
+                  exists lq',
+                    lr = Some (x, lq') /\
+                    lq' = Pos.succ (next_loc H) /\
+                    lookup H' lt' = Some (CCa6_TripleOnly pre' lc suf) /\
+                    lookup H' lq' = Some (CCa6_CadSingle lt' lt')).
+  { eapply cad_pop_imp_a6_lookup_when_single_pre_nonempty;
+      [exact HA | exact Ht | exact Hpop | exact Hop]. }
+  cbn in Hchar.
+  destruct Hchar as [lq' [Hlr [Hlq [Hltnew Hlqnew]]]].
+  cbn in Hltnew, Hlqnew.
+  exists lq'.
+  split; [exact Hlr |].
+  assert (Hlc' : lookup H' lc = Some CCa6_CadEmpty).
+  { unfold cad_pop_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA, Ht in Hop. cbn in Hop.
+    rewrite Hpop in Hop. cbn in Hop.
+    injection Hop as HH _ _. subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lc (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in Hltlc.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact Hltlc|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lc (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in Hltlc.
+        exact (Pos.lt_irrefl _ Hltlc).
+      * exact Hlc. }
+  eapply HRCa6_Single.
+  - exact Hlqnew.
+  - eapply HRTa6_TOnly.
+    + exact Hltnew.
+    + apply HRCa6_Empty. exact Hlc'.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
