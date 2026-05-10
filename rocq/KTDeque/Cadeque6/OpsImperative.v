@@ -33,14 +33,17 @@
       bundles all proven.  See the headline summary near the bottom
       of this file for the complete theorem catalogue.
 
-    - [cad_push_imp]:    WC O(1) ≤ 4.  Cost-exact theorems +
-      heap_represents_cad seq theorems + list-level refinement
-      ([qResult's list = x :: qA's list]) for all 3 input shapes
-      (CEmpty / CSingle / CDouble).
+    - [cad_push_imp]:    WC O(1) ≤ 4.  FULL CONTRACT matrix at all 3
+      input shapes (CEmpty / CSingle / CDouble): cost-exact +
+      seq theorem + input-persistence + list-level refinement
+      ([qResult's list = x :: qA's list]) bundled per shape.
 
-    - [cad_inject_imp]:  symmetric to push, WC O(1) ≤ 4.  Same
-      coverage with the symmetric list refinement
+    - [cad_inject_imp]:  symmetric to push, WC O(1) ≤ 4.  FULL CONTRACT
+      matrix at all 3 input shapes with the symmetric list refinement
       ([qResult's list = qA's list ++ [x]]).
+
+    Total flagship contracts: 6 for concat + 3 for push + 3 for inject
+    = 12 one-stop entry points consumers can use directly.
 
     ## What's deferred
 
