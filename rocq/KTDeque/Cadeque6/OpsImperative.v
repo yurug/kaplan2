@@ -1665,6 +1665,62 @@ Proof.
     + apply HRC_Empty. exact HA'.
 Qed.
 
+(** ** Lookup characterization for the non-empty cases. *)
+
+Theorem cad_push_imp_lookup_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA lt : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre c suf) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      let lt' := next_loc H in
+      lookup H' lt' = Some (CC_TripleOnly (buf6_push x pre) c suf)
+      /\ lookup H' l' = Some (CC_CadSingle lt').
+Proof.
+  intros A H x lA lt pre suf c HA Ht H' l' k Hop.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_push_imp_lookup_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA ltL ltR : Loc)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltL = Some (CC_TripleLeft pre c suf) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      let ltL' := next_loc H in
+      lookup H' ltL' = Some (CC_TripleLeft (buf6_push x pre) c suf)
+      /\ lookup H' l' = Some (CC_CadDouble ltL' ltR).
+Proof.
+  intros A H x lA ltL ltR pre suf c HA HtL H' l' k Hop.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtL in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
 Theorem cad_concat_imp_singleton_singleton_simple_seq :
   forall (A : Type) (H : Heap (CadCell A)) (lA lB ltA ltB : Loc)
          (preA sufB : Buf6 A) (cAchild cBchild : Loc)
@@ -1740,6 +1796,232 @@ Proof.
   intros A c1 c2 t H l Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'.
   apply heap_represents_triple_persists_alloc; try assumption.
   apply heap_represents_triple_persists_alloc; assumption.
+Qed.
+
+(** ** Seq theorems for the non-empty cases of [cad_push_imp]. *)
+
+Theorem cad_push_imp_seq_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA lt : Loc)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A),
+    heap_represents_cad H lA (CSingle (TOnly pre c suf)) ->
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre cChild suf) ->
+    heap_represents_cad H cChild c ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CSingle (TOnly (buf6_push x pre) c suf)).
+Proof.
+  intros A H x lA lt pre suf cChild c HrepA HA Ht HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let lt' := next_loc H in
+                    lookup H' lt' = Some (CC_TripleOnly (buf6_push x pre) cChild suf)
+                    /\ lookup H' l' = Some (CC_CadSingle lt')).
+  { eapply cad_push_imp_lookup_when_single;
+      [exact HA | exact Ht | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  eapply HRC_Single.
+  - exact Hl_new.
+  - eapply HRT_TOnly.
+    + exact Hlt_new.
+    + apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_push_imp_seq_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA ltL ltR : Loc)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (tR : Triple A),
+    heap_represents_cad H lA (CDouble (TLeft pre c suf) tR) ->
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltL = Some (CC_TripleLeft pre cChild suf) ->
+    heap_represents_cad H cChild c ->
+    heap_represents_triple H ltR tR ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleLeft (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleLeft (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    forall H' l' k,
+      cad_push_imp x lA H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble (TLeft (buf6_push x pre) c suf) tR).
+Proof.
+  intros A H x lA ltL ltR pre suf cChild c tR HrepA HA HtL HrepC HrepTR
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let ltL' := next_loc H in
+                    lookup H' ltL' = Some (CC_TripleLeft (buf6_push x pre) cChild suf)
+                    /\ lookup H' l' = Some (CC_CadDouble ltL' ltR)).
+  { eapply cad_push_imp_lookup_when_double;
+      [exact HA | exact HtL | exact Hop]. }
+  destruct Hlookup as [HltL_new Hl_new].
+  cbn in HltL_new, Hl_new.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtL in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  eapply HRC_Double.
+  - exact Hl_new.
+  - eapply HRT_TLeft.
+    + exact HltL_new.
+    + apply heap_represents_cad_persists_two_allocs; assumption.
+  - apply heap_represents_triple_persists_two_allocs; assumption.
+Qed.
+
+(** ** Symmetric: seq theorems for non-empty cases of [cad_inject_imp]. *)
+
+Theorem cad_inject_imp_lookup_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lt : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre c suf) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      let lt' := next_loc H in
+      lookup H' lt' = Some (CC_TripleOnly pre c (buf6_inject suf x))
+      /\ lookup H' l' = Some (CC_CadSingle lt').
+Proof.
+  intros A H lA lt x pre suf c HA Ht H' l' k Hop.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_inject_imp_lookup_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA ltL ltR : Loc) (x : A)
+         (pre suf : Buf6 A) (c : Loc),
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltR = Some (CC_TripleRight pre c suf) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      let ltR' := next_loc H in
+      lookup H' ltR' = Some (CC_TripleRight pre c (buf6_inject suf x))
+      /\ lookup H' l' = Some (CC_CadDouble ltL ltR').
+Proof.
+  intros A H lA ltL ltR x pre suf c HA HtR H' l' k Hop.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtR in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_inject_imp_seq_when_single :
+  forall (A : Type) (H : Heap (CadCell A)) (lA lt : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A),
+    heap_represents_cad H lA (CSingle (TOnly pre c suf)) ->
+    lookup H lA = Some (CC_CadSingle lt) ->
+    lookup H lt = Some (CC_TripleOnly pre cChild suf) ->
+    heap_represents_cad H cChild c ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CSingle (TOnly pre c (buf6_inject suf x))).
+Proof.
+  intros A H lA lt x pre suf cChild c HrepA HA Ht HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let lt' := next_loc H in
+                    lookup H' lt' = Some (CC_TripleOnly pre cChild (buf6_inject suf x))
+                    /\ lookup H' l' = Some (CC_CadSingle lt')).
+  { eapply cad_inject_imp_lookup_when_single;
+      [exact HA | exact Ht | exact Hop]. }
+  destruct Hlookup as [Hlt_new Hl_new].
+  cbn in Hlt_new, Hl_new.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  eapply HRC_Single.
+  - exact Hl_new.
+  - eapply HRT_TOnly.
+    + exact Hlt_new.
+    + apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_inject_imp_seq_when_double :
+  forall (A : Type) (H : Heap (CadCell A)) (lA ltL ltR : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (tL : Triple A),
+    heap_represents_cad H lA (CDouble tL (TRight pre c suf)) ->
+    lookup H lA = Some (CC_CadDouble ltL ltR) ->
+    lookup H ltR = Some (CC_TripleRight pre cChild suf) ->
+    heap_represents_triple H ltL tL ->
+    heap_represents_cad H cChild c ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k,
+      cad_inject_imp lA x H = Some (H', l', k) ->
+      heap_represents_cad H' l' (CDouble tL (TRight pre c (buf6_inject suf x))).
+Proof.
+  intros A H lA ltL ltR x pre suf cChild c tL HrepA HA HtR HrepTL HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let ltR' := next_loc H in
+                    lookup H' ltR' = Some (CC_TripleRight pre cChild (buf6_inject suf x))
+                    /\ lookup H' l' = Some (CC_CadDouble ltL ltR')).
+  { eapply cad_inject_imp_lookup_when_double;
+      [exact HA | exact HtR | exact Hop]. }
+  destruct Hlookup as [HltR_new Hl_new].
+  cbn in HltR_new, Hl_new.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtR in Hop. cbn in Hop.
+  injection Hop as HH _ _.
+  subst H'.
+  eapply HRC_Double.
+  - exact Hl_new.
+  - apply heap_represents_triple_persists_two_allocs; assumption.
+  - eapply HRT_TRight.
+    + exact HltR_new.
+    + apply heap_represents_cad_persists_two_allocs; assumption.
 Qed.
 
 (** ** Full general sequence-correctness for the DS-simple case.
