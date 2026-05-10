@@ -2822,6 +2822,64 @@ Proof.
   rewrite !app_assoc. reflexivity.
 Qed.
 
+(** ** Input-persistence for cad_push_imp / cad_inject_imp (per shape).
+
+    Each takes the wf and post-1-alloc wf preconditions specific to
+    its case (matching cad_concat_imp_ss_inputs_persist's signature).
+    The input cell is non-destructive: lA still represents qA in H'. *)
+
+Theorem cad_push_imp_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (x : A) (lA : Loc),
+    lookup H lA = Some CC_CadEmpty ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad H lA qA ->
+      forall H' l' k,
+        cad_push_imp x lA H = Some (H', l', k) ->
+        heap_represents_cad H' lA qA.
+Proof.
+  intros A H x lA HA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' l' k Hop.
+  unfold cad_push_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_inject_imp_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (x : A),
+    lookup H lA = Some CC_CadEmpty ->
+    (forall l' qsub, heap_represents_cad H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CC_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad H lA qA ->
+      forall H' l' k,
+        cad_inject_imp lA x H = Some (H', l', k) ->
+        heap_represents_cad H' lA qA.
+Proof.
+  intros A H lA x HA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' l' k Hop.
+  unfold cad_inject_imp, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_persists_two_allocs; assumption.
+Qed.
+
 (** ** Input-persistence: A and B remain valid snapshots in H'.
 
     The bottom-line purely-functional property: after [cad_concat_imp]
