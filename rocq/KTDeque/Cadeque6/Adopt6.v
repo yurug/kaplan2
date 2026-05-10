@@ -400,6 +400,106 @@ Proof.
   split; [symmetry; exact HH | symmetry; exact Hk].
 Qed.
 
+(** ** [cad_push_imp_a6] / [cad_inject_imp_a6] for the rich cell type.
+
+    Same semantics as the plain CadCell versions, lifted to the
+    adopt6-aware cell layout.  Push and inject don't trigger
+    cascade, so adopt6 plays no role; we just allocate the new
+    cells with adopt6 set to the new triple's loc (the shallow
+    safe choice). *)
+
+Definition cad_push_imp_a6 {A : Type} (x : A) (lA : Loc)
+    : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadEmpty =>
+        bindC (alloc_MC (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty)) (fun lt =>
+          alloc_MC (CCa6_CadSingle lt lt))
+    | CCa6_CadSingle lt _ =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CCa6_TripleOnly pre c suf =>
+              bindC (alloc_MC (CCa6_TripleOnly (buf6_push x pre) c suf)) (fun lt' =>
+                alloc_MC (CCa6_CadSingle lt' lt'))
+          | _ => retC lA
+          end)
+    | CCa6_CadDouble ltL ltR _ =>
+        bindC (read_MC ltL) (fun tL =>
+          match tL with
+          | CCa6_TripleLeft pre c suf =>
+              bindC (alloc_MC (CCa6_TripleLeft (buf6_push x pre) c suf)) (fun ltL' =>
+                alloc_MC (CCa6_CadDouble ltL' ltR ltL'))
+          | _ => retC lA
+          end)
+    | _ => retC lA
+    end).
+
+Definition CAD_PUSH_IMP_A6_COST : nat := 4.
+
+Theorem cad_push_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc) (k : nat),
+    cost_of (cad_push_imp_a6 x lA) H = Some k ->
+    k <= CAD_PUSH_IMP_A6_COST.
+Proof.
+  intros A H x lA k Hcost.
+  unfold cad_push_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_PUSH_IMP_A6_COST; lia).
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_PUSH_IMP_A6_COST; lia.
+  - destruct (lookup H l) as [tL|] eqn:HlL; [|discriminate].
+    destruct tL; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_PUSH_IMP_A6_COST; lia.
+Qed.
+
+Definition cad_inject_imp_a6 {A : Type} (lA : Loc) (x : A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadEmpty =>
+        bindC (alloc_MC (CCa6_TripleOnly buf6_empty lA (buf6_singleton x))) (fun lt =>
+          alloc_MC (CCa6_CadSingle lt lt))
+    | CCa6_CadSingle lt _ =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CCa6_TripleOnly pre c suf =>
+              bindC (alloc_MC (CCa6_TripleOnly pre c (buf6_inject suf x))) (fun lt' =>
+                alloc_MC (CCa6_CadSingle lt' lt'))
+          | _ => retC lA
+          end)
+    | CCa6_CadDouble ltL ltR _ =>
+        bindC (read_MC ltR) (fun tR =>
+          match tR with
+          | CCa6_TripleRight pre c suf =>
+              bindC (alloc_MC (CCa6_TripleRight pre c (buf6_inject suf x))) (fun ltR' =>
+                alloc_MC (CCa6_CadDouble ltL ltR' ltR'))
+          | _ => retC lA
+          end)
+    | _ => retC lA
+    end).
+
+Definition CAD_INJECT_IMP_A6_COST : nat := 4.
+
+Theorem cad_inject_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A) (k : nat),
+    cost_of (cad_inject_imp_a6 lA x) H = Some k ->
+    k <= CAD_INJECT_IMP_A6_COST.
+Proof.
+  intros A H lA x k Hcost.
+  unfold cad_inject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_INJECT_IMP_A6_COST; lia).
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_INJECT_IMP_A6_COST; lia.
+  - destruct (lookup H l0) as [tR|] eqn:HlR; [|discriminate].
+    destruct tR; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_INJECT_IMP_A6_COST; lia.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
