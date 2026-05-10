@@ -1058,6 +1058,175 @@ Proof.
       as [_|Hne]; [reflexivity|contradiction].
 Qed.
 
+(** ** [cad_pop_imp]: heap-based imperative pop, WC O(1) for shallow cases.
+
+    Handles [CC_CadEmpty] (returns None) and [CSingle (TOnly pre lc suf)]
+    where the child resolves to [CC_CadEmpty] (the "shallow" case, matching
+    [cad_pop_op]'s exact coverage at the abstract layer).  When the
+    cascade is needed (non-empty child, CDouble), returns None — full
+    cascade requires the [adopt6] shortcut + level-typed model upgrade
+    documented in [kb/spec/phase-4b-imperative-dsl.md].
+
+    Returns [option (A * Loc)]: the popped element plus the result
+    cadeque pointer.  Cost ≤ 6 in the success paths. *)
+
+Definition cad_pop_imp {A : Type} (lA : Loc)
+    : MC (CadCell A) (option (A * Loc)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CC_CadEmpty => retC None
+    | CC_CadSingle lt =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CC_TripleOnly pre lc suf =>
+              bindC (read_MC lc) (fun cc =>
+                match cc with
+                | CC_CadEmpty =>
+                    match buf6_pop pre with
+                    | Some (x, pre') =>
+                        bindC (alloc_MC (CC_TripleOnly pre' lc suf)) (fun lt' =>
+                          bindC (alloc_MC (CC_CadSingle lt')) (fun lq' =>
+                            retC (Some (x, lq'))))
+                    | None =>
+                        match buf6_pop suf with
+                        | Some (x, suf') =>
+                            bindC (alloc_MC (CC_TripleOnly buf6_empty lc suf')) (fun lt' =>
+                              bindC (alloc_MC (CC_CadSingle lt')) (fun lq' =>
+                                retC (Some (x, lq'))))
+                        | None => retC None
+                        end
+                    end
+                | _ => retC None  (* cascade required *)
+                end)
+          | _ => retC None  (* TLeft / TRight in CSingle: malformed *)
+          end)
+    | _ => retC None  (* CDouble or other: cascade required for now *)
+    end).
+
+(** Cost bound: ≤ 6 over all inputs. *)
+Definition CAD_POP_IMP_COST : nat := 6.
+
+Theorem cad_pop_imp_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (k : nat),
+    cost_of (cad_pop_imp lA) H = Some k ->
+    k <= CAD_POP_IMP_COST.
+Proof.
+  intros A H lA k Hcost.
+  unfold cad_pop_imp, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_POP_IMP_COST; lia).
+  (* CC_CadSingle l *)
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA as [pre lc suf | | | | | | | ];
+      cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_POP_IMP_COST; lia).
+    (* CC_TripleOnly pre lc suf: read child, then dispatch *)
+    destruct (lookup H lc) as [cc|] eqn:Hlc; [|discriminate].
+    destruct cc; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_POP_IMP_COST; lia).
+    destruct (buf6_pop pre) as [[x pre']|] eqn:Hpop;
+      cbn in Hcost.
+    * injection Hcost as <-. unfold CAD_POP_IMP_COST. lia.
+    * destruct (buf6_pop suf) as [[x suf']|] eqn:Hpop2;
+        cbn in Hcost; injection Hcost as <-;
+        unfold CAD_POP_IMP_COST; lia.
+Qed.
+
+(** ** Sequence-correctness for [cad_pop_imp] in the empty case. *)
+Theorem cad_pop_imp_returns_none_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc),
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' lr k,
+      cad_pop_imp lA H = Some (H', lr, k) ->
+      lr = None /\ H' = H /\ k = 1.
+Proof.
+  intros A H lA HA H' lr k Hop.
+  unfold cad_pop_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  split; [symmetry; exact Hl |].
+  split; [symmetry; exact HH | symmetry; exact Hk].
+Qed.
+
+(** ** Symmetric op: [cad_eject_imp].  Same shape with ejection from
+    the suffix instead of pop from the prefix. *)
+
+Definition cad_eject_imp {A : Type} (lA : Loc)
+    : MC (CadCell A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CC_CadEmpty => retC None
+    | CC_CadSingle lt =>
+        bindC (read_MC lt) (fun tA =>
+          match tA with
+          | CC_TripleOnly pre lc suf =>
+              bindC (read_MC lc) (fun cc =>
+                match cc with
+                | CC_CadEmpty =>
+                    match buf6_eject suf with
+                    | Some (suf', x) =>
+                        bindC (alloc_MC (CC_TripleOnly pre lc suf')) (fun lt' =>
+                          bindC (alloc_MC (CC_CadSingle lt')) (fun lq' =>
+                            retC (Some (lq', x))))
+                    | None =>
+                        match buf6_eject pre with
+                        | Some (pre', x) =>
+                            bindC (alloc_MC (CC_TripleOnly pre' lc buf6_empty)) (fun lt' =>
+                              bindC (alloc_MC (CC_CadSingle lt')) (fun lq' =>
+                                retC (Some (lq', x))))
+                        | None => retC None
+                        end
+                    end
+                | _ => retC None
+                end)
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_IMP_COST : nat := 6.
+
+Theorem cad_eject_imp_WC_O1 :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc) (k : nat),
+    cost_of (cad_eject_imp lA) H = Some k ->
+    k <= CAD_EJECT_IMP_COST.
+Proof.
+  intros A H lA k Hcost.
+  unfold cad_eject_imp, cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_IMP_COST; lia).
+  - destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+    destruct tA as [pre lc suf | | | | | | | ];
+      cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_EJECT_IMP_COST; lia).
+    destruct (lookup H lc) as [cc|] eqn:Hlc; [|discriminate].
+    destruct cc; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_EJECT_IMP_COST; lia).
+    destruct (buf6_eject suf) as [[suf' x]|] eqn:Hej;
+      cbn in Hcost.
+    * injection Hcost as <-. unfold CAD_EJECT_IMP_COST. lia.
+    * destruct (buf6_eject pre) as [[pre' x]|] eqn:Hej2;
+        cbn in Hcost; injection Hcost as <-;
+        unfold CAD_EJECT_IMP_COST; lia.
+Qed.
+
+Theorem cad_eject_imp_returns_none_when_empty :
+  forall (A : Type) (H : Heap (CadCell A)) (lA : Loc),
+    lookup H lA = Some CC_CadEmpty ->
+    forall H' lr k,
+      cad_eject_imp lA H = Some (H', lr, k) ->
+      lr = None /\ H' = H /\ k = 1.
+Proof.
+  intros A H lA HA H' lr k Hop.
+  unfold cad_eject_imp, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH Hl Hk.
+  split; [symmetry; exact Hl |].
+  split; [symmetry; exact HH | symmetry; exact Hk].
+Qed.
+
 (** ** [cad_concat_imp] success-path cost statements. *)
 
 (* When A is CC_CadEmpty: the entire computation is one read and a
