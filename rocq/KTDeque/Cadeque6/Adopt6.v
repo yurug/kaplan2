@@ -4943,6 +4943,200 @@ Proof.
     + apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Generalized list_correct: same shape as the _gen seq theorems. *)
+
+Theorem cad_pop_imp_a6_list_correct_when_single_pre_nonempty_gen :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (c : Cadeque A)
+         (x : A) (pre' : Buf6 A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    heap_represents_cad_a6 H lc c ->
+    buf6_pop pre = Some (x, pre') ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      forall lq' qResult,
+        lr = Some (x, lq') ->
+        heap_represents_cad_a6 H' lq' qResult ->
+        cad_to_list_base qA = x :: cad_to_list_base qResult.
+Proof.
+  intros A H lA lt pre suf lc c x pre' qA HrepA HqAeq HA Ht HrepC Hpop
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop lq' qResult Hlreq Hres.
+  subst qA.
+  destruct (cad_pop_imp_a6_seq_when_single_pre_nonempty_gen
+              HA Ht HrepC Hpop Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' Hop)
+    as [lq'' [Hlr_eq Hrep]].
+  rewrite Hlreq in Hlr_eq. injection Hlr_eq as Hlq_eq. subst lq''.
+  assert (HqRes : qResult = CSingle (TOnly pre' c suf))
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  apply buf6_pop_seq_some in Hpop.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  unfold buf6_to_list in Hpop.
+  rewrite Hpop. reflexivity.
+Qed.
+
+Theorem cad_eject_imp_a6_list_correct_when_single_suf_nonempty_gen :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (c : Cadeque A)
+         (suf' : Buf6 A) (x : A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    heap_represents_cad_a6 H lc c ->
+    buf6_eject suf = Some (suf', x) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      forall lq' qResult,
+        lr = Some (lq', x) ->
+        heap_represents_cad_a6 H' lq' qResult ->
+        cad_to_list_base qA = cad_to_list_base qResult ++ [x].
+Proof.
+  intros A H lA lt pre suf lc c suf' x qA HrepA HqAeq HA Ht HrepC Hej
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop lq' qResult Hlreq Hres.
+  subst qA.
+  destruct (cad_eject_imp_a6_seq_when_single_suf_nonempty_gen
+              HA Ht HrepC Hej Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' Hop)
+    as [lq'' [Hlr_eq Hrep]].
+  rewrite Hlreq in Hlr_eq. injection Hlr_eq as Hlq_eq. subst lq''.
+  assert (HqRes : qResult = CSingle (TOnly pre c suf'))
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  apply buf6_eject_seq_some in Hej.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  unfold buf6_to_list in Hej.
+  rewrite Hej. rewrite <- !app_assoc. cbn. reflexivity.
+Qed.
+
+(** ** Generalized FLAGSHIP full contracts (pop/eject CSingle, any child). *)
+
+Theorem cad_pop_imp_a6_flagship_full_contract_when_single_pre_nonempty_gen :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (c : Cadeque A)
+         (x : A) (pre' : Buf6 A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    heap_represents_cad_a6 H lc c ->
+    buf6_pop pre = Some (x, pre') ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      k <= CAD_POP_IMP_A6_COST /\
+      heap_represents_cad_a6 H' lA qA /\
+      (exists lq',
+         lr = Some (x, lq') /\
+         heap_represents_cad_a6 H' lq' (CSingle (TOnly pre' c suf))) /\
+      (forall lq' qResult,
+         lr = Some (x, lq') ->
+         heap_represents_cad_a6 H' lq' qResult ->
+         cad_to_list_base qA = x :: cad_to_list_base qResult).
+Proof.
+  intros A H lA lt pre suf lc c x pre' qA HrepA HqAeq HA Ht HrepC Hpop
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_imp_a6_terminates; eassumption.
+  - eapply cad_pop_imp_a6_input_persists_when_single_pre_nonempty;
+      [exact HA | exact Ht | exact Hpop | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - eapply cad_pop_imp_a6_seq_when_single_pre_nonempty_gen;
+      [exact HA | exact Ht | exact HrepC | exact Hpop
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip'
+       | exact Hop].
+  - intros lq' qResult Hlreq Hres.
+    eapply cad_pop_imp_a6_list_correct_when_single_pre_nonempty_gen;
+      [exact HrepA | exact HqAeq | exact HA | exact Ht | exact HrepC | exact Hpop
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip'
+       | exact Hop | exact Hlreq | exact Hres].
+Qed.
+
+Theorem cad_eject_imp_a6_flagship_full_contract_when_single_suf_nonempty_gen :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (c : Cadeque A)
+         (suf' : Buf6 A) (x : A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    heap_represents_cad_a6 H lc c ->
+    buf6_eject suf = Some (suf', x) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      k <= CAD_EJECT_IMP_A6_COST /\
+      heap_represents_cad_a6 H' lA qA /\
+      (exists lq',
+         lr = Some (lq', x) /\
+         heap_represents_cad_a6 H' lq' (CSingle (TOnly pre c suf'))) /\
+      (forall lq' qResult,
+         lr = Some (lq', x) ->
+         heap_represents_cad_a6 H' lq' qResult ->
+         cad_to_list_base qA = cad_to_list_base qResult ++ [x]).
+Proof.
+  intros A H lA lt pre suf lc c suf' x qA HrepA HqAeq HA Ht HrepC Hej
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_imp_a6_terminates; eassumption.
+  - eapply cad_eject_imp_a6_input_persists_when_single_suf_nonempty;
+      [exact HA | exact Ht | exact Hej | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - eapply cad_eject_imp_a6_seq_when_single_suf_nonempty_gen;
+      [exact HA | exact Ht | exact HrepC | exact Hej
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip'
+       | exact Hop].
+  - intros lq' qResult Hlreq Hres.
+    eapply cad_eject_imp_a6_list_correct_when_single_suf_nonempty_gen;
+      [exact HrepA | exact HqAeq | exact HA | exact Ht | exact HrepC | exact Hej
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip'
+       | exact Hop | exact Hlreq | exact Hres].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
