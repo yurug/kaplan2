@@ -38,14 +38,24 @@ last-updated: 2026-05-09
 - Complete cost-exact matrix: every shallow shape has cost = 4
   exactly (2 reads + 2 allocs + retC).
 
+**Adopt6 well-formedness foundation** (NEW):
+- `adopt6_target_is_triple H la6` : adopt6 pointer resolves to a triple cell.
+- `adopt6_target_allocated H l` : adopt6 pointer is allocated.
+- `adopt6_wf_at H l` : combines both (every cad cell's adopt6 is wf).
+- 12 `adopt6_wf_at_result_when_X` theorems: every non-cascade op
+  (push/inject 3 shapes + pop/eject 6 shallow shapes) produces a
+  result whose top cell has a well-formed adopt6 pointer.
+- Alloc-extension lemmas: well-formedness preserved by allocation.
+
 **What's still pending** beyond the cost-bound foundation:
-- adopt6 maintenance theorems (proving adopt6 stays valid across
-  consecutive ops — requires defining the adopt6 well-formedness
-  invariant).
+- Full adopt6 maintenance theorems (proving adopt6_wf_at holds
+  for ALL locations in H' given it held in H — requires reasoning
+  about every cell in the heap; doable but case-heavy).
 - §12.4 5 repair cases for concat with non-trivial middle children.
 - Sequence-correctness for the cascade case of pop/eject when adopt6
   points to a deeper triple (the shallow cases — adopt6 = immediate
-  triple — are all covered with flagship bundles).
+  triple — are all covered with flagship bundles).  Resolving this
+  needs a stronger heap_represents_cad_a6 relation that honors adopt6.
 
 ## Why this exists
 
