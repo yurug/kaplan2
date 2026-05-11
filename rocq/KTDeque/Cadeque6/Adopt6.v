@@ -1486,6 +1486,105 @@ Proof.
     + apply HRCa6_Empty. exact Hlc'.
 Qed.
 
+(** ** Symmetric: lookup + cost + seq for [cad_eject_imp_a6] shallow case
+    (CSingle, suffix non-empty). *)
+
+Theorem cad_eject_imp_a6_lookup_when_single_suf_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_eject suf = Some (suf', x) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      let lt' := next_loc H in
+      exists lq',
+        lr = Some (lq', x) /\
+        lq' = Pos.succ (next_loc H) /\
+        lookup H' lt' = Some (CCa6_TripleOnly pre lc suf') /\
+        lookup H' lq' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lt pre suf lc suf' x HA Ht Hej H' lr k Hop.
+  unfold cad_eject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  cbn.
+  split; [symmetry; exact Hl |].
+  split; [reflexivity |].
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_eject_imp_a6_cost_when_single_suf_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_eject suf = Some (suf', x) ->
+    cost_of (cad_eject_imp_a6 lA) H = Some 4.
+Proof.
+  intros A H lA lt pre suf lc suf' x HA Ht Hej.
+  unfold cad_eject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ht. cbn. rewrite Hej. cbn. reflexivity.
+Qed.
+
+Theorem cad_eject_imp_a6_seq_when_single_suf_nonempty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    lookup H lc = Some CCa6_CadEmpty ->
+    Pos.lt lc (next_loc H) ->
+    buf6_eject suf = Some (suf', x) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      exists lq',
+        lr = Some (lq', x) /\
+        heap_represents_cad_a6 H' lq' (CSingle (TOnly pre CEmpty suf')).
+Proof.
+  intros A H lA lt pre suf lc suf' x HA Ht Hlc Hltlc Hej H' lr k Hop.
+  assert (Hchar : let lt' := next_loc H in
+                  exists lq',
+                    lr = Some (lq', x) /\
+                    lq' = Pos.succ (next_loc H) /\
+                    lookup H' lt' = Some (CCa6_TripleOnly pre lc suf') /\
+                    lookup H' lq' = Some (CCa6_CadSingle lt' lt')).
+  { eapply cad_eject_imp_a6_lookup_when_single_suf_nonempty;
+      [exact HA | exact Ht | exact Hej | exact Hop]. }
+  cbn in Hchar.
+  destruct Hchar as [lq' [Hlr [Hlq [Hltnew Hlqnew]]]].
+  exists lq'.
+  split; [exact Hlr |].
+  assert (Hlc' : lookup H' lc = Some CCa6_CadEmpty).
+  { unfold cad_eject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA, Ht in Hop. cbn in Hop.
+    rewrite Hej in Hop. cbn in Hop.
+    injection Hop as HH _ _. subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lc (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in Hltlc.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact Hltlc|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lc (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in Hltlc.
+        exact (Pos.lt_irrefl _ Hltlc).
+      * exact Hlc. }
+  eapply HRCa6_Single.
+  - exact Hlqnew.
+  - eapply HRTa6_TOnly.
+    + exact Hltnew.
+    + apply HRCa6_Empty. exact Hlc'.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
