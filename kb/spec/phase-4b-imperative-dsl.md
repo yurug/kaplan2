@@ -3,12 +3,12 @@ id: phase-4b-imperative-dsl
 domain: spec
 related: [why-catenable, plan-catenable, architecture/decisions/adr-0010-imperative-dsl]
 status: in-progress
-last-updated: 2026-05-10
+last-updated: 2026-05-09
 ---
 
 # Phase 4b — heap-based imperative DSL for the catenable cadeque
 
-## Status snapshot (2026-05-10)
+## Status snapshot (2026-05-09)
 
 **Plain-CadCell DSL** ([Cadeque6/OpsImperative.v]):
 - All 5 imperative ops (push / inject / pop / eject / concat) at WC O(1)
@@ -18,7 +18,7 @@ last-updated: 2026-05-10
   + output-shape + list-level refinement: 6 paths for concat (4 shapes
   + 2 empty), 3 paths each for push and inject.
 
-**Adopt6 rich-cell DSL** ([Cadeque6/Adopt6.v]) — new in May 2026:
+**Adopt6 rich-cell DSL** ([Cadeque6/Adopt6.v]) — May 2026, **flagship coverage**:
 - `CadCellA6`: cell type with adopt6 pointer on cadeque cells.
 - `embed_cadeque_a6` / `extract_cadeque_a6`: round-trip embedding.
 - 5 imperative ops on the rich type, all with WC O(1) bounds proven
@@ -27,16 +27,22 @@ last-updated: 2026-05-10
   blocker is RESOLVED at the cost-bound level.
 - `cad_pop_imp_a6_WC_O1`, `cad_eject_imp_a6_WC_O1`: ≤ 4 each.
 - `cad_concat_imp_a6_WC_O1`: ≤ 8.
+- **16 FLAGSHIP FULL CONTRACT bundles** (4-piece: cost + persistence +
+  output-shape + list refinement):
+  - 4 concat simple sub-ops (SS / DS / SD / DD).
+  - 3 push + 3 inject (CEmpty / CSingle / CDouble inputs).
+  - 6 flagship pop/eject (CSingle pre/suf-nonempty + fallback + CDouble).
+- 6 additional 3-piece pop/eject bundles (no list_correct) for
+  callers that don't need list refinement.
 
 **What's still pending** beyond the cost-bound foundation:
 - adopt6 maintenance theorems (proving adopt6 stays valid across
   consecutive ops — requires defining the adopt6 well-formedness
   invariant).
 - §12.4 5 repair cases for concat with non-trivial middle children.
-- Sequence-correctness for the cascade case of pop/eject (the
-  abstract op `cad_pop_op_full` currently composes with the O(n)
-  `cad_normalize`; the imperative version's matching theorem is
-  next).
+- Sequence-correctness for the cascade case of pop/eject when adopt6
+  points to a deeper triple (the shallow cases — adopt6 = immediate
+  triple — are all covered with flagship bundles).
 
 ## Why this exists
 
