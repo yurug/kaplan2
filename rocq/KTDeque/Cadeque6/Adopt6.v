@@ -3881,6 +3881,38 @@ Proof.
   apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** Empty-input persistence: when pop/eject sees CCa6_CadEmpty, it
+    returns None and H' = H — so any input representation trivially
+    persists. *)
+
+Theorem cad_pop_imp_a6_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA qA HrepA HA H' lr k Hop.
+  unfold cad_pop_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'. exact HrepA.
+Qed.
+
+Theorem cad_eject_imp_a6_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA qA HrepA HA H' lr k Hop.
+  unfold cad_eject_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'. exact HrepA.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
