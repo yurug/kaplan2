@@ -5085,6 +5085,157 @@ Proof.
   exists k''. split; [reflexivity | lia].
 Qed.
 
+(** ** Dispatcher-level seq/list_correct via the equiv theorems.
+
+    Combine the dispatcher SS/DD path equivalence with the simple
+    sub-ops' seq / list_correct to characterize the dispatcher's
+    output for the corresponding input-shape combinations. *)
+
+Theorem cad_concat_imp_a6_seq_when_ss :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (l_a6_A l_a6_B : Loc) (cA' : Cadeque A),
+    heap_represents_cad_a6 H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad_a6 H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6 lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly preA cA' sufB)).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild l_a6_A l_a6_B cA'
+         HrepA HrepB HA HB HtA HtB HrepCA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  destruct (cad_concat_imp_a6_when_ss_equiv HA HB Hop)
+    as [k' [Hsub _]].
+  eapply cad_concat_imp_a6_singleton_singleton_simple_seq;
+    [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+     | exact HrepCA | exact Hwf_cad | exact Hwf_trip
+     | exact Hwf_cad' | exact Hwf_trip' | exact Hsub].
+Qed.
+
+Theorem cad_concat_imp_a6_list_correct_when_ss :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (l_a6_A l_a6_B : Loc) (cA' : Cadeque A)
+         (qA qB : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    heap_represents_cad_a6 H lB qB ->
+    qA = CSingle (TOnly preA cA' buf6_empty) ->
+    qB = CSingle (TOnly buf6_empty CEmpty sufB) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad_a6 H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k qResult,
+      cad_concat_imp_a6 lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild l_a6_A l_a6_B cA'
+         qA qB HrepA HrepB HqAeq HqBeq HA HB HtA HtB HrepCA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  destruct (cad_concat_imp_a6_when_ss_equiv HA HB Hop)
+    as [k' [Hsub _]].
+  subst qA qB.
+  eapply cad_concat_imp_a6_singleton_singleton_simple_list_correct;
+    [exact HrepA | exact HrepB | exact HA | exact HB
+     | exact HtA | exact HtB | exact HrepCA
+     | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip'
+     | exact Hsub | exact Hres].
+Qed.
+
+Theorem cad_concat_imp_a6_seq_when_dd :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (l_a6_A l_a6_B : Loc) (tLA tRB : Triple A),
+    heap_represents_cad_a6 H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad_a6 H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple_a6 H ltLA tLA ->
+    heap_represents_triple_a6 H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp_a6 lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CDouble tLA tRB).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB l_a6_A l_a6_B tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip H' l' k Hop.
+  destruct (cad_concat_imp_a6_when_dd_equiv HA HB Hop)
+    as [k' [Hsub _]].
+  eapply cad_concat_imp_a6_double_double_simple_seq;
+    [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+     | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+     | exact Hsub].
+Qed.
+
+Theorem cad_concat_imp_a6_list_correct_when_dd :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (l_a6_A l_a6_B : Loc) (tLA tRB : Triple A)
+         (qA qB : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    heap_represents_cad_a6 H lB qB ->
+    qA = CDouble tLA (TRight buf6_empty CEmpty buf6_empty) ->
+    qB = CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB ->
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple_a6 H ltLA tLA ->
+    heap_represents_triple_a6 H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k qResult,
+      cad_concat_imp_a6 lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB l_a6_A l_a6_B tLA tRB
+         qA qB HrepA HrepB HqAeq HqBeq HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip H' l' k qResult Hop Hres.
+  destruct (cad_concat_imp_a6_when_dd_equiv HA HB Hop)
+    as [k' [Hsub _]].
+  subst qA qB.
+  eapply cad_concat_imp_a6_double_double_simple_list_correct;
+    [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+     | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+     | exact Hsub | exact Hres].
+Qed.
+
 (** ** Cost-exact for the CDouble cascade-via-TripleOnly case.
 
     When adopt6 on a CCa6_CadDouble points to a CCa6_TripleOnly cell
