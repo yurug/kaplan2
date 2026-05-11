@@ -2657,6 +2657,180 @@ Proof.
   rewrite !app_assoc. reflexivity.
 Qed.
 
+(** ** Input-persistence for push/inject_imp_a6 (per shape).
+
+    Push and inject never mutate the input cell; they only allocate.
+    So lA continues to represent qA in H'.  Each takes wf + post-1-alloc
+    wf' preconditions matching the per-shape seq theorem. *)
+
+Theorem cad_push_imp_a6_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_push_imp_a6 x lA H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H x lA HA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_inject_imp_a6_input_persists_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    lookup H lA = Some CCa6_CadEmpty ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA x HA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_push_imp_a6_input_persists_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA lt l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_push_imp_a6 x lA H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H x lA lt l_a6 pre suf cChild HA Ht Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         qA HrepA H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_push_imp_a6_input_persists_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA ltL ltR l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltL = Some (CCa6_TripleLeft pre cChild suf) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_push_imp_a6 x lA H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H x lA ltL ltR l_a6 pre suf cChild HA HtL Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         qA HrepA H' l' k Hop.
+  unfold cad_push_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtL in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_inject_imp_a6_input_persists_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA lt l_a6 x pre suf cChild HA Ht Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         qA HrepA H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_inject_imp_a6_input_persists_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltR = Some (CCa6_TripleRight pre cChild suf) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' l' k,
+        cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA ltL ltR l_a6 x pre suf cChild HA HtR Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         qA HrepA H' l' k Hop.
+  unfold cad_inject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HtR in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
