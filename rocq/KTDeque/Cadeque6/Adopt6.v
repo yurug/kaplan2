@@ -30,12 +30,20 @@
     - Persistence-under-alloc lemmas (single + two-alloc variants).
     - Sequence-correctness theorems:
         * push_imp_a6 / inject_imp_a6 : all 3 input shapes
-        * pop_imp_a6 / eject_imp_a6   : shallow case (CSingle)
+        * pop_imp_a6 / eject_imp_a6   : shallow CSingle (pre/suf
+                                        non-empty + fallback) + shallow
+                                        CDouble cases
         * concat_imp_a6               : all 4 simple sub-op cases
-                                        (SS / DS / SD / DD) — though
-                                        the universal dispatcher still
-                                        routes DS/SD via retC stub,
-                                        the sub-ops are usable directly.
+    - List-level refinement:
+        * push_imp_a6 / inject_imp_a6 : all 3 input shapes
+        * concat_imp_a6               : all 4 simple sub-op cases
+    - Input-persistence:
+        * push_imp_a6 / inject_imp_a6 : all 3 input shapes
+        * concat_imp_a6               : all 4 simple sub-op cases
+    - Termination wrappers + FULL CONTRACT bundles:
+        * 10 flagship contracts: 3 push + 3 inject + 4 concat
+          (each bundles cost + input-persistence + output shape +
+           list refinement)
 
     Coexists with the plain [CadCell]-based DSL in
     [Cadeque6/OpsImperative.v]; no breaking changes there.
