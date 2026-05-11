@@ -5335,6 +5335,79 @@ Proof.
        | exact Hop | exact Hlreq | exact Hres].
 Qed.
 
+(** ** Adopt6 well-formedness predicate.
+
+    A basic shape invariant: every cadeque cell in the heap with an
+    adopt6 pointer points to SOME triple cell.  This is the minimum
+    needed to ensure the cascade read in pop/eject doesn't dereference
+    a non-triple cell (which would return None).
+
+    Stronger invariants (e.g., adopt6 lies on the preferred-path tail
+    of the cadeque, or adopt6 represents a triple whose buffer is
+    suitable for pop/eject) build on this base. *)
+
+Definition adopt6_target_is_triple {A : Type} (H : Heap (CadCellA6 A))
+                                   (la6 : Loc) : Prop :=
+  match lookup H la6 with
+  | Some (CCa6_TripleOnly  _ _ _) => True
+  | Some (CCa6_TripleLeft  _ _ _) => True
+  | Some (CCa6_TripleRight _ _ _) => True
+  | _ => False
+  end.
+
+Definition adopt6_wf_at {A : Type} (H : Heap (CadCellA6 A)) (l : Loc) : Prop :=
+  match lookup H l with
+  | Some (CCa6_CadSingle _ la6)   => adopt6_target_is_triple H la6
+  | Some (CCa6_CadDouble _ _ la6) => adopt6_target_is_triple H la6
+  | _ => True
+  end.
+
+(** [adopt6_wf_at] is preserved by allocation since lookup at allocated
+    locations is unaffected, and adding a fresh cell can't break a
+    triple-target binding. *)
+
+Lemma adopt6_target_is_triple_alloc_extends :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (la6 : Loc) (c : CadCellA6 A),
+    Pos.lt la6 (next_loc H) ->
+    adopt6_target_is_triple H la6 ->
+    adopt6_target_is_triple (snd (alloc c H)) la6.
+Proof.
+  intros A H la6 c Hlt Htri.
+  unfold adopt6_target_is_triple in *.
+  rewrite lookup_after_alloc;
+    [exact Htri | intro Heq; rewrite Heq in Hlt; apply Pos.lt_irrefl in Hlt; exact Hlt].
+Qed.
+
+(** [adopt6_wf_at] is preserved by alloc when the cell at [l] already
+    has its adopt6 target allocated (in [next_loc H]).  Formalising
+    this needs a separate "adopt6 target is allocated" predicate;
+    deferred until we wire in [well_formed_heap]. *)
+
+Definition adopt6_target_allocated {A : Type} (H : Heap (CadCellA6 A))
+                                   (l : Loc) : Prop :=
+  match lookup H l with
+  | Some (CCa6_CadSingle _ la6)   => Pos.lt la6 (next_loc H)
+  | Some (CCa6_CadDouble _ _ la6) => Pos.lt la6 (next_loc H)
+  | _ => True
+  end.
+
+Lemma adopt6_wf_at_alloc_extends :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc) (c : CadCellA6 A),
+    Pos.lt l (next_loc H) ->
+    adopt6_target_allocated H l ->
+    adopt6_wf_at H l ->
+    adopt6_wf_at (snd (alloc c H)) l.
+Proof.
+  intros A H l c Hlt Htgt Hwf.
+  unfold adopt6_wf_at, adopt6_target_allocated in *.
+  rewrite lookup_after_alloc;
+    [|intro Heq; rewrite Heq in Hlt; apply Pos.lt_irrefl in Hlt; exact Hlt].
+  destruct (lookup H l) as [cell|] eqn:Hlk; [|exact I].
+  destruct cell; try exact I.
+  - apply adopt6_target_is_triple_alloc_extends; assumption.
+  - apply adopt6_target_is_triple_alloc_extends; assumption.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
