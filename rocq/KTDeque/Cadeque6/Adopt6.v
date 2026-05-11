@@ -1817,6 +1817,43 @@ Definition cad_concat_imp_a6_single_double_simple {A : Type}
       | _, _ => retC lA
       end)).
 
+(** ** Full unified concat dispatcher (handles all 4 SS/DS/SD/DD paths).
+
+    Same as [cad_concat_imp_a6] but routes the DS / SD shape combos
+    to their respective simple sub-ops instead of returning [lA]
+    unchanged.  This is the "full" dispatcher — the previous one is
+    kept for backwards compatibility but is functionally a subset. *)
+
+Definition cad_concat_imp_a6_full {A : Type} (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadEmpty => retC lB
+    | _ =>
+        bindC (read_MC lB) (fun cB =>
+          match cB with
+          | CCa6_CadEmpty => retC lA
+          | _ =>
+              match cA, cB with
+              | CCa6_CadSingle _ _, CCa6_CadSingle _ _ =>
+                  cad_concat_imp_a6_singleton_singleton_simple lA lB
+              | CCa6_CadDouble _ _ _, CCa6_CadDouble _ _ _ =>
+                  cad_concat_imp_a6_double_double_simple lA lB
+              | CCa6_CadDouble _ _ _, CCa6_CadSingle _ _ =>
+                  cad_concat_imp_a6_double_single_simple lA lB
+              | CCa6_CadSingle _ _, CCa6_CadDouble _ _ _ =>
+                  cad_concat_imp_a6_single_double_simple lA lB
+              | _, _ => retC lA  (* unreachable: non-cadeque cells *)
+              end
+          end)
+    end).
+
+(** WC O(1) bound for the full dispatcher.  All 4 sub-ops cost
+    ≤ 6 (SS/DS/SD) or ≤ 5 (DD), and the dispatcher adds 2 top reads,
+    so the full dispatcher's worst-case is ≤ 8 — same constant as
+    the partial dispatcher's CAD_CONCAT_IMP_A6_COST. *)
+
+Definition CAD_CONCAT_IMP_A6_FULL_COST : nat := 8.
+
 (** WC O(1) bounds for DS / SD simple. *)
 
 Theorem cad_concat_imp_a6_double_single_simple_WC_O1 :
@@ -1869,6 +1906,79 @@ Proof.
     try (injection Hcost as <-; lia).
   destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
     injection Hcost as <-; lia.
+Qed.
+
+(** WC O(1) for the full dispatcher.  All 4 wired sub-op paths + the
+    2 empty cases + the unreachable stub paths.  Same destruct-driven
+    proof shape as the simpler dispatcher's WC theorem. *)
+
+Theorem cad_concat_imp_a6_full_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6_full lA lB) H = Some k ->
+    k <= CAD_CONCAT_IMP_A6_FULL_COST.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6_full, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct cA; cbn in Hcost.
+  - (* CCa6_TripleOnly at lA: fallback stub returns lA *)
+    destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_FULL_COST; lia.
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_FULL_COST; lia.
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_FULL_COST; lia.
+  - (* CCa6_CadEmpty at lA: shortcut to lB *)
+    injection Hcost as <-. unfold CAD_CONCAT_IMP_A6_FULL_COST. lia.
+  - (* CCa6_CadSingle at lA *)
+    destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_FULL_COST; lia).
+    + (* Single × Single: route to SS_simple *)
+      destruct (cad_concat_imp_a6_singleton_singleton_simple lA lB H)
+        as [[[H' lr'] k']|] eqn:Hsub; [|discriminate].
+      cbn in Hcost. injection Hcost as <-.
+      assert (Hss : k' <= 6).
+      { eapply cad_concat_imp_a6_singleton_singleton_simple_WC_O1.
+        unfold cost_of. rewrite Hsub. cbn. reflexivity. }
+      unfold CAD_CONCAT_IMP_A6_FULL_COST. lia.
+    + (* Single × Double: route to SD_simple *)
+      destruct (cad_concat_imp_a6_single_double_simple lA lB H)
+        as [[[H' lr'] k']|] eqn:Hsub; [|discriminate].
+      cbn in Hcost. injection Hcost as <-.
+      assert (Hsd : k' <= 6).
+      { eapply cad_concat_imp_a6_single_double_simple_WC_O1.
+        unfold cost_of. rewrite Hsub. cbn. reflexivity. }
+      unfold CAD_CONCAT_IMP_A6_FULL_COST. lia.
+  - (* CCa6_CadDouble at lA *)
+    destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost;
+      try (injection Hcost as <-; unfold CAD_CONCAT_IMP_A6_FULL_COST; lia).
+    + (* Double × Single: route to DS_simple *)
+      destruct (cad_concat_imp_a6_double_single_simple lA lB H)
+        as [[[H' lr'] k']|] eqn:Hsub; [|discriminate].
+      cbn in Hcost. injection Hcost as <-.
+      assert (Hds : k' <= 6).
+      { eapply cad_concat_imp_a6_double_single_simple_WC_O1.
+        unfold cost_of. rewrite Hsub. cbn. reflexivity. }
+      unfold CAD_CONCAT_IMP_A6_FULL_COST. lia.
+    + (* Double × Double: route to DD_simple *)
+      destruct (cad_concat_imp_a6_double_double_simple lA lB H)
+        as [[[H' lr'] k']|] eqn:Hsub; [|discriminate].
+      cbn in Hcost. injection Hcost as <-.
+      assert (Hdd : k' <= 5).
+      { eapply cad_concat_imp_a6_double_double_simple_WC_O1.
+        unfold cost_of. rewrite Hsub. cbn. reflexivity. }
+      unfold CAD_CONCAT_IMP_A6_FULL_COST. lia.
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_FULL_COST; lia.
+  - destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+    destruct cB; cbn in Hcost; injection Hcost as <-;
+      unfold CAD_CONCAT_IMP_A6_FULL_COST; lia.
 Qed.
 
 (** Lookup characterization for DS simple. *)
