@@ -17,12 +17,21 @@
 
     This file introduces:
 
-    - [CadCellA6]: a richer cell type with optional [adopt6]
-      pointers on the cadeque cells.
+    - [CadCellA6]: a richer cell type with [adopt6] pointer on
+      cadeque cells (CCa6_CadSingle and CCa6_CadDouble).
     - [embed_cadeque_a6] / [extract_cadeque_a6]: round-trip
-      embedding from abstract [Cadeque A].
-    - [cad_pop_imp_a6]: pop via the adopt6 shortcut, with a fixed
-      WC bound regardless of depth.
+      embedding from abstract [Cadeque A] (initial adopt6 set
+      conservatively to own triple's loc).
+    - Five imperative ops with WC O(1) bounds: cad_push_imp_a6,
+      cad_inject_imp_a6, cad_pop_imp_a6, cad_eject_imp_a6,
+      cad_concat_imp_a6.  pop/eject cost is INDEPENDENT of cadeque
+      depth — the headline adopt6 property.
+    - Inductive [heap_represents_cad_a6] / [_triple_a6] relations.
+    - Persistence-under-alloc lemmas (single + two-alloc variants).
+    - Sequence-correctness theorems:
+        * push_imp_a6 / inject_imp_a6 : all 3 input shapes
+        * pop_imp_a6 / eject_imp_a6   : shallow case (CSingle)
+        * concat_imp_a6               : SS + DD simple cases
 
     Coexists with the plain [CadCell]-based DSL in
     [Cadeque6/OpsImperative.v]; no breaking changes there.
