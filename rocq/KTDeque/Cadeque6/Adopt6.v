@@ -4943,6 +4943,110 @@ Proof.
     + apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Cost-exact for the CDouble cascade-via-TripleOnly case.
+
+    When adopt6 on a CCa6_CadDouble points to a CCa6_TripleOnly cell
+    (rather than a TripleLeft), the imperative op pops from there with
+    the same exact cost = 4.  This covers the deep-cascade scenario at
+    the cost-bound level.  Sequence-correctness for this case is more
+    subtle — the result's structural ltL/ltR are unchanged but the
+    adopt6 hint is rewired, so abstract semantics requires adopt6
+    invariants beyond what [heap_represents_cad_a6] currently
+    captures. *)
+
+Theorem cad_pop_imp_a6_cost_when_double_cascade_only :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR la6 : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (x : A) (pre' : Buf6 A),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR la6) ->
+    lookup H la6 = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_pop pre = Some (x, pre') ->
+    cost_of (cad_pop_imp_a6 lA) H = Some 4.
+Proof.
+  intros A H lA ltL ltR la6 pre suf lc x pre' HA Ha6 Hpop.
+  unfold cad_pop_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ha6. cbn. rewrite Hpop. cbn. reflexivity.
+Qed.
+
+Theorem cad_eject_imp_a6_cost_when_double_cascade_only :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR la6 : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR la6) ->
+    lookup H la6 = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_eject suf = Some (suf', x) ->
+    cost_of (cad_eject_imp_a6 lA) H = Some 4.
+Proof.
+  intros A H lA ltL ltR la6 pre suf lc suf' x HA Ha6 Hej.
+  unfold cad_eject_imp_a6, cost_of, bindC, read_MC, alloc_MC, retC.
+  rewrite HA, Ha6. cbn. rewrite Hej. cbn. reflexivity.
+Qed.
+
+(** ** Input-persistence for the CDouble cascade-via-TripleOnly case.
+
+    The imperative op allocates 2 cells and modifies nothing at lA,
+    so any input representation at lA persists across the result heap. *)
+
+Theorem cad_pop_imp_a6_input_persists_when_double_cascade_only :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR la6 : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (x : A) (pre' : Buf6 A),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR la6) ->
+    lookup H la6 = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_pop pre = Some (x, pre') ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre' lc suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre' lc suf) H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' lr k,
+        cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA ltL ltR la6 pre suf lc x pre' HA Ha6 Hpop
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' lr k Hop.
+  unfold cad_pop_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ha6 in Hop. cbn in Hop.
+  rewrite Hpop in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_eject_imp_a6_input_persists_when_double_cascade_only :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR la6 : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR la6) ->
+    lookup H la6 = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_eject suf = Some (suf', x) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre lc suf') H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre lc suf') H)))) ->
+    forall (qA : Cadeque A),
+      heap_represents_cad_a6 H lA qA ->
+      forall H' lr k,
+        cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+        heap_represents_cad_a6 H' lA qA.
+Proof.
+  intros A H lA ltL ltR la6 pre suf lc suf' x HA Ha6 Hej
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' qA HrepA H' lr k Hop.
+  unfold cad_eject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ha6 in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
 (** ** Generalized list_correct: same shape as the _gen seq theorems. *)
 
 Theorem cad_pop_imp_a6_list_correct_when_single_pre_nonempty_gen :
