@@ -1753,6 +1753,282 @@ Proof.
   - apply heap_represents_triple_a6_persists_alloc; assumption.
 Qed.
 
+(** ** Simple DS / SD sub-ops on the rich cell type.
+
+    DS: A is CDouble, B is CSingle.  Boundary: sufRA and preB must
+    be empty.  Result: CDouble preserving A's left triple, with a
+    new TripleRight combining preRA + cRA + sufB.
+
+    SD: symmetric. *)
+
+Definition cad_concat_imp_a6_double_single_simple {A : Type}
+    (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CCa6_CadDouble ltLA ltRA _, CCa6_CadSingle ltB _ =>
+          bindC (read_MC ltRA) (fun tRA =>
+            bindC (read_MC ltB) (fun tB =>
+              match tRA, tB with
+              | CCa6_TripleRight preRA cRA sufRA,
+                CCa6_TripleOnly preB cB' sufB =>
+                  match buf6_elems sufRA, buf6_elems preB with
+                  | [], [] =>
+                      bindC (alloc_MC (CCa6_TripleRight preRA cRA sufB)) (fun newtR =>
+                        alloc_MC (CCa6_CadDouble ltLA newtR ltLA))
+                  | _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+Definition cad_concat_imp_a6_single_double_simple {A : Type}
+    (lA lB : Loc) : MC (CadCellA6 A) Loc :=
+  bindC (read_MC lA) (fun cA =>
+    bindC (read_MC lB) (fun cB =>
+      match cA, cB with
+      | CCa6_CadSingle ltA _, CCa6_CadDouble ltLB ltRB _ =>
+          bindC (read_MC ltA) (fun tA =>
+            bindC (read_MC ltLB) (fun tLB =>
+              match tA, tLB with
+              | CCa6_TripleOnly preA cA' sufA,
+                CCa6_TripleLeft preLB cLB sufLB =>
+                  match buf6_elems sufA, buf6_elems preLB with
+                  | [], [] =>
+                      bindC (alloc_MC (CCa6_TripleLeft preA cA' sufLB)) (fun newtL =>
+                        alloc_MC (CCa6_CadDouble newtL ltRB newtL))
+                  | _, _ => retC lA
+                  end
+              | _, _ => retC lA
+              end))
+      | _, _ => retC lA
+      end)).
+
+(** WC O(1) bounds for DS / SD simple. *)
+
+Theorem cad_concat_imp_a6_double_single_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6_double_single_simple lA lB) H = Some k ->
+    k <= 6.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6_double_single_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct cB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (lookup H l0) as [tRA|] eqn:Hlt; [|discriminate].
+  destruct (lookup H l2) as [tB|] eqn:Hlt2; [|discriminate].
+  destruct tRA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct tB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+    injection Hcost as <-; lia.
+Qed.
+
+Theorem cad_concat_imp_a6_single_double_simple_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (k : nat),
+    cost_of (cad_concat_imp_a6_single_double_simple lA lB) H = Some k ->
+    k <= 6.
+Proof.
+  intros A H lA lB k Hcost.
+  unfold cad_concat_imp_a6_single_double_simple,
+         cost_of, bindC, read_MC, alloc_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|] eqn:HlkA; [|discriminate].
+  destruct (lookup H lB) as [cB|] eqn:HlkB; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct cB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (lookup H l) as [tA|] eqn:Hlt; [|discriminate].
+  destruct (lookup H l1) as [tLB|] eqn:Hlt2; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct tLB; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b0) as [|? ?]; cbn in Hcost;
+    try (injection Hcost as <-; lia).
+  destruct (buf6_elems b1) as [|? ?]; cbn in Hcost;
+    injection Hcost as <-; lia.
+Qed.
+
+(** Lookup characterization for DS simple. *)
+
+Theorem cad_concat_imp_a6_double_single_simple_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (l_a6_A l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cB' sufB) ->
+    forall H' l' k,
+      cad_concat_imp_a6_double_single_simple lA lB H = Some (H', l', k) ->
+      let ltR' := next_loc H in
+      lookup H' ltR' = Some (CCa6_TripleRight preRA cRA sufB)
+      /\ lookup H' l' = Some (CCa6_CadDouble ltLA ltR' ltLA).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' l_a6_A l_a6_B
+         HA HB HtRA HtB H' l' k Hop.
+  unfold cad_concat_imp_a6_double_single_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_concat_imp_a6_single_double_simple_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (l_a6_A l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB sufLB) ->
+    forall H' l' k,
+      cad_concat_imp_a6_single_double_simple lA lB H = Some (H', l', k) ->
+      let ltL' := next_loc H in
+      lookup H' ltL' = Some (CCa6_TripleLeft preA cA' sufLB)
+      /\ lookup H' l' = Some (CCa6_CadDouble ltL' ltRB ltL').
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB l_a6_A l_a6_B
+         HA HB HtA HtLB H' l' k Hop.
+  unfold cad_concat_imp_a6_single_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Sequence-correctness for DS / SD simple. *)
+
+Theorem cad_concat_imp_a6_double_single_simple_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (l_a6_A l_a6_B : Loc)
+         (tLA : Triple A) (cRA' : Cadeque A),
+    heap_represents_cad_a6 H lA (CDouble tLA (TRight preRA cRA' buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cB' sufB) ->
+    heap_represents_triple_a6 H ltLA tLA ->
+    heap_represents_cad_a6 H cRA cRA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_double_single_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CDouble tLA (TRight preRA cRA' sufB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' l_a6_A l_a6_B tLA cRA'
+         HrepA HrepB HA HB HtRA HtB HrepTLA HrepCRA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let ltR' := next_loc H in
+                    lookup H' ltR' = Some (CCa6_TripleRight preRA cRA sufB)
+                    /\ lookup H' l' = Some (CCa6_CadDouble ltLA ltR' ltLA)).
+  { eapply cad_concat_imp_a6_double_single_simple_lookup;
+      [exact HA | exact HB | exact HtRA | exact HtB | exact Hop]. }
+  cbn in Hlookup.
+  destruct Hlookup as [HltR_new Hl_new].
+  unfold cad_concat_imp_a6_double_single_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtRA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  eapply HRCa6_Double.
+  - exact Hl_new.
+  - apply heap_represents_triple_a6_persists_two_allocs; assumption.
+  - eapply HRTa6_TRight.
+    + exact HltR_new.
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_concat_imp_a6_single_double_simple_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (l_a6_A l_a6_B : Loc)
+         (cA_ab : Cadeque A) (tRB : Triple A),
+    heap_represents_cad_a6 H lA (CSingle (TOnly preA cA_ab buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB sufLB) ->
+    heap_represents_cad_a6 H cA' cA_ab ->
+    heap_represents_triple_a6 H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_single_double_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CDouble (TLeft preA cA_ab sufLB) tRB).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB l_a6_A l_a6_B cA_ab tRB
+         HrepA HrepB HA HB HtA HtLB HrepCA HrepTRB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let ltL' := next_loc H in
+                    lookup H' ltL' = Some (CCa6_TripleLeft preA cA' sufLB)
+                    /\ lookup H' l' = Some (CCa6_CadDouble ltL' ltRB ltL')).
+  { eapply cad_concat_imp_a6_single_double_simple_lookup;
+      [exact HA | exact HB | exact HtA | exact HtLB | exact Hop]. }
+  cbn in Hlookup.
+  destruct Hlookup as [HltL_new Hl_new].
+  unfold cad_concat_imp_a6_single_double_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtLB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  eapply HRCa6_Double.
+  - exact Hl_new.
+  - eapply HRTa6_TLeft.
+    + exact HltL_new.
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+  - apply heap_represents_triple_a6_persists_two_allocs; assumption.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
