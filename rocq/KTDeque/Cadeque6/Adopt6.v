@@ -51,7 +51,7 @@ Import ListNotations.
 
 From KTDeque.Common Require Import FinMapHeap CostMonad.
 From KTDeque.Buffer6 Require Import SizedBuffer.
-From KTDeque.Cadeque6 Require Import Model.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract.
 
 (** ** [CadCellA6]: cell type with adopt6 shortcut.
 
@@ -2577,6 +2577,84 @@ Proof.
     by (eapply heap_represents_cad_a6_det; eassumption).
   subst qResult.
   unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_list_correct_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    heap_represents_cad_a6 H cChild c ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k qResult,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA lt l_a6 x pre suf cChild c qA HrepA HqAeq HA Ht HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CSingle (TOnly pre c (buf6_inject suf x))))
+    by (eapply cad_inject_imp_a6_seq_when_single; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  destruct suf as [suf_elems]. cbn.
+  rewrite flat_concat_singleton_app1.
+  rewrite (flat_concat_singleton_id _ suf_elems).
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_list_correct_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (tL : Triple A)
+         (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CDouble tL (TRight pre c suf) ->
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltR = Some (CCa6_TripleRight pre cChild suf) ->
+    heap_represents_triple_a6 H ltL tL ->
+    heap_represents_cad_a6 H cChild c ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight pre cChild (buf6_inject suf x)) H)))) ->
+    forall H' l' k qResult,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA ltL ltR l_a6 x pre suf cChild c tL qA HrepA HqAeq HA HtR HrepTL HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CDouble tL (TRight pre c (buf6_inject suf x))))
+    by (eapply cad_inject_imp_a6_seq_when_double; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn.
+  destruct suf as [suf_elems]. cbn.
+  rewrite flat_concat_singleton_app1.
+  rewrite (flat_concat_singleton_id _ suf_elems).
+  rewrite !app_assoc. reflexivity.
 Qed.
 
 (** ** Round-trip: embed then extract recovers the original.
