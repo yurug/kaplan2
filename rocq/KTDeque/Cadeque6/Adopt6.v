@@ -4943,6 +4943,100 @@ Proof.
     + apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Unified concat dispatcher: empty-input cases.
+
+    When [cad_concat_imp_a6 lA lB] sees [lA → CCa6_CadEmpty], it
+    returns [lB] unchanged (no heap mutation, cost = 1).  Symmetric
+    for [lB → CCa6_CadEmpty].  These are the most general possible
+    cases: the result is literally the other input pointer, with
+    perfect list correctness via [cad_concat_left_identity] /
+    [cad_concat_right_identity]. *)
+
+Theorem cad_concat_imp_a6_when_left_empty_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      H' = H /\ lr = lB /\ k = 1.
+Proof.
+  intros A H lA lB HA H' lr k Hop.
+  unfold cad_concat_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as <- <- <-. auto.
+Qed.
+
+Theorem cad_concat_imp_a6_when_left_empty_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (qA qB : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    heap_represents_cad_a6 H lB qB ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k qResult,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      heap_represents_cad_a6 H' lr qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB qA qB HrepA HrepB HA H' lr k qResult Hop Hres.
+  destruct (cad_concat_imp_a6_when_left_empty_seq HA Hop)
+    as [HH [Hlr Hk]]. subst H' lr k.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  subst qA.
+  assert (HqRes : qResult = qB)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
+Theorem cad_concat_imp_a6_when_right_empty_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (cA : CadCellA6 A),
+    lookup H lA = Some cA ->
+    cA <> CCa6_CadEmpty ->
+    lookup H lB = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      H' = H /\ lr = lA /\ k = 2.
+Proof.
+  intros A H lA lB cA HA HcA_ne HB H' lr k Hop.
+  unfold cad_concat_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop.
+  destruct cA; try contradiction;
+    cbn in Hop; rewrite HB in Hop; cbn in Hop;
+    injection Hop as <- <- <-; auto.
+Qed.
+
+Theorem cad_concat_imp_a6_when_right_empty_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (qA qB : Cadeque A) (cA : CadCellA6 A),
+    heap_represents_cad_a6 H lA qA ->
+    heap_represents_cad_a6 H lB qB ->
+    lookup H lA = Some cA ->
+    cA <> CCa6_CadEmpty ->
+    lookup H lB = Some CCa6_CadEmpty ->
+    forall H' lr k qResult,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      heap_represents_cad_a6 H' lr qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ cad_to_list_base qB.
+Proof.
+  intros A H lA lB qA qB cA HrepA HrepB HA HcA_ne HB
+         H' lr k qResult Hop Hres.
+  destruct (cad_concat_imp_a6_when_right_empty_seq HA HcA_ne HB Hop)
+    as [HH [Hlr Hk]]. subst H' lr k.
+  assert (HqB : qB = CEmpty).
+  { inversion HrepB as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HB in Hlk; try discriminate; reflexivity. }
+  subst qB.
+  assert (HqRes : qResult = qA)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. rewrite app_nil_r. reflexivity.
+Qed.
+
 (** ** Cost-exact for the CDouble cascade-via-TripleOnly case.
 
     When adopt6 on a CCa6_CadDouble points to a CCa6_TripleOnly cell
