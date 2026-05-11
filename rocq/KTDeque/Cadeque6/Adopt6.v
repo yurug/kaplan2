@@ -3564,6 +3564,186 @@ Proof.
        | exact Hwf_cad' | exact Hwf_trip' | exact Hop | exact Hres].
 Qed.
 
+Theorem cad_concat_imp_a6_double_double_simple_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltLB ltRB : Loc)
+         (cRA cLB : Loc) (l_a6_A l_a6_B : Loc) (tLA tRB : Triple A),
+    heap_represents_cad_a6 H lA
+      (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ->
+    heap_represents_cad_a6 H lB
+      (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) ->
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight buf6_empty cRA buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB buf6_empty) ->
+    heap_represents_triple_a6 H ltLA tLA ->
+    heap_represents_triple_a6 H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    forall H' l' k,
+      cad_concat_imp_a6_double_double_simple lA lB H = Some (H', l', k) ->
+      k <= 5 /\
+      heap_represents_cad_a6 H' lA
+        (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) /\
+      heap_represents_cad_a6 H' lB
+        (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB) /\
+      heap_represents_cad_a6 H' l' (CDouble tLA tRB) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) ++
+           cad_to_list_base (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB)).
+Proof.
+  intros A H lA lB ltLA ltRA ltLB ltRB cRA cLB l_a6_A l_a6_B tLA tRB
+         HrepA HrepB HA HB HtRA HtLB HrepTLA HrepTRB
+         Hwf_cad Hwf_trip H' l' k Hop.
+  assert (Hpersist : heap_represents_cad_a6 H' lA
+                       (CDouble tLA (TRight buf6_empty CEmpty buf6_empty)) /\
+                     heap_represents_cad_a6 H' lB
+                       (CDouble (TLeft buf6_empty CEmpty buf6_empty) tRB)).
+  { eapply cad_concat_imp_a6_double_double_simple_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact Hwf_cad | exact Hwf_trip | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CDouble tLA tRB)).
+  { eapply cad_concat_imp_a6_double_double_simple_seq;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_a6_double_double_simple_terminates; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_a6_double_double_simple_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtLB
+       | exact HrepTLA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+       | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_concat_imp_a6_double_single_simple_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltLA ltRA ltB : Loc)
+         (preRA sufB : Buf6 A) (cRA cB' : Loc)
+         (l_a6_A l_a6_B : Loc)
+         (tLA : Triple A) (cRA' : Cadeque A),
+    heap_represents_cad_a6 H lA (CDouble tLA (TRight preRA cRA' buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltRA = Some (CCa6_TripleRight preRA cRA buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cB' sufB) ->
+    heap_represents_triple_a6 H ltLA tLA ->
+    heap_represents_cad_a6 H cRA cRA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight preRA cRA sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_double_single_simple lA lB H = Some (H', l', k) ->
+      k <= 6 /\
+      heap_represents_cad_a6 H' lA (CDouble tLA (TRight preRA cRA' buf6_empty)) /\
+      heap_represents_cad_a6 H' lB (CSingle (TOnly buf6_empty CEmpty sufB)) /\
+      heap_represents_cad_a6 H' l' (CDouble tLA (TRight preRA cRA' sufB)) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CDouble tLA (TRight preRA cRA' buf6_empty)) ++
+           cad_to_list_base (CSingle (TOnly buf6_empty CEmpty sufB))).
+Proof.
+  intros A H lA lB ltLA ltRA ltB preRA sufB cRA cB' l_a6_A l_a6_B tLA cRA'
+         HrepA HrepB HA HB HtRA HtB HrepTLA HrepCRA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hpersist : heap_represents_cad_a6 H' lA (CDouble tLA (TRight preRA cRA' buf6_empty)) /\
+                     heap_represents_cad_a6 H' lB (CSingle (TOnly buf6_empty CEmpty sufB))).
+  { eapply cad_concat_imp_a6_double_single_simple_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtB
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CDouble tLA (TRight preRA cRA' sufB))).
+  { eapply cad_concat_imp_a6_double_single_simple_seq;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtB
+       | exact HrepTLA | exact HrepCRA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_a6_double_single_simple_terminates; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_a6_double_single_simple_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtRA | exact HtB
+       | exact HrepTLA | exact HrepCRA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_concat_imp_a6_single_double_simple_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltLB ltRB : Loc)
+         (preA sufLB : Buf6 A) (cA' cLB : Loc)
+         (l_a6_A l_a6_B : Loc)
+         (cA_ab : Cadeque A) (tRB : Triple A),
+    heap_represents_cad_a6 H lA (CSingle (TOnly preA cA_ab buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cA' buf6_empty) ->
+    lookup H ltLB = Some (CCa6_TripleLeft buf6_empty cLB sufLB) ->
+    heap_represents_cad_a6 H cA' cA_ab ->
+    heap_represents_triple_a6 H ltRB tRB ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft preA cA' sufLB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_single_double_simple lA lB H = Some (H', l', k) ->
+      k <= 6 /\
+      heap_represents_cad_a6 H' lA (CSingle (TOnly preA cA_ab buf6_empty)) /\
+      heap_represents_cad_a6 H' lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB) /\
+      heap_represents_cad_a6 H' l' (CDouble (TLeft preA cA_ab sufLB) tRB) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CSingle (TOnly preA cA_ab buf6_empty)) ++
+           cad_to_list_base (CDouble (TLeft buf6_empty CEmpty sufLB) tRB)).
+Proof.
+  intros A H lA lB ltA ltLB ltRB preA sufLB cA' cLB l_a6_A l_a6_B cA_ab tRB
+         HrepA HrepB HA HB HtA HtLB HrepCA HrepTRB
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hpersist : heap_represents_cad_a6 H' lA (CSingle (TOnly preA cA_ab buf6_empty)) /\
+                     heap_represents_cad_a6 H' lB (CDouble (TLeft buf6_empty CEmpty sufLB) tRB)).
+  { eapply cad_concat_imp_a6_single_double_simple_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtLB
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CDouble (TLeft preA cA_ab sufLB) tRB)).
+  { eapply cad_concat_imp_a6_single_double_simple_seq;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtLB
+       | exact HrepCA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_a6_single_double_simple_terminates; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_a6_single_double_simple_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtLB
+       | exact HrepCA | exact HrepTRB | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop | exact Hres].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
