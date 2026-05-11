@@ -2033,6 +2033,182 @@ Proof.
   - apply heap_represents_triple_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Pop from suffix when prefix is empty (CSingle shallow case). *)
+
+Theorem cad_pop_imp_a6_lookup_when_single_pre_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_pop pre = None ->
+    buf6_pop suf = Some (x, suf') ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      let lt' := next_loc H in
+      exists lq',
+        lr = Some (x, lq') /\
+        lq' = Pos.succ (next_loc H) /\
+        lookup H' lt' = Some (CCa6_TripleOnly buf6_empty lc suf')
+        /\ lookup H' lq' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lt pre suf lc suf' x HA Ht Hpop_pre Hpop_suf H' lr k Hop.
+  unfold cad_pop_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  rewrite Hpop_pre in Hop. cbn in Hop.
+  rewrite Hpop_suf in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)). cbn.
+  split; [symmetry; exact Hl |].
+  split; [reflexivity |].
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_pop_imp_a6_seq_when_single_pre_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (suf' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    lookup H lc = Some CCa6_CadEmpty ->
+    Pos.lt lc (next_loc H) ->
+    buf6_pop pre = None ->
+    buf6_pop suf = Some (x, suf') ->
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      exists lq',
+        lr = Some (x, lq') /\
+        heap_represents_cad_a6 H' lq'
+          (CSingle (TOnly buf6_empty CEmpty suf')).
+Proof.
+  intros A H lA lt pre suf lc suf' x HA Ht Hlc Hltlc Hpop_pre Hpop_suf
+         H' lr k Hop.
+  assert (Hchar : let lt' := next_loc H in
+                  exists lq',
+                    lr = Some (x, lq') /\
+                    lq' = Pos.succ (next_loc H) /\
+                    lookup H' lt' = Some (CCa6_TripleOnly buf6_empty lc suf') /\
+                    lookup H' lq' = Some (CCa6_CadSingle lt' lt')).
+  { eapply cad_pop_imp_a6_lookup_when_single_pre_empty;
+      [exact HA | exact Ht | exact Hpop_pre | exact Hpop_suf | exact Hop]. }
+  cbn in Hchar.
+  destruct Hchar as [lq' [Hlr [Hlq [Hltnew Hlqnew]]]].
+  exists lq'.
+  split; [exact Hlr |].
+  assert (Hlc' : lookup H' lc = Some CCa6_CadEmpty).
+  { unfold cad_pop_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA, Ht in Hop. cbn in Hop.
+    rewrite Hpop_pre, Hpop_suf in Hop. cbn in Hop.
+    injection Hop as HH _ _. subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lc (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in Hltlc.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact Hltlc|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lc (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in Hltlc. exact (Pos.lt_irrefl _ Hltlc).
+      * exact Hlc. }
+  eapply HRCa6_Single.
+  - exact Hlqnew.
+  - eapply HRTa6_TOnly.
+    + exact Hltnew.
+    + apply HRCa6_Empty. exact Hlc'.
+Qed.
+
+(** Eject from prefix when suffix is empty (symmetric). *)
+
+Theorem cad_eject_imp_a6_lookup_when_single_suf_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (pre' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    buf6_eject suf = None ->
+    buf6_eject pre = Some (pre', x) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      let lt' := next_loc H in
+      exists lq',
+        lr = Some (lq', x) /\
+        lq' = Pos.succ (next_loc H) /\
+        lookup H' lt' = Some (CCa6_TripleOnly pre' lc buf6_empty)
+        /\ lookup H' lq' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lt pre suf lc pre' x HA Ht Hej_suf Hej_pre H' lr k Hop.
+  unfold cad_eject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, Ht in Hop. cbn in Hop.
+  rewrite Hej_suf in Hop. cbn in Hop.
+  rewrite Hej_pre in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)). cbn.
+  split; [symmetry; exact Hl |].
+  split; [reflexivity |].
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+Theorem cad_eject_imp_a6_seq_when_single_suf_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt : Loc)
+         (pre suf : Buf6 A) (lc : Loc) (pre' : Buf6 A) (x : A),
+    lookup H lA = Some (CCa6_CadSingle lt lt) ->
+    lookup H lt = Some (CCa6_TripleOnly pre lc suf) ->
+    lookup H lc = Some CCa6_CadEmpty ->
+    Pos.lt lc (next_loc H) ->
+    buf6_eject suf = None ->
+    buf6_eject pre = Some (pre', x) ->
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      exists lq',
+        lr = Some (lq', x) /\
+        heap_represents_cad_a6 H' lq'
+          (CSingle (TOnly pre' CEmpty buf6_empty)).
+Proof.
+  intros A H lA lt pre suf lc pre' x HA Ht Hlc Hltlc Hej_suf Hej_pre
+         H' lr k Hop.
+  assert (Hchar : let lt' := next_loc H in
+                  exists lq',
+                    lr = Some (lq', x) /\
+                    lq' = Pos.succ (next_loc H) /\
+                    lookup H' lt' = Some (CCa6_TripleOnly pre' lc buf6_empty) /\
+                    lookup H' lq' = Some (CCa6_CadSingle lt' lt')).
+  { eapply cad_eject_imp_a6_lookup_when_single_suf_empty;
+      [exact HA | exact Ht | exact Hej_suf | exact Hej_pre | exact Hop]. }
+  cbn in Hchar.
+  destruct Hchar as [lq' [Hlr [Hlq [Hltnew Hlqnew]]]].
+  exists lq'.
+  split; [exact Hlr |].
+  assert (Hlc' : lookup H' lc = Some CCa6_CadEmpty).
+  { unfold cad_eject_imp_a6, bindC, read_MC, alloc_MC, retC in Hop.
+    rewrite HA, Ht in Hop. cbn in Hop.
+    rewrite Hej_suf, Hej_pre in Hop. cbn in Hop.
+    injection Hop as HH _ _. subst H'.
+    unfold lookup. cbn.
+    destruct (loc_eq_dec lc (Pos.succ (next_loc H))) as [Heq1|Hne1].
+    + exfalso. rewrite Heq1 in Hltlc.
+      apply (Pos.lt_irrefl (Pos.succ (next_loc H))).
+      eapply Pos.lt_trans; [exact Hltlc|]. apply Pos.lt_succ_diag_r.
+    + destruct (loc_eq_dec lc (next_loc H)) as [Heq2|Hne2].
+      * exfalso. rewrite Heq2 in Hltlc. exact (Pos.lt_irrefl _ Hltlc).
+      * exact Hlc. }
+  eapply HRCa6_Single.
+  - exact Hlqnew.
+  - eapply HRTa6_TOnly.
+    + exact Hltnew.
+    + apply HRCa6_Empty. exact Hlc'.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
