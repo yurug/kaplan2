@@ -1585,6 +1585,97 @@ Proof.
     + apply HRCa6_Empty. exact Hlc'.
 Qed.
 
+(** ** Sequence-correctness for [cad_concat_imp_a6_singleton_singleton_simple]
+    (the simple SS case: both inputs are CSingle with TripleOnly
+    triples whose joining buffers are empty). *)
+
+Theorem cad_concat_imp_a6_singleton_singleton_simple_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (l_a6_A l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cBchild sufB) ->
+    forall H' l' k,
+      cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      let lt' := next_loc H in
+      lookup H' lt' = Some (CCa6_TripleOnly preA cAchild sufB)
+      /\ lookup H' l' = Some (CCa6_CadSingle lt' lt').
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild l_a6_A l_a6_B
+         HA HB HtA HtB H' l' k Hop.
+  unfold cad_concat_imp_a6_singleton_singleton_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH Hl _.
+  cbn.
+  split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Sequence-correctness for the SS simple sub-op via heap_represents_cad_a6.
+
+    Under shape preconditions + structural well-formedness + post-1-alloc
+    well-formedness, the result heap represents
+    [CSingle (TOnly preA cA' sufB)] where cA' is the abstract value of
+    the A's child cadeque (carried verbatim through the join). *)
+
+Theorem cad_concat_imp_a6_singleton_singleton_simple_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (l_a6_A l_a6_B : Loc) (cA' : Cadeque A),
+    heap_represents_cad_a6 H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad_a6 H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly preA cA' sufB)).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild l_a6_A l_a6_B cA'
+         HrepA HrepB HA HB HtA HtB HrepCA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hlookup : let lt' := next_loc H in
+                    lookup H' lt' = Some (CCa6_TripleOnly preA cAchild sufB)
+                    /\ lookup H' l' = Some (CCa6_CadSingle lt' lt')).
+  { eapply cad_concat_imp_a6_singleton_singleton_simple_lookup;
+      [exact HA | exact HB | exact HtA | exact HtB | exact Hop]. }
+  cbn in Hlookup.
+  destruct Hlookup as [Hlt_new Hl_new].
+  unfold cad_concat_imp_a6_singleton_singleton_simple,
+         bindC, read_MC, alloc_MC, retC in Hop.
+  rewrite HA, HB, HtA, HtB in Hop.
+  unfold buf6_empty, buf6_elems in Hop. cbn in Hop.
+  injection Hop as HH _ _. subst H'.
+  eapply HRCa6_Single.
+  - exact Hl_new.
+  - eapply HRTa6_TOnly.
+    + exact Hlt_new.
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
