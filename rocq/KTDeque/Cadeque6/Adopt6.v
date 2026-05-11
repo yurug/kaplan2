@@ -3453,6 +3453,117 @@ Proof.
   - apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Termination wrappers for concat simple sub-ops. *)
+
+Theorem cad_concat_imp_a6_singleton_singleton_simple_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    forall H' l' k,
+      cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      k <= 6.
+Proof.
+  intros A H lA lB H' l' k Hop.
+  assert (Hcost : cost_of (cad_concat_imp_a6_singleton_singleton_simple lA lB) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_concat_imp_a6_singleton_singleton_simple_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_concat_imp_a6_double_double_simple_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    forall H' l' k,
+      cad_concat_imp_a6_double_double_simple lA lB H = Some (H', l', k) ->
+      k <= 5.
+Proof.
+  intros A H lA lB H' l' k Hop.
+  assert (Hcost : cost_of (cad_concat_imp_a6_double_double_simple lA lB) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_concat_imp_a6_double_double_simple_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_concat_imp_a6_double_single_simple_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    forall H' l' k,
+      cad_concat_imp_a6_double_single_simple lA lB H = Some (H', l', k) ->
+      k <= 6.
+Proof.
+  intros A H lA lB H' l' k Hop.
+  assert (Hcost : cost_of (cad_concat_imp_a6_double_single_simple lA lB) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_concat_imp_a6_double_single_simple_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_concat_imp_a6_single_double_simple_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    forall H' l' k,
+      cad_concat_imp_a6_single_double_simple lA lB H = Some (H', l', k) ->
+      k <= 6.
+Proof.
+  intros A H lA lB H' l' k Hop.
+  assert (Hcost : cost_of (cad_concat_imp_a6_single_double_simple lA lB) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_concat_imp_a6_single_double_simple_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+(** ** FLAGSHIP FULL CONTRACT bundles for concat simple sub-ops. *)
+
+Theorem cad_concat_imp_a6_singleton_singleton_simple_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB ltA ltB : Loc)
+         (preA sufB : Buf6 A) (cAchild cBchild : Loc)
+         (l_a6_A l_a6_B : Loc) (cA' : Cadeque A),
+    heap_represents_cad_a6 H lA (CSingle (TOnly preA cA' buf6_empty)) ->
+    heap_represents_cad_a6 H lB (CSingle (TOnly buf6_empty CEmpty sufB)) ->
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    lookup H ltA = Some (CCa6_TripleOnly preA cAchild buf6_empty) ->
+    lookup H ltB = Some (CCa6_TripleOnly buf6_empty cBchild sufB) ->
+    heap_represents_cad_a6 H cAchild cA' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly preA cAchild sufB) H)))) ->
+    forall H' l' k,
+      cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', l', k) ->
+      k <= 6 /\
+      heap_represents_cad_a6 H' lA (CSingle (TOnly preA cA' buf6_empty)) /\
+      heap_represents_cad_a6 H' lB (CSingle (TOnly buf6_empty CEmpty sufB)) /\
+      heap_represents_cad_a6 H' l' (CSingle (TOnly preA cA' sufB)) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult =
+           cad_to_list_base (CSingle (TOnly preA cA' buf6_empty)) ++
+           cad_to_list_base (CSingle (TOnly buf6_empty CEmpty sufB))).
+Proof.
+  intros A H lA lB ltA ltB preA sufB cAchild cBchild l_a6_A l_a6_B cA'
+         HrepA HrepB HA HB HtA HtB HrepCA
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (Hpersist : heap_represents_cad_a6 H' lA (CSingle (TOnly preA cA' buf6_empty)) /\
+                     heap_represents_cad_a6 H' lB (CSingle (TOnly buf6_empty CEmpty sufB))).
+  { eapply cad_concat_imp_a6_singleton_singleton_simple_inputs_persist;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  destruct Hpersist as [HpA HpB].
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CSingle (TOnly preA cA' sufB))).
+  { eapply cad_concat_imp_a6_singleton_singleton_simple_seq;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact HrepCA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop]. }
+  split; [|split; [|split; [|split]]].
+  - eapply cad_concat_imp_a6_singleton_singleton_simple_terminates; eassumption.
+  - exact HpA.
+  - exact HpB.
+  - exact Hjoin.
+  - intros qResult Hres.
+    eapply cad_concat_imp_a6_singleton_singleton_simple_list_correct;
+      [exact HrepA | exact HrepB | exact HA | exact HB | exact HtA | exact HtB
+       | exact HrepCA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop | exact Hres].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
