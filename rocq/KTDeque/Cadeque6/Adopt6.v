@@ -2389,6 +2389,124 @@ Proof.
     + apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Determinism of heap_represents_cad_a6 / _triple_a6.
+
+    Two abstract cadeques (resp. triples) represented at the same
+    loc in the same heap must be equal.  Used to pin down [qResult]
+    in list-level refinement theorems. *)
+
+Lemma heap_represents_cad_a6_det :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc) (q1 q2 : Cadeque A),
+    heap_represents_cad_a6 H l q1 ->
+    heap_represents_cad_a6 H l q2 ->
+    q1 = q2
+with heap_represents_triple_a6_det :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc) (t1 t2 : Triple A),
+    heap_represents_triple_a6 H l t1 ->
+    heap_represents_triple_a6 H l t2 ->
+    t1 = t2.
+Proof.
+  - intros A H l q1 q2 H1 H2.
+    destruct H1 as [H l Hlk
+                   | H l lt l_a6 t Hlk Ht
+                   | H l ltL ltR l_a6 tL tR Hlk HtL HtR ];
+    inversion H2 as [H'' l'' Hlk'
+                    | H'' l'' lt' l_a6' t' Hlk' Ht'
+                    | H'' l'' ltL' ltR' l_a6' tL' tR' Hlk' HtL' HtR' ];
+      subst.
+    + reflexivity.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> _.
+      f_equal. eapply heap_represents_triple_a6_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> _.
+      f_equal; eapply heap_represents_triple_a6_det; eassumption.
+  - intros A H l t1 t2 H1 H2.
+    destruct H1 as [H l pre lc suf c Hlk Hc
+                   | H l pre lc suf c Hlk Hc
+                   | H l pre lc suf c Hlk Hc ];
+    inversion H2 as [H'' l'' pre' lc' suf' c' Hlk' Hc'
+                    | H'' l'' pre' lc' suf' c' Hlk' Hc'
+                    | H'' l'' pre' lc' suf' c' Hlk' Hc' ];
+      subst.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_a6_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_a6_det; eassumption.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. discriminate.
+    + rewrite Hlk in Hlk'. injection Hlk' as -> -> ->.
+      f_equal. eapply heap_represents_cad_a6_det; eassumption.
+Qed.
+
+(** ** List-level refinement for cad_push_imp_a6 / cad_inject_imp_a6.
+
+    Bottom-line consumer-facing statement: result list = [x] ++ qA's
+    list (push) or qA's list ++ [x] (inject), parallel to the plain
+    DSL.  Uses determinism above to pin down qResult. *)
+
+Theorem cad_push_imp_a6_list_correct_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k qResult,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = x :: cad_to_list_base qA.
+Proof.
+  intros A H x lA qA HrepA HA HltA H' l' k qResult Hop Hres.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l'
+                    (CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty))).
+  { eapply cad_push_imp_a6_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop]. }
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
+Theorem cad_inject_imp_a6_list_correct_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    forall H' l' k qResult,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = cad_to_list_base qA ++ [x].
+Proof.
+  intros A H lA x qA HrepA HA HltA H' l' k qResult Hop Hres.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l'
+                    (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x)))).
+  { eapply cad_inject_imp_a6_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop]. }
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
