@@ -5545,6 +5545,98 @@ Proof.
   rewrite Hlq_new. rewrite HltR_new. exact I.
 Qed.
 
+(** Adopt6 well-formedness at result for push/inject (all 3 shapes). *)
+
+Theorem cad_push_imp_a6_adopt6_wf_at_result_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H x lA HA H' l' k Hop.
+  destruct (cad_push_imp_a6_lookup_when_empty HA Hop) as [Hlt Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  rewrite Hl'. cbn in Hlt. rewrite Hlt. exact I.
+Qed.
+
+Theorem cad_inject_imp_a6_adopt6_wf_at_result_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H lA x HA H' l' k Hop.
+  destruct (cad_inject_imp_a6_lookup_when_empty HA Hop) as [Hlt Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  rewrite Hl'. cbn in Hlt. rewrite Hlt. exact I.
+Qed.
+
+Theorem cad_push_imp_a6_adopt6_wf_at_result_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA lt l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H x lA lt l_a6 pre suf cChild HA Ht H' l' k Hop.
+  destruct (cad_push_imp_a6_lookup_when_single HA Ht Hop) as [Hlt' Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  cbn in Hl'. rewrite Hl'.
+  cbn in Hlt'. rewrite Hlt'. exact I.
+Qed.
+
+Theorem cad_inject_imp_a6_adopt6_wf_at_result_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lt l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H lA lt l_a6 x pre suf cChild HA Ht H' l' k Hop.
+  destruct (cad_inject_imp_a6_lookup_when_single HA Ht Hop) as [Hlt' Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  cbn in Hl'. rewrite Hl'.
+  cbn in Hlt'. rewrite Hlt'. exact I.
+Qed.
+
+Theorem cad_push_imp_a6_adopt6_wf_at_result_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA ltL ltR l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltL = Some (CCa6_TripleLeft pre cChild suf) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H x lA ltL ltR l_a6 pre suf cChild HA HtL H' l' k Hop.
+  destruct (cad_push_imp_a6_lookup_when_double HA HtL Hop) as [HltL' Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  cbn in Hl'. rewrite Hl'.
+  cbn in HltL'. rewrite HltL'. exact I.
+Qed.
+
+Theorem cad_inject_imp_a6_adopt6_wf_at_result_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ltL ltR l_a6 : Loc) (x : A)
+         (pre suf : Buf6 A) (cChild : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltR = Some (CCa6_TripleRight pre cChild suf) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      adopt6_wf_at H' l'.
+Proof.
+  intros A H lA ltL ltR l_a6 x pre suf cChild HA HtR H' l' k Hop.
+  destruct (cad_inject_imp_a6_lookup_when_double HA HtR Hop) as [HltR' Hl'].
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  cbn in Hl'. rewrite Hl'.
+  cbn in HltR'. rewrite HltR'. exact I.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
