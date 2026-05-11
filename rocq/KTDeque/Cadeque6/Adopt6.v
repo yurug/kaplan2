@@ -5346,6 +5346,114 @@ Proof.
      | exact Hsub | exact Hres].
 Qed.
 
+(** ** Full dispatcher: path-equivalence for all 4 wired sub-ops. *)
+
+Theorem cad_concat_imp_a6_full_when_ss_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltA l_a6_A ltB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltA l_a6_A ltB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_singleton_singleton_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-. exists k''. split; [reflexivity | lia].
+Qed.
+
+Theorem cad_concat_imp_a6_full_when_dd_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltLA ltRA l_a6_A ltLB ltRB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_double_double_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltLA ltRA l_a6_A ltLB ltRB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_double_double_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-. exists k''. split; [reflexivity | lia].
+Qed.
+
+Theorem cad_concat_imp_a6_full_when_ds_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltLA ltRA l_a6_A ltB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_double_single_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltLA ltRA l_a6_A ltB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_double_single_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-. exists k''. split; [reflexivity | lia].
+Qed.
+
+Theorem cad_concat_imp_a6_full_when_sd_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltA l_a6_A ltLB ltRB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_single_double_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltA l_a6_A ltLB ltRB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop. rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_single_double_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-. exists k''. split; [reflexivity | lia].
+Qed.
+
+Theorem cad_concat_imp_a6_full_when_left_empty_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc),
+    lookup H lA = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      H' = H /\ lr = lB /\ k = 1.
+Proof.
+  intros A H lA lB HA H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  injection Hop as <- <- <-. auto.
+Qed.
+
+Theorem cad_concat_imp_a6_full_when_right_empty_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc) (cA : CadCellA6 A),
+    lookup H lA = Some cA ->
+    cA <> CCa6_CadEmpty ->
+    lookup H lB = Some CCa6_CadEmpty ->
+    forall H' lr k,
+      cad_concat_imp_a6_full lA lB H = Some (H', lr, k) ->
+      H' = H /\ lr = lA /\ k = 2.
+Proof.
+  intros A H lA lB cA HA HcA_ne HB H' lr k Hop.
+  unfold cad_concat_imp_a6_full, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop.
+  destruct cA; try contradiction;
+    cbn in Hop; rewrite HB in Hop; cbn in Hop;
+    injection Hop as <- <- <-; auto.
+Qed.
+
 (** ** Cost-exact for the CDouble cascade-via-TripleOnly case.
 
     When adopt6 on a CCa6_CadDouble points to a CCa6_TripleOnly cell
