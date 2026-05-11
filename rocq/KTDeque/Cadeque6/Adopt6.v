@@ -31,7 +31,11 @@
     - Sequence-correctness theorems:
         * push_imp_a6 / inject_imp_a6 : all 3 input shapes
         * pop_imp_a6 / eject_imp_a6   : shallow case (CSingle)
-        * concat_imp_a6               : SS + DD simple cases
+        * concat_imp_a6               : all 4 simple sub-op cases
+                                        (SS / DS / SD / DD) — though
+                                        the universal dispatcher still
+                                        routes DS/SD via retC stub,
+                                        the sub-ops are usable directly.
 
     Coexists with the plain [CadCell]-based DSL in
     [Cadeque6/OpsImperative.v]; no breaking changes there.
