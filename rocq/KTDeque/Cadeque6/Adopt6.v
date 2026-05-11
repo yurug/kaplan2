@@ -5037,6 +5037,54 @@ Proof.
   unfold cad_to_list_base. cbn. rewrite app_nil_r. reflexivity.
 Qed.
 
+(** ** Unified concat dispatcher: SS-path equivalence.
+
+    When both inputs are CCa6_CadSingle, the dispatcher delegates to
+    [cad_concat_imp_a6_singleton_singleton_simple] after 2 extra reads
+    (cost +2).  Same for the DD path. *)
+
+Theorem cad_concat_imp_a6_when_ss_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltA l_a6_A ltB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadSingle ltA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadSingle ltB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_singleton_singleton_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltA l_a6_A ltB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_singleton_singleton_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-.
+  exists k''. split; [reflexivity | lia].
+Qed.
+
+Theorem cad_concat_imp_a6_when_dd_equiv :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lB : Loc)
+         (ltLA ltRA l_a6_A ltLB ltRB l_a6_B : Loc),
+    lookup H lA = Some (CCa6_CadDouble ltLA ltRA l_a6_A) ->
+    lookup H lB = Some (CCa6_CadDouble ltLB ltRB l_a6_B) ->
+    forall H' lr k,
+      cad_concat_imp_a6 lA lB H = Some (H', lr, k) ->
+      exists k',
+        cad_concat_imp_a6_double_double_simple lA lB H = Some (H', lr, k')
+        /\ k = k' + 2.
+Proof.
+  intros A H lA lB ltLA ltRA l_a6_A ltLB ltRB l_a6_B HA HB H' lr k Hop.
+  unfold cad_concat_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HA in Hop. cbn in Hop.
+  rewrite HB in Hop. cbn in Hop.
+  destruct (cad_concat_imp_a6_double_double_simple lA lB H)
+    as [[[H'' lr''] k'']|] eqn:Hsub; [|discriminate].
+  injection Hop as <- <- <-.
+  exists k''. split; [reflexivity | lia].
+Qed.
+
 (** ** Cost-exact for the CDouble cascade-via-TripleOnly case.
 
     When adopt6 on a CCa6_CadDouble points to a CCa6_TripleOnly cell
