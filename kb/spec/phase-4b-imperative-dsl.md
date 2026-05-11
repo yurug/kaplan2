@@ -27,13 +27,16 @@ last-updated: 2026-05-09
   blocker is RESOLVED at the cost-bound level.
 - `cad_pop_imp_a6_WC_O1`, `cad_eject_imp_a6_WC_O1`: ≤ 4 each.
 - `cad_concat_imp_a6_WC_O1`: ≤ 8.
-- **16 FLAGSHIP FULL CONTRACT bundles** (4-piece: cost + persistence +
+- **18 FLAGSHIP FULL CONTRACT bundles** (4-piece: cost + persistence +
   output-shape + list refinement):
   - 4 concat simple sub-ops (SS / DS / SD / DD).
   - 3 push + 3 inject (CEmpty / CSingle / CDouble inputs).
   - 6 flagship pop/eject (CSingle pre/suf-nonempty + fallback + CDouble).
+  - 2 GENERALIZED CSingle pop/eject (any middle child, not just CEmpty).
 - 6 additional 3-piece pop/eject bundles (no list_correct) for
   callers that don't need list refinement.
+- Complete cost-exact matrix: every shallow shape has cost = 4
+  exactly (2 reads + 2 allocs + retC).
 
 **What's still pending** beyond the cost-bound foundation:
 - adopt6 maintenance theorems (proving adopt6 stays valid across
