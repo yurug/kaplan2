@@ -2831,6 +2831,144 @@ Proof.
   apply heap_represents_cad_a6_persists_two_allocs; assumption.
 Qed.
 
+(** ** Termination wrappers for cad_push/inject/pop/eject_imp_a6. *)
+
+Theorem cad_push_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc),
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      k <= CAD_PUSH_IMP_A6_COST.
+Proof.
+  intros A H x lA H' l' k Hop.
+  assert (Hcost : cost_of (cad_push_imp_a6 x lA) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_push_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_inject_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A),
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      k <= CAD_INJECT_IMP_A6_COST.
+Proof.
+  intros A H lA x H' l' k Hop.
+  assert (Hcost : cost_of (cad_inject_imp_a6 lA x) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_inject_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc),
+    forall H' lr k,
+      cad_pop_imp_a6 lA H = Some (H', lr, k) ->
+      k <= CAD_POP_IMP_A6_COST.
+Proof.
+  intros A H lA H' lr k Hop.
+  assert (Hcost : cost_of (cad_pop_imp_a6 lA) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc),
+    forall H' lr k,
+      cad_eject_imp_a6 lA H = Some (H', lr, k) ->
+      k <= CAD_EJECT_IMP_A6_COST.
+Proof.
+  intros A H lA H' lr k Hop.
+  assert (Hcost : cost_of (cad_eject_imp_a6 lA) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+(** ** FLAGSHIP FULL CONTRACT bundles for push/inject_a6 (empty case). *)
+
+Theorem cad_push_imp_a6_full_contract_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA : Loc) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_singleton x) lA buf6_empty) H)))) ->
+    forall H' l' k,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      k <= CAD_PUSH_IMP_A6_COST /\
+      heap_represents_cad_a6 H' lA qA /\
+      heap_represents_cad_a6 H' l'
+        (CSingle (TOnly (buf6_singleton x) CEmpty buf6_empty)) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult = x :: cad_to_list_base qA).
+Proof.
+  intros A H x lA qA HrepA HA HltA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  split; [|split; [|split]].
+  - eapply cad_push_imp_a6_terminates; eassumption.
+  - eapply cad_push_imp_a6_input_persists_when_empty;
+      [exact HA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - subst qA. eapply cad_push_imp_a6_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop].
+  - intros qResult Hres.
+    eapply cad_push_imp_a6_list_correct_when_empty;
+      [exact HrepA | exact HA | exact HltA | exact Hop | exact Hres].
+Qed.
+
+Theorem cad_inject_imp_a6_full_contract_when_empty :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc) (x : A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    lookup H lA = Some CCa6_CadEmpty ->
+    Pos.lt lA (next_loc H) ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly buf6_empty lA (buf6_singleton x)) H)))) ->
+    forall H' l' k,
+      cad_inject_imp_a6 lA x H = Some (H', l', k) ->
+      k <= CAD_INJECT_IMP_A6_COST /\
+      heap_represents_cad_a6 H' lA qA /\
+      heap_represents_cad_a6 H' l'
+        (CSingle (TOnly buf6_empty CEmpty (buf6_singleton x))) /\
+      (forall qResult,
+         heap_represents_cad_a6 H' l' qResult ->
+         cad_to_list_base qResult = cad_to_list_base qA ++ [x]).
+Proof.
+  intros A H lA x qA HrepA HA HltA Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  assert (HqA : qA = CEmpty).
+  { inversion HrepA as [Hh Hl Hlk
+                       | Hh Hl lt' la6' t' Hlk Ht'
+                       | Hh Hl ltL ltR la6' tL tR Hlk HtL HtR];
+      subst; rewrite HA in Hlk; try discriminate; reflexivity. }
+  split; [|split; [|split]].
+  - eapply cad_inject_imp_a6_terminates; eassumption.
+  - eapply cad_inject_imp_a6_input_persists_when_empty;
+      [exact HA | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact HrepA | exact Hop].
+  - subst qA. eapply cad_inject_imp_a6_seq_when_empty;
+      [exact HrepA | exact HltA | exact Hop].
+  - intros qResult Hres.
+    eapply cad_inject_imp_a6_list_correct_when_empty;
+      [exact HrepA | exact HA | exact HltA | exact Hop | exact Hres].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
