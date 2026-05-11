@@ -2507,6 +2507,78 @@ Proof.
   unfold cad_to_list_base. cbn. reflexivity.
 Qed.
 
+(** ** List-level refinement for push/inject_imp_a6 on CSingle / CDouble. *)
+
+Theorem cad_push_imp_a6_list_correct_when_single :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA lt l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly pre c suf) ->
+    lookup H lA = Some (CCa6_CadSingle lt l_a6) ->
+    lookup H lt = Some (CCa6_TripleOnly pre cChild suf) ->
+    heap_represents_cad_a6 H cChild c ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_push x pre) cChild suf) H)))) ->
+    forall H' l' k qResult,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = x :: cad_to_list_base qA.
+Proof.
+  intros A H x lA lt l_a6 pre suf cChild c qA HrepA HqAeq HA Ht HrepC
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CSingle (TOnly (buf6_push x pre) c suf)))
+    by (eapply cad_push_imp_a6_seq_when_single; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
+Theorem cad_push_imp_a6_list_correct_when_double :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (x : A) (lA ltL ltR l_a6 : Loc)
+         (pre suf : Buf6 A) (cChild : Loc) (c : Cadeque A) (tR : Triple A)
+         (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CDouble (TLeft pre c suf) tR ->
+    lookup H lA = Some (CCa6_CadDouble ltL ltR l_a6) ->
+    lookup H ltL = Some (CCa6_TripleLeft pre cChild suf) ->
+    heap_represents_cad_a6 H cChild c ->
+    heap_represents_triple_a6 H ltR tR ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_push x pre) cChild suf) H)))) ->
+    forall H' l' k qResult,
+      cad_push_imp_a6 x lA H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' qResult ->
+      cad_to_list_base qResult = x :: cad_to_list_base qA.
+Proof.
+  intros A H x lA ltL ltR l_a6 pre suf cChild c tR qA HrepA HqAeq HA HtL HrepC HrepTR
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k qResult Hop Hres.
+  subst qA.
+  assert (Hjoin : heap_represents_cad_a6 H' l' (CDouble (TLeft (buf6_push x pre) c suf) tR))
+    by (eapply cad_push_imp_a6_seq_when_double; eassumption).
+  assert (Heq : qResult = _)
+    by (eapply heap_represents_cad_a6_det; eassumption).
+  subst qResult.
+  unfold cad_to_list_base. cbn. reflexivity.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
