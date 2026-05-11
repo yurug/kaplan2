@@ -47,6 +47,15 @@ last-updated: 2026-05-09
   result whose top cell has a well-formed adopt6 pointer.
 - Alloc-extension lemmas: well-formedness preserved by allocation.
 
+**Full concat dispatcher** (NEW):
+- `cad_concat_imp_a6_full` wires all 4 simple sub-ops (SS / DS / SD / DD)
+  into a single dispatcher, plus the 2 empty paths.
+- `CAD_CONCAT_IMP_A6_FULL_COST = 8` (= 2 top reads + max sub-op cost 6).
+- `cad_concat_imp_a6_full_WC_O1` formal WC bound theorem.
+- 6 path-equivalence theorems (SS/DS/SD/DD + left/right empty) showing
+  the dispatcher reduces to each sub-op (or trivial pointer-return for
+  empty).
+
 **What's still pending** beyond the cost-bound foundation:
 - Full adopt6 maintenance theorems (proving adopt6_wf_at holds
   for ALL locations in H' given it held in H — requires reasoning
