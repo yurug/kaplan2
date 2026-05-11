@@ -5650,3 +5650,102 @@ Proof.
   intros A c H.
   apply alloc_lookup_self.
 Qed.
+
+(** ** Concrete computational examples on the rich type.
+
+    These witness that the imperative ops compute correctly on
+    actual heap states.  Useful as a sanity check and as a starting
+    point for extraction-targeted code. *)
+
+Module Examples.
+
+  (** A 1-element cadeque on the rich type: CSingle (TOnly [1] CEmpty []). *)
+  Definition q1 : Cadeque nat :=
+    CSingle (TOnly (mkBuf6 [1]) CEmpty buf6_empty).
+
+  Definition q1_embed : Loc * Heap (CadCellA6 nat) :=
+    embed_cadeque_a6 q1 empty_heap.
+
+  Definition q1_loc : Loc := fst q1_embed.
+  Definition q1_heap : Heap (CadCellA6 nat) := snd q1_embed.
+
+  (** Embedding's round-trip: extracting from the embedded heap
+      recovers the original cadeque (depth 8 is plenty for this
+      shallow example). *)
+  Example q1_roundtrip :
+    extract_cadeque_a6 8 q1_heap q1_loc = Some q1.
+  Proof. vm_compute. reflexivity. Qed.
+
+  (** Popping from this heap returns 1 and produces a 4-cost trace. *)
+  Example q1_pop_returns_one_at_cost_4 :
+    exists H' lq', cad_pop_imp_a6 q1_loc q1_heap
+                 = Some (H', Some (1, lq'), 4).
+  Proof.
+    eexists. eexists. vm_compute. reflexivity.
+  Qed.
+
+  (** Symmetrically: ejecting from a singleton-suffix cadeque. *)
+  Definition q1_suf : Cadeque nat :=
+    CSingle (TOnly buf6_empty CEmpty (mkBuf6 [1])).
+
+  Definition q1_suf_embed : Loc * Heap (CadCellA6 nat) :=
+    embed_cadeque_a6 q1_suf empty_heap.
+
+  Definition q1_suf_loc : Loc := fst q1_suf_embed.
+  Definition q1_suf_heap : Heap (CadCellA6 nat) := snd q1_suf_embed.
+
+  (** Ejecting returns 1 and produces a 4-cost trace. *)
+  Example q1_suf_eject_returns_one_at_cost_4 :
+    exists H' lq', cad_eject_imp_a6 q1_suf_loc q1_suf_heap
+                 = Some (H', Some (lq', 1), 4).
+  Proof.
+    eexists. eexists. vm_compute. reflexivity.
+  Qed.
+
+  (** A double cadeque popping the leftmost element. *)
+  Definition q_double : Cadeque nat :=
+    CDouble (TLeft  (mkBuf6 [1; 2]) CEmpty (mkBuf6 [3; 4]))
+            (TRight (mkBuf6 [5; 6]) CEmpty (mkBuf6 [7; 8])).
+
+  Definition q_double_embed : Loc * Heap (CadCellA6 nat) :=
+    embed_cadeque_a6 q_double empty_heap.
+
+  Example q_double_pop_returns_one_at_cost_4 :
+    exists H' lq', cad_pop_imp_a6 (fst q_double_embed) (snd q_double_embed)
+                 = Some (H', Some (1, lq'), 4).
+  Proof.
+    eexists. eexists. vm_compute. reflexivity.
+  Qed.
+
+  (** The default embed sets [adopt6 = lL] for CDouble — so eject (which
+      expects adopt6 → TripleRight) returns None on this embedded heap.
+      To make eject succeed in shallow O(1), the adopt6 needs to point
+      to the right triple.  We construct that variant manually. *)
+
+  Definition q_double_right_adopt6 : Heap (CadCellA6 nat).
+  Proof.
+    refine (
+      let H0 := @empty_heap (CadCellA6 nat) in
+      let lemp := fst (alloc CCa6_CadEmpty H0) in
+      let H1 := snd (alloc CCa6_CadEmpty H0) in
+      let ltL_cell := CCa6_TripleLeft (mkBuf6 [1; 2]) lemp (mkBuf6 [3; 4]) in
+      let ltL := fst (alloc ltL_cell H1) in
+      let H2 := snd (alloc ltL_cell H1) in
+      let ltR_cell := CCa6_TripleRight (mkBuf6 [5; 6]) lemp (mkBuf6 [7; 8]) in
+      let ltR := fst (alloc ltR_cell H2) in
+      let H3 := snd (alloc ltR_cell H2) in
+      let top_cell := CCa6_CadDouble ltL ltR ltR in
+      snd (alloc top_cell H3)).
+  Defined.
+
+  Definition q_double_right_loc : Loc :=
+    Pos.succ (Pos.succ (Pos.succ 1%positive)).
+
+  Example q_double_eject_with_right_adopt6_returns_eight_at_cost_4 :
+    exists H' lq', cad_eject_imp_a6 q_double_right_loc q_double_right_adopt6
+                 = Some (H', Some (lq', 8), 4).
+  Proof.
+    eexists. eexists. vm_compute. reflexivity.
+  Qed.
+
+End Examples.
