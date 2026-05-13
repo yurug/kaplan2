@@ -30,9 +30,18 @@ last-updated: 2026-05-13
   2c-empty, 2c-twosided).
 - 2 composed eject+repair operations (1a-right, 1b-right).
 - Each WC O(1): `CAD_POP_REPAIR_COST = CAD_EJECT_REPAIR_COST = 6`.
+- 8 `_terminates` wrappers (canonical "callable" form).
 - Caller supplies the new buffer composition + residue child pointer
   (the upstream "stored-pop + inner-concat" computation is a
   separate concern; the §12.4 stack itself runs in O(1)).
+
+**Full contract matrix on §12.4** (all 8 cases):
+- 8 cost theorems (WC ≤ 2)
+- 8 lookup theorems (where applicable)
+- 8 sequence-correctness theorems (heap_represents witness)
+- 8 adopt6 wf-at-result theorems
+- 3 refinement bridges to abstract
+- 8 composed pop+repair + 8 termination wrappers
 
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
