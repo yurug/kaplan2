@@ -7122,6 +7122,165 @@ Proof.
     cbn. lia.
 Qed.
 
+(** ** Adopt6 well-formedness at result for §12.4 repair cases.
+
+    Each §12.4 case produces a result top of form CCa6_CadSingle lt lt
+    where lt is freshly allocated and bound to a triple cell.  So
+    adopt6 (= lt = the structural triple) trivially points to a
+    triple — well-formed by construction. *)
+
+Theorem repair_case_1b_left_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (lc' : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_1b_left_imp_a6 p3 lc' s1 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p3 lc' s1 H' l' k Hop.
+  unfold repair_case_1b_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_1a_left_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_1a_left_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p3 ld3 s1 H' l' k Hop.
+  unfold repair_case_1a_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_2a_only_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_2a_only_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p3 ld3 s1 H' l' k Hop.
+  unfold repair_case_2a_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_2b_only_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_2b_only_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p1 ld3 s3 H' l' k Hop.
+  unfold repair_case_2b_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_2c_only_empty_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld2 : Loc)
+         (s4 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_2c_only_empty_imp_a6 p3 ld2 s4 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p3 ld2 s4 H' l' k Hop.
+  unfold repair_case_2c_only_empty_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_2c_only_twosided_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p_left : Buf6 A) (lchild : Loc)
+         (s_right : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_2c_only_twosided_imp_a6 p_left lchild s_right H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p_left lchild s_right H' l' k Hop.
+  unfold repair_case_2c_only_twosided_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_1a_right_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_1a_right_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p1 ld3 s3 H' l' k Hop.
+  unfold repair_case_1a_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
+Theorem repair_case_1b_right_imp_a6_adopt6_wf_at_result :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (lc' : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_1b_right_imp_a6 p1 lc' s3 H = Some (H', l', k) ->
+    adopt6_wf_at H' l'.
+Proof.
+  intros A H p1 lc' s3 H' l' k Hop.
+  unfold repair_case_1b_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  unfold adopt6_wf_at, adopt6_target_is_triple.
+  unfold lookup. cbn.
+  destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+    as [_|Hne]; [|contradiction].
+  destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+  - exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+  - destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+      [|contradiction]. exact I.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
