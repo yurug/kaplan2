@@ -10024,6 +10024,560 @@ Proof.
   rewrite Hej. rewrite <- !app_assoc. reflexivity.
 Qed.
 
+(** ** FLAGSHIP FULL CONTRACT bundles for §12.4 headline ops.
+
+    Each bundle composes the four correctness pieces of a single
+    headline pop-with-repair / eject-with-repair op into one
+    theorem:
+
+      1. Worst-case O(1) cost: [k <= COST]
+      2. Sequence-correctness: result location represents the
+         §12.4-repaired cadeque shape
+      3. List-level refinement: the input list-flattening equals
+         [x :: rest] (pop) or [rest ++ [x]] (eject)
+      4. Global adopt6 well-formedness preservation: H' is still
+         globally wf, so the next operation can run
+
+    These bundles are the "user-facing" contracts: they say "given
+    the standard preconditions, calling the op gives you all four
+    guarantees in one go." *)
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls lc' : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (p1' : Buf6 A)
+         (c_old c_new : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TLeft p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleLeft p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    cad_to_list_base c_old =
+      buf6_to_list b ++ cad_to_list_base c_new ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_1b_left_imp_a6 lA ls lc' H = Some (H', lr, k) ->
+      k <= CAD_POP_FULL_REPAIR_1B_LEFT_COST /\
+      (exists lresult,
+         lr = Some (x, lresult) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TLeft (buf6_concat p1' b) c_new s1))) /\
+      cad_to_list_base qA
+      = x :: buf6_to_list p1' ++ buf6_to_list b
+            ++ cad_to_list_base c_new ++ buf6_to_list s1 /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls lc' ltA p1 lc_old s1 b x p1' c_old c_new qA
+         HrepA HqAeq HlA HltA Hpop Hls Hrep_new Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_full_repair_1b_left_imp_a6_terminates; eassumption.
+  - eapply cad_pop_full_repair_1b_left_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hpop | exact Hls | exact Hrep_new
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_pop_full_repair_1b_left_imp_a6_list_correct
+             A H lA ls lc' ltA p1 lc_old s1 b x p1' c_old c_new qA
+             HrepA HqAeq Hpop Hc_old).
+  - eapply cad_pop_full_repair_1b_left_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_pop_full_repair_1a_left_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls ld3 : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d3 : Cadeque A) (c_old : Cadeque A)
+         (d2_xs d3_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TLeft p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleLeft p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    cad_to_list_base c_old =
+      buf6_to_list p2 ++ d2_xs ++ buf6_to_list s2 ++ d3_xs ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_1a_left_imp_a6 lA ls ld3 H = Some (H', lr, k) ->
+      k <= CAD_POP_FULL_REPAIR_1A_LEFT_COST /\
+      (exists lresult,
+         lr = Some (x, lresult) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TLeft (buf6_concat p1' p2) d3 s1))) /\
+      cad_to_list_base qA
+      = x :: buf6_to_list p1' ++ buf6_to_list p2
+            ++ d2_xs ++ buf6_to_list s2 ++ d3_xs ++ buf6_to_list s1 /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3 c_old d2_xs d3_xs qA
+         HrepA HqAeq HlA HltA Hpop Hls Hrep_d3 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_full_repair_1a_left_imp_a6_terminates; eassumption.
+  - eapply cad_pop_full_repair_1a_left_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hpop | exact Hls | exact Hrep_d3
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_pop_full_repair_1a_left_imp_a6_list_correct
+             A H lA ls ld3 p1 s1 p2 s2 d2_xs d3_xs x p1' c_old qA
+             HrepA HqAeq Hpop Hc_old).
+  - eapply cad_pop_full_repair_1a_left_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_pop_full_repair_2c_empty_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d2 : Cadeque A) (c_old : Cadeque A)
+         (d2_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H lc2 d2 ->
+    cad_to_list_base c_old =
+      buf6_to_list p2 ++ d2_xs ++ buf6_to_list s2 ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_2c_empty_imp_a6 lA ls H = Some (H', lr, k) ->
+      k <= CAD_POP_FULL_REPAIR_2C_EMPTY_COST /\
+      (exists lresult,
+         lr = Some (x, lresult) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly (buf6_concat p1' p2) d2 (buf6_concat s2 s1)))) /\
+      cad_to_list_base qA
+      = x :: buf6_to_list p1' ++ buf6_to_list p2
+            ++ d2_xs ++ buf6_to_list s2 ++ buf6_to_list s1 /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x p1' d2 c_old d2_xs qA
+         HrepA HqAeq HlA HltA Hpop Hls Hrep_d2 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_full_repair_2c_empty_imp_a6_terminates; eassumption.
+  - eapply cad_pop_full_repair_2c_empty_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hpop | exact Hls | exact Hrep_d2
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_pop_full_repair_2c_empty_imp_a6_list_correct
+             A H lA ls p1 s1 p2 s2 d2_xs x p1' c_old qA
+             HrepA HqAeq Hpop Hc_old).
+  - eapply cad_pop_full_repair_2c_empty_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_pop_full_repair_2a_only_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls ld3 : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d3 : Cadeque A) (c_old : Cadeque A)
+         (d2_xs d3_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    cad_to_list_base c_old =
+      buf6_to_list p2 ++ d2_xs ++ buf6_to_list s2 ++ d3_xs ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_2a_only_imp_a6 lA ls ld3 H = Some (H', lr, k) ->
+      k <= CAD_POP_FULL_REPAIR_2A_ONLY_COST /\
+      (exists lresult,
+         lr = Some (x, lresult) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly (buf6_concat p1' p2) d3 s1))) /\
+      cad_to_list_base qA
+      = x :: buf6_to_list p1' ++ buf6_to_list p2
+            ++ d2_xs ++ buf6_to_list s2 ++ d3_xs ++ buf6_to_list s1 /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3 c_old d2_xs d3_xs qA
+         HrepA HqAeq HlA HltA Hpop Hls Hrep_d3 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_full_repair_2a_only_imp_a6_terminates; eassumption.
+  - eapply cad_pop_full_repair_2a_only_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hpop | exact Hls | exact Hrep_d3
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_pop_full_repair_2a_only_imp_a6_list_correct
+             A H lA ls ld3 p1 s1 p2 s2 d2_xs d3_xs x p1' c_old qA
+             HrepA HqAeq Hpop Hc_old).
+  - eapply cad_pop_full_repair_2a_only_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_pop_full_repair_2c_twosided_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (ltA : Loc)
+         (p1 : Buf6 A) (lc_old : Loc) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (p1' : Buf6 A)
+         (d_residue : Cadeque A) (c_old : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls_head = Some (CCa6_StoredSmall b_head) ->
+    lookup H ls_tail = Some (CCa6_StoredSmall b_tail) ->
+    heap_represents_cad_a6 H lc_residue d_residue ->
+    cad_to_list_base c_old =
+      buf6_to_list b_head ++ cad_to_list_base d_residue ++ buf6_to_list b_tail ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+      = Some (H', lr, k) ->
+      k <= CAD_POP_FULL_REPAIR_2C_TWOSIDED_COST /\
+      (exists lresult,
+         lr = Some (x, lresult) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly (buf6_concat p1' b_head) d_residue
+                           (buf6_concat b_tail s1)))) /\
+      cad_to_list_base qA
+      = x :: buf6_to_list p1' ++ buf6_to_list b_head
+            ++ cad_to_list_base d_residue
+            ++ buf6_to_list b_tail ++ buf6_to_list s1 /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+         b_head b_tail x p1' d_residue c_old qA
+         HrepA HqAeq HlA HltA Hpop Hls_head Hls_tail Hrep_residue Hc_old
+         Hwf_global Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_pop_full_repair_2c_twosided_imp_a6_terminates; eassumption.
+  - eapply cad_pop_full_repair_2c_twosided_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hpop | exact Hls_head | exact Hls_tail
+       | exact Hrep_residue | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_pop_full_repair_2c_twosided_imp_a6_list_correct
+             A H lA ls_head ls_tail lc_residue p1 s1 b_head b_tail x p1'
+             c_old d_residue qA
+             HrepA HqAeq Hpop Hc_old).
+  - eapply cad_pop_full_repair_2c_twosided_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA lc' ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (s1' : Buf6 A)
+         (c_old c_new : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TRight p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleRight p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    cad_to_list_base c_old =
+      cad_to_list_base c_new ++ buf6_to_list b ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_1b_right_imp_a6 lA lc' ls H = Some (H', lr, k) ->
+      k <= CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST /\
+      (exists lresult,
+         lr = Some (lresult, x) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TRight p1 c_new (buf6_concat b s1')))) /\
+      cad_to_list_base qA
+      = buf6_to_list p1 ++ cad_to_list_base c_new
+        ++ buf6_to_list b ++ buf6_to_list s1' ++ [x] /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA lc' ls ltA p1 lc_old s1 b x s1' c_old c_new qA
+         HrepA HqAeq HlA HltA Hej Hls Hrep_new Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_full_repair_1b_right_imp_a6_terminates; eassumption.
+  - eapply cad_eject_full_repair_1b_right_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hej | exact Hls | exact Hrep_new
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_eject_full_repair_1b_right_imp_a6_list_correct
+             A H lA lc' ls p1 s1 b x s1' c_old c_new qA
+             HrepA HqAeq Hej Hc_old).
+  - eapply cad_eject_full_repair_1b_right_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_eject_full_repair_2b_only_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p3 : Buf6 A) (lc3_st : Loc) (s3 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d3 : Cadeque A) (c_old : Cadeque A)
+         (d3_xs d3_st_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p3 lc3_st s3) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    cad_to_list_base c_old =
+      d3_xs ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3 ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2b_only_imp_a6 lA ld3 ls H = Some (H', lr, k) ->
+      k <= CAD_EJECT_FULL_REPAIR_2B_ONLY_COST /\
+      (exists lresult,
+         lr = Some (lresult, x) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly p1 d3 (buf6_concat s3 s1')))) /\
+      cad_to_list_base qA
+      = buf6_to_list p1 ++ d3_xs
+        ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3
+        ++ buf6_to_list s1' ++ [x] /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3 c_old
+         d3_xs d3_st_xs qA
+         HrepA HqAeq HlA HltA Hej Hls Hrep_d3 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_full_repair_2b_only_imp_a6_terminates; eassumption.
+  - eapply cad_eject_full_repair_2b_only_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hej | exact Hls | exact Hrep_d3
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_eject_full_repair_2b_only_imp_a6_list_correct
+             A H lA ld3 ls p1 s1 p3 s3 d3_xs d3_st_xs x s1' c_old qA
+             HrepA HqAeq Hej Hc_old).
+  - eapply cad_eject_full_repair_2b_only_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p3 : Buf6 A) (lc3_st : Loc) (s3 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d3 : Cadeque A) (c_old : Cadeque A)
+         (d3_xs d3_st_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p3 lc3_st s3) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    cad_to_list_base c_old =
+      d3_xs ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3 ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls H = Some (H', lr, k) ->
+      k <= CAD_EJECT_FULL_REPAIR_2A_ONLY_COST /\
+      (exists lresult,
+         lr = Some (lresult, x) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly p1 d3 (buf6_concat s3 s1')))) /\
+      cad_to_list_base qA
+      = buf6_to_list p1 ++ d3_xs
+        ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3
+        ++ buf6_to_list s1' ++ [x] /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3 c_old
+         d3_xs d3_st_xs qA
+         HrepA HqAeq HlA HltA Hej Hls Hrep_d3 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_full_repair_2a_only_imp_a6_terminates; eassumption.
+  - eapply cad_eject_full_repair_2a_only_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hej | exact Hls | exact Hrep_d3
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_eject_full_repair_2a_only_imp_a6_list_correct
+             A H lA ld3 ls p1 s1 p3 s3 d3_xs d3_st_xs x s1' c_old qA
+             HrepA HqAeq Hej Hc_old).
+  - eapply cad_eject_full_repair_2a_only_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d2 : Cadeque A) (c_old : Cadeque A)
+         (d2_xs : list A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H lc2 d2 ->
+    cad_to_list_base c_old =
+      buf6_to_list p2 ++ d2_xs ++ buf6_to_list s2 ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_empty_imp_a6 lA ls H = Some (H', lr, k) ->
+      k <= CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST /\
+      (exists lresult,
+         lr = Some (lresult, x) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly (buf6_concat p1 p2) d2 (buf6_concat s2 s1')))) /\
+      cad_to_list_base qA
+      = buf6_to_list p1 ++ buf6_to_list p2
+        ++ d2_xs ++ buf6_to_list s2 ++ buf6_to_list s1' ++ [x] /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x s1' d2 c_old d2_xs qA
+         HrepA HqAeq HlA HltA Hej Hls Hrep_d2 Hc_old Hwf_global
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_full_repair_2c_empty_imp_a6_terminates; eassumption.
+  - eapply cad_eject_full_repair_2c_empty_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hej | exact Hls | exact Hrep_d2
+       | exact Hwf_cad | exact Hwf_trip | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_eject_full_repair_2c_empty_imp_a6_list_correct
+             A H lA ls p1 s1 p2 s2 d2_xs x s1' c_old qA
+             HrepA HqAeq Hej Hc_old).
+  - eapply cad_eject_full_repair_2c_empty_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_flagship_full_contract :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (ltA : Loc)
+         (p1 : Buf6 A) (lc_old : Loc) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (s1' : Buf6 A)
+         (d_residue : Cadeque A) (c_old : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls_head = Some (CCa6_StoredSmall b_head) ->
+    lookup H ls_tail = Some (CCa6_StoredSmall b_tail) ->
+    heap_represents_cad_a6 H lc_residue d_residue ->
+    cad_to_list_base c_old =
+      buf6_to_list b_head ++ cad_to_list_base d_residue ++ buf6_to_list b_tail ->
+    adopt6_globally_wf H ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+      = Some (H', lr, k) ->
+      k <= CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST /\
+      (exists lresult,
+         lr = Some (lresult, x) /\
+         heap_represents_cad_a6 H' lresult
+           (CSingle (TOnly (buf6_concat p1 b_head) d_residue
+                           (buf6_concat b_tail s1')))) /\
+      cad_to_list_base qA
+      = buf6_to_list p1 ++ buf6_to_list b_head
+        ++ cad_to_list_base d_residue
+        ++ buf6_to_list b_tail ++ buf6_to_list s1' ++ [x] /\
+      adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+         b_head b_tail x s1' d_residue c_old qA
+         HrepA HqAeq HlA HltA Hej Hls_head Hls_tail Hrep_residue Hc_old
+         Hwf_global Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  split; [|split; [|split]].
+  - eapply cad_eject_full_repair_2c_twosided_imp_a6_terminates; eassumption.
+  - eapply cad_eject_full_repair_2c_twosided_imp_a6_seq;
+      [exact HlA | exact HltA | exact Hej | exact Hls_head | exact Hls_tail
+       | exact Hrep_residue | exact Hwf_cad | exact Hwf_trip
+       | exact Hwf_cad' | exact Hwf_trip' | exact Hop].
+  - exact (@cad_eject_full_repair_2c_twosided_imp_a6_list_correct
+             A H lA ls_head ls_tail lc_residue p1 s1 b_head b_tail x s1'
+             c_old d_residue qA
+             HrepA HqAeq Hej Hc_old).
+  - eapply cad_eject_full_repair_2c_twosided_imp_a6_preserves_adopt6_globally_wf;
+      [exact Hwf_global | exact Hop].
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
