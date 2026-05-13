@@ -186,7 +186,8 @@ existing `Common/CostMonad.v` should suffice without extension.
 
 **Risks**: surprising case-explosion in the AST inspection; the
 five repair cases (1a/1b/2a/2b/2c) each contribute their own
-constant and we need a uniform bound across them.
+constant and we need a uniform bound across them.  Detailed
+per-case spec is in [spec/section12.4-repair-cases.md](spec/section12.4-repair-cases.md).
 
 **Milestone**: `cad_concat_cost` lemma stating the constant bound.
 

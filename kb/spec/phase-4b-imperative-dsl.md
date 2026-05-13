@@ -60,7 +60,9 @@ last-updated: 2026-05-09
 - Full adopt6 maintenance theorems (proving adopt6_wf_at holds
   for ALL locations in H' given it held in H — requires reasoning
   about every cell in the heap; doable but case-heavy).
-- §12.4 5 repair cases for concat with non-trivial middle children.
+- §12.4 5 repair cases for pop/eject with non-trivial cascade:
+  detailed verbatim spec in [section12.4-repair-cases.md].  Needs
+  a stored-pop primitive + per-case proofs (~6–10 sessions).
 - Sequence-correctness for the cascade case of pop/eject when adopt6
   points to a deeper triple (the shallow cases — adopt6 = immediate
   triple — are all covered with flagship bundles).  Resolving this
