@@ -6115,6 +6115,554 @@ Proof.
   split; [apply alloc_lookup_self | reflexivity].
 Qed.
 
+(** * §12.4 repair cases — operational layer on the rich [CadCellA6] type.
+
+    The five repair cases (1a, 1b, 2a, 2b, 2c) of [kb/spec/section12.4-repair-cases.md]
+    are implemented here as imperative ops in the MC monad.  Each
+    takes the relevant pointers + buffer contents and produces a new
+    green triple + top wrapper at WC O(1) cost.
+
+    The abstract layer (sequence-correctness, separate from these
+    heap-bound ops) is in [Cadeque6/RepairS12.v]. *)
+
+(** ** Case 1b operational: TLeft, popped small stored.
+
+    Pre: lA → CCa6_CadSingle ltA _, ltA → CCa6_TripleLeft p1 lc s1,
+    lc → represents some cadeque, popped contents [popped_xs]
+    captured as a Buf6 X.
+
+    The repair *abstractly* says: result is
+    [TLeft (mkBuf6 (p1.elems ++ popped_xs)) d1' s1] where d1' is the
+    cadeque after popping the small stored.
+
+    The operational form takes pre-resolved arguments: the new
+    prefix buffer [p3], the residue child location [lc'], and the
+    suffix [s1].  It allocates 2 cells (new TripleLeft + new top
+    Single) and returns the result location.  Cost = 1+1 = 2. *)
+
+Definition repair_case_1b_left_imp_a6 {A : Type}
+    (p3 : Buf6 A) (lc' : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleLeft p3 lc' s1)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+(** Cost: ≤ 2 over all inputs (2 allocs). *)
+
+Definition REPAIR_1B_LEFT_COST : nat := 2.
+
+Theorem repair_case_1b_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (lc' : Loc)
+         (s1 : Buf6 A) (k : nat),
+    cost_of (repair_case_1b_left_imp_a6 p3 lc' s1) H = Some k ->
+    k <= REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H p3 lc' s1 k Hcost.
+  unfold repair_case_1b_left_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_1B_LEFT_COST. lia.
+Qed.
+
+(** Lookup characterization: after the op, the two freshly allocated
+    cells are bound: the new TripleLeft at [next_loc H], the new
+    CadSingle at [Pos.succ (next_loc H)]. *)
+
+Theorem repair_case_1b_left_imp_a6_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (lc' : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    repair_case_1b_left_imp_a6 p3 lc' s1 H = Some (H', l', k) ->
+    let lt := next_loc H in
+    lookup H' lt = Some (CCa6_TripleLeft p3 lc' s1) /\
+    l' = Pos.succ (next_loc H) /\
+    lookup H' l' = Some (CCa6_CadSingle lt lt).
+Proof.
+  intros A H p3 lc' s1 H' l' k Hop.
+  unfold repair_case_1b_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _.
+  cbn. split.
+  - rewrite <- HH. unfold lookup. cbn.
+    destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+    + exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+    + destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+        [reflexivity|contradiction].
+  - split; [symmetry; exact Hl|].
+    rewrite <- HH, <- Hl. unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+Qed.
+
+(** Sequence-correctness for Case 1b operational.
+
+    Given that the new prefix p3 contains the abstract list [p3_xs]
+    and the residue child lc' represents the cadeque [c'], the
+    result represents the [TLeft p3 c' s1] triple via the
+    HRTa6_TLeft + HRCa6_Single constructors. *)
+
+Theorem repair_case_1b_left_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (lc' : Loc)
+         (s1 : Buf6 A) (c' : Cadeque A),
+    heap_represents_cad_a6 H lc' c' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)))) ->
+    forall H' l' k,
+      repair_case_1b_left_imp_a6 p3 lc' s1 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TLeft p3 c' s1)).
+Proof.
+  intros A H p3 lc' s1 c' Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1b_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TLeft.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** ** Case 1a operational: TLeft, popped is StoredBig with both
+    buffers non-empty.
+
+    Result: [TLeft p3 d3 s1] where d3 is the (pre-assembled) child
+    cadeque.  Caller assembles [d3] via the inner concat machinery
+    and passes the pointer [ld3]. *)
+
+Definition repair_case_1a_left_imp_a6 {A : Type}
+    (p3 : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleLeft p3 ld3 s1)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition REPAIR_1A_LEFT_COST : nat := 2.
+
+Theorem repair_case_1a_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (k : nat),
+    cost_of (repair_case_1a_left_imp_a6 p3 ld3 s1) H = Some k ->
+    k <= REPAIR_1A_LEFT_COST.
+Proof.
+  intros A H p3 ld3 s1 k Hcost.
+  unfold repair_case_1a_left_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_1A_LEFT_COST. lia.
+Qed.
+
+Theorem repair_case_1a_left_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (d3 : Cadeque A),
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft p3 ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft p3 ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 ld3 s1) H)))) ->
+    forall H' l' k,
+      repair_case_1a_left_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TLeft p3 d3 s1)).
+Proof.
+  intros A H p3 ld3 s1 d3 Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1a_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _.
+  cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TLeft.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** ** Case 2a / 2b / 2c-empty / 2c-twosided operational.
+
+    These produce [TOnly] results.  Structurally identical to 1a/1b
+    modulo the constructor (TOnly instead of TLeft) and the buffer
+    sides.  Same cost (= 2). *)
+
+Definition repair_case_2a_only_imp_a6 {A : Type}
+    (p3 : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleOnly p3 ld3 s1)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition repair_case_2b_only_imp_a6 {A : Type}
+    (p1 : Buf6 A) (ld3 : Loc) (s3 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleOnly p1 ld3 s3)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition repair_case_2c_only_empty_imp_a6 {A : Type}
+    (p3 : Buf6 A) (ld2 : Loc) (s4 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleOnly p3 ld2 s4)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition repair_case_2c_only_twosided_imp_a6 {A : Type}
+    (p_left : Buf6 A) (lchild : Loc) (s_right : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleOnly p_left lchild s_right)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition REPAIR_2A_ONLY_COST : nat := 2.
+Definition REPAIR_2B_ONLY_COST : nat := 2.
+Definition REPAIR_2C_EMPTY_COST : nat := 2.
+Definition REPAIR_2C_TWOSIDED_COST : nat := 2.
+
+Theorem repair_case_2a_only_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (k : nat),
+    cost_of (repair_case_2a_only_imp_a6 p3 ld3 s1) H = Some k ->
+    k <= REPAIR_2A_ONLY_COST.
+Proof.
+  intros A H p3 ld3 s1 k Hcost.
+  unfold repair_case_2a_only_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_2A_ONLY_COST. lia.
+Qed.
+
+Theorem repair_case_2b_only_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (k : nat),
+    cost_of (repair_case_2b_only_imp_a6 p1 ld3 s3) H = Some k ->
+    k <= REPAIR_2B_ONLY_COST.
+Proof.
+  intros A H p1 ld3 s3 k Hcost.
+  unfold repair_case_2b_only_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_2B_ONLY_COST. lia.
+Qed.
+
+Theorem repair_case_2c_only_empty_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld2 : Loc)
+         (s4 : Buf6 A) (k : nat),
+    cost_of (repair_case_2c_only_empty_imp_a6 p3 ld2 s4) H = Some k ->
+    k <= REPAIR_2C_EMPTY_COST.
+Proof.
+  intros A H p3 ld2 s4 k Hcost.
+  unfold repair_case_2c_only_empty_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_2C_EMPTY_COST. lia.
+Qed.
+
+Theorem repair_case_2c_only_twosided_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p_left : Buf6 A) (lchild : Loc)
+         (s_right : Buf6 A) (k : nat),
+    cost_of (repair_case_2c_only_twosided_imp_a6 p_left lchild s_right) H = Some k ->
+    k <= REPAIR_2C_TWOSIDED_COST.
+Proof.
+  intros A H p_left lchild s_right k Hcost.
+  unfold repair_case_2c_only_twosided_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_2C_TWOSIDED_COST. lia.
+Qed.
+
+(** Sequence-correctness for the 2*-Only cases follows the same
+    pattern as 1b/1a but with [TOnly] and HRTa6_TOnly. *)
+
+Theorem repair_case_2a_only_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (d3 : Cadeque A),
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p3 ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p3 ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld3 s1) H)))) ->
+    forall H' l' k,
+      repair_case_2a_only_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly p3 d3 s1)).
+Proof.
+  intros A H p3 ld3 s1 d3 Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_2a_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem repair_case_2b_only_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (d3 : Cadeque A),
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 s3) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 s3) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 s3) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 s3) H)))) ->
+    forall H' l' k,
+      repair_case_2b_only_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly p1 d3 s3)).
+Proof.
+  intros A H p1 ld3 s3 d3 Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_2b_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem repair_case_2c_only_empty_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld2 : Loc)
+         (s4 : Buf6 A) (d2 : Cadeque A),
+    heap_represents_cad_a6 H ld2 d2 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)))) ->
+    forall H' l' k,
+      repair_case_2c_only_empty_imp_a6 p3 ld2 s4 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly p3 d2 s4)).
+Proof.
+  intros A H p3 ld2 s4 d2 Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_2c_only_empty_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem repair_case_2c_only_twosided_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p_left : Buf6 A) (lchild : Loc)
+         (s_right : Buf6 A) (child : Cadeque A),
+    heap_represents_cad_a6 H lchild child ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p_left lchild s_right) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p_left lchild s_right) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p_left lchild s_right) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p_left lchild s_right) H)))) ->
+    forall H' l' k,
+      repair_case_2c_only_twosided_imp_a6 p_left lchild s_right H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TOnly p_left child s_right)).
+Proof.
+  intros A H p_left lchild s_right child Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_2c_only_twosided_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** ** Eject-side repair cases (1a-right, 1b-right).
+
+    These mirror the left-side cases.  Both allocate a TRight + a
+    CadSingle wrapper.  Cost 2 each. *)
+
+Definition repair_case_1a_right_imp_a6 {A : Type}
+    (p1 : Buf6 A) (ld3 : Loc) (s3 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleRight p1 ld3 s3)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition repair_case_1b_right_imp_a6 {A : Type}
+    (p1 : Buf6 A) (lc' : Loc) (s3 : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  bindC (alloc_MC (CCa6_TripleRight p1 lc' s3)) (fun lt =>
+    alloc_MC (CCa6_CadSingle lt lt)).
+
+Definition REPAIR_1A_RIGHT_COST : nat := 2.
+Definition REPAIR_1B_RIGHT_COST : nat := 2.
+
+Theorem repair_case_1a_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (k : nat),
+    cost_of (repair_case_1a_right_imp_a6 p1 ld3 s3) H = Some k ->
+    k <= REPAIR_1A_RIGHT_COST.
+Proof.
+  intros A H p1 ld3 s3 k Hcost.
+  unfold repair_case_1a_right_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_1A_RIGHT_COST. lia.
+Qed.
+
+Theorem repair_case_1b_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (lc' : Loc)
+         (s3 : Buf6 A) (k : nat),
+    cost_of (repair_case_1b_right_imp_a6 p1 lc' s3) H = Some k ->
+    k <= REPAIR_1B_RIGHT_COST.
+Proof.
+  intros A H p1 lc' s3 k Hcost.
+  unfold repair_case_1b_right_imp_a6, cost_of, bindC, alloc_MC in Hcost.
+  cbn in Hcost. injection Hcost as <-.
+  unfold REPAIR_1B_RIGHT_COST. lia.
+Qed.
+
+Theorem repair_case_1a_right_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (d3 : Cadeque A),
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 ld3 s3) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 ld3 s3) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 ld3 s3) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 ld3 s3) H)))) ->
+    forall H' l' k,
+      repair_case_1a_right_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TRight p1 d3 s3)).
+Proof.
+  intros A H p1 ld3 s3 d3 Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1a_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TRight.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem repair_case_1b_right_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (lc' : Loc)
+         (s3 : Buf6 A) (c' : Cadeque A),
+    heap_represents_cad_a6 H lc' c' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 lc' s3) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' s3) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 lc' s3) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' s3) H)))) ->
+    forall H' l' k,
+      repair_case_1b_right_imp_a6 p1 lc' s3 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l' (CSingle (TRight p1 c' s3)).
+Proof.
+  intros A H p1 lc' s3 c' Hrep Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1b_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH Hl _. cbn in Hl. subst H' l'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TRight.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** ** Unified repair dispatcher.
+
+    Given the new prefix [p], new child pointer [lc], new suffix [s],
+    and an outer kind tag (Only / Left / Right), allocate the
+    corresponding TripleX + top wrapper.  Replaces u with the
+    green replacement v in O(1) (cost = 2 always). *)
+
+Inductive repair_kind : Type := RK_Only | RK_Left | RK_Right.
+
+Definition repair_replace_imp_a6 {A : Type} (k : repair_kind)
+    (p : Buf6 A) (lc : Loc) (s : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  match k with
+  | RK_Only  => repair_case_2c_only_twosided_imp_a6 p lc s
+  | RK_Left  => repair_case_1b_left_imp_a6 p lc s
+  | RK_Right => repair_case_1b_right_imp_a6 p lc s
+  end.
+
+Definition REPAIR_REPLACE_COST : nat := 2.
+
+Theorem repair_replace_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (k : repair_kind)
+         (p : Buf6 A) (lc : Loc) (s : Buf6 A) (j : nat),
+    cost_of (repair_replace_imp_a6 k p lc s) H = Some j ->
+    j <= REPAIR_REPLACE_COST.
+Proof.
+  intros A H k p lc s j Hcost.
+  destruct k; cbn [repair_replace_imp_a6] in Hcost.
+  - eapply repair_case_2c_only_twosided_imp_a6_WC_O1 in Hcost.
+    unfold REPAIR_REPLACE_COST, REPAIR_2C_TWOSIDED_COST in *. lia.
+  - eapply repair_case_1b_left_imp_a6_WC_O1 in Hcost.
+    unfold REPAIR_REPLACE_COST, REPAIR_1B_LEFT_COST in *. lia.
+  - eapply repair_case_1b_right_imp_a6_WC_O1 in Hcost.
+    unfold REPAIR_REPLACE_COST, REPAIR_1B_RIGHT_COST in *. lia.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
