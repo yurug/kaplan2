@@ -74,8 +74,20 @@ WC = 5 = 3 reads + 2 allocs.  This is the user-facing API.
   (requires the c_old = b ++ c_new hypothesis from upstream).
 - Symmetric `cad_eject_full_repair_1b_right_imp_a6_list_correct`.
 
-These close the correctness story for the Case 1b headline ops:
-WC O(1) cost AND verified sequence behaviour.
+**Cases 1a / 2a / 2b / 2c-empty headline ops** (NEW):
+- `cad_pop_full_repair_1a_left_imp_a6 (lA ls ld3)`: TLeft + big-both-nonempty stored.
+- `cad_pop_full_repair_2a_only_imp_a6 (lA ls ld3)`: TOnly + large suffix.
+- `cad_eject_full_repair_2b_only_imp_a6 (lA ld3 ls)`: TOnly + large prefix.
+- `cad_pop_full_repair_2c_empty_imp_a6 (lA ls)`: TOnly + both small + d1' empty.
+
+Each WC ≤ 5 with full correctness matrix:
+  - WC O(1) cost theorem
+  - Termination wrapper
+  - Sequence-correctness theorem
+  - List-level refinement (popped-element law)
+
+These close the correctness story for 6 of the 7 §12.4 paths
+(Cases 1b, 1a, 2a, 2b, 2c-empty + Case 1b eject-side mirror).
 
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
