@@ -7741,6 +7741,193 @@ Proof.
   apply cad_eject_full_repair_1b_right_imp_a6_WC_O1 in Hcost. exact Hcost.
 Qed.
 
+(** ** Sequence-correctness for the headline single-call ops.
+
+    Witnesses that the composed pipeline returns the expected
+    popped element and a result representing the §12.4-repaired
+    cadeque (CSingle (TLeft (buf6_concat p1' b) c' s1)). *)
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls lc' : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (p1' : Buf6 A)
+         (c_new : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleLeft p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    forall H' lr k,
+      cad_pop_full_repair_1b_left_imp_a6 lA ls lc' H = Some (H', lr, k) ->
+      exists lresult,
+        lr = Some (x, lresult) /\
+        heap_represents_cad_a6 H' lresult
+          (CSingle (TLeft (buf6_concat p1' b) c_new s1)).
+Proof.
+  intros A H lA ls lc' ltA p1 lc_old s1 b x p1' c_new
+         HlA HltA Hpop Hls Hrep_new Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' lr k Hop.
+  unfold cad_pop_full_repair_1b_left_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HlA in Hop. cbn in Hop.
+  rewrite HltA in Hop. cbn in Hop.
+  rewrite Hpop in Hop. cbn in Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite Hls in Hop. cbn in Hop.
+  (* Now Hop is the result of repair_case_1b_left_imp_a6 wrapped in bindC + retC. *)
+  unfold repair_case_1b_left_imp_a6, bindC, alloc_MC, retC in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  split; [symmetry; exact Hl|].
+  subst H'.
+  (* Build heap_represents_cad_a6 manually from the freshly-allocated cells. *)
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TLeft.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** Symmetric for eject side. *)
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA lc' ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (s1' : Buf6 A)
+         (c_new : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleRight p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_1b_right_imp_a6 lA lc' ls H = Some (H', lr, k) ->
+      exists lresult,
+        lr = Some (lresult, x) /\
+        heap_represents_cad_a6 H' lresult
+          (CSingle (TRight p1 c_new (buf6_concat b s1'))).
+Proof.
+  intros A H lA lc' ls ltA p1 lc_old s1 b x s1' c_new
+         HlA HltA Hej Hls Hrep_new Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' lr k Hop.
+  unfold cad_eject_full_repair_1b_right_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HlA in Hop. cbn in Hop.
+  rewrite HltA in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite Hls in Hop. cbn in Hop.
+  unfold repair_case_1b_right_imp_a6, bindC, alloc_MC, retC in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  split; [symmetry; exact Hl|].
+  subst H'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TRight.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+(** ** List-level refinement for the headline ops.
+
+    Witnesses the canonical popped-element law: the input cadeque's
+    flattened list equals [x] prepended to the result's flattened
+    list (for pop).  This is sequence-correctness at the user-facing
+    level. *)
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls lc' : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (p1' : Buf6 A)
+         (c_old c_new : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TLeft p1 c_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    (* The upstream stored-pop gave us [b] from [c_old] leaving residue [c_new]: *)
+    cad_to_list_base c_old =
+      buf6_to_list b ++ cad_to_list_base c_new ->
+    cad_to_list_base qA
+    = x :: buf6_to_list p1' ++ buf6_to_list b
+          ++ cad_to_list_base c_new
+          ++ buf6_to_list s1.
+Proof.
+  intros A H lA ls lc' ltA p1 lc_old s1 b x p1' c_old c_new qA
+         HrepA HqAeq Hpop Hc_old.
+  subst qA.
+  apply buf6_pop_seq_some in Hpop.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  change (cad_to_list (fun y : A => [y]) c_old)
+    with (cad_to_list_base c_old).
+  change (cad_to_list (fun y : A => [y]) c_new)
+    with (cad_to_list_base c_new).
+  rewrite Hc_old.
+  unfold buf6_to_list in *.
+  rewrite Hpop. cbn. rewrite <- !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA lc' ls : Loc) (p1 : Buf6 A)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (s1' : Buf6 A)
+         (c_old c_new : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TRight p1 c_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    (* The upstream stored-pop gave us [b] from [c_old] leaving residue [c_new]: *)
+    cad_to_list_base c_old =
+      cad_to_list_base c_new ++ buf6_to_list b ->
+    cad_to_list_base qA
+    = buf6_to_list p1 ++ cad_to_list_base c_new
+      ++ buf6_to_list b ++ buf6_to_list s1' ++ [x].
+Proof.
+  intros A H lA lc' ls p1 s1 b x s1' c_old c_new qA
+         HrepA HqAeq Hej Hc_old.
+  subst qA.
+  apply buf6_eject_seq_some in Hej.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  change (cad_to_list (fun y : A => [y]) c_old)
+    with (cad_to_list_base c_old).
+  rewrite Hc_old.
+  unfold buf6_to_list in Hej.
+  unfold buf6_to_list at 3. rewrite Hej.
+  rewrite <- !app_assoc. reflexivity.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
