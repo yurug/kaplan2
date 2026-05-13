@@ -8770,11 +8770,111 @@ Proof.
   rewrite Hpop. cbn. rewrite <- !app_assoc. reflexivity.
 Qed.
 
-(** ** Round-trip: embed then extract recovers the original.
+(** ** Global adopt6 well-formedness.
 
-    A correctness sanity check for the new cell type — confirming
-    that the basic data-structure invariant holds independently
-    of adopt6 maintenance. *)
+    Whereas [adopt6_wf_at H l] is a *local* property of a single
+    location, [adopt6_globally_wf H] says the property holds at
+    EVERY location of the heap (and that every adopt6 target is
+    allocated).
+
+    This is what lets consecutive operations compose: after one
+    repair, the next operation can still trust [adopt6] pointers
+    elsewhere in the heap. *)
+
+Definition adopt6_globally_wf {A : Type} (H : Heap (CadCellA6 A)) : Prop :=
+  forall l, adopt6_wf_at H l /\ adopt6_target_allocated H l.
+
+(** Trivial: the empty heap is globally wf.  Every location has
+    [lookup = None], so both predicates are vacuously True. *)
+
+Lemma adopt6_globally_wf_empty :
+  forall A, adopt6_globally_wf (@empty_heap (CadCellA6 A)).
+Proof.
+  intros A l. unfold adopt6_wf_at, adopt6_target_allocated.
+  unfold lookup, empty_heap. cbn. split; exact I.
+Qed.
+
+(** ** Allocation lemmas.
+
+    These compose to prove §12.4 preserves [adopt6_globally_wf]. *)
+
+(** Allocating any cell preserves global wf for pre-existing locations.
+    The newly allocated cell's wf must be argued separately. *)
+
+Lemma alloc_preserves_adopt6_globally_wf_at_old :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (c : CadCellA6 A) (l : Loc),
+    Pos.lt l (next_loc H) ->
+    adopt6_wf_at H l /\ adopt6_target_allocated H l ->
+    adopt6_wf_at (snd (alloc c H)) l /\
+    adopt6_target_allocated (snd (alloc c H)) l.
+Proof.
+  intros A H c l Hlt [Hwf Htgt].
+  split.
+  - apply adopt6_wf_at_alloc_extends; assumption.
+  - unfold adopt6_target_allocated in *.
+    rewrite lookup_after_alloc;
+      [|intro Heq; rewrite Heq in Hlt; apply Pos.lt_irrefl in Hlt; exact Hlt].
+    destruct (lookup H l) as [cell|]; [|exact I].
+    destruct cell; try exact I.
+    + (* CadSingle *)
+      eapply Pos.lt_trans; [exact Htgt|].
+      unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+    + (* CadDouble *)
+      eapply Pos.lt_trans; [exact Htgt|].
+      unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+Qed.
+
+(** ** Triple-cell allocation preserves global wf. *)
+
+Lemma alloc_triple_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (c : CadCellA6 A),
+    (match c with
+     | CCa6_TripleOnly _ _ _ | CCa6_TripleLeft _ _ _ | CCa6_TripleRight _ _ _ => True
+     | _ => False
+     end) ->
+    adopt6_globally_wf H ->
+    adopt6_globally_wf (snd (alloc c H)).
+Proof.
+  intros A H c Hc_triple Hwf l.
+  destruct (loc_eq_dec l (next_loc H)) as [Heq|Hne].
+  - (* l = next_loc H : the freshly allocated triple cell *)
+    subst l.
+    assert (Hnew : lookup (snd (alloc c H)) (next_loc H) = Some c)
+      by apply alloc_lookup_self.
+    split.
+    + unfold adopt6_wf_at. rewrite Hnew.
+      destruct c; cbn in Hc_triple; try contradiction; exact I.
+    + unfold adopt6_target_allocated. rewrite Hnew.
+      destruct c; cbn in Hc_triple; try contradiction; exact I.
+  - (* l ≠ next_loc H : content unchanged from H *)
+    specialize (Hwf l).
+    destruct Hwf as [Hwf_at Htgt].
+    split.
+    + unfold adopt6_wf_at in *.
+      rewrite lookup_after_alloc; [|exact Hne].
+      destruct (lookup H l) as [cell|] eqn:Hlk; [|exact I].
+      destruct cell; try exact I.
+      * (* CadSingle *) unfold adopt6_target_is_triple in *.
+        destruct (loc_eq_dec l1 (next_loc H)) as [Heq_t|Hne_t].
+        -- subst l1. rewrite alloc_lookup_self.
+           destruct c; cbn in Hc_triple; try contradiction; exact I.
+        -- rewrite lookup_after_alloc; [exact Hwf_at|exact Hne_t].
+      * (* CadDouble *) unfold adopt6_target_is_triple in *.
+        destruct (loc_eq_dec l2 (next_loc H)) as [Heq_t|Hne_t].
+        -- subst l2. rewrite alloc_lookup_self.
+           destruct c; cbn in Hc_triple; try contradiction; exact I.
+        -- rewrite lookup_after_alloc; [exact Hwf_at|exact Hne_t].
+    + unfold adopt6_target_allocated in *.
+      rewrite lookup_after_alloc; [|exact Hne].
+      destruct (lookup H l) as [cell|] eqn:Hlk; [|exact I].
+      destruct cell; try exact I.
+      * (* CadSingle *)
+        eapply Pos.lt_trans; [exact Htgt|].
+        unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+      * (* CadDouble *)
+        eapply Pos.lt_trans; [exact Htgt|].
+        unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+Qed.
 
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
