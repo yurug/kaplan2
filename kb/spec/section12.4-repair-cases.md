@@ -55,6 +55,16 @@ last-updated: 2026-05-13
   Self-contained — caller doesn't need to pre-compute the merged
   buffer.
 
+**Headline single-call operations** (NEW):
+- `cad_pop_full_repair_1b_left_imp_a6   : Loc -> Loc -> Loc -> MC ...`
+- `cad_eject_full_repair_1b_right_imp_a6 : Loc -> Loc -> Loc -> MC ...`
+
+Each takes only `(lA, ls, lc')` and does everything inline:
+read outer cadeque + outer triple + buf6_pop/eject + read stored
++ compute merged buffer + apply §12.4 Case 1b repair.
+
+WC = 5 = 3 reads + 2 allocs.  This is the user-facing API.
+
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
   parameters get assembled in O(1) too).  Note this can also be
