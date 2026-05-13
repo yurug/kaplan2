@@ -8966,6 +8966,188 @@ Proof.
   rewrite <- HH. exact Hres.
 Qed.
 
+(** ** All 8 §12.4 repair operations preserve global adopt6 wf.
+
+    Each op has the same structure: allocate a TripleX (TripleOnly /
+    TripleLeft / TripleRight), then allocate a CadSingle with
+    adopt6 pointing to the new triple.  So all 8 cases reduce to
+    the same composition pattern. *)
+
+Theorem repair_case_1a_left_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_1a_left_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p3 ld3 s1 H' l' k Hwf Hop.
+  unfold repair_case_1a_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleLeft p3 ld3 s1) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_2a_only_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld3 : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_2a_only_imp_a6 p3 ld3 s1 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p3 ld3 s1 H' l' k Hwf Hop.
+  unfold repair_case_2a_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleOnly p3 ld3 s1) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_2b_only_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_2b_only_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p1 ld3 s3 H' l' k Hwf Hop.
+  unfold repair_case_2b_only_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleOnly p1 ld3 s3) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_2c_only_empty_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (ld2 : Loc)
+         (s4 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_2c_only_empty_imp_a6 p3 ld2 s4 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p3 ld2 s4 H' l' k Hwf Hop.
+  unfold repair_case_2c_only_empty_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_2c_only_twosided_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p_left : Buf6 A) (lchild : Loc)
+         (s_right : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_2c_only_twosided_imp_a6 p_left lchild s_right H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p_left lchild s_right H' l' k Hwf Hop.
+  unfold repair_case_2c_only_twosided_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleOnly p_left lchild s_right) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_1a_right_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ld3 : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_1a_right_imp_a6 p1 ld3 s3 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p1 ld3 s3 H' l' k Hwf Hop.
+  unfold repair_case_1a_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleRight p1 ld3 s3) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
+Theorem repair_case_1b_right_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (lc' : Loc)
+         (s3 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_1b_right_imp_a6 p1 lc' s3 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p1 lc' s3 H' l' k Hwf Hop.
+  unfold repair_case_1b_right_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleRight p1 lc' s3) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
