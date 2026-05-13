@@ -74,20 +74,22 @@ WC = 5 = 3 reads + 2 allocs.  This is the user-facing API.
   (requires the c_old = b ++ c_new hypothesis from upstream).
 - Symmetric `cad_eject_full_repair_1b_right_imp_a6_list_correct`.
 
-**Cases 1a / 2a / 2b / 2c-empty headline ops** (NEW):
+**Cases 1a / 2a / 2b / 2c-empty / 2c-twosided headline ops** (NEW):
 - `cad_pop_full_repair_1a_left_imp_a6 (lA ls ld3)`: TLeft + big-both-nonempty stored.
 - `cad_pop_full_repair_2a_only_imp_a6 (lA ls ld3)`: TOnly + large suffix.
 - `cad_eject_full_repair_2b_only_imp_a6 (lA ld3 ls)`: TOnly + large prefix.
 - `cad_pop_full_repair_2c_empty_imp_a6 (lA ls)`: TOnly + both small + d1' empty.
+- `cad_pop_full_repair_2c_twosided_imp_a6 (lA ls_head ls_tail lc_residue)`: TOnly + both small + non-empty residue (WC ≤ 6, reads 2 storeds).
 
-Each WC ≤ 5 with full correctness matrix:
+Each WC ≤ 5 (or ≤ 6 for 2c-twosided) with full correctness matrix:
   - WC O(1) cost theorem
   - Termination wrapper
   - Sequence-correctness theorem
   - List-level refinement (popped-element law)
 
-These close the correctness story for 6 of the 7 §12.4 paths
-(Cases 1b, 1a, 2a, 2b, 2c-empty + Case 1b eject-side mirror).
+**All 7 §12.4 paths now have correctness-complete headline ops:**
+  pop:   1b-left, 1a-left, 2a-only, 2c-empty, 2c-twosided
+  eject: 1b-right, 2b-only
 
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
