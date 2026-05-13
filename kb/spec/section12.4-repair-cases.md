@@ -2,9 +2,36 @@
 id: section12.4-repair-cases
 domain: spec
 related: [section4-repair-cases, phase-4b-imperative-dsl, why-catenable, plan-catenable]
-status: design-stable
+status: implementation-landed
 last-updated: 2026-05-13
 ---
+
+## Status (2026-05-13)
+
+**Abstract layer landed** in `rocq/KTDeque/Cadeque6/RepairS12.v`:
+- 5 pop-side case functions (`repair_case_1a_left`, `1b_left`, `2a_only`,
+  `2b_only`, `2c_only_empty`, `2c_only_twosided`).
+- 2 eject-side mirrors (`1a_right`, `1b_right`).
+- All with sequence-preservation lemmas.
+
+**Operational layer landed** in `rocq/KTDeque/Cadeque6/Adopt6.v`:
+- 8 imperative repair cases (the same 8 abstract cases), each
+  allocating exactly 2 cells (TripleX + CadSingle wrapper).
+- WC O(1) cost = 2 each.
+- Sequence-correctness theorems linking to `heap_represents_cad_a6`.
+- 3 refinement bridges (1b-left, 1b-right, 2c-empty) connecting
+  operational results to the abstract RepairS12 cases.
+- Case-selection logic (`select_repair_case`) dispatching by outer
+  kind + popped class + buffer sizes + d1' emptiness.
+- Unified `repair_replace_imp_a6` dispatcher.
+
+**What remains** (not blocking §12.4 itself):
+- Wiring §12.4 into the actual `cad_pop_imp_a6` / `cad_eject_imp_a6`
+  cascade (the operational layer needs the upstream stored-pop +
+  inner-concat to feed the right pointers into the repair cases).
+- Regularity preservation (depends on the colour-discipline
+  invariant in `Cadeque6/Regularity.v`).
+
 
 # Section-12.4 repair cases — design doc for the catenable cadeque pop/eject repair
 

@@ -56,17 +56,27 @@ last-updated: 2026-05-09
   the dispatcher reduces to each sub-op (or trivial pointer-return for
   empty).
 
-**What's still pending** beyond the cost-bound foundation:
+**§12.4 repair cases — LANDED** (NEW):
+- `Cadeque6/RepairS12.v` (new file, ~316 lines): 8 abstract repair-
+  case functions (1a-left, 1b-left, 2a-only, 2b-only, 2c-empty,
+  2c-twosided, 1a-right, 1b-right) + sequence-preservation lemmas.
+- `Cadeque6/Adopt6.v`: 8 operational repair-case functions on
+  CadCellA6, each WC O(1) (cost = 2: alloc TripleX + alloc CadSingle).
+- 3 refinement bridges from operational to abstract (1b-left,
+  1b-right, 2c-empty).
+- Unified `repair_replace_imp_a6` dispatcher.
+- `select_repair_case` case-selection logic.
+
+**What's still pending** beyond §12.4 itself:
 - Full adopt6 maintenance theorems (proving adopt6_wf_at holds
   for ALL locations in H' given it held in H — requires reasoning
   about every cell in the heap; doable but case-heavy).
-- §12.4 5 repair cases for pop/eject with non-trivial cascade:
-  detailed verbatim spec in [section12.4-repair-cases.md].  Needs
-  a stored-pop primitive + per-case proofs (~6–10 sessions).
-- Sequence-correctness for the cascade case of pop/eject when adopt6
-  points to a deeper triple (the shallow cases — adopt6 = immediate
-  triple — are all covered with flagship bundles).  Resolving this
-  needs a stronger heap_represents_cad_a6 relation that honors adopt6.
+- Wiring §12.4 into the actual `cad_pop_imp_a6` / `cad_eject_imp_a6`
+  cascade.  The operational pop currently does Phase 1 (remove an
+  element) but doesn't yet Phase 3-repair.  Needs upstream
+  stored-pop + inner-concat machinery.
+- Regularity preservation depends on the colour-discipline
+  invariant in `Cadeque6/Regularity.v`.
 
 ## Why this exists
 
