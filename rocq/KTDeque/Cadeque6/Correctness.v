@@ -54,4 +54,4 @@
 *)
 
 From KTDeque.Cadeque6 Require Export
-  Model OpsAbstract Color Regularity Repair Cost HeapCells OpsImperative Adopt6.
+  Model OpsAbstract Color Regularity Repair RepairS12 Cost HeapCells OpsImperative Adopt6.

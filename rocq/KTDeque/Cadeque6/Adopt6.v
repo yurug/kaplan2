@@ -59,7 +59,7 @@ Import ListNotations.
 
 From KTDeque.Common Require Import FinMapHeap CostMonad.
 From KTDeque.Buffer6 Require Import SizedBuffer.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract RepairS12.
 
 (** ** [CadCellA6]: cell type with adopt6 shortcut.
 
@@ -6661,6 +6661,99 @@ Proof.
     unfold REPAIR_REPLACE_COST, REPAIR_1B_LEFT_COST in *. lia.
   - eapply repair_case_1b_right_imp_a6_WC_O1 in Hcost.
     unfold REPAIR_REPLACE_COST, REPAIR_1B_RIGHT_COST in *. lia.
+Qed.
+
+(** ** Bridge: operational Case 1b ↔ abstract RepairS12 Case 1b.
+
+    The operational [repair_case_1b_left_imp_a6 p3 lc' s1] produces
+    a heap representation [CSingle (TLeft p3 c' s1)] where [c'] is
+    the cadeque represented at [lc'].  The abstract
+    [repair_case_1b_left p1 s1 popped_xs d1'] with
+    [p3 = mkBuf6 (buf6_elems p1 ++ popped_xs)] and [d1' = c']
+    produces the same [TLeft] triple.  Hence the operational
+    produces a singleton wrapping the abstract repair's triple. *)
+
+Theorem repair_case_1b_left_imp_a6_refines_abstract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 s1 : Buf6 A)
+         (popped_xs : list A) (lc' : Loc) (c' : Cadeque A),
+    heap_represents_cad_a6 H lc' c' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    let p3 := mkBuf6 (buf6_elems p1 ++ popped_xs) in
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft p3 lc' s1) H)))) ->
+    forall H' l' k,
+      repair_case_1b_left_imp_a6 p3 lc' s1 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l'
+        (CSingle (repair_case_1b_left p1 s1 popped_xs c')).
+Proof.
+  intros A H p1 s1 popped_xs lc' c' Hrep Hwf_cad Hwf_trip p3
+         Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1b_left, p3.
+  eapply repair_case_1b_left_imp_a6_seq; eassumption.
+Qed.
+
+(** ** Bridge: operational Case 1b right ↔ abstract Case 1b right. *)
+
+Theorem repair_case_1b_right_imp_a6_refines_abstract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 s1 : Buf6 A)
+         (popped_xs : list A) (lc' : Loc) (c' : Cadeque A),
+    heap_represents_cad_a6 H lc' c' ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    let s3 := mkBuf6 (popped_xs ++ buf6_elems s1) in
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 lc' s3) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' s3) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 lc' s3) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' s3) H)))) ->
+    forall H' l' k,
+      repair_case_1b_right_imp_a6 p1 lc' s3 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l'
+        (CSingle (repair_case_1b_right p1 s1 popped_xs c')).
+Proof.
+  intros A H p1 s1 popped_xs lc' c' Hrep Hwf_cad Hwf_trip s3
+         Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_1b_right, s3.
+  eapply repair_case_1b_right_imp_a6_seq; eassumption.
+Qed.
+
+(** ** Bridge: operational Case 2c-empty ↔ abstract Case 2c-empty. *)
+
+Theorem repair_case_2c_only_empty_imp_a6_refines_abstract :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 s1 : Buf6 A)
+         (p2 s2 : list A) (ld2 : Loc) (d2 : Cadeque A),
+    heap_represents_cad_a6 H ld2 d2 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    let p3 := mkBuf6 (buf6_elems p1 ++ p2) in
+    let s4 := mkBuf6 (s2 ++ buf6_elems s1) in
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p3 ld2 s4) H)))) ->
+    forall H' l' k,
+      repair_case_2c_only_empty_imp_a6 p3 ld2 s4 H = Some (H', l', k) ->
+      heap_represents_cad_a6 H' l'
+        (CSingle (repair_case_2c_only_empty p1 s1 p2 s2 d2)).
+Proof.
+  intros A H p1 s1 p2 s2 ld2 d2 Hrep Hwf_cad Hwf_trip p3 s4
+         Hwf_cad' Hwf_trip' H' l' k Hop.
+  unfold repair_case_2c_only_empty, p3, s4.
+  eapply repair_case_2c_only_empty_imp_a6_seq; eassumption.
 Qed.
 
 (** ** Round-trip: embed then extract recovers the original.
