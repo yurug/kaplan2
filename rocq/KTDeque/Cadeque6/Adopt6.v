@@ -7281,6 +7281,112 @@ Proof.
       [|contradiction]. exact I.
 Qed.
 
+(** ** Termination wrappers for composed pop/eject + repair. *)
+
+Theorem cad_pop_repair_1b_left_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_1b_left_imp_a6 lA new_pre new_lc new_suf H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H lA new_pre new_lc new_suf H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_1b_left_imp_a6 lA new_pre new_lc new_suf) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_1b_left_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_repair_1a_left_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_1a_left_imp_a6 lA new_pre ld3 s1 H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_1A_LEFT_COST.
+Proof.
+  intros A H lA new_pre ld3 s1 H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_1a_left_imp_a6 lA new_pre ld3 s1) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_1a_left_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_repair_2a_only_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_2a_only_imp_a6 lA new_pre ld3 s1 H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA new_pre ld3 s1 H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_2a_only_imp_a6 lA new_pre ld3 s1) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_2a_only_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_repair_2b_only_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (ld3 : Loc) (new_suf : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_2b_only_imp_a6 lA p1 ld3 new_suf H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA p1 ld3 new_suf H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_2b_only_imp_a6 lA p1 ld3 new_suf) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_2b_only_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_repair_2c_empty_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld2 : Loc) (new_suf : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_2c_empty_imp_a6 lA new_pre ld2 new_suf H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA new_pre ld2 new_suf H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_2c_empty_imp_a6 lA new_pre ld2 new_suf) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_2c_empty_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_pop_repair_2c_twosided_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p_left : Buf6 A) (lchild : Loc) (s_right : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_repair_2c_twosided_imp_a6 lA p_left lchild s_right H = Some (H', r, k) ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA p_left lchild s_right H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_repair_2c_twosided_imp_a6 lA p_left lchild s_right) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_repair_2c_twosided_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_repair_1a_right_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (ld3 : Loc) (s3 : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_repair_1a_right_imp_a6 lA p1 ld3 s3 H = Some (H', r, k) ->
+    k <= CAD_EJECT_REPAIR_COST.
+Proof.
+  intros A H lA p1 ld3 s3 H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_repair_1a_right_imp_a6 lA p1 ld3 s3) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_repair_1a_right_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_repair_1b_right_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_repair_1b_right_imp_a6 lA p1 new_lc new_suf H = Some (H', r, k) ->
+    k <= CAD_EJECT_REPAIR_COST.
+Proof.
+  intros A H lA p1 new_lc new_suf H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_repair_1b_right_imp_a6 lA p1 new_lc new_suf) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_repair_1b_right_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
