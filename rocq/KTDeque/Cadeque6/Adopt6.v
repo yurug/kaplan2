@@ -9437,6 +9437,329 @@ Proof.
     (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')).
 Qed.
 
+(** ** Eject-side headline ops for the remaining §12.4 cases.
+
+    Symmetric to the pop-side: eject an element from s1 instead of
+    popping from p1, and apply the eject-mirror §12.4 case. *)
+
+Definition cad_eject_full_repair_2a_only_imp_a6 {A : Type}
+    (lA ld3 ls : Loc)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadSingle ltA _ =>
+        bindC (read_MC ltA) (fun tA =>
+          match tA with
+          | CCa6_TripleOnly p1 _ s1 =>
+              match buf6_eject s1 with
+              | Some (s1', x) =>
+                  bindC (read_stored_big_imp_a6 ls) (fun mt =>
+                    match mt with
+                    | None => retC None
+                    | Some (_, _, s3) =>
+                        let new_suf := buf6_concat s3 s1' in
+                        bindC (repair_case_2a_only_imp_a6 p1 ld3 new_suf) (fun lr =>
+                          retC (Some (lr, x)))
+                    end)
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_FULL_REPAIR_2A_ONLY_COST : nat := 5.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ld3 ls : Loc) (k : nat),
+    cost_of (cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls) H = Some k ->
+    k <= CAD_EJECT_FULL_REPAIR_2A_ONLY_COST.
+Proof.
+  intros A H lA ld3 ls k Hcost.
+  unfold cad_eject_full_repair_2a_only_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2A_ONLY_COST; lia).
+  destruct (lookup H l) as [tA|]; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2A_ONLY_COST; lia).
+  destruct (buf6_eject b0) as [[s1' x]|];
+    [|injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2A_ONLY_COST; lia].
+  cbn in Hcost.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs; cbn in Hcost;
+    unfold repair_case_2a_only_imp_a6, bindC, alloc_MC, retC in Hcost;
+    cbn in Hcost;
+    injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2A_ONLY_COST; lia.
+Qed.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ld3 ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls H = Some (H', r, k) ->
+    k <= CAD_EJECT_FULL_REPAIR_2A_ONLY_COST.
+Proof.
+  intros A H lA ld3 ls H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_full_repair_2a_only_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ld3 ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ld3 ls H' r k Hwf Hop.
+  unfold cad_eject_full_repair_2a_only_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_eject s1) as [[s1' x]|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p3 ld3st s3];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')).
+Qed.
+
+(** Eject-side 2c-empty. *)
+
+Definition cad_eject_full_repair_2c_empty_imp_a6 {A : Type}
+    (lA ls : Loc)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadSingle ltA _ =>
+        bindC (read_MC ltA) (fun tA =>
+          match tA with
+          | CCa6_TripleOnly p1 _ s1 =>
+              match buf6_eject s1 with
+              | Some (s1', x) =>
+                  bindC (read_stored_big_imp_a6 ls) (fun mt =>
+                    match mt with
+                    | None => retC None
+                    | Some (p2, ld2, s2) =>
+                        let new_pre := buf6_concat p1 p2 in
+                        let new_suf := buf6_concat s2 s1' in
+                        bindC (repair_case_2c_only_empty_imp_a6 new_pre ld2 new_suf) (fun lr =>
+                          retC (Some (lr, x)))
+                    end)
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST : nat := 5.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls : Loc) (k : nat),
+    cost_of (cad_eject_full_repair_2c_empty_imp_a6 lA ls) H = Some k ->
+    k <= CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST.
+Proof.
+  intros A H lA ls k Hcost.
+  unfold cad_eject_full_repair_2c_empty_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST; lia).
+  destruct (lookup H l) as [tA|]; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST; lia).
+  destruct (buf6_eject b0) as [[s1' x]|];
+    [|injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST; lia].
+  cbn in Hcost.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs; cbn in Hcost;
+    unfold repair_case_2c_only_empty_imp_a6, bindC, alloc_MC, retC in Hcost;
+    cbn in Hcost;
+    injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST; lia.
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_full_repair_2c_empty_imp_a6 lA ls H = Some (H', r, k) ->
+    k <= CAD_EJECT_FULL_REPAIR_2C_EMPTY_COST.
+Proof.
+  intros A H lA ls H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_full_repair_2c_empty_imp_a6 lA ls) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_full_repair_2c_empty_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_eject_full_repair_2c_empty_imp_a6 lA ls H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls H' r k Hwf Hop.
+  unfold cad_eject_full_repair_2c_empty_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_eject s1) as [[s1' x]|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p2 ld2 s2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly (buf6_concat p1 p2) ld2 (buf6_concat s2 s1')).
+Qed.
+
+(** Eject-side 2c-twosided. *)
+
+Definition cad_eject_full_repair_2c_twosided_imp_a6 {A : Type}
+    (lA ls_head ls_tail lc_residue : Loc)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadSingle ltA _ =>
+        bindC (read_MC ltA) (fun tA =>
+          match tA with
+          | CCa6_TripleOnly p1 _ s1 =>
+              match buf6_eject s1 with
+              | Some (s1', x) =>
+                  bindC (read_stored_small_imp_a6 ls_head) (fun mb_head =>
+                    match mb_head with
+                    | None => retC None
+                    | Some b_head =>
+                        bindC (read_stored_small_imp_a6 ls_tail) (fun mb_tail =>
+                          match mb_tail with
+                          | None => retC None
+                          | Some b_tail =>
+                              let new_pre := buf6_concat p1 b_head in
+                              let new_suf := buf6_concat b_tail s1' in
+                              bindC (repair_case_2c_only_twosided_imp_a6
+                                       new_pre lc_residue new_suf) (fun lr =>
+                                retC (Some (lr, x)))
+                          end)
+                    end)
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST : nat := 6.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (k : nat),
+    cost_of (cad_eject_full_repair_2c_twosided_imp_a6
+               lA ls_head ls_tail lc_residue) H = Some k ->
+    k <= CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue k Hcost.
+  unfold cad_eject_full_repair_2c_twosided_imp_a6,
+         cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST; lia).
+  destruct (lookup H l) as [tA|]; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST; lia).
+  destruct (buf6_eject b0) as [[s1' x]|];
+    [|injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST; lia].
+  cbn in Hcost.
+  unfold read_stored_small_imp_a6 at 1, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls_head) as [cs_h|]; [|discriminate].
+  destruct cs_h; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST; lia).
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls_tail) as [cs_t|]; [|discriminate].
+  destruct cs_t; cbn in Hcost;
+    unfold repair_case_2c_only_twosided_imp_a6, bindC, alloc_MC, retC in Hcost;
+    cbn in Hcost;
+    injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST; lia.
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+    = Some (H', r, k) ->
+    k <= CAD_EJECT_FULL_REPAIR_2C_TWOSIDED_COST.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_full_repair_2c_twosided_imp_a6
+                             lA ls_head ls_tail lc_residue) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_full_repair_2c_twosided_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_eject_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+    = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue H' r k Hwf Hop.
+  unfold cad_eject_full_repair_2c_twosided_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_eject s1) as [[s1' x]|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_small_imp_a6 at 1, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls_head) as [cs_h|]; [|discriminate].
+  destruct cs_h as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_head|cBb_p' cBb_l' cBb_s'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls_tail) as [cs_t|]; [|discriminate].
+  destruct cs_t as [cT_p'' cT_l'' cT_s''|cL_p'' cL_l'' cL_s''|cR_p'' cR_l'' cR_s''
+                 |  |cS_t'' cS_a''|cD_l'' cD_r'' cD_a''|b_tail|cBb_p'' cBb_l'' cBb_s''];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')).
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
