@@ -38,7 +38,7 @@ From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From KTDeque.Buffer6 Require Import SizedBuffer SmallMoves.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract Repair.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract Repair Color.
 
 (** ** Helper: [cad_to_list] of [cad_from_list] is identity. *)
 
@@ -314,3 +314,184 @@ Inductive repair_case_tag : Type :=
 | RC_2b
 | RC_2c_empty
 | RC_2c_twosided.
+
+(** ** Regularity preservation: §12.4 cases produce Green4 triples.
+
+    Each repair case is *designed* to produce a green replacement
+    for the red tail.  Formally: under per-case size hypotheses on
+    the merged buffers, the result has [triple_color = Green4].
+
+    The size hypotheses encode the KT99 invariant: when §12.4
+    applies, the buffers being merged are large enough that the
+    result lands in the "green" size range (≥ 8 or = 0..4). *)
+
+(** Helper: when a buffer has 8+ elements, its colour is Green4. *)
+
+Lemma buf6_color_green_of_large :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size b >= 8 ->
+    buf6_color b = Green4.
+Proof.
+  intros X b H8.
+  unfold buf6_color.
+  destruct (buf6_size b) as [|n] eqn:Hsize; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [lia|].
+  destruct n; [lia|].
+  destruct n; [lia|].
+  reflexivity.
+Qed.
+
+(** Helper: when a buffer has 0..4 elements, its colour is also Green4
+    (the "very small" range — outside Red/Orange/Yellow). *)
+
+Lemma buf6_color_green_of_small :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size b <= 4 ->
+    buf6_color b = Green4.
+Proof.
+  intros X b H4.
+  unfold buf6_color.
+  destruct (buf6_size b) as [|n] eqn:Hsize; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  destruct n; [reflexivity|].
+  lia.
+Qed.
+
+(** Case 1b-left: result is Green4 if either the child is empty
+    or the merged prefix is large (≥ 8). *)
+
+Theorem repair_case_1b_left_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (popped_xs : list X) (d1' : Cadeque X),
+    (d1' = CEmpty \/ length (buf6_elems p1 ++ popped_xs) >= 8) ->
+    triple_color (repair_case_1b_left p1 s1 popped_xs d1') = Green4.
+Proof.
+  intros X p1 s1 popped_xs d1' Hcase.
+  unfold repair_case_1b_left, triple_color.
+  destruct Hcase as [Hempty|Hlarge].
+  - subst d1'. reflexivity.
+  - destruct d1' as [|t|tL tR]; [reflexivity| |];
+    rewrite buf6_color_green_of_large;
+      [reflexivity|unfold buf6_size, buf6_elems; exact Hlarge
+       |reflexivity|unfold buf6_size, buf6_elems; exact Hlarge].
+Qed.
+
+(** Case 1b-right: symmetric, Green4 if child is empty or merged suffix is large. *)
+
+Theorem repair_case_1b_right_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (popped_xs : list X) (d1' : Cadeque X),
+    (d1' = CEmpty \/ length (popped_xs ++ buf6_elems s1) >= 8) ->
+    triple_color (repair_case_1b_right p1 s1 popped_xs d1') = Green4.
+Proof.
+  intros X p1 s1 popped_xs d1' Hcase.
+  unfold repair_case_1b_right, triple_color.
+  destruct Hcase as [Hempty|Hlarge].
+  - subst d1'. reflexivity.
+  - destruct d1' as [|t|tL tR]; [reflexivity| |];
+    rewrite buf6_color_green_of_large;
+      [reflexivity|unfold buf6_size, buf6_elems; exact Hlarge
+       |reflexivity|unfold buf6_size, buf6_elems; exact Hlarge].
+Qed.
+
+(** Case 1a-left: result is TLeft.  Green4 under same conditions. *)
+
+Theorem repair_case_1a_left_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (p2 : list X) (d3 : Cadeque X),
+    (d3 = CEmpty \/ length (buf6_elems p1 ++ p2) >= 8) ->
+    triple_color (repair_case_1a_left p1 s1 p2 d3) = Green4.
+Proof.
+  intros X p1 s1 p2 d3 Hcase.
+  unfold repair_case_1a_left, triple_color.
+  destruct Hcase as [Hempty|Hlarge].
+  - subst d3. reflexivity.
+  - destruct d3 as [|t|tL tR]; [reflexivity| |];
+    rewrite buf6_color_green_of_large;
+      [reflexivity|unfold buf6_size, buf6_elems; exact Hlarge
+       |reflexivity|unfold buf6_size, buf6_elems; exact Hlarge].
+Qed.
+
+Theorem repair_case_1a_right_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (s3 : list X) (d3 : Cadeque X),
+    (d3 = CEmpty \/ length (s3 ++ buf6_elems s1) >= 8) ->
+    triple_color (repair_case_1a_right p1 s1 s3 d3) = Green4.
+Proof.
+  intros X p1 s1 s3 d3 Hcase.
+  unfold repair_case_1a_right, triple_color.
+  destruct Hcase as [Hempty|Hlarge].
+  - subst d3. reflexivity.
+  - destruct d3 as [|t|tL tR]; [reflexivity| |];
+    rewrite buf6_color_green_of_large;
+      [reflexivity|unfold buf6_size, buf6_elems; exact Hlarge
+       |reflexivity|unfold buf6_size, buf6_elems; exact Hlarge].
+Qed.
+
+(** Case 2a-only: TOnly with new prefix.  Green4 if child empty OR both
+    merged buffers (the new pre and existing s1) are out of Red/Orange/Yellow
+    sizes. *)
+
+Theorem repair_case_2a_only_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (p2 : list X) (d3 : Cadeque X),
+    (d3 = CEmpty \/
+     (length (buf6_elems p1 ++ p2) >= 8 /\ buf6_size s1 >= 8)) ->
+    triple_color (repair_case_2a_only p1 s1 p2 d3) = Green4.
+Proof.
+  intros X p1 s1 p2 d3 Hcase.
+  unfold repair_case_2a_only, triple_color.
+  destruct Hcase as [Hempty|[Hpre Hsuf]].
+  - subst d3. reflexivity.
+  - destruct d3 as [|t|tL tR]; [reflexivity| |];
+      (rewrite buf6_color_green_of_large; [|unfold buf6_size, buf6_elems; exact Hpre]);
+      (rewrite buf6_color_green_of_large; [reflexivity|exact Hsuf]).
+Qed.
+
+Theorem repair_case_2b_only_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (s3 : list X) (d3 : Cadeque X),
+    (d3 = CEmpty \/
+     (buf6_size p1 >= 8 /\ length (s3 ++ buf6_elems s1) >= 8)) ->
+    triple_color (repair_case_2b_only p1 s1 s3 d3) = Green4.
+Proof.
+  intros X p1 s1 s3 d3 Hcase.
+  unfold repair_case_2b_only, triple_color.
+  destruct Hcase as [Hempty|[Hpre Hsuf]].
+  - subst d3. reflexivity.
+  - destruct d3 as [|t|tL tR]; [reflexivity| |];
+      (rewrite buf6_color_green_of_large; [|exact Hpre]);
+      (rewrite buf6_color_green_of_large; [reflexivity|unfold buf6_size, buf6_elems; exact Hsuf]).
+Qed.
+
+Theorem repair_case_2c_only_empty_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (p2 s2 : list X) (d2 : Cadeque X),
+    (d2 = CEmpty \/
+     (length (buf6_elems p1 ++ p2) >= 8 /\
+      length (s2 ++ buf6_elems s1) >= 8)) ->
+    triple_color (repair_case_2c_only_empty p1 s1 p2 s2 d2) = Green4.
+Proof.
+  intros X p1 s1 p2 s2 d2 Hcase.
+  unfold repair_case_2c_only_empty, triple_color.
+  destruct Hcase as [Hempty|[Hpre Hsuf]].
+  - subst d2. reflexivity.
+  - destruct d2 as [|t|tL tR]; [reflexivity| |];
+      (rewrite buf6_color_green_of_large; [|unfold buf6_size, buf6_elems; exact Hpre]);
+      (rewrite buf6_color_green_of_large; [reflexivity|unfold buf6_size, buf6_elems; exact Hsuf]).
+Qed.
+
+Theorem repair_case_2c_only_twosided_green :
+  forall (X : Type) (p1 s1 : Buf6 X) (p_left s_right : list X) (child : Cadeque X),
+    (child = CEmpty \/
+     (length (buf6_elems p1 ++ p_left) >= 8 /\
+      length (s_right ++ buf6_elems s1) >= 8)) ->
+    triple_color (repair_case_2c_only_twosided p1 s1 p_left s_right child) = Green4.
+Proof.
+  intros X p1 s1 p_left s_right child Hcase.
+  unfold repair_case_2c_only_twosided, triple_color.
+  destruct Hcase as [Hempty|[Hpre Hsuf]].
+  - subst child. reflexivity.
+  - destruct child as [|t|tL tR]; [reflexivity| |];
+      (rewrite buf6_color_green_of_large; [|unfold buf6_size, buf6_elems; exact Hpre]);
+      (rewrite buf6_color_green_of_large; [reflexivity|unfold buf6_size, buf6_elems; exact Hsuf]).
+Qed.
