@@ -6793,6 +6793,335 @@ Lemma select_repair_case_deterministic :
     select_repair_case k pc p1 s1 e = select_repair_case k pc p1 s1 e.
 Proof. reflexivity. Qed.
 
+(** * §12.4 END-TO-END: composed Phase-1 + Phase-3 pop/eject operations.
+
+    These compose the existing [cad_pop_imp_a6] / [cad_eject_imp_a6]
+    (Phase 1 + Phase 2: pop an element via adopt6 shortcut) with a
+    Phase 3 §12.4 repair case.  The caller supplies the repair-case
+    parameters (new buffer composition + residue child pointer):
+    these are the outputs of the upstream "pop stored from inner
+    cadeque + assemble new child" computation, which is
+    case-specific and not yet implemented here.
+
+    Each composed op runs in WC O(1) — sum of pop cost (≤ 4) +
+    repair cost (= 2) = 6 cells.
+
+    The result type: [option (A * Loc)] — the popped element plus
+    the repaired top pointer. *)
+
+(** ** Composed pop + Case 1b-left repair. *)
+
+Definition cad_pop_repair_1b_left_imp_a6 {A : Type}
+    (lA : Loc) (new_pre : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_1b_left_imp_a6 new_pre new_lc new_suf) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+Definition CAD_POP_REPAIR_1B_LEFT_COST : nat :=
+  CAD_POP_IMP_A6_COST + REPAIR_1B_LEFT_COST.
+
+Theorem cad_pop_repair_1b_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_1b_left_imp_a6 lA new_pre new_lc new_suf) H = Some k ->
+    k <= CAD_POP_REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H lA new_pre new_lc new_suf k Hcost.
+  unfold cad_pop_repair_1b_left_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_1b_left_imp_a6 new_pre new_lc new_suf H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1B_LEFT_COST).
+    { eapply repair_case_1b_left_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_1B_LEFT_COST, CAD_POP_IMP_A6_COST, REPAIR_1B_LEFT_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_1B_LEFT_COST, CAD_POP_IMP_A6_COST, REPAIR_1B_LEFT_COST in *. lia.
+Qed.
+
+(** ** Composed pop + Case 1a-left repair. *)
+
+Definition cad_pop_repair_1a_left_imp_a6 {A : Type}
+    (lA : Loc) (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_1a_left_imp_a6 new_pre ld3 s1) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+Definition CAD_POP_REPAIR_1A_LEFT_COST : nat :=
+  CAD_POP_IMP_A6_COST + REPAIR_1A_LEFT_COST.
+
+Theorem cad_pop_repair_1a_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_1a_left_imp_a6 lA new_pre ld3 s1) H = Some k ->
+    k <= CAD_POP_REPAIR_1A_LEFT_COST.
+Proof.
+  intros A H lA new_pre ld3 s1 k Hcost.
+  unfold cad_pop_repair_1a_left_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_1a_left_imp_a6 new_pre ld3 s1 H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1A_LEFT_COST).
+    { eapply repair_case_1a_left_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_1A_LEFT_COST, CAD_POP_IMP_A6_COST, REPAIR_1A_LEFT_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_1A_LEFT_COST, CAD_POP_IMP_A6_COST, REPAIR_1A_LEFT_COST in *. lia.
+Qed.
+
+(** ** Composed pop + Case 2a / 2b / 2c-empty / 2c-twosided. *)
+
+Definition cad_pop_repair_2a_only_imp_a6 {A : Type}
+    (lA : Loc) (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_2a_only_imp_a6 new_pre ld3 s1) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+Definition cad_pop_repair_2b_only_imp_a6 {A : Type}
+    (lA : Loc) (p1 : Buf6 A) (ld3 : Loc) (new_suf : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_2b_only_imp_a6 p1 ld3 new_suf) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+Definition cad_pop_repair_2c_empty_imp_a6 {A : Type}
+    (lA : Loc) (new_pre : Buf6 A) (ld2 : Loc) (new_suf : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_2c_only_empty_imp_a6 new_pre ld2 new_suf) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+Definition cad_pop_repair_2c_twosided_imp_a6 {A : Type}
+    (lA : Loc) (p_left : Buf6 A) (lchild : Loc) (s_right : Buf6 A)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (cad_pop_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (x, _) =>
+        bindC (repair_case_2c_only_twosided_imp_a6 p_left lchild s_right) (fun lresult =>
+          retC (Some (x, lresult)))
+    end).
+
+(** All four cost ≤ POP_IMP_A6_COST + 2 = 6. *)
+
+Definition CAD_POP_REPAIR_COST : nat := CAD_POP_IMP_A6_COST + 2.
+
+Theorem cad_pop_repair_2a_only_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld3 : Loc) (s1 : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_2a_only_imp_a6 lA new_pre ld3 s1) H = Some k ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA new_pre ld3 s1 k Hcost.
+  unfold cad_pop_repair_2a_only_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_2a_only_imp_a6 new_pre ld3 s1 H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_2A_ONLY_COST).
+    { eapply repair_case_2a_only_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST, REPAIR_2A_ONLY_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST in *. lia.
+Qed.
+
+Theorem cad_pop_repair_2b_only_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (ld3 : Loc) (new_suf : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_2b_only_imp_a6 lA p1 ld3 new_suf) H = Some k ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA p1 ld3 new_suf k Hcost.
+  unfold cad_pop_repair_2b_only_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_2b_only_imp_a6 p1 ld3 new_suf H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_2B_ONLY_COST).
+    { eapply repair_case_2b_only_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST, REPAIR_2B_ONLY_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST in *.
+    cbn. lia.
+Qed.
+
+Theorem cad_pop_repair_2c_empty_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (new_pre : Buf6 A) (ld2 : Loc) (new_suf : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_2c_empty_imp_a6 lA new_pre ld2 new_suf) H = Some k ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA new_pre ld2 new_suf k Hcost.
+  unfold cad_pop_repair_2c_empty_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_2c_only_empty_imp_a6 new_pre ld2 new_suf H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_2C_EMPTY_COST).
+    { eapply repair_case_2c_only_empty_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST, REPAIR_2C_EMPTY_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST in *.
+    cbn. lia.
+Qed.
+
+Theorem cad_pop_repair_2c_twosided_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p_left : Buf6 A) (lchild : Loc) (s_right : Buf6 A) (k : nat),
+    cost_of (cad_pop_repair_2c_twosided_imp_a6 lA p_left lchild s_right) H = Some k ->
+    k <= CAD_POP_REPAIR_COST.
+Proof.
+  intros A H lA p_left lchild s_right k Hcost.
+  unfold cad_pop_repair_2c_twosided_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_pop_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hpop; [|discriminate].
+  destruct r1 as [[x lq']|]; cbn in Hcost.
+  - destruct (repair_case_2c_only_twosided_imp_a6 p_left lchild s_right H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_2C_TWOSIDED_COST).
+    { eapply repair_case_2c_only_twosided_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST, REPAIR_2C_TWOSIDED_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_POP_IMP_A6_COST).
+    { eapply cad_pop_imp_a6_WC_O1. unfold cost_of. rewrite Hpop. cbn. reflexivity. }
+    unfold CAD_POP_REPAIR_COST, CAD_POP_IMP_A6_COST in *.
+    cbn. lia.
+Qed.
+
+(** ** Composed eject + Case 1a-right / 1b-right repair. *)
+
+Definition cad_eject_repair_1b_right_imp_a6 {A : Type}
+    (lA : Loc) (p1 : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (cad_eject_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (_, x) =>
+        bindC (repair_case_1b_right_imp_a6 p1 new_lc new_suf) (fun lresult =>
+          retC (Some (lresult, x)))
+    end).
+
+Definition cad_eject_repair_1a_right_imp_a6 {A : Type}
+    (lA : Loc) (p1 : Buf6 A) (ld3 : Loc) (s3 : Buf6 A)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (cad_eject_imp_a6 lA) (fun popped =>
+    match popped with
+    | None => retC None
+    | Some (_, x) =>
+        bindC (repair_case_1a_right_imp_a6 p1 ld3 s3) (fun lresult =>
+          retC (Some (lresult, x)))
+    end).
+
+Definition CAD_EJECT_REPAIR_COST : nat := CAD_EJECT_IMP_A6_COST + 2.
+
+Theorem cad_eject_repair_1b_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (new_lc : Loc) (new_suf : Buf6 A) (k : nat),
+    cost_of (cad_eject_repair_1b_right_imp_a6 lA p1 new_lc new_suf) H = Some k ->
+    k <= CAD_EJECT_REPAIR_COST.
+Proof.
+  intros A H lA p1 new_lc new_suf k Hcost.
+  unfold cad_eject_repair_1b_right_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_eject_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hej; [|discriminate].
+  destruct r1 as [[lq' x]|]; cbn in Hcost.
+  - destruct (repair_case_1b_right_imp_a6 p1 new_lc new_suf H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_EJECT_IMP_A6_COST).
+    { eapply cad_eject_imp_a6_WC_O1. unfold cost_of. rewrite Hej. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1B_RIGHT_COST).
+    { eapply repair_case_1b_right_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_EJECT_REPAIR_COST, CAD_EJECT_IMP_A6_COST, REPAIR_1B_RIGHT_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_EJECT_IMP_A6_COST).
+    { eapply cad_eject_imp_a6_WC_O1. unfold cost_of. rewrite Hej. cbn. reflexivity. }
+    unfold CAD_EJECT_REPAIR_COST, CAD_EJECT_IMP_A6_COST in *.
+    cbn. lia.
+Qed.
+
+Theorem cad_eject_repair_1a_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA : Loc)
+         (p1 : Buf6 A) (ld3 : Loc) (s3 : Buf6 A) (k : nat),
+    cost_of (cad_eject_repair_1a_right_imp_a6 lA p1 ld3 s3) H = Some k ->
+    k <= CAD_EJECT_REPAIR_COST.
+Proof.
+  intros A H lA p1 ld3 s3 k Hcost.
+  unfold cad_eject_repair_1a_right_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (cad_eject_imp_a6 lA H) as [[[H1 r1] k1]|] eqn:Hej; [|discriminate].
+  destruct r1 as [[lq' x]|]; cbn in Hcost.
+  - destruct (repair_case_1a_right_imp_a6 p1 ld3 s3 H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_EJECT_IMP_A6_COST).
+    { eapply cad_eject_imp_a6_WC_O1. unfold cost_of. rewrite Hej. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1A_RIGHT_COST).
+    { eapply repair_case_1a_right_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold CAD_EJECT_REPAIR_COST, CAD_EJECT_IMP_A6_COST, REPAIR_1A_RIGHT_COST in *. lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= CAD_EJECT_IMP_A6_COST).
+    { eapply cad_eject_imp_a6_WC_O1. unfold cost_of. rewrite Hej. cbn. reflexivity. }
+    unfold CAD_EJECT_REPAIR_COST, CAD_EJECT_IMP_A6_COST in *.
+    cbn. lia.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
