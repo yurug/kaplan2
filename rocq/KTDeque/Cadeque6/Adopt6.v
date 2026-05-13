@@ -6756,6 +6756,43 @@ Proof.
   eapply repair_case_2c_only_empty_imp_a6_seq; eassumption.
 Qed.
 
+(** ** Case selection helper.
+
+    Given the outer triple's kind tag and buffer sizes plus the
+    popped stored's class, pick the §12.4 case to apply.  This is
+    the pure case-selection logic — no heap operations. *)
+
+Inductive popped_class : Type :=
+| PC_small  (* StoredSmall b — at most one buffer non-empty *)
+| PC_big_both_nonempty (* StoredBig p d s with p ≠ [] ∧ s ≠ [] *)
+| PC_big_one_empty.    (* StoredBig p d s with p = [] ∨ s = [] *)
+
+Inductive outer_kind : Type :=
+| OK_Left
+| OK_Only.
+
+Definition select_repair_case (k : outer_kind) (pc : popped_class)
+                              (p1_size s1_size : nat)
+                              (d1'_empty : bool)
+                              : repair_case_tag :=
+  match k, pc with
+  | OK_Left, PC_big_both_nonempty => RC_1a
+  | OK_Left, _                    => RC_1b
+  | OK_Only, _ =>
+      if Nat.leb 8 s1_size then RC_2a
+      else if Nat.leb 8 p1_size then RC_2b
+      else if d1'_empty then RC_2c_empty
+      else RC_2c_twosided
+  end.
+
+(** Stability: select_repair_case returns the same value on equal
+    inputs.  Trivially true; provided as a sanity check. *)
+
+Lemma select_repair_case_deterministic :
+  forall k pc p1 s1 e,
+    select_repair_case k pc p1 s1 e = select_repair_case k pc p1 s1 e.
+Proof. reflexivity. Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
