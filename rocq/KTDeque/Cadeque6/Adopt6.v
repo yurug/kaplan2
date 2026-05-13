@@ -8876,6 +8876,96 @@ Proof.
         unfold alloc; cbn; apply Pos.lt_succ_diag_r.
 Qed.
 
+(** ** Allocating a CadSingle with adopt6 pointing to a pre-existing
+    triple preserves global wf.
+
+    The new cell's adopt6 points to some [la6] which we require to
+    be a pre-existing triple in [H].  [adopt6_target_is_triple] is
+    preserved across alloc since allocation doesn't change existing
+    cells. *)
+
+Lemma alloc_cadsingle_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lt la6 : Loc),
+    adopt6_target_is_triple H la6 ->
+    Pos.lt la6 (next_loc H) ->
+    adopt6_globally_wf H ->
+    adopt6_globally_wf (snd (alloc (CCa6_CadSingle lt la6) H)).
+Proof.
+  intros A H lt la6 Htri Hlt_la6 Hwf l.
+  destruct (loc_eq_dec l (next_loc H)) as [Heq|Hne].
+  - (* l = next_loc H : the freshly allocated CadSingle *)
+    subst l.
+    assert (Hnew : lookup (snd (alloc (CCa6_CadSingle lt la6) H)) (next_loc H)
+                   = Some (CCa6_CadSingle lt la6))
+      by apply alloc_lookup_self.
+    split.
+    + unfold adopt6_wf_at. rewrite Hnew.
+      apply adopt6_target_is_triple_alloc_extends; assumption.
+    + unfold adopt6_target_allocated. rewrite Hnew.
+      eapply Pos.lt_trans; [exact Hlt_la6|].
+      unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+  - (* l ≠ next_loc H : preserved by alloc *)
+    pose proof (Hwf l) as [Hwf_at Htgt].
+    split.
+    + unfold adopt6_wf_at in *.
+      rewrite lookup_after_alloc; [|exact Hne].
+      unfold adopt6_target_allocated in Htgt.
+      destruct (lookup H l) as [cell|] eqn:Hlk; [|exact I].
+      destruct cell; try exact I.
+      * (* CadSingle l_t l_a6 — adopt6 is l_a6 *)
+        unfold adopt6_target_is_triple in *.
+        (* From Htgt we know Pos.lt l1 (next_loc H), so l1 ≠ next_loc H *)
+        assert (Hne_t : l1 <> next_loc H).
+        { intro Heq_t. rewrite Heq_t in Htgt. apply Pos.lt_irrefl in Htgt. exact Htgt. }
+        rewrite lookup_after_alloc; [exact Hwf_at|exact Hne_t].
+      * (* CadDouble *)
+        unfold adopt6_target_is_triple in *.
+        assert (Hne_t : l2 <> next_loc H).
+        { intro Heq_t. rewrite Heq_t in Htgt. apply Pos.lt_irrefl in Htgt. exact Htgt. }
+        rewrite lookup_after_alloc; [exact Hwf_at|exact Hne_t].
+    + unfold adopt6_target_allocated in *.
+      rewrite lookup_after_alloc; [|exact Hne].
+      destruct (lookup H l) as [cell|] eqn:Hlk; [|exact I].
+      destruct cell; try exact I.
+      * eapply Pos.lt_trans; [exact Htgt|].
+        unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+      * eapply Pos.lt_trans; [exact Htgt|].
+        unfold alloc; cbn; apply Pos.lt_succ_diag_r.
+Qed.
+
+(** ** Composition: repair_case_1b_left preserves global adopt6 wf.
+
+    The repair allocates two cells:
+    1. A TripleLeft at next_loc H — preserves global wf (triple cell).
+    2. A CadSingle with adopt6 = the new TripleLeft's location —
+       preserves global wf (adopt6 target is an allocated triple
+       in the intermediate heap). *)
+
+Theorem repair_case_1b_left_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p3 : Buf6 A) (lc' : Loc)
+         (s1 : Buf6 A) (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    adopt6_globally_wf H ->
+    repair_case_1b_left_imp_a6 p3 lc' s1 H = Some (H', l', k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H p3 lc' s1 H' l' k Hwf Hop.
+  unfold repair_case_1b_left_imp_a6, bindC, alloc_MC in Hop.
+  injection Hop as HH _ _.
+  set (H1 := snd (alloc (CCa6_TripleLeft p3 lc' s1) H)) in *.
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  assert (Hres : adopt6_globally_wf
+                   (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H)) H1))).
+  { apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption. }
+  rewrite <- HH. exact Hres.
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
