@@ -65,6 +65,18 @@ read outer cadeque + outer triple + buf6_pop/eject + read stored
 
 WC = 5 = 3 reads + 2 allocs.  This is the user-facing API.
 
+**Sequence-correctness for headline ops** (NEW):
+- `cad_pop_full_repair_1b_left_imp_a6_seq` — result heap represents
+  the repaired triple `CSingle (TLeft (buf6_concat p1' b) c_new s1)`.
+- `cad_eject_full_repair_1b_right_imp_a6_seq` — symmetric for eject.
+- `cad_pop_full_repair_1b_left_imp_a6_list_correct` — canonical
+  popped-element law: `cad_to_list_base qA = x :: <repaired list>`
+  (requires the c_old = b ++ c_new hypothesis from upstream).
+- Symmetric `cad_eject_full_repair_1b_right_imp_a6_list_correct`.
+
+These close the correctness story for the Case 1b headline ops:
+WC O(1) cost AND verified sequence behaviour.
+
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
   parameters get assembled in O(1) too).  Note this can also be
