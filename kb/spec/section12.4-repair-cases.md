@@ -91,6 +91,27 @@ Each WC ≤ 5 (or ≤ 6 for 2c-twosided) with full correctness matrix:
   pop:   1b-left, 1a-left, 2a-only, 2c-empty, 2c-twosided
   eject: 1b-right, 2b-only
 
+**Global adopt6 invariant maintenance** (NEW):
+- `adopt6_globally_wf` predicate: adopt6_wf_at holds at every heap
+  location, AND every adopt6 target is allocated.
+- 3 building-block lemmas:
+  - `adopt6_globally_wf_empty` (empty heap is wf).
+  - `alloc_preserves_adopt6_globally_wf_at_old` (allocation preserves
+    wf for pre-existing locations).
+  - `alloc_triple_preserves_adopt6_globally_wf` (triple cells have
+    no adopt6 field, so allocating one preserves wf).
+  - `alloc_cadsingle_preserves_adopt6_globally_wf` (cadsingle cells
+    with adopt6 pointing to an existing triple preserve wf).
+- 8 §12.4 case preservation theorems showing all 8 operational
+  repair cases preserve global adopt6 wf:
+    repair_case_NN_imp_a6_preserves_adopt6_globally_wf
+  (for NN ∈ {1a_left, 1b_left, 2a_only, 2b_only, 2c_only_empty,
+            2c_only_twosided, 1a_right, 1b_right}).
+
+This closes the consecutive-operations gap: after any §12.4 repair,
+the next operation can still safely use adopt6 pointers anywhere
+in the heap.
+
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
   parameters get assembled in O(1) too).  Note this can also be
