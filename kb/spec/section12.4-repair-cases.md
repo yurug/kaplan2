@@ -43,6 +43,18 @@ last-updated: 2026-05-13
 - 3 refinement bridges to abstract
 - 8 composed pop+repair + 8 termination wrappers
 
+**Stored-cell read primitives** (NEW):
+- `read_stored_small_imp_a6` / `read_stored_big_imp_a6`: destructure
+  StoredSmall/StoredBig cells (cost = 1 each).  Lookup characterization
+  theorems prove that when the read succeeds, the cell at the
+  pointer is of the matching shape.
+
+**Full Case 1b pipelines** (NEW):
+- `full_repair_1b_left_imp_a6` / `full_repair_1b_right_imp_a6`:
+  read the stored cell + apply §12.4 Case 1b repair, all in WC ≤ 3.
+  Self-contained — caller doesn't need to pre-compute the merged
+  buffer.
+
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
   parameters get assembled in O(1) too).  Note this can also be
