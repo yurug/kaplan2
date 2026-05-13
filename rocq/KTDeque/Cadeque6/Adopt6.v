@@ -7586,6 +7586,161 @@ Proof.
     cbn. lia.
 Qed.
 
+(** ** Fully self-contained pop-with-repair for Case 1b.
+
+    Single-call operation that takes only:
+    - [lA]: input cadeque pointer
+    - [ls]: stored cell pointer to pop (the popped piece from inner cadeque)
+    - [lc']: the residue child cadeque pointer (after popping ls from it)
+
+    and performs the full pipeline inline:
+    1. Read [lA] to get the outer CadSingle's triple pointer.
+    2. Read the outer triple (assumed TripleLeft p1 _ s1).
+    3. Pop an element from p1 to get x and p1'.
+    4. Read the stored cell at [ls] to get its buffer [b].
+    5. Compute the merged prefix [buf6_concat p1' b].
+    6. Allocate the new TripleLeft + CadSingle wrapper.
+
+    Total cost ≤ 5: 3 reads + 2 allocs.  Independent of cadeque depth.
+
+    Returns [Some (x, lresult)] where x is the popped element and
+    lresult is the repaired top pointer. *)
+
+Definition cad_pop_full_repair_1b_left_imp_a6 {A : Type}
+    (lA ls lc' : Loc)
+    : MC (CadCellA6 A) (option (A * Loc)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadSingle ltA _ =>
+        bindC (read_MC ltA) (fun tA =>
+          match tA with
+          | CCa6_TripleLeft p1 _ s1 =>
+              match buf6_pop p1 with
+              | Some (x, p1') =>
+                  bindC (read_stored_small_imp_a6 ls) (fun mb =>
+                    match mb with
+                    | None => retC None
+                    | Some b =>
+                        let new_pre := buf6_concat p1' b in
+                        bindC (repair_case_1b_left_imp_a6 new_pre lc' s1) (fun lr =>
+                          retC (Some (x, lr)))
+                    end)
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_POP_FULL_REPAIR_1B_LEFT_COST : nat := 5.
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls lc' : Loc) (k : nat),
+    cost_of (cad_pop_full_repair_1b_left_imp_a6 lA ls lc') H = Some k ->
+    k <= CAD_POP_FULL_REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H lA ls lc' k Hcost.
+  unfold cad_pop_full_repair_1b_left_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_POP_FULL_REPAIR_1B_LEFT_COST; lia).
+  (* CCa6_CadSingle case *)
+  destruct (lookup H l) as [tA|]; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_POP_FULL_REPAIR_1B_LEFT_COST; lia).
+  (* CCa6_TripleLeft case *)
+  destruct (buf6_pop b) as [[x p1']|];
+    [|injection Hcost as <-; unfold CAD_POP_FULL_REPAIR_1B_LEFT_COST; lia].
+  cbn in Hcost.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs; cbn in Hcost;
+    unfold repair_case_1b_left_imp_a6, bindC, alloc_MC, retC in Hcost;
+    cbn in Hcost;
+    injection Hcost as <-; unfold CAD_POP_FULL_REPAIR_1B_LEFT_COST; lia.
+Qed.
+
+(** Symmetric: full eject-with-repair for Case 1b on the right. *)
+
+Definition cad_eject_full_repair_1b_right_imp_a6 {A : Type}
+    (lA lc' ls : Loc)
+    : MC (CadCellA6 A) (option (Loc * A)) :=
+  bindC (read_MC lA) (fun cA =>
+    match cA with
+    | CCa6_CadSingle ltA _ =>
+        bindC (read_MC ltA) (fun tA =>
+          match tA with
+          | CCa6_TripleRight p1 _ s1 =>
+              match buf6_eject s1 with
+              | Some (s1', x) =>
+                  bindC (read_stored_small_imp_a6 ls) (fun mb =>
+                    match mb with
+                    | None => retC None
+                    | Some b =>
+                        let new_suf := buf6_concat b s1' in
+                        bindC (repair_case_1b_right_imp_a6 p1 lc' new_suf) (fun lr =>
+                          retC (Some (lr, x)))
+                    end)
+              | None => retC None
+              end
+          | _ => retC None
+          end)
+    | _ => retC None
+    end).
+
+Definition CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST : nat := 5.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lc' ls : Loc) (k : nat),
+    cost_of (cad_eject_full_repair_1b_right_imp_a6 lA lc' ls) H = Some k ->
+    k <= CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST.
+Proof.
+  intros A H lA lc' ls k Hcost.
+  unfold cad_eject_full_repair_1b_right_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST; lia).
+  destruct (lookup H l) as [tA|]; [|discriminate].
+  destruct tA; cbn in Hcost;
+    try (injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST; lia).
+  (* CCa6_TripleRight case *)
+  destruct (buf6_eject b0) as [[s1' x]|];
+    [|injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST; lia].
+  cbn in Hcost.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hcost.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs; cbn in Hcost;
+    unfold repair_case_1b_right_imp_a6, bindC, alloc_MC, retC in Hcost;
+    cbn in Hcost;
+    injection Hcost as <-; unfold CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST; lia.
+Qed.
+
+(** Termination wrappers — canonical "callable" form. *)
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls lc' : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    cad_pop_full_repair_1b_left_imp_a6 lA ls lc' H = Some (H', r, k) ->
+    k <= CAD_POP_FULL_REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H lA ls lc' H' r k Hop.
+  assert (Hcost : cost_of (cad_pop_full_repair_1b_left_imp_a6 lA ls lc') H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_pop_full_repair_1b_left_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_terminates :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lc' ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    cad_eject_full_repair_1b_right_imp_a6 lA lc' ls H = Some (H', r, k) ->
+    k <= CAD_EJECT_FULL_REPAIR_1B_RIGHT_COST.
+Proof.
+  intros A H lA lc' ls H' r k Hop.
+  assert (Hcost : cost_of (cad_eject_full_repair_1b_right_imp_a6 lA lc' ls) H = Some k).
+  { unfold cost_of. rewrite Hop. reflexivity. }
+  apply cad_eject_full_repair_1b_right_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
