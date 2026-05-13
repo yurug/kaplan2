@@ -58,7 +58,7 @@ From Stdlib Require Import List Lia.
 Import ListNotations.
 
 From KTDeque.Common Require Import FinMapHeap CostMonad.
-From KTDeque.Buffer6 Require Import SizedBuffer.
+From KTDeque.Buffer6 Require Import SizedBuffer SmallMoves.
 From KTDeque.Cadeque6 Require Import Model OpsAbstract RepairS12.
 
 (** ** [CadCellA6]: cell type with adopt6 shortcut.
@@ -7385,6 +7385,205 @@ Proof.
   assert (Hcost : cost_of (cad_eject_repair_1b_right_imp_a6 lA p1 new_lc new_suf) H = Some k).
   { unfold cost_of. rewrite Hop. reflexivity. }
   apply cad_eject_repair_1b_right_imp_a6_WC_O1 in Hcost. exact Hcost.
+Qed.
+
+(** ** Stored-cell read primitives.
+
+    These destructure [CCa6_StoredSmall] / [CCa6_StoredBig] cells in
+    the heap.  They are the building blocks for the upstream-pop
+    machinery: given a Loc pointing to a stored cell, read it and
+    return its components (buffer for Small, pre/child/suf for Big).
+
+    Cost = 1 each (one heap read). *)
+
+Definition read_stored_small_imp_a6 {A : Type} (l : Loc)
+    : MC (CadCellA6 A) (option (Buf6 A)) :=
+  bindC (read_MC l) (fun c =>
+    match c with
+    | CCa6_StoredSmall b => retC (Some b)
+    | _                  => retC None
+    end).
+
+Definition read_stored_big_imp_a6 {A : Type} (l : Loc)
+    : MC (CadCellA6 A) (option (Buf6 A * Loc * Buf6 A)) :=
+  bindC (read_MC l) (fun c =>
+    match c with
+    | CCa6_StoredBig pre lc suf => retC (Some (pre, lc, suf))
+    | _                         => retC None
+    end).
+
+Definition READ_STORED_COST : nat := 1.
+
+(** Cost: 1 read + 0 (retC) = 1. *)
+
+Theorem read_stored_small_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc) (k : nat),
+    cost_of (read_stored_small_imp_a6 l) H = Some k ->
+    k <= READ_STORED_COST.
+Proof.
+  intros A H l k Hcost.
+  unfold read_stored_small_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H l) as [c|]; [|discriminate].
+  destruct c; cbn in Hcost; injection Hcost as <-;
+    unfold READ_STORED_COST; lia.
+Qed.
+
+Theorem read_stored_big_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc) (k : nat),
+    cost_of (read_stored_big_imp_a6 l) H = Some k ->
+    k <= READ_STORED_COST.
+Proof.
+  intros A H l k Hcost.
+  unfold read_stored_big_imp_a6, cost_of, bindC, read_MC, retC in Hcost.
+  destruct (lookup H l) as [c|]; [|discriminate].
+  destruct c; cbn in Hcost; injection Hcost as <-;
+    unfold READ_STORED_COST; lia.
+Qed.
+
+(** Lookup characterization: when the read succeeds with Some _, the
+    cell at [l] in [H] is a StoredSmall/StoredBig of the matching
+    shape, and the heap is unchanged. *)
+
+Theorem read_stored_small_imp_a6_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Buf6 A)) (k : nat),
+    read_stored_small_imp_a6 l H = Some (H', r, k) ->
+    H' = H /\
+    (forall b, r = Some b -> lookup H l = Some (CCa6_StoredSmall b)) /\
+    k = 1.
+Proof.
+  intros A H l H' r k Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H l) as [c|] eqn:Hlk; [|discriminate].
+  destruct c eqn:Hc; cbn in Hop;
+    injection Hop as <- <- <-;
+    (split; [reflexivity|]); (split; [|reflexivity]);
+    intros b' Hr_eq; try discriminate Hr_eq.
+  (* Only the StoredSmall branch survives discriminate.  The goal
+     is reflexivity after destruct (lookup H l) already substituted
+     lookup H l with Some c in the goal. *)
+  injection Hr_eq as <-. reflexivity.
+Qed.
+
+Theorem read_stored_big_imp_a6_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (l : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Buf6 A * Loc * Buf6 A)) (k : nat),
+    read_stored_big_imp_a6 l H = Some (H', r, k) ->
+    H' = H /\
+    (forall pre lc suf, r = Some (pre, lc, suf) ->
+       lookup H l = Some (CCa6_StoredBig pre lc suf)) /\
+    k = 1.
+Proof.
+  intros A H l H' r k Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H l) as [c|] eqn:Hlk; [|discriminate].
+  destruct c eqn:Hc; cbn in Hop;
+    injection Hop as <- <- <-;
+    (split; [reflexivity|]); (split; [|reflexivity]);
+    intros pre' lc' suf' Hr_eq; try discriminate Hr_eq.
+  (* Only the StoredBig branch survives discriminate.  Goal is
+     reflexivity after the destruct (lookup H l) substitution. *)
+  injection Hr_eq as <- <- <-. reflexivity.
+Qed.
+
+(** ** Full pipeline: composed read-stored + §12.4 Case 1b repair.
+
+    A *self-contained* repair pipeline: given a stored cell ptr
+    [ls] (assumed to be StoredSmall holding the popped piece's
+    contents), a residue child ptr [lc'], and the outer triple's
+    prefix [p1] / suffix [s1]:
+    1. Read the stored cell at [ls] to get its buffer [b].
+    2. Compute the merged prefix [p3 = buf6_concat p1 b].
+    3. Apply §12.4 Case 1b repair with p3, lc', s1.
+
+    Cost = 1 (read) + 2 (repair) = 3.  Returns the new top loc. *)
+
+Definition full_repair_1b_left_imp_a6 {A : Type}
+    (p1 : Buf6 A) (ls : Loc) (lc' : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) (option Loc) :=
+  bindC (read_stored_small_imp_a6 ls) (fun mb =>
+    match mb with
+    | None   => retC None
+    | Some b =>
+        let p3 := buf6_concat p1 b in
+        bindC (repair_case_1b_left_imp_a6 p3 lc' s1) (fun lr =>
+          retC (Some lr))
+    end).
+
+Definition FULL_REPAIR_1B_LEFT_COST : nat := READ_STORED_COST + REPAIR_1B_LEFT_COST.
+
+Theorem full_repair_1b_left_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (ls lc' : Loc)
+         (s1 : Buf6 A) (k : nat),
+    cost_of (full_repair_1b_left_imp_a6 p1 ls lc' s1) H = Some k ->
+    k <= FULL_REPAIR_1B_LEFT_COST.
+Proof.
+  intros A H p1 ls lc' s1 k Hcost.
+  unfold full_repair_1b_left_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (read_stored_small_imp_a6 ls H) as [[[H1 mb] k1]|] eqn:Hread; [|discriminate].
+  destruct mb as [b|]; cbn in Hcost.
+  - destruct (repair_case_1b_left_imp_a6 (buf6_concat p1 b) lc' s1 H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= READ_STORED_COST).
+    { eapply read_stored_small_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hread. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1B_LEFT_COST).
+    { eapply repair_case_1b_left_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold FULL_REPAIR_1B_LEFT_COST, READ_STORED_COST, REPAIR_1B_LEFT_COST in *.
+    lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= READ_STORED_COST).
+    { eapply read_stored_small_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hread. cbn. reflexivity. }
+    unfold FULL_REPAIR_1B_LEFT_COST, READ_STORED_COST, REPAIR_1B_LEFT_COST in *.
+    cbn. lia.
+Qed.
+
+(** ** Symmetric full pipeline for Case 1b-right (eject side). *)
+
+Definition full_repair_1b_right_imp_a6 {A : Type}
+    (p1 : Buf6 A) (lc' : Loc) (ls : Loc) (s1 : Buf6 A)
+    : MC (CadCellA6 A) (option Loc) :=
+  bindC (read_stored_small_imp_a6 ls) (fun mb =>
+    match mb with
+    | None   => retC None
+    | Some b =>
+        let s3 := buf6_concat b s1 in
+        bindC (repair_case_1b_right_imp_a6 p1 lc' s3) (fun lr =>
+          retC (Some lr))
+    end).
+
+Definition FULL_REPAIR_1B_RIGHT_COST : nat := READ_STORED_COST + REPAIR_1B_RIGHT_COST.
+
+Theorem full_repair_1b_right_imp_a6_WC_O1 :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (p1 : Buf6 A) (lc' ls : Loc)
+         (s1 : Buf6 A) (k : nat),
+    cost_of (full_repair_1b_right_imp_a6 p1 lc' ls s1) H = Some k ->
+    k <= FULL_REPAIR_1B_RIGHT_COST.
+Proof.
+  intros A H p1 lc' ls s1 k Hcost.
+  unfold full_repair_1b_right_imp_a6, cost_of, bindC, retC in Hcost.
+  destruct (read_stored_small_imp_a6 ls H) as [[[H1 mb] k1]|] eqn:Hread; [|discriminate].
+  destruct mb as [b|]; cbn in Hcost.
+  - destruct (repair_case_1b_right_imp_a6 p1 lc' (buf6_concat b s1) H1)
+      as [[[H2 lr] k2]|] eqn:Hrep; [|discriminate].
+    cbn in Hcost. injection Hcost as <-.
+    assert (Hk1 : k1 <= READ_STORED_COST).
+    { eapply read_stored_small_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hread. cbn. reflexivity. }
+    assert (Hk2 : k2 <= REPAIR_1B_RIGHT_COST).
+    { eapply repair_case_1b_right_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hrep. cbn. reflexivity. }
+    unfold FULL_REPAIR_1B_RIGHT_COST, READ_STORED_COST, REPAIR_1B_RIGHT_COST in *.
+    lia.
+  - injection Hcost as <-.
+    assert (Hk1 : k1 <= READ_STORED_COST).
+    { eapply read_stored_small_imp_a6_WC_O1.
+      unfold cost_of. rewrite Hread. cbn. reflexivity. }
+    unfold FULL_REPAIR_1B_RIGHT_COST, READ_STORED_COST, REPAIR_1B_RIGHT_COST in *.
+    cbn. lia.
 Qed.
 
 (** ** Round-trip: embed then extract recovers the original.
