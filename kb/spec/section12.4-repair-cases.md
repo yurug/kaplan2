@@ -112,6 +112,21 @@ This closes the consecutive-operations gap: after any §12.4 repair,
 the next operation can still safely use adopt6 pointers anywhere
 in the heap.
 
+**Regularity preservation (Green4 result colour)** (NEW):
+- 2 buffer-colour helper lemmas:
+  - `buf6_color_green_of_large` (size ≥ 8 → Green4).
+  - `buf6_color_green_of_small` (size ≤ 4 → Green4).
+- 8 per-case Green4 result theorems in `RepairS12.v`:
+  - `repair_case_1a_left_green`, `repair_case_1b_left_green`
+  - `repair_case_2a_only_green`, `repair_case_2b_only_green`
+  - `repair_case_2c_only_empty_green`, `repair_case_2c_only_twosided_green`
+  - `repair_case_1a_right_green`, `repair_case_1b_right_green`
+- Each takes per-case size hypotheses on the merged buffers (the
+  KT99 algorithmic invariant: when §12.4 applies, buffers are
+  sufficient to land in the green range).
+- Proves that the result has `triple_color = Green4` — the
+  colour-level guarantee that the repair restored green.
+
 **What remains** beyond §12.4 itself:
 - Stored-pop + inner-concat upstream machinery (so the caller's
   parameters get assembled in O(1) too).  Note this can also be
