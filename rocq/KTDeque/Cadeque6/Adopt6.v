@@ -9148,6 +9148,295 @@ Proof.
   rewrite <- HH. exact Hres.
 Qed.
 
+(** ** Global adopt6 wf preservation for headline single-call ops.
+
+    The headline ops do reads then call a §12.4 repair case (or
+    short-circuit with retC None).  Reads don't change the heap;
+    retC None returns H unchanged.  So the only heap-modifying step
+    is the repair, which preserves global wf. *)
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls lc' : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_pop_full_repair_1b_left_imp_a6 lA ls lc' H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls lc' H' r k Hwf Hop.
+  unfold cad_pop_full_repair_1b_left_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [b_to1 lc_to1 b_to2|b_tl1 lc_tl1 b_tl2|b_tr1 lc_tr1 b_tr2
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2]
+     eqn:HcA; cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [pT lcT sT|p1 lcL s1|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_pop p1) as [[x p1']|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|] eqn:Hls; [|discriminate].
+  destruct cs as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |cS_t cS_a|cD_l cD_r cD_a|b|cBb_p cBb_l cBb_s];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  (* CCa6_StoredSmall b *)
+  (* Hop now has the explicit fully-computed bindings record.
+     We use the alloc-composition lemmas directly on H. *)
+  injection Hop as <- _ _.
+  (* Goal: adopt6_globally_wf {explicit bindings record} *)
+  (* The explicit record IS snd (alloc CCa6_CadSingle ... (snd (alloc CCa6_TripleLeft ... H))). *)
+  match goal with
+  | |- adopt6_globally_wf ?H_expl =>
+      change H_expl with
+        (snd (alloc (CCa6_CadSingle (next_loc H) (next_loc H))
+              (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H))))
+  end.
+  set (H1 := snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)).
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]).
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H)).
+  { unfold adopt6_target_is_triple, H1.
+    rewrite alloc_lookup_self. exact I. }
+  assert (Hlt_a6 : Pos.lt (next_loc H) (next_loc H1)).
+  { unfold H1, alloc; cbn. apply Pos.lt_succ_diag_r. }
+  apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption.
+Qed.
+
+(** ** Helper macro: the global wf "finish" pattern.
+
+    After unfolding through the function and destructuring all the
+    matches, we end up needing to show [adopt6_globally_wf] of the
+    fully-computed bindings record.  This is definitionally equal
+    to [snd (alloc CadSingle (snd (alloc TripleX H)))] and we
+    discharge it via the two alloc-preservation lemmas. *)
+
+Ltac finish_headline_globally_wf Hop Hwf H_orig c_triple :=
+  injection Hop as <- _ _;
+  match goal with
+  | |- adopt6_globally_wf ?H_expl =>
+      change H_expl with
+        (snd (alloc (CCa6_CadSingle (next_loc H_orig) (next_loc H_orig))
+              (snd (alloc c_triple H_orig))))
+  end;
+  let H1 := fresh "H1" in
+  set (H1 := snd (alloc c_triple H_orig));
+  let Hwf1 := fresh "Hwf1" in
+  let Htri := fresh "Htri" in
+  let Hlt_a6 := fresh "Hlt_a6" in
+  assert (Hwf1 : adopt6_globally_wf H1)
+    by (apply alloc_triple_preserves_adopt6_globally_wf;
+        [cbn; exact I | exact Hwf]);
+  assert (Htri : adopt6_target_is_triple H1 (next_loc H_orig));
+  [unfold adopt6_target_is_triple, H1;
+   rewrite alloc_lookup_self; exact I
+  |assert (Hlt_a6 : Pos.lt (next_loc H_orig) (next_loc H1));
+   [unfold H1, alloc; cbn; apply Pos.lt_succ_diag_r
+   |apply alloc_cadsingle_preserves_adopt6_globally_wf; assumption]].
+
+Theorem cad_pop_full_repair_1a_left_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls ld3 : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_pop_full_repair_1a_left_imp_a6 lA ls ld3 H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ld3 H' r k Hwf Hop.
+  unfold cad_pop_full_repair_1a_left_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [pT lcT sT|p1 lcL s1|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_pop p1) as [[x p1']|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p2 ld2 s2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1).
+Qed.
+
+Theorem cad_pop_full_repair_2a_only_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls ld3 : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_pop_full_repair_2a_only_imp_a6 lA ls ld3 H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls ld3 H' r k Hwf Hop.
+  unfold cad_pop_full_repair_2a_only_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_pop p1) as [[x p1']|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p2 ld2 s2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1).
+Qed.
+
+Theorem cad_pop_full_repair_2c_empty_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_pop_full_repair_2c_empty_imp_a6 lA ls H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls H' r k Hwf Hop.
+  unfold cad_pop_full_repair_2c_empty_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_pop p1) as [[x p1']|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p2 ld2 s2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly (buf6_concat p1' p2) ld2 (buf6_concat s2 s1)).
+Qed.
+
+Theorem cad_pop_full_repair_2c_twosided_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ls_head ls_tail lc_residue : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (A * Loc)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_pop_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+    = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue H' r k Hwf Hop.
+  unfold cad_pop_full_repair_2c_twosided_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_pop p1) as [[x p1']|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_small_imp_a6 at 1, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls_head) as [cs_h|]; [|discriminate].
+  destruct cs_h as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_head|cBb_p' cBb_l' cBb_s'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls_tail) as [cs_t|]; [|discriminate].
+  destruct cs_t as [cT_p'' cT_l'' cT_s''|cL_p'' cL_l'' cL_s''|cR_p'' cR_l'' cR_s''
+                 |  |cS_t'' cS_a''|cD_l'' cD_r'' cD_a''|b_tail|cBb_p'' cBb_l'' cBb_s''];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)).
+Qed.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA lc' ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_eject_full_repair_1b_right_imp_a6 lA lc' ls H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA lc' ls H' r k Hwf Hop.
+  unfold cad_eject_full_repair_1b_right_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [pT lcT sT|pL lcL sL|p1 lcR s1
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_eject s1) as [[s1' x]|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b|cBb_p' cBb_l' cBb_s'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleRight p1 lc' (buf6_concat b s1')).
+Qed.
+
+Theorem cad_eject_full_repair_2b_only_imp_a6_preserves_adopt6_globally_wf :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (lA ld3 ls : Loc)
+         (H' : Heap (CadCellA6 A)) (r : option (Loc * A)) (k : nat),
+    adopt6_globally_wf H ->
+    cad_eject_full_repair_2b_only_imp_a6 lA ld3 ls H = Some (H', r, k) ->
+    adopt6_globally_wf H'.
+Proof.
+  intros A H lA ld3 ls H' r k Hwf Hop.
+  unfold cad_eject_full_repair_2b_only_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H lA) as [cA|]; [|discriminate].
+  destruct cA as [cT_p cT_l cT_s|cL_p cL_l cL_s|cR_p cR_l cR_s
+                 |  |ltA la6  |ltL ltR la6_d|b_ss|b_sb1 lc_sb b_sb2];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (lookup H ltA) as [tA|]; [|discriminate].
+  destruct tA as [p1 lcT s1|pL lcL sL|pR lcR sR
+                 |  |ltA' la6'|ltL' ltR' la6_d'|b_ss'|b_sb1' lc_sb' b_sb2'];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  destruct (buf6_eject s1) as [[s1' x]|];
+    [|injection Hop as <- _ _; exact Hwf].
+  cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  destruct (lookup H ls) as [cs|]; [|discriminate].
+  destruct cs as [cT_p' cT_l' cT_s'|cL_p' cL_l' cL_s'|cR_p' cR_l' cR_s'
+                 |  |cS_t' cS_a'|cD_l' cD_r' cD_a'|b_s|p3 lc3st s3];
+    cbn in Hop;
+    try (injection Hop as <- _ _; exact Hwf).
+  finish_headline_globally_wf Hop Hwf H
+    (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')).
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
