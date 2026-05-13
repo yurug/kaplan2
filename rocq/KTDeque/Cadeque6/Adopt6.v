@@ -9760,6 +9760,270 @@ Proof.
     (CCa6_TripleOnly (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')).
 Qed.
 
+(** ** Sequence + list-level refinement for new eject-side ops. *)
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p3 : Buf6 A) (lc3_st : Loc) (s3 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d3 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p3 lc3_st s3) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls H = Some (H', lr, k) ->
+      exists lresult,
+        lr = Some (lresult, x) /\
+        heap_represents_cad_a6 H' lresult
+          (CSingle (TOnly p1 d3 (buf6_concat s3 s1'))).
+Proof.
+  intros A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3
+         HlA HltA Hej Hls Hrep_d3 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' lr k Hop.
+  unfold cad_eject_full_repair_2a_only_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HlA in Hop. cbn in Hop.
+  rewrite HltA in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite Hls in Hop. cbn in Hop.
+  unfold repair_case_2a_only_imp_a6, bindC, alloc_MC, retC in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  split; [symmetry; exact Hl|].
+  subst H'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (p1 : Buf6 A) (s1 : Buf6 A)
+         (p3 s3 : Buf6 A) (d3_xs d3_st_xs : list A)
+         (x : A) (s1' : Buf6 A)
+         (c_old : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    cad_to_list_base c_old =
+      d3_xs ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3 ->
+    cad_to_list_base qA
+    = buf6_to_list p1 ++ d3_xs
+      ++ buf6_to_list p3 ++ d3_st_xs ++ buf6_to_list s3
+      ++ buf6_to_list s1' ++ [x].
+Proof.
+  intros A H lA ld3 ls p1 s1 p3 s3 d3_xs d3_st_xs x s1' c_old qA
+         HrepA HqAeq Hej Hc_old.
+  subst qA.
+  apply buf6_eject_seq_some in Hej.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  change (cad_to_list (fun y : A => [y]) c_old)
+    with (cad_to_list_base c_old).
+  rewrite Hc_old.
+  unfold buf6_to_list in *.
+  rewrite Hej. rewrite <- !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d2 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H lc2 d2 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_empty_imp_a6 lA ls H = Some (H', lr, k) ->
+      exists lresult,
+        lr = Some (lresult, x) /\
+        heap_represents_cad_a6 H' lresult
+          (CSingle (TOnly (buf6_concat p1 p2) d2 (buf6_concat s2 s1'))).
+Proof.
+  intros A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x s1' d2
+         HlA HltA Hej Hls Hrep_d2 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         H' lr k Hop.
+  unfold cad_eject_full_repair_2c_empty_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HlA in Hop. cbn in Hop.
+  rewrite HltA in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  unfold read_stored_big_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite Hls in Hop. cbn in Hop.
+  unfold repair_case_2c_only_empty_imp_a6, bindC, alloc_MC, retC in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  split; [symmetry; exact Hl|].
+  subst H'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (p1 : Buf6 A) (s1 : Buf6 A)
+         (p2 s2 : Buf6 A) (d2_xs : list A)
+         (x : A) (s1' : Buf6 A)
+         (c_old : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    cad_to_list_base c_old =
+      buf6_to_list p2 ++ d2_xs ++ buf6_to_list s2 ->
+    cad_to_list_base qA
+    = buf6_to_list p1 ++ buf6_to_list p2
+      ++ d2_xs ++ buf6_to_list s2 ++ buf6_to_list s1' ++ [x].
+Proof.
+  intros A H lA ls p1 s1 p2 s2 d2_xs x s1' c_old qA
+         HrepA HqAeq Hej Hc_old.
+  subst qA.
+  apply buf6_eject_seq_some in Hej.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  change (cad_to_list (fun y : A => [y]) c_old)
+    with (cad_to_list_base c_old).
+  rewrite Hc_old.
+  unfold buf6_to_list in *.
+  rewrite Hej. rewrite <- !app_assoc. reflexivity.
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_seq :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (ltA : Loc)
+         (p1 : Buf6 A) (lc_old : Loc) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (s1' : Buf6 A)
+         (d_residue : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls_head = Some (CCa6_StoredSmall b_head) ->
+    lookup H ls_tail = Some (CCa6_StoredSmall b_tail) ->
+    heap_represents_cad_a6 H lc_residue d_residue ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub ->
+                     Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+      = Some (H', lr, k) ->
+      exists lresult,
+        lr = Some (lresult, x) /\
+        heap_represents_cad_a6 H' lresult
+          (CSingle (TOnly (buf6_concat p1 b_head) d_residue
+                          (buf6_concat b_tail s1'))).
+Proof.
+  intros A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+         b_head b_tail x s1' d_residue
+         HlA HltA Hej Hls_head Hls_tail Hrep_residue
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip' H' lr k Hop.
+  unfold cad_eject_full_repair_2c_twosided_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite HlA in Hop. cbn in Hop.
+  rewrite HltA in Hop. cbn in Hop.
+  rewrite Hej in Hop. cbn in Hop.
+  unfold read_stored_small_imp_a6 at 1, bindC, read_MC, retC in Hop.
+  rewrite Hls_head in Hop. cbn in Hop.
+  unfold read_stored_small_imp_a6, bindC, read_MC, retC in Hop.
+  rewrite Hls_tail in Hop. cbn in Hop.
+  unfold repair_case_2c_only_twosided_imp_a6, bindC, alloc_MC, retC in Hop.
+  injection Hop as HH Hl _.
+  exists (Pos.succ (next_loc H)).
+  split; [symmetry; exact Hl|].
+  subst H'.
+  eapply HRCa6_Single.
+  - unfold lookup. cbn.
+    destruct (loc_eq_dec (Pos.succ (next_loc H)) (Pos.succ (next_loc H)))
+      as [_|Hne]; [reflexivity|contradiction].
+  - eapply HRTa6_TOnly.
+    + unfold lookup. cbn.
+      destruct (loc_eq_dec (next_loc H) (Pos.succ (next_loc H))) as [Heq|Hne].
+      * exfalso. apply (Pos.succ_discr (next_loc H)). exact Heq.
+      * destruct (loc_eq_dec (next_loc H) (next_loc H)) as [_|Hne2];
+          [reflexivity|contradiction].
+    + apply heap_represents_cad_a6_persists_two_allocs; assumption.
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_list_correct :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (p1 : Buf6 A) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (s1' : Buf6 A)
+         (c_old : Cadeque A) (d_residue : Cadeque A) (qA : Cadeque A),
+    heap_represents_cad_a6 H lA qA ->
+    qA = CSingle (TOnly p1 c_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    cad_to_list_base c_old =
+      buf6_to_list b_head ++ cad_to_list_base d_residue
+        ++ buf6_to_list b_tail ->
+    cad_to_list_base qA
+    = buf6_to_list p1 ++ buf6_to_list b_head
+          ++ cad_to_list_base d_residue
+          ++ buf6_to_list b_tail ++ buf6_to_list s1' ++ [x].
+Proof.
+  intros A H lA ls_head ls_tail lc_residue p1 s1 b_head b_tail x s1'
+         c_old d_residue qA HrepA HqAeq Hej Hc_old.
+  subst qA.
+  apply buf6_eject_seq_some in Hej.
+  unfold cad_to_list_base. cbn [cad_to_list triple_to_list].
+  unfold buf6_flatten.
+  rewrite !flat_concat_singleton_id.
+  change (cad_to_list (fun y : A => [y]) c_old)
+    with (cad_to_list_base c_old).
+  rewrite Hc_old.
+  unfold buf6_to_list in *.
+  rewrite Hej. rewrite <- !app_assoc. reflexivity.
+Qed.
+
 Lemma alloc_lookup_self_a6 :
   forall (A : Type) (c : CadCellA6 A) (H : Heap (CadCellA6 A)),
     lookup (snd (alloc c H)) (fst (alloc c H)) = Some c.
