@@ -6054,6 +6054,67 @@ Proof.
   cbn in HltR'. rewrite HltR'. exact I.
 Qed.
 
+(** ** Stored-cell allocation primitives.
+
+    Foundation for §12.4 repair cases: the imperative ops there need
+    to allocate fresh [CCa6_StoredSmall] / [CCa6_StoredBig] cells in
+    the heap.  These primitives wrap the bare [alloc_MC] in MC monad
+    operations that count cost = 1 each.  See
+    [kb/spec/section12.4-repair-cases.md] for the design context. *)
+
+Definition stored_small_alloc_imp_a6 {A : Type} (b : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  alloc_MC (CCa6_StoredSmall b).
+
+Definition stored_big_alloc_imp_a6 {A : Type} (pre : Buf6 A) (lc : Loc) (suf : Buf6 A)
+    : MC (CadCellA6 A) Loc :=
+  alloc_MC (CCa6_StoredBig pre lc suf).
+
+(** Both primitives cost exactly 1 (one heap allocation). *)
+
+Theorem stored_small_alloc_imp_a6_cost :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (b : Buf6 A),
+    cost_of (stored_small_alloc_imp_a6 b) H = Some 1.
+Proof.
+  intros A H b.
+  unfold stored_small_alloc_imp_a6, cost_of, alloc_MC. cbn. reflexivity.
+Qed.
+
+Theorem stored_big_alloc_imp_a6_cost :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (pre : Buf6 A) (lc : Loc) (suf : Buf6 A),
+    cost_of (stored_big_alloc_imp_a6 pre lc suf) H = Some 1.
+Proof.
+  intros A H pre lc suf.
+  unfold stored_big_alloc_imp_a6, cost_of, alloc_MC. cbn. reflexivity.
+Qed.
+
+(** Lookup characterization: the freshly allocated cell is at the
+    pre-alloc next_loc. *)
+
+Theorem stored_small_alloc_imp_a6_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (b : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    stored_small_alloc_imp_a6 b H = Some (H', l', k) ->
+    lookup H' l' = Some (CCa6_StoredSmall b) /\ l' = next_loc H.
+Proof.
+  intros A H b H' l' k Hop.
+  unfold stored_small_alloc_imp_a6, alloc_MC in Hop.
+  injection Hop as <- <- _.
+  split; [apply alloc_lookup_self | reflexivity].
+Qed.
+
+Theorem stored_big_alloc_imp_a6_lookup :
+  forall (A : Type) (H : Heap (CadCellA6 A)) (pre : Buf6 A) (lc : Loc) (suf : Buf6 A)
+         (H' : Heap (CadCellA6 A)) (l' : Loc) (k : nat),
+    stored_big_alloc_imp_a6 pre lc suf H = Some (H', l', k) ->
+    lookup H' l' = Some (CCa6_StoredBig pre lc suf) /\ l' = next_loc H.
+Proof.
+  intros A H pre lc suf H' l' k Hop.
+  unfold stored_big_alloc_imp_a6, alloc_MC in Hop.
+  injection Hop as <- <- _.
+  split; [apply alloc_lookup_self | reflexivity].
+Qed.
+
 (** ** Round-trip: embed then extract recovers the original.
 
     A correctness sanity check for the new cell type — confirming
