@@ -56,7 +56,7 @@ last-updated: 2026-05-09
   the dispatcher reduces to each sub-op (or trivial pointer-return for
   empty).
 
-**§12.4 repair cases — LANDED** (NEW):
+**§12.4 repair cases — LANDED END-TO-END** (NEW):
 - `Cadeque6/RepairS12.v` (new file, ~316 lines): 8 abstract repair-
   case functions (1a-left, 1b-left, 2a-only, 2b-only, 2c-empty,
   2c-twosided, 1a-right, 1b-right) + sequence-preservation lemmas.
@@ -66,15 +66,23 @@ last-updated: 2026-05-09
   1b-right, 2c-empty).
 - Unified `repair_replace_imp_a6` dispatcher.
 - `select_repair_case` case-selection logic.
+- **8 composed pop/eject + repair operations** wiring Phase 1
+  (cad_pop_imp_a6 / cad_eject_imp_a6) and Phase 3 (repair_case_NN)
+  into a single pipeline, each WC ≤ 6:
+    cad_pop_repair_1a_left_imp_a6     cad_pop_repair_2c_empty_imp_a6
+    cad_pop_repair_1b_left_imp_a6     cad_pop_repair_2c_twosided_imp_a6
+    cad_pop_repair_2a_only_imp_a6     cad_eject_repair_1a_right_imp_a6
+    cad_pop_repair_2b_only_imp_a6     cad_eject_repair_1b_right_imp_a6
 
 **What's still pending** beyond §12.4 itself:
 - Full adopt6 maintenance theorems (proving adopt6_wf_at holds
   for ALL locations in H' given it held in H — requires reasoning
   about every cell in the heap; doable but case-heavy).
-- Wiring §12.4 into the actual `cad_pop_imp_a6` / `cad_eject_imp_a6`
-  cascade.  The operational pop currently does Phase 1 (remove an
-  element) but doesn't yet Phase 3-repair.  Needs upstream
-  stored-pop + inner-concat machinery.
+- Stored-pop + inner-concat upstream machinery so that the §12.4
+  case parameters (new buffer, residue child) get assembled in
+  O(1) from a raw cadeque-needing-repair input.  Note this is now
+  a "convenience" layer rather than a §12.4 blocker — the §12.4
+  ops themselves run in O(1) given the parameters.
 - Regularity preservation depends on the colour-discipline
   invariant in `Cadeque6/Regularity.v`.
 

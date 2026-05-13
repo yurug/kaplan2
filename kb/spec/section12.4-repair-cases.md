@@ -6,7 +6,7 @@ status: implementation-landed
 last-updated: 2026-05-13
 ---
 
-## Status (2026-05-13)
+## Status (2026-05-13) — IMPLEMENTED END-TO-END
 
 **Abstract layer landed** in `rocq/KTDeque/Cadeque6/RepairS12.v`:
 - 5 pop-side case functions (`repair_case_1a_left`, `1b_left`, `2a_only`,
@@ -25,10 +25,22 @@ last-updated: 2026-05-13
   kind + popped class + buffer sizes + d1' emptiness.
 - Unified `repair_replace_imp_a6` dispatcher.
 
-**What remains** (not blocking §12.4 itself):
-- Wiring §12.4 into the actual `cad_pop_imp_a6` / `cad_eject_imp_a6`
-  cascade (the operational layer needs the upstream stored-pop +
-  inner-concat to feed the right pointers into the repair cases).
+**End-to-end composed pop/eject + repair** (Phase 1 + Phase 2 + Phase 3):
+- 6 composed pop+repair operations (1a-left, 1b-left, 2a, 2b,
+  2c-empty, 2c-twosided).
+- 2 composed eject+repair operations (1a-right, 1b-right).
+- Each WC O(1): `CAD_POP_REPAIR_COST = CAD_EJECT_REPAIR_COST = 6`.
+- Caller supplies the new buffer composition + residue child pointer
+  (the upstream "stored-pop + inner-concat" computation is a
+  separate concern; the §12.4 stack itself runs in O(1)).
+
+**What remains** beyond §12.4 itself:
+- Stored-pop + inner-concat upstream machinery (so the caller's
+  parameters get assembled in O(1) too).  Note this can also be
+  read as: a complete `cad_pop_with_full_repair_imp_a6` operation
+  that does everything in one pipeline.
+- Full adopt6 maintenance theorems (proving `adopt6_wf_at` holds
+  for ALL locations in H' given it held in H).
 - Regularity preservation (depends on the colour-discipline
   invariant in `Cadeque6/Regularity.v`).
 
