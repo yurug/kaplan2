@@ -27,3 +27,10 @@
 (executable
  (name adversarial)
  (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+
+; catenable_compare.ml: extracted catenable cadeque (Cadeque6) vs
+; Viennot et al.'s catenable cadeque.  Functional equivalence over a
+; random workload + timing of each public op (push/inject/pop/eject/concat).
+(executable
+ (name catenable_compare)
+ (libraries unix viennot_cadeque ktdeque))
