@@ -23,7 +23,7 @@
  (public_name ktdeque)
  (synopsis "Kaplan-Tarjan persistent real-time deque (Coq-extracted, worst-case O(1))")
  (wrapped false)
- (modules kTDeque kTCatenableDeque))
+ (modules kTDeque kTCatenableDeque kCadeque))
 
 (executable
  (name test_ktdeque)
