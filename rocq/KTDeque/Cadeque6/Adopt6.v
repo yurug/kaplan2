@@ -59,7 +59,7 @@ Import ListNotations.
 
 From KTDeque.Common Require Import FinMapHeap CostMonad.
 From KTDeque.Buffer6 Require Import SizedBuffer SmallMoves.
-From KTDeque.Cadeque6 Require Import Model OpsAbstract RepairS12.
+From KTDeque.Cadeque6 Require Import Model OpsAbstract RepairS12 Color.
 
 (** ** [CadCellA6]: cell type with adopt6 shortcut.
 
@@ -10576,6 +10576,524 @@ Proof.
              HrepA HqAeq Hej Hc_old).
   - eapply cad_eject_full_repair_2c_twosided_imp_a6_preserves_adopt6_globally_wf;
       [exact Hwf_global | exact Hop].
+Qed.
+
+(** ** Bridge to abstract regularity: top-level greenness.
+
+    [heap_top_green H l] says the cadeque represented at [l] in [H]
+    has a green top: either it's [CEmpty], or its top-level triples
+    have [triple_color = Green4].  This is the structural property
+    that §12.4 repair is designed to re-establish: after a red top
+    is patched, the result has a green top.
+
+    The full [regular_cad] predicate is stronger — it also demands
+    semiregularity of children, top-level paths, sizes, and top-kinds.
+    Top-greenness is the *single piece of regularity* that the §12.4
+    repair directly restores; the other pieces are preserved trivially
+    (children unchanged) or established via §10 lemmas (paths, sizes).
+
+    The [_top_green] theorems below say: under the standard §12.4
+    invariants ([child empty OR merged buffer size ≥ 8]), the
+    headline op produces a cadeque whose top is green. *)
+
+Definition heap_top_green {A : Type}
+    (H : Heap (CadCellA6 A)) (l : Loc) : Prop :=
+  exists q, heap_represents_cad_a6 H l q /\
+            match q with
+            | CSingle t => triple_color t = Green4
+            | CDouble tL tR =>
+                triple_color tL = Green4 /\ triple_color tR = Green4
+            | CEmpty => True
+            end.
+
+Theorem cad_pop_full_repair_1b_left_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls lc' : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (p1' : Buf6 A)
+         (c_new : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleLeft p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' b) lc' s1) H)))) ->
+    (c_new = CEmpty \/ buf6_size (buf6_concat p1' b) >= 8) ->
+    forall H' lr k,
+      cad_pop_full_repair_1b_left_imp_a6 lA ls lc' H = Some (H', lr, k) ->
+      forall x' lresult,
+        lr = Some (x', lresult) ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls lc' ltA p1 lc_old s1 b x p1' c_new
+         HlA HltA Hpop Hls Hrep_new Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop x' lresult Heq.
+  pose proof (@cad_pop_full_repair_1b_left_imp_a6_seq
+                 A H lA ls lc' ltA p1 lc_old s1 b x p1' c_new
+                 HlA HltA Hpop Hls Hrep_new
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TLeft (buf6_concat p1' b) c_new s1)).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|Hlarge];
+    [subst c_new; reflexivity|].
+  unfold triple_color.
+  destruct c_new; [reflexivity| |];
+    apply buf6_color_green_of_large; exact Hlarge.
+Qed.
+
+Theorem cad_pop_full_repair_1a_left_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls ld3 : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d3 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleLeft p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleLeft (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (d3 = CEmpty \/ buf6_size (buf6_concat p1' p2) >= 8) ->
+    forall H' lr k,
+      cad_pop_full_repair_1a_left_imp_a6 lA ls ld3 H = Some (H', lr, k) ->
+      forall x' lresult,
+        lr = Some (x', lresult) ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3
+         HlA HltA Hpop Hls Hrep_d3 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop x' lresult Heq.
+  pose proof (@cad_pop_full_repair_1a_left_imp_a6_seq
+                 A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3
+                 HlA HltA Hpop Hls Hrep_d3
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TLeft (buf6_concat p1' p2) d3 s1)).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|Hlarge];
+    [subst d3; reflexivity|].
+  unfold triple_color.
+  destruct d3; [reflexivity| |];
+    apply buf6_color_green_of_large; exact Hlarge.
+Qed.
+
+Theorem cad_pop_full_repair_2c_empty_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d2 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H lc2 d2 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) lc2 (buf6_concat s2 s1)) H)))) ->
+    (d2 = CEmpty \/
+     (buf6_size (buf6_concat p1' p2) >= 8 /\ buf6_size (buf6_concat s2 s1) >= 8)) ->
+    forall H' lr k,
+      cad_pop_full_repair_2c_empty_imp_a6 lA ls H = Some (H', lr, k) ->
+      forall x' lresult,
+        lr = Some (x', lresult) ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x p1' d2
+         HlA HltA Hpop Hls Hrep_d2 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop x' lresult Heq.
+  pose proof (@cad_pop_full_repair_2c_empty_imp_a6_seq
+                 A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x p1' d2
+                 HlA HltA Hpop Hls Hrep_d2
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly (buf6_concat p1' p2) d2 (buf6_concat s2 s1))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d2; reflexivity|].
+  unfold triple_color.
+  destruct d2;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_pop_full_repair_2a_only_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls ld3 : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (p1' : Buf6 A) (d3 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1' p2) ld3 s1) H)))) ->
+    (d3 = CEmpty \/
+     (buf6_size (buf6_concat p1' p2) >= 8 /\ buf6_size s1 >= 8)) ->
+    forall H' lr k,
+      cad_pop_full_repair_2a_only_imp_a6 lA ls ld3 H = Some (H', lr, k) ->
+      forall x' lresult,
+        lr = Some (x', lresult) ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3
+         HlA HltA Hpop Hls Hrep_d3 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop x' lresult Heq.
+  pose proof (@cad_pop_full_repair_2a_only_imp_a6_seq
+                 A H lA ls ld3 ltA p1 lc_old s1 p2 lc2 s2 x p1' d3
+                 HlA HltA Hpop Hls Hrep_d3
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly (buf6_concat p1' p2) d3 s1)).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d3; reflexivity|].
+  unfold triple_color.
+  destruct d3;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_pop_full_repair_2c_twosided_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (ltA : Loc)
+         (p1 : Buf6 A) (lc_old : Loc) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (p1' : Buf6 A)
+         (d_residue : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_pop p1 = Some (x, p1') ->
+    lookup H ls_head = Some (CCa6_StoredSmall b_head) ->
+    lookup H ls_tail = Some (CCa6_StoredSmall b_tail) ->
+    heap_represents_cad_a6 H lc_residue d_residue ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1' b_head) lc_residue (buf6_concat b_tail s1)) H)))) ->
+    (d_residue = CEmpty \/
+     (buf6_size (buf6_concat p1' b_head) >= 8 /\
+      buf6_size (buf6_concat b_tail s1) >= 8)) ->
+    forall H' lr k,
+      cad_pop_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+      = Some (H', lr, k) ->
+      forall x' lresult,
+        lr = Some (x', lresult) ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+         b_head b_tail x p1' d_residue
+         HlA HltA Hpop Hls_head Hls_tail Hrep_residue
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop x' lresult Heq.
+  pose proof (@cad_pop_full_repair_2c_twosided_imp_a6_seq
+                 A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+                 b_head b_tail x p1' d_residue
+                 HlA HltA Hpop Hls_head Hls_tail Hrep_residue
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly (buf6_concat p1' b_head) d_residue
+                         (buf6_concat b_tail s1))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d_residue; reflexivity|].
+  unfold triple_color.
+  destruct d_residue;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_eject_full_repair_1b_right_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA lc' ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (b : Buf6 A) (x : A) (s1' : Buf6 A)
+         (c_new : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleRight p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredSmall b) ->
+    heap_represents_cad_a6 H lc' c_new ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleRight p1 lc' (buf6_concat b s1')) H)))) ->
+    (c_new = CEmpty \/ buf6_size (buf6_concat b s1') >= 8) ->
+    forall H' lr k,
+      cad_eject_full_repair_1b_right_imp_a6 lA lc' ls H = Some (H', lr, k) ->
+      forall lresult x',
+        lr = Some (lresult, x') ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA lc' ls ltA p1 lc_old s1 b x s1' c_new
+         HlA HltA Hej Hls Hrep_new Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop lresult x' Heq.
+  pose proof (@cad_eject_full_repair_1b_right_imp_a6_seq
+                 A H lA lc' ls ltA p1 lc_old s1 b x s1' c_new
+                 HlA HltA Hej Hls Hrep_new
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TRight p1 c_new (buf6_concat b s1'))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|Hlarge];
+    [subst c_new; reflexivity|].
+  unfold triple_color.
+  destruct c_new; [reflexivity| |];
+    apply buf6_color_green_of_large; exact Hlarge.
+Qed.
+
+Theorem cad_eject_full_repair_2b_only_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p3 : Buf6 A) (lc3_st : Loc) (s3 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d3 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p3 lc3_st s3) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (d3 = CEmpty \/
+     (buf6_size p1 >= 8 /\ buf6_size (buf6_concat s3 s1') >= 8)) ->
+    forall H' lr k,
+      cad_eject_full_repair_2b_only_imp_a6 lA ld3 ls H = Some (H', lr, k) ->
+      forall lresult x',
+        lr = Some (lresult, x') ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3
+         HlA HltA Hej Hls Hrep_d3 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop lresult x' Heq.
+  pose proof (@cad_eject_full_repair_2b_only_imp_a6_seq
+                 A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3
+                 HlA HltA Hej Hls Hrep_d3
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly p1 d3 (buf6_concat s3 s1'))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d3; reflexivity|].
+  unfold triple_color.
+  destruct d3;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_eject_full_repair_2a_only_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ld3 ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p3 : Buf6 A) (lc3_st : Loc) (s3 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d3 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p3 lc3_st s3) ->
+    heap_represents_cad_a6 H ld3 d3 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly p1 ld3 (buf6_concat s3 s1')) H)))) ->
+    (d3 = CEmpty \/
+     (buf6_size p1 >= 8 /\ buf6_size (buf6_concat s3 s1') >= 8)) ->
+    forall H' lr k,
+      cad_eject_full_repair_2a_only_imp_a6 lA ld3 ls H = Some (H', lr, k) ->
+      forall lresult x',
+        lr = Some (lresult, x') ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3
+         HlA HltA Hej Hls Hrep_d3 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop lresult x' Heq.
+  pose proof (@cad_eject_full_repair_2a_only_imp_a6_seq
+                 A H lA ld3 ls ltA p1 lc_old s1 p3 lc3_st s3 x s1' d3
+                 HlA HltA Hej Hls Hrep_d3
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly p1 d3 (buf6_concat s3 s1'))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d3; reflexivity|].
+  unfold triple_color.
+  destruct d3;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_eject_full_repair_2c_empty_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls : Loc) (ltA : Loc) (p1 : Buf6 A) (lc_old : Loc)
+         (s1 : Buf6 A) (p2 : Buf6 A) (lc2 : Loc) (s2 : Buf6 A)
+         (x : A) (s1' : Buf6 A) (d2 : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls = Some (CCa6_StoredBig p2 lc2 s2) ->
+    heap_represents_cad_a6 H lc2 d2 ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly (buf6_concat p1 p2) lc2 (buf6_concat s2 s1')) H)))) ->
+    (d2 = CEmpty \/
+     (buf6_size (buf6_concat p1 p2) >= 8 /\
+      buf6_size (buf6_concat s2 s1') >= 8)) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_empty_imp_a6 lA ls H = Some (H', lr, k) ->
+      forall lresult x',
+        lr = Some (lresult, x') ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x s1' d2
+         HlA HltA Hej Hls Hrep_d2 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop lresult x' Heq.
+  pose proof (@cad_eject_full_repair_2c_empty_imp_a6_seq
+                 A H lA ls ltA p1 lc_old s1 p2 lc2 s2 x s1' d2
+                 HlA HltA Hej Hls Hrep_d2
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly (buf6_concat p1 p2) d2 (buf6_concat s2 s1'))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d2; reflexivity|].
+  unfold triple_color.
+  destruct d2;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
+Qed.
+
+Theorem cad_eject_full_repair_2c_twosided_imp_a6_top_green :
+  forall (A : Type) (H : Heap (CadCellA6 A))
+         (lA ls_head ls_tail lc_residue : Loc) (ltA : Loc)
+         (p1 : Buf6 A) (lc_old : Loc) (s1 : Buf6 A)
+         (b_head b_tail : Buf6 A) (x : A) (s1' : Buf6 A)
+         (d_residue : Cadeque A),
+    lookup H lA = Some (CCa6_CadSingle ltA ltA) ->
+    lookup H ltA = Some (CCa6_TripleOnly p1 lc_old s1) ->
+    buf6_eject s1 = Some (s1', x) ->
+    lookup H ls_head = Some (CCa6_StoredSmall b_head) ->
+    lookup H ls_tail = Some (CCa6_StoredSmall b_tail) ->
+    heap_represents_cad_a6 H lc_residue d_residue ->
+    (forall l' qsub, heap_represents_cad_a6 H l' qsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' tsub, heap_represents_triple_a6 H l' tsub -> Pos.lt l' (next_loc H)) ->
+    (forall l' qsub,
+       heap_represents_cad_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' qsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    (forall l' tsub,
+       heap_represents_triple_a6 (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)) l' tsub ->
+       Pos.lt l' (next_loc (snd (alloc (CCa6_TripleOnly
+         (buf6_concat p1 b_head) lc_residue (buf6_concat b_tail s1')) H)))) ->
+    (d_residue = CEmpty \/
+     (buf6_size (buf6_concat p1 b_head) >= 8 /\
+      buf6_size (buf6_concat b_tail s1') >= 8)) ->
+    forall H' lr k,
+      cad_eject_full_repair_2c_twosided_imp_a6 lA ls_head ls_tail lc_residue H
+      = Some (H', lr, k) ->
+      forall lresult x',
+        lr = Some (lresult, x') ->
+        heap_top_green H' lresult.
+Proof.
+  intros A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+         b_head b_tail x s1' d_residue
+         HlA HltA Hej Hls_head Hls_tail Hrep_residue
+         Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+         Hgreen H' lr k Hop lresult x' Heq.
+  pose proof (@cad_eject_full_repair_2c_twosided_imp_a6_seq
+                 A H lA ls_head ls_tail lc_residue ltA p1 lc_old s1
+                 b_head b_tail x s1' d_residue
+                 HlA HltA Hej Hls_head Hls_tail Hrep_residue
+                 Hwf_cad Hwf_trip Hwf_cad' Hwf_trip'
+                 H' lr k Hop) as [lres [Hlreq Hrep]].
+  rewrite Heq in Hlreq. injection Hlreq as -> ->.
+  exists (CSingle (TOnly (buf6_concat p1 b_head) d_residue
+                         (buf6_concat b_tail s1'))).
+  split; [exact Hrep|].
+  destruct Hgreen as [Hempty|[Hpre Hsuf]];
+    [subst d_residue; reflexivity|].
+  unfold triple_color.
+  destruct d_residue;
+    [reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity
+    |rewrite (buf6_color_green_of_large _ _ Hpre);
+     rewrite (buf6_color_green_of_large _ _ Hsuf); reflexivity].
 Qed.
 
 Lemma alloc_lookup_self_a6 :
