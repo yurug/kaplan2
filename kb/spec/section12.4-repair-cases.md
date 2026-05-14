@@ -3,8 +3,34 @@ id: section12.4-repair-cases
 domain: spec
 related: [section4-repair-cases, phase-4b-imperative-dsl, why-catenable, plan-catenable]
 status: implementation-landed
-last-updated: 2026-05-13
+last-updated: 2026-05-14
 ---
+
+## Status (2026-05-14) — COMPLETE END-TO-END (10 ops × 6 properties)
+
+**Full closure achieved.**  All 10 §12.4 headline ops (5 pop + 5 eject)
+now have the complete correctness matrix:
+
+| Property                          | Coverage |
+|-----------------------------------|----------|
+| WC O(1) cost bound                | 10 / 10  |
+| Termination wrapper               | 10 / 10  |
+| Sequence-correctness (heap rep)   | 10 / 10  |
+| List-level refinement             | 10 / 10  |
+| Global `adopt6_globally_wf`       | 10 / 10  |
+| Top-greenness (`heap_top_green`)  | 10 / 10  |
+| FULL FLAGSHIP bundled contract    | 10 / 10  |
+
+Each FLAGSHIP bundle composes cost + seq + list_correct + adopt6_wf
+in a single theorem `cad_*_full_repair_*_imp_a6_flagship_full_contract`.
+
+The **bridge to abstract regularity** is `heap_top_green H l`:
+  exists q, heap_represents_cad_a6 H l q /\
+    (q is CEmpty, or all top-level triple colors = Green4).
+
+This is exactly the piece of regularity §12.4 is designed to restore
+(red top → green top via local rewrite).  Per-op `_top_green` theorems
+delegate to `_seq` + `buf6_color_green_of_large` (manual §10.6).
 
 ## Status (2026-05-13) — IMPLEMENTED END-TO-END
 
