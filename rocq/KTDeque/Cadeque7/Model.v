@@ -148,107 +148,143 @@ Definition kcad_singleton {X : Type} (x : X) : KCadeque X :=
     All six types of the mutual family contribute via one mutual
     fixpoint. *)
 
-(** The mutual fixpoint.  Buffer flattening uses an inline [fix]
-    on the underlying list so Coq's guard checker can see the
-    structural decrease list→element→mutual. *)
+(** The mutual fixpoint.
 
-Fixpoint kelem_to_list {X : Type} (e : KElem X) : list X :=
-  match e with
-  | XBase x   => [x]
-  | XStored s => stored_to_list s
-  end
+    [buf6_flat_kelem] is the very first function in the mutual
+    block — it walks a [list (KElem X)] structurally and calls
+    [kelem_to_list] on each head.  Coq's guard checker accepts
+    the mutual recursion because each function's designated
+    structural argument strictly decreases on every recursive
+    call:
 
-with stored_to_list {X : Type} (s : Stored X) : list X :=
-  match s with
-  | StoredSmall b =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems b)
-  | StoredBig pre c suf =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems pre)
-      ++ kcad_to_list c
-      ++ (fix go (xs : list (KElem X)) : list X :=
-           match xs with
+    - [buf6_flat_kelem]: decreases on the list ([e :: es] → [es]).
+    - [kelem_to_list]: decreases on the KElem (XStored s → s).
+    - [stored_to_list]: decreases on the Stored.
+    - [kcad_to_list]: decreases on the KCadeque.
+    - [packet_to_list]: decreases on the Packet.
+    - [body_to_list]: decreases on the Body.
+    - [node_to_list]: decreases on the Node. *)
+
+(** Coq's mutual-fixpoint guard checker doesn't accept a separate
+    [buf6_flat_kelem] function in the mutual block because the
+    cross-type recursion buf6_flat_kelem(list) → kelem_to_list(elem)
+    isn't recognized as structurally decreasing.
+
+    Workaround: inline the buffer flattening as a nested [fix go]
+    inside each occurrence.  We then prove a fold-lemma that this
+    inline fix equals a separately-defined [buf6_flat_kelem]. *)
+
+Section to_list.
+  Variable X : Type.
+
+  Fixpoint kelem_to_list (e : KElem X) {struct e} : list X :=
+    match e with
+    | XBase x   => [x]
+    | XStored s => stored_to_list s
+    end
+
+  with stored_to_list (s : Stored X) {struct s} : list X :=
+    match s with
+    | StoredSmall (mkBuf6 xs) =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) (buf6_elems suf)
-  end
-
-with kcad_to_list {X : Type} (k : KCadeque X) : list X :=
-  match k with
-  | KEmpty           => []
-  | KSingle _ p c    => packet_to_list p ++ kcad_to_list c
-  | KPair l r        => kcad_to_list l ++ kcad_to_list r
-  end
-
-with packet_to_list {X : Type} (p : Packet X) : list X :=
-  match p with
-  | Pkt b n => body_to_list b ++ node_to_list n
-  end
-
-with body_to_list {X : Type} (b : Body X) : list X :=
-  match b with
-  | Hole               => []
-  | BSingleY n inner   => node_to_list n ++ body_to_list inner
-  | BPairY n bl br     => node_to_list n
-                            ++ body_to_list bl
-                            ++ body_to_list br
-  | BPairO n bl br     => node_to_list n
-                            ++ body_to_list bl
-                            ++ body_to_list br
-  end
-
-with node_to_list {X : Type} (n : Node X) : list X :=
-  match n with
-  | NOnlyEnd b =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems b)
-  | NOnly  pre suf  =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems pre)
-      ++ (fix go (xs : list (KElem X)) : list X :=
-           match xs with
+           end) xs
+    | StoredBig (mkBuf6 ps) c (mkBuf6 ss) =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) (buf6_elems suf)
-  | NLeft  pre suf  =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems pre)
-      ++ (fix go (xs : list (KElem X)) : list X :=
-           match xs with
-           | []      => []
-           | e :: es => kelem_to_list e ++ go es
-           end) (buf6_elems suf)
-  | NRight pre suf  =>
-      (fix go (xs : list (KElem X)) : list X :=
-         match xs with
-         | []      => []
-         | e :: es => kelem_to_list e ++ go es
-         end) (buf6_elems pre)
-      ++ (fix go (xs : list (KElem X)) : list X :=
-           match xs with
-           | []      => []
-           | e :: es => kelem_to_list e ++ go es
-           end) (buf6_elems suf)
-  end.
+           end) ps
+        ++ kcad_to_list c
+        ++ (fix go (l : list (KElem X)) : list X :=
+              match l with
+              | []      => []
+              | e :: es => kelem_to_list e ++ go es
+              end) ss
+    end
 
-(** Buffer flattening — convenient wrapper that unfolds to the
-    inline [go] used above.  Available after the mutual block. *)
+  with kcad_to_list (k : KCadeque X) {struct k} : list X :=
+    match k with
+    | KEmpty           => []
+    | KSingle _ p c    => packet_to_list p ++ kcad_to_list c
+    | KPair l r        => kcad_to_list l ++ kcad_to_list r
+    end
+
+  with packet_to_list (p : Packet X) {struct p} : list X :=
+    match p with
+    | Pkt b n => body_to_list b ++ node_to_list n
+    end
+
+  with body_to_list (b : Body X) {struct b} : list X :=
+    match b with
+    | Hole               => []
+    | BSingleY n inner   => node_to_list n ++ body_to_list inner
+    | BPairY n bl br     => node_to_list n
+                              ++ body_to_list bl
+                              ++ body_to_list br
+    | BPairO n bl br     => node_to_list n
+                              ++ body_to_list bl
+                              ++ body_to_list br
+    end
+
+  with node_to_list (n : Node X) {struct n} : list X :=
+    match n with
+    | NOnlyEnd (mkBuf6 xs)            =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
+           | []      => []
+           | e :: es => kelem_to_list e ++ go es
+           end) xs
+    | NOnly  (mkBuf6 ps) (mkBuf6 ss)  =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
+           | []      => []
+           | e :: es => kelem_to_list e ++ go es
+           end) ps
+        ++ (fix go (l : list (KElem X)) : list X :=
+              match l with
+              | []      => []
+              | e :: es => kelem_to_list e ++ go es
+              end) ss
+    | NLeft  (mkBuf6 ps) (mkBuf6 ss)  =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
+           | []      => []
+           | e :: es => kelem_to_list e ++ go es
+           end) ps
+        ++ (fix go (l : list (KElem X)) : list X :=
+              match l with
+              | []      => []
+              | e :: es => kelem_to_list e ++ go es
+              end) ss
+    | NRight (mkBuf6 ps) (mkBuf6 ss)  =>
+        (fix go (l : list (KElem X)) : list X :=
+           match l with
+           | []      => []
+           | e :: es => kelem_to_list e ++ go es
+           end) ps
+        ++ (fix go (l : list (KElem X)) : list X :=
+              match l with
+              | []      => []
+              | e :: es => kelem_to_list e ++ go es
+              end) ss
+    end.
+
+End to_list.
+
+Arguments kelem_to_list   {X} _.
+Arguments stored_to_list  {X} _.
+Arguments kcad_to_list    {X} _.
+Arguments packet_to_list  {X} _.
+Arguments body_to_list    {X} _.
+Arguments node_to_list    {X} _.
+
+(** ** [buf6_flat_kelem]: separately-defined list flattener.
+
+    Definitionally equivalent to the inline [fix go ...] used inside
+    the mutual block above.  Available as a stable rewrite target. *)
 
 Fixpoint buf6_flat_kelem {X : Type} (xs : list (KElem X)) : list X :=
   match xs with
@@ -258,6 +294,121 @@ Fixpoint buf6_flat_kelem {X : Type} (xs : list (KElem X)) : list X :=
 
 Definition buf6_flatten_kelem {X : Type} (b : Buf6 (KElem X)) : list X :=
   buf6_flat_kelem (buf6_elems b).
+
+(** ** Fold the inline [fix go] inside the mutual block back to
+    [buf6_flat_kelem]. *)
+
+Lemma stored_to_list_StoredSmall :
+  forall (X : Type) (b : Buf6 (KElem X)),
+    stored_to_list (StoredSmall b) = buf6_flat_kelem (buf6_elems b).
+Proof.
+  intros X [xs]. cbn. induction xs as [|e es IH]; cbn.
+  - reflexivity.
+  - rewrite IH. reflexivity.
+Qed.
+
+Lemma stored_to_list_StoredBig :
+  forall (X : Type) (pre : Buf6 (KElem X)) (c : KCadeque X) (suf : Buf6 (KElem X)),
+    stored_to_list (StoredBig pre c suf)
+    = buf6_flat_kelem (buf6_elems pre)
+      ++ kcad_to_list c
+      ++ buf6_flat_kelem (buf6_elems suf).
+Proof.
+  intros X [ps] c [ss]. cbn.
+  assert (Hps : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ps
+                = buf6_flat_kelem ps).
+  { induction ps as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  assert (Hss : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ss
+                = buf6_flat_kelem ss).
+  { induction ss as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  rewrite Hps, Hss. reflexivity.
+Qed.
+
+Lemma node_to_list_NOnlyEnd :
+  forall (X : Type) (b : Buf6 (KElem X)),
+    node_to_list (NOnlyEnd b) = buf6_flat_kelem (buf6_elems b).
+Proof.
+  intros X [xs]. cbn. induction xs as [|e es IH]; cbn.
+  - reflexivity.
+  - rewrite IH. reflexivity.
+Qed.
+
+Lemma node_to_list_NOnly :
+  forall (X : Type) (pre suf : Buf6 (KElem X)),
+    node_to_list (NOnly pre suf)
+    = buf6_flat_kelem (buf6_elems pre) ++ buf6_flat_kelem (buf6_elems suf).
+Proof.
+  intros X [ps] [ss]. cbn.
+  assert (Hps : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ps
+                = buf6_flat_kelem ps).
+  { induction ps as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  assert (Hss : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ss
+                = buf6_flat_kelem ss).
+  { induction ss as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  rewrite Hps, Hss. reflexivity.
+Qed.
+
+Lemma node_to_list_NLeft :
+  forall (X : Type) (pre suf : Buf6 (KElem X)),
+    node_to_list (NLeft pre suf)
+    = buf6_flat_kelem (buf6_elems pre) ++ buf6_flat_kelem (buf6_elems suf).
+Proof.
+  intros X [ps] [ss]. cbn.
+  assert (Hps : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ps
+                = buf6_flat_kelem ps).
+  { induction ps as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  assert (Hss : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ss
+                = buf6_flat_kelem ss).
+  { induction ss as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  rewrite Hps, Hss. reflexivity.
+Qed.
+
+Lemma node_to_list_NRight :
+  forall (X : Type) (pre suf : Buf6 (KElem X)),
+    node_to_list (NRight pre suf)
+    = buf6_flat_kelem (buf6_elems pre) ++ buf6_flat_kelem (buf6_elems suf).
+Proof.
+  intros X [ps] [ss]. cbn.
+  assert (Hps : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ps
+                = buf6_flat_kelem ps).
+  { induction ps as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  assert (Hss : (fix go (l : list (KElem X)) : list X :=
+                   match l with
+                   | [] => []
+                   | e :: es => kelem_to_list e ++ go es
+                   end) ss
+                = buf6_flat_kelem ss).
+  { induction ss as [|e es IH]; cbn; [reflexivity|rewrite IH; reflexivity]. }
+  rewrite Hps, Hss. reflexivity.
+Qed.
 
 (** ** Trivial sanity. *)
 
