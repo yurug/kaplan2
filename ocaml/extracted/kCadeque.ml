@@ -235,6 +235,161 @@ let rec kcad_inject k x =
      | _ -> KSingle (r, p, (kcad_inject c x)))
   | KPair (l, r) -> KPair (l, (kcad_inject r x))
 
+(** val kpair_smart : 'a1 kCadeque -> 'a1 kCadeque -> 'a1 kCadeque **)
+
+let kpair_smart l r =
+  match l with
+  | KEmpty -> r
+  | _ -> (match r with
+          | KEmpty -> l
+          | _ -> KPair (l, r))
+
+(** val pop_node_leftmost : 'a1 node -> ('a1 * 'a1 node) option **)
+
+let pop_node_leftmost = function
+| NOnlyEnd b ->
+  (match buf6_pop b with
+   | Some p ->
+     let (k, b') = p in
+     (match k with
+      | XBase x -> Some (x, (NOnlyEnd b'))
+      | XStored _ -> None)
+   | None -> None)
+| NOnly (pre, suf) ->
+  (match buf6_pop pre with
+   | Some p ->
+     let (k, pre') = p in
+     (match k with
+      | XBase x -> Some (x, (NOnly (pre', suf)))
+      | XStored _ -> None)
+   | None -> None)
+| NLeft (pre, suf) ->
+  (match buf6_pop pre with
+   | Some p ->
+     let (k, pre') = p in
+     (match k with
+      | XBase x -> Some (x, (NLeft (pre', suf)))
+      | XStored _ -> None)
+   | None -> None)
+| NRight (pre, suf) ->
+  (match buf6_pop pre with
+   | Some p ->
+     let (k, pre') = p in
+     (match k with
+      | XBase x -> Some (x, (NRight (pre', suf)))
+      | XStored _ -> None)
+   | None -> None)
+
+(** val eject_node_rightmost : 'a1 node -> ('a1 node * 'a1) option **)
+
+let eject_node_rightmost = function
+| NOnlyEnd b ->
+  (match buf6_eject b with
+   | Some p ->
+     let (b', k) = p in
+     (match k with
+      | XBase x -> Some ((NOnlyEnd b'), x)
+      | XStored _ -> None)
+   | None -> None)
+| NOnly (pre, suf) ->
+  (match buf6_eject suf with
+   | Some p ->
+     let (suf', k) = p in
+     (match k with
+      | XBase x -> Some ((NOnly (pre, suf')), x)
+      | XStored _ -> None)
+   | None -> None)
+| NLeft (pre, suf) ->
+  (match buf6_eject suf with
+   | Some p ->
+     let (suf', k) = p in
+     (match k with
+      | XBase x -> Some ((NLeft (pre, suf')), x)
+      | XStored _ -> None)
+   | None -> None)
+| NRight (pre, suf) ->
+  (match buf6_eject suf with
+   | Some p ->
+     let (suf', k) = p in
+     (match k with
+      | XBase x -> Some ((NRight (pre, suf')), x)
+      | XStored _ -> None)
+   | None -> None)
+
+(** val pop_body_leftmost : 'a1 body -> ('a1 * 'a1 body) option **)
+
+let rec pop_body_leftmost = function
+| Hole -> None
+| BSingleY (h, b') ->
+  (match pop_node_leftmost h with
+   | Some p -> let (x, h') = p in Some (x, (BSingleY (h', b')))
+   | None -> None)
+| BPairY (h, bl, br) ->
+  (match pop_node_leftmost h with
+   | Some p -> let (x, h') = p in Some (x, (BPairY (h', bl, br)))
+   | None -> None)
+| BPairO (h, bl, br) ->
+  (match pop_node_leftmost h with
+   | Some p -> let (x, h') = p in Some (x, (BPairO (h', bl, br)))
+   | None -> None)
+
+(** val pop_packet_leftmost : 'a1 packet -> ('a1 * 'a1 packet) option **)
+
+let pop_packet_leftmost = function
+| Pkt (body0, tail) ->
+  (match body0 with
+   | Hole ->
+     (match pop_node_leftmost tail with
+      | Some p0 -> let (x, tail') = p0 in Some (x, (Pkt (Hole, tail')))
+      | None -> None)
+   | _ ->
+     (match pop_body_leftmost body0 with
+      | Some p0 -> let (x, body') = p0 in Some (x, (Pkt (body', tail)))
+      | None -> None))
+
+(** val eject_packet_rightmost : 'a1 packet -> ('a1 packet * 'a1) option **)
+
+let eject_packet_rightmost = function
+| Pkt (b, tail) ->
+  (match b with
+   | Hole ->
+     (match eject_node_rightmost tail with
+      | Some p0 -> let (tail', x) = p0 in Some ((Pkt (Hole, tail')), x)
+      | None -> None)
+   | _ -> None)
+
+(** val kcad_pop_struct : 'a1 kCadeque -> ('a1 * 'a1 kCadeque) option **)
+
+let rec kcad_pop_struct = function
+| KEmpty -> None
+| KSingle (r, p, c) ->
+  (match pop_packet_leftmost p with
+   | Some p0 -> let (x, p') = p0 in Some (x, (KSingle (r, p', c)))
+   | None -> None)
+| KPair (l, r) ->
+  (match kcad_pop_struct l with
+   | Some p -> let (x, l') = p in Some (x, (kpair_smart l' r))
+   | None -> None)
+
+(** val kcad_eject_struct : 'a1 kCadeque -> ('a1 kCadeque * 'a1) option **)
+
+let rec kcad_eject_struct = function
+| KEmpty -> None
+| KSingle (r, p, c) ->
+  (match c with
+   | KEmpty ->
+     (match eject_packet_rightmost p with
+      | Some p0 -> let (p', x) = p0 in Some ((KSingle (r, p', KEmpty)), x)
+      | None -> None)
+   | _ ->
+     (match kcad_eject_struct c with
+      | Some p0 -> let (c', x) = p0 in Some ((KSingle (r, p, c')), x)
+      | None -> None))
+| KPair (l, r) ->
+  (match kcad_eject_struct r with
+   | Some p -> let (r', x) = p in Some ((kpair_smart l r'), x)
+   | None -> None)
+
 (** val kcad_from_list : 'a1 list -> 'a1 kCadeque **)
 
 let kcad_from_list xs =
@@ -243,16 +398,22 @@ let kcad_from_list xs =
 (** val kcad_pop : 'a1 kCadeque -> ('a1 * 'a1 kCadeque) option **)
 
 let kcad_pop k =
-  match kcad_to_list k with
-  | [] -> None
-  | x :: xs -> Some (x, (kcad_from_list xs))
+  match kcad_pop_struct k with
+  | Some r -> Some r
+  | None ->
+    (match kcad_to_list k with
+     | [] -> None
+     | x :: xs -> Some (x, (kcad_from_list xs)))
 
 (** val kcad_eject : 'a1 kCadeque -> ('a1 kCadeque * 'a1) option **)
 
 let kcad_eject k =
-  match rev (kcad_to_list k) with
-  | [] -> None
-  | x :: xs -> Some ((kcad_from_list (rev xs)), x)
+  match kcad_eject_struct k with
+  | Some r -> Some r
+  | None ->
+    (match rev (kcad_to_list k) with
+     | [] -> None
+     | x :: xs -> Some ((kcad_from_list (rev xs)), x))
 
 (** val kcad_concat : 'a1 kCadeque -> 'a1 kCadeque -> 'a1 kCadeque **)
 

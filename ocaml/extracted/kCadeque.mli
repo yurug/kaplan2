@@ -71,6 +71,22 @@ val kcad_push : 'a1 -> 'a1 kCadeque -> 'a1 kCadeque
 
 val kcad_inject : 'a1 kCadeque -> 'a1 -> 'a1 kCadeque
 
+val kpair_smart : 'a1 kCadeque -> 'a1 kCadeque -> 'a1 kCadeque
+
+val pop_node_leftmost : 'a1 node -> ('a1 * 'a1 node) option
+
+val eject_node_rightmost : 'a1 node -> ('a1 node * 'a1) option
+
+val pop_body_leftmost : 'a1 body -> ('a1 * 'a1 body) option
+
+val pop_packet_leftmost : 'a1 packet -> ('a1 * 'a1 packet) option
+
+val eject_packet_rightmost : 'a1 packet -> ('a1 packet * 'a1) option
+
+val kcad_pop_struct : 'a1 kCadeque -> ('a1 * 'a1 kCadeque) option
+
+val kcad_eject_struct : 'a1 kCadeque -> ('a1 kCadeque * 'a1) option
+
 val kcad_from_list : 'a1 list -> 'a1 kCadeque
 
 val kcad_pop : 'a1 kCadeque -> ('a1 * 'a1 kCadeque) option
