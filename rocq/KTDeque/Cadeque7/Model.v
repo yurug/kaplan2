@@ -185,24 +185,24 @@ Section to_list.
 
   with stored_to_list (s : Stored X) {struct s} : list X :=
     match s with
-    | StoredSmall (mkBuf6 xs) =>
+    | StoredSmall b =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) xs
-    | StoredBig (mkBuf6 ps) c (mkBuf6 ss) =>
+           end) (buf6_elems b)
+    | StoredBig pre c suf =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) ps
+           end) (buf6_elems pre)
         ++ kcad_to_list c
         ++ (fix go (l : list (KElem X)) : list X :=
               match l with
               | []      => []
               | e :: es => kelem_to_list e ++ go es
-              end) ss
+              end) (buf6_elems suf)
     end
 
   with kcad_to_list (k : KCadeque X) {struct k} : list X :=
@@ -231,45 +231,45 @@ Section to_list.
 
   with node_to_list (n : Node X) {struct n} : list X :=
     match n with
-    | NOnlyEnd (mkBuf6 xs)            =>
+    | NOnlyEnd b                   =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) xs
-    | NOnly  (mkBuf6 ps) (mkBuf6 ss)  =>
+           end) (buf6_elems b)
+    | NOnly  pre suf =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) ps
+           end) (buf6_elems pre)
         ++ (fix go (l : list (KElem X)) : list X :=
               match l with
               | []      => []
               | e :: es => kelem_to_list e ++ go es
-              end) ss
-    | NLeft  (mkBuf6 ps) (mkBuf6 ss)  =>
+              end) (buf6_elems suf)
+    | NLeft  pre suf =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) ps
+           end) (buf6_elems pre)
         ++ (fix go (l : list (KElem X)) : list X :=
               match l with
               | []      => []
               | e :: es => kelem_to_list e ++ go es
-              end) ss
-    | NRight (mkBuf6 ps) (mkBuf6 ss)  =>
+              end) (buf6_elems suf)
+    | NRight pre suf =>
         (fix go (l : list (KElem X)) : list X :=
            match l with
            | []      => []
            | e :: es => kelem_to_list e ++ go es
-           end) ps
+           end) (buf6_elems pre)
         ++ (fix go (l : list (KElem X)) : list X :=
               match l with
               | []      => []
               | e :: es => kelem_to_list e ++ go es
-              end) ss
+              end) (buf6_elems suf)
     end.
 
 End to_list.

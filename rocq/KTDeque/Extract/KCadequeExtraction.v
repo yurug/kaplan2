@@ -23,27 +23,29 @@ Set Extraction Output Directory "kcadeque_extracted".
 
 Extraction Language OCaml.
 
-(** ** Note on WC O(1)
+(** ** Note on WC O(1) at the buffer level
 
-    The current extraction keeps the default mapping
-    [Buf6 X => 'a list], which makes [buf6_inject] and [buf6_eject]
-    O(n) per op via [xs ++ [x]] / [List.rev xs].  This violates
-    the project's WC O(1) requirement on those two ops at the
-    buffer level.
+    [Buf6] is a Coq record (singleton inductive) and Coq's extraction
+    aggressively collapses it to its underlying [list X], regardless
+    of [Extract Inductive Buf6 => "KCadequeShim.buf6" ...] directives.
+    Attempted overrides do not take effect — Rocq 9.1.1's extraction
+    treats Buf6 as a transparent wrapper.
 
-    The right fix (Phase 5b proper) is to replace [Buf6] in
-    Cadeque7's Coq types with [KChain] from
-    [rocq/KTDeque/DequePtr/OpsKT.v] — the certified WC O(1) deque.
-    That's a Coq-side rewrite of Model.v's type definitions, plus
-    re-proofs of the seq lemmas.  Effort: ~3 hours of focused work.
+    Consequence: the OCaml extracted [buf6_inject] / [buf6_eject]
+    remain O(n) per call (list-append / list-reverse), and the
+    [kCadequeShim.ml] module is unused in the current pipeline.
 
-    Tried-and-failed alternative: extraction override mapping
-    [Buf6 X => KCadequeShim.buf6] (= kChain) breaks because the
-    extracted Coq code uses [let mkBuf6 xs = b in ...] destructure
-    patterns that don't translate cleanly when [buf6] isn't a
-    variant.  Coq's [Extract Inductive] case-callback didn't take
-    effect for the record-style destructure.  Logged at
-    [kb/spec/kcadeque-design.md]. *)
+    The Cadeque7 Coq code has been refactored to use [buf6_elems b]
+    projection instead of [match b with mkBuf6 xs => ...] destructure
+    — this is the prerequisite for a working type-override.  The
+    next step (if a Coq extraction-override path is found) would be
+    to make [Extract Inductive] actually take effect for record
+    types in Rocq 9.x.
+
+    Alternative path: rewrite Cadeque7's Coq Model.v using a
+    level-indexed [Stored A : nat -> Type] mutual family with
+    [KChain (Stored A l)] as the buffer type at each level —
+    Viennot's certified approach.  Substantial Coq work (~1 day). *)
 
 Extraction "kCadeque.ml"
   (* Buffer foundation. *)
