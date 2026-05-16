@@ -1,30 +1,27 @@
 
-val length : 'a1 list -> int
-
 val app : 'a1 list -> 'a1 list -> 'a1 list
 
 val rev : 'a1 list -> 'a1 list
 
 val fold_left : ('a1 -> 'a2 -> 'a1) -> 'a2 list -> 'a1 -> 'a1
 
-type 'x buf6 = 'x list
-  (* singleton inductive, whose constructor was mkBuf6 *)
+val buf6_elems : 'a1 KCadequeShim.buf6 -> 'a1 list
 
-val buf6_to_list : 'a1 buf6 -> 'a1 list
+val buf6_to_list : 'a1 KCadequeShim.buf6 -> 'a1 list
 
-val buf6_size : 'a1 buf6 -> int
+val buf6_size : 'a1 KCadequeShim.buf6 -> int
 
-val buf6_empty : 'a1 buf6
+val buf6_empty : 'a1 KCadequeShim.buf6
 
-val buf6_singleton : 'a1 -> 'a1 buf6
+val buf6_singleton : 'a1 -> 'a1 KCadequeShim.buf6
 
-val buf6_push : 'a1 -> 'a1 buf6 -> 'a1 buf6
+val buf6_push : 'a1 -> 'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6
 
-val buf6_inject : 'a1 buf6 -> 'a1 -> 'a1 buf6
+val buf6_inject : 'a1 KCadequeShim.buf6 -> 'a1 -> 'a1 KCadequeShim.buf6
 
-val buf6_pop : 'a1 buf6 -> ('a1 * 'a1 buf6) option
+val buf6_pop : 'a1 KCadequeShim.buf6 -> ('a1 * 'a1 KCadequeShim.buf6) option
 
-val buf6_eject : 'a1 buf6 -> ('a1 buf6 * 'a1) option
+val buf6_eject : 'a1 KCadequeShim.buf6 -> ('a1 KCadequeShim.buf6 * 'a1) option
 
 type regularityTag =
 | RegG
@@ -34,8 +31,9 @@ type 'x kElem =
 | XBase of 'x
 | XStored of 'x stored
 and 'x stored =
-| StoredSmall of 'x kElem buf6
-| StoredBig of 'x kElem buf6 * 'x kCadeque * 'x kElem buf6
+| StoredSmall of 'x kElem KCadequeShim.buf6
+| StoredBig of 'x kElem KCadequeShim.buf6 * 'x kCadeque
+   * 'x kElem KCadequeShim.buf6
 and 'x kCadeque =
 | KEmpty
 | KSingle of regularityTag * 'x packet * 'x kCadeque
@@ -48,10 +46,10 @@ and 'x body =
 | BPairY of 'x node * 'x body * 'x body
 | BPairO of 'x node * 'x body * 'x body
 and 'x node =
-| NOnlyEnd of 'x kElem buf6
-| NOnly of 'x kElem buf6 * 'x kElem buf6
-| NLeft of 'x kElem buf6 * 'x kElem buf6
-| NRight of 'x kElem buf6 * 'x kElem buf6
+| NOnlyEnd of 'x kElem KCadequeShim.buf6
+| NOnly of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
+| NLeft of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
+| NRight of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
 
 val kcad_empty : 'a1 kCadeque
 

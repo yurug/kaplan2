@@ -416,6 +416,10 @@ Example empty_to_list :
   forall A : Type, kcad_to_list (@kcad_empty A) = [].
 Proof. intros; reflexivity. Qed.
 
+Lemma kcad_to_list_singleton :
+  forall (A : Type) (x : A), kcad_to_list (kcad_singleton x) = [x].
+Proof. intros; reflexivity. Qed.
+
 Example singleton_to_list :
   forall (A : Type) (x : A), kcad_to_list (kcad_singleton x) = [x].
 Proof. intros; reflexivity. Qed.

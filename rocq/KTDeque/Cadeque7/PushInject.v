@@ -100,24 +100,46 @@ Definition inject_packet {X : Type} (p : Packet X) (x : X) : Packet X :=
     packet (whose contents come before [c] in the flattening).  At
     [KPair l r] we descend into [l]. *)
 
-Fixpoint kcad_push {X : Type} (x : X) (k : KCadeque X) : KCadeque X :=
+(** Phase 5b: push and inject are WC O(1) by construction.
+
+    Previously [kcad_push] recursed through [KPair l r → KPair (push l) r]
+    and [kcad_inject] recursed through [KSingle r p c → KSingle r p
+    (inject c x)] and [KPair l r → KPair l (inject r x)] — both
+    O(depth) in the KPair-tree or child-chain depth.
+
+    To keep push/inject WC O(1) on every structure:
+
+    - [kcad_push x (KPair l r)] wraps the entire [KPair l r] as the
+      child of a fresh single-element [KSingle].  No recursion.
+
+    - [kcad_inject (KSingle r p c) x] when [c] is non-[KEmpty] places
+      a single-element singleton to the right of [c] via [KPair],
+      keeping the outer [KSingle] unchanged.  No recursion.
+
+    - [kcad_inject (KPair l r) x] does the same: [KPair (KPair l r)
+      (kcad_singleton x)].
+
+    The trade-off: pop/eject on KPair-deep trees may now descend
+    O(depth) into the right spine of the [KPair] structure.  Phase 5c
+    introduces a smart concat that keeps the [KPair] tree depth
+    bounded; until then, deep-concat workloads see slower pop/eject. *)
+
+Definition kcad_push {X : Type} (x : X) (k : KCadeque X) : KCadeque X :=
   match k with
   | KEmpty           => kcad_singleton x
   | KSingle r p c    => KSingle r (push_packet x p) c
-  | KPair l r        => KPair (kcad_push x l) r
+  | KPair _ _        =>
+      KSingle RegG (Pkt Hole (NOnlyEnd (mkBuf6 [XBase x]))) k
   end.
 
-(** [kcad_inject k x] descends into the RIGHTMOST element holder.
-    Under our linear flattening, the child chain [c] inside a
-    [KSingle r p c] comes after [p]'s contents — so inject targets
-    [c] if non-empty, falling back to the packet otherwise. *)
-
-Fixpoint kcad_inject {X : Type} (k : KCadeque X) (x : X) : KCadeque X :=
+Definition kcad_inject {X : Type} (k : KCadeque X) (x : X) : KCadeque X :=
   match k with
   | KEmpty                  => kcad_singleton x
   | KSingle r p KEmpty      => KSingle r (inject_packet p x) KEmpty
-  | KSingle r p c           => KSingle r p (kcad_inject c x)
-  | KPair l r               => KPair l (kcad_inject r x)
+  | KSingle r p c           =>
+      KSingle r p (KPair c (kcad_singleton x))
+  | KPair _ _               =>
+      KPair k (kcad_singleton x)
   end.
 
 (** ** Sequence-correctness for the helpers.
@@ -205,13 +227,15 @@ Theorem kcad_push_seq :
     kcad_to_list (kcad_push x k) = x :: kcad_to_list k.
 Proof.
   intros X x k.
-  induction k as [|r p c IHc|l IHl r IHr].
+  destruct k as [|r p c|l r].
   - reflexivity.
   - cbn [kcad_push kcad_to_list].
     rewrite packet_to_list_push.
     reflexivity.
-  - cbn [kcad_push kcad_to_list].
-    rewrite IHl. reflexivity.
+  - (* KPair: wrap as fresh KSingle head with a single-element node. *)
+    change (kcad_to_list (kcad_push x (KPair l r)))
+      with (kcad_to_list (kcad_singleton x) ++ kcad_to_list (KPair l r)).
+    rewrite kcad_to_list_singleton. reflexivity.
 Qed.
 
 Theorem kcad_inject_seq :
@@ -219,29 +243,35 @@ Theorem kcad_inject_seq :
     kcad_to_list (kcad_inject k x) = kcad_to_list k ++ [x].
 Proof.
   intros X k x.
-  induction k as [|r p c IHc|l IHl r IHr].
+  destruct k as [|r p c|l r].
   - reflexivity.
-  - destruct c.
-    + (* c = KEmpty *)
+  - destruct c as [|r' p' c'|l' r'].
+    + (* c = KEmpty: inject into packet directly. *)
       cbn [kcad_inject kcad_to_list].
       rewrite packet_to_list_inject.
       rewrite app_nil_r, app_nil_r. reflexivity.
-    + (* c = KSingle _ _ _ *)
-      change (kcad_inject (KSingle r p (KSingle r0 p0 c)) x)
-        with (KSingle r p (kcad_inject (KSingle r0 p0 c) x)).
+    + (* c = KSingle _ _ _: wrap child in KPair (c, singleton x). *)
+      change (kcad_to_list (kcad_inject
+                              (KSingle r p (KSingle r' p' c')) x))
+        with (packet_to_list p
+              ++ (kcad_to_list (KSingle r' p' c')
+                  ++ kcad_to_list (kcad_singleton x))).
+      rewrite kcad_to_list_singleton.
       cbn [kcad_to_list].
-      rewrite IHc.
+      rewrite app_assoc. reflexivity.
+    + (* c = KPair _ _: wrap child in KPair (c, singleton x). *)
+      change (kcad_to_list (kcad_inject
+                              (KSingle r p (KPair l' r')) x))
+        with (packet_to_list p
+              ++ (kcad_to_list (KPair l' r')
+                  ++ kcad_to_list (kcad_singleton x))).
+      rewrite kcad_to_list_singleton.
       cbn [kcad_to_list].
-      repeat rewrite <- app_assoc. reflexivity.
-    + (* c = KPair _ _ *)
-      change (kcad_inject (KSingle r p (KPair c1 c2)) x)
-        with (KSingle r p (kcad_inject (KPair c1 c2) x)).
-      cbn [kcad_to_list].
-      rewrite IHc.
-      cbn [kcad_to_list].
-      repeat rewrite <- app_assoc. reflexivity.
-  - cbn [kcad_inject kcad_to_list].
-    rewrite IHr. rewrite <- app_assoc. reflexivity.
+      rewrite app_assoc. reflexivity.
+  - (* KPair: wrap as KPair k (singleton x). *)
+    change (kcad_to_list (kcad_inject (KPair l r) x))
+      with (kcad_to_list (KPair l r) ++ kcad_to_list (kcad_singleton x)).
+    rewrite kcad_to_list_singleton. reflexivity.
 Qed.
 
 (** ** Sanity checks. *)
@@ -259,4 +289,28 @@ Proof. reflexivity. Qed.
 Example multi_inject :
   kcad_to_list (kcad_inject (kcad_inject (kcad_inject kcad_empty 1) 2) 3)
   = [1; 2; 3].
+Proof. reflexivity. Qed.
+
+(** Phase 5b regression: push/inject on a KPair-rooted structure
+    must succeed via the non-recursive wrap branch and preserve
+    sequence semantics. *)
+
+Example phase5b_push_on_kpair :
+  let kp : KCadeque nat :=
+    KPair (kcad_singleton 1) (kcad_singleton 2) in
+  kcad_to_list (kcad_push 0 kp) = [0; 1; 2].
+Proof. reflexivity. Qed.
+
+Example phase5b_inject_on_kpair :
+  let kp : KCadeque nat :=
+    KPair (kcad_singleton 1) (kcad_singleton 2) in
+  kcad_to_list (kcad_inject kp 3) = [1; 2; 3].
+Proof. reflexivity. Qed.
+
+Example phase5b_inject_on_ksingle_nonempty_child :
+  (* Build a KSingle whose child is itself a KSingle, then inject. *)
+  let inner := kcad_singleton 2 in
+  let outer : KCadeque nat :=
+    KSingle RegG (Pkt Hole (NOnlyEnd (mkBuf6 [XBase 1]))) inner in
+  kcad_to_list (kcad_inject outer 3) = [1; 2; 3].
 Proof. reflexivity. Qed.

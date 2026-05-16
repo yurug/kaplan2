@@ -23,29 +23,41 @@ Set Extraction Output Directory "kcadeque_extracted".
 
 Extraction Language OCaml.
 
-(** ** Note on WC O(1) at the buffer level
+(** ** WC O(1) at the buffer level via [KCadequeShim].
 
-    [Buf6] is a Coq record (singleton inductive) and Coq's extraction
-    aggressively collapses it to its underlying [list X], regardless
-    of [Extract Inductive Buf6 => "KCadequeShim.buf6" ...] directives.
-    Attempted overrides do not take effect — Rocq 9.1.1's extraction
-    treats Buf6 as a transparent wrapper.
+    [Buf6] is a Coq record (singleton inductive).  By default Rocq's
+    extraction collapses it to its underlying [list X] type, giving
+    O(n) push/inject/eject.
 
-    Consequence: the OCaml extracted [buf6_inject] / [buf6_eject]
-    remain O(n) per call (list-append / list-reverse), and the
-    [kCadequeShim.ml] module is unused in the current pipeline.
+    To achieve WC O(1), we override [Buf6] with an opaque OCaml type
+    that wraps a certified [KTDeque.kChain].  Each buffer op is also
+    overridden via [Extract Constant] to route through the shim's
+    [kt2_*] family (proven WC O(1) in [DequePtr/OpsKTSeq.v]).
 
-    The Cadeque7 Coq code has been refactored to use [buf6_elems b]
-    projection instead of [match b with mkBuf6 xs => ...] destructure
-    — this is the prerequisite for a working type-override.  The
-    next step (if a Coq extraction-override path is found) would be
-    to make [Extract Inductive] actually take effect for record
-    types in Rocq 9.x.
+    Prerequisite: the Cadeque7 Coq code uses the [buf6_elems b]
+    projection everywhere instead of [match b with mkBuf6 xs => ...]
+    destructure — so the extracted OCaml uses functional projection
+    rather than the singleton-collapsed pattern-match.
 
-    Alternative path: rewrite Cadeque7's Coq Model.v using a
-    level-indexed [Stored A : nat -> Type] mutual family with
-    [KChain (Stored A l)] as the buffer type at each level —
-    Viennot's certified approach.  Substantial Coq work (~1 day). *)
+    The case-callback in [Extract Inductive] handles the residual
+    destructures (if any): it projects via [KCadequeShim.buf6_elems]
+    before applying the consumer. *)
+
+(* Type override. *)
+Extract Inductive Buf6 => "KCadequeShim.buf6"
+  [ "KCadequeShim.mkBuf6" ]
+  "(fun fmkbuf6 b -> fmkbuf6 (KCadequeShim.buf6_elems b))".
+
+(* Op overrides — route through the shim's kt2_* WC O(1) family. *)
+Extract Constant buf6_elems     => "KCadequeShim.buf6_elems".
+Extract Constant buf6_to_list   => "KCadequeShim.buf6_to_list".
+Extract Constant buf6_size      => "KCadequeShim.buf6_size".
+Extract Constant buf6_empty     => "KCadequeShim.buf6_empty".
+Extract Constant buf6_singleton => "KCadequeShim.buf6_singleton".
+Extract Constant buf6_push      => "KCadequeShim.buf6_push".
+Extract Constant buf6_inject    => "KCadequeShim.buf6_inject".
+Extract Constant buf6_pop       => "KCadequeShim.buf6_pop".
+Extract Constant buf6_eject     => "KCadequeShim.buf6_eject".
 
 Extraction "kCadeque.ml"
   (* Buffer foundation. *)

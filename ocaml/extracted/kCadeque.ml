@@ -1,10 +1,4 @@
 
-(** val length : 'a1 list -> int **)
-
-let rec length = function
-| [] -> 0
-| _ :: l' -> Stdlib.Int.succ (length l')
-
 (** val app : 'a1 list -> 'a1 list -> 'a1 list **)
 
 let rec app l m =
@@ -25,51 +19,44 @@ let rec fold_left f l a0 =
   | [] -> a0
   | b :: l0 -> fold_left f l0 (f a0 b)
 
-type 'x buf6 = 'x list
-  (* singleton inductive, whose constructor was mkBuf6 *)
+(** val buf6_elems : 'a1 KCadequeShim.buf6 -> 'a1 list **)
 
-(** val buf6_to_list : 'a1 buf6 -> 'a1 list **)
+let buf6_elems = KCadequeShim.buf6_elems
 
-let buf6_to_list b =
-  b
+(** val buf6_to_list : 'a1 KCadequeShim.buf6 -> 'a1 list **)
 
-(** val buf6_size : 'a1 buf6 -> int **)
+let buf6_to_list = KCadequeShim.buf6_to_list
 
-let buf6_size =
-  length
+(** val buf6_size : 'a1 KCadequeShim.buf6 -> int **)
 
-(** val buf6_empty : 'a1 buf6 **)
+let buf6_size = KCadequeShim.buf6_size
 
-let buf6_empty =
-  []
+(** val buf6_empty : 'a1 KCadequeShim.buf6 **)
 
-(** val buf6_singleton : 'a1 -> 'a1 buf6 **)
+let buf6_empty = KCadequeShim.buf6_empty
 
-let buf6_singleton x =
-  x :: []
+(** val buf6_singleton : 'a1 -> 'a1 KCadequeShim.buf6 **)
 
-(** val buf6_push : 'a1 -> 'a1 buf6 -> 'a1 buf6 **)
+let buf6_singleton = KCadequeShim.buf6_singleton
 
-let buf6_push x b =
-  x :: b
+(** val buf6_push : 'a1 -> 'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6 **)
 
-(** val buf6_inject : 'a1 buf6 -> 'a1 -> 'a1 buf6 **)
+let buf6_push = KCadequeShim.buf6_push
 
-let buf6_inject b x =
-  app b (x :: [])
+(** val buf6_inject :
+    'a1 KCadequeShim.buf6 -> 'a1 -> 'a1 KCadequeShim.buf6 **)
 
-(** val buf6_pop : 'a1 buf6 -> ('a1 * 'a1 buf6) option **)
+let buf6_inject = KCadequeShim.buf6_inject
 
-let buf6_pop = function
-| [] -> None
-| x :: xs -> Some (x, xs)
+(** val buf6_pop :
+    'a1 KCadequeShim.buf6 -> ('a1 * 'a1 KCadequeShim.buf6) option **)
 
-(** val buf6_eject : 'a1 buf6 -> ('a1 buf6 * 'a1) option **)
+let buf6_pop = KCadequeShim.buf6_pop
 
-let buf6_eject b =
-  match rev b with
-  | [] -> None
-  | x :: xs -> Some ((rev xs), x)
+(** val buf6_eject :
+    'a1 KCadequeShim.buf6 -> ('a1 KCadequeShim.buf6 * 'a1) option **)
+
+let buf6_eject = KCadequeShim.buf6_eject
 
 type regularityTag =
 | RegG
@@ -79,8 +66,9 @@ type 'x kElem =
 | XBase of 'x
 | XStored of 'x stored
 and 'x stored =
-| StoredSmall of 'x kElem buf6
-| StoredBig of 'x kElem buf6 * 'x kCadeque * 'x kElem buf6
+| StoredSmall of 'x kElem KCadequeShim.buf6
+| StoredBig of 'x kElem KCadequeShim.buf6 * 'x kCadeque
+   * 'x kElem KCadequeShim.buf6
 and 'x kCadeque =
 | KEmpty
 | KSingle of regularityTag * 'x packet * 'x kCadeque
@@ -93,10 +81,10 @@ and 'x body =
 | BPairY of 'x node * 'x body * 'x body
 | BPairO of 'x node * 'x body * 'x body
 and 'x node =
-| NOnlyEnd of 'x kElem buf6
-| NOnly of 'x kElem buf6 * 'x kElem buf6
-| NLeft of 'x kElem buf6 * 'x kElem buf6
-| NRight of 'x kElem buf6 * 'x kElem buf6
+| NOnlyEnd of 'x kElem KCadequeShim.buf6
+| NOnly of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
+| NLeft of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
+| NRight of 'x kElem KCadequeShim.buf6 * 'x kElem KCadequeShim.buf6
 
 (** val kcad_empty : 'a1 kCadeque **)
 
@@ -106,7 +94,8 @@ let kcad_empty =
 (** val kcad_singleton : 'a1 -> 'a1 kCadeque **)
 
 let kcad_singleton x =
-  KSingle (RegG, (Pkt (Hole, (NOnlyEnd ((XBase x) :: [])))), KEmpty)
+  KSingle (RegG, (Pkt (Hole, (NOnlyEnd (KCadequeShim.mkBuf6 ((XBase
+    x) :: []))))), KEmpty)
 
 (** val kcad_to_list : 'a1 kCadeque -> 'a1 list **)
 
@@ -119,18 +108,18 @@ let kcad_to_list =
     let rec go = function
     | [] -> []
     | e :: es -> app (kelem_to_list e) (go es)
-    in go b
-  | StoredBig (b, c, b0) ->
+    in go (buf6_elems b)
+  | StoredBig (pre, c, suf) ->
     app
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b)
+       in go (buf6_elems pre))
       (app (kcad_to_list0 c)
         (let rec go = function
          | [] -> []
          | e :: es -> app (kelem_to_list e) (go es)
-         in go b0))
+         in go (buf6_elems suf)))
   and kcad_to_list0 = function
   | KEmpty -> []
   | KSingle (_, p, c) -> app (packet_to_list p) (kcad_to_list0 c)
@@ -149,37 +138,37 @@ let kcad_to_list =
     let rec go = function
     | [] -> []
     | e :: es -> app (kelem_to_list e) (go es)
-    in go b
-  | NOnly (b, b0) ->
+    in go (buf6_elems b)
+  | NOnly (pre, suf) ->
     app
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b)
+       in go (buf6_elems pre))
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b0)
-  | NLeft (b, b0) ->
+       in go (buf6_elems suf))
+  | NLeft (pre, suf) ->
     app
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b)
+       in go (buf6_elems pre))
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b0)
-  | NRight (b, b0) ->
+       in go (buf6_elems suf))
+  | NRight (pre, suf) ->
     app
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b)
+       in go (buf6_elems pre))
       (let rec go = function
        | [] -> []
        | e :: es -> app (kelem_to_list e) (go es)
-       in go b0)
+       in go (buf6_elems suf))
   in kcad_to_list0
 
 (** val push_node : 'a1 -> 'a1 node -> 'a1 node **)
@@ -219,21 +208,23 @@ let inject_packet p x =
 
 (** val kcad_push : 'a1 -> 'a1 kCadeque -> 'a1 kCadeque **)
 
-let rec kcad_push x = function
+let kcad_push x k = match k with
 | KEmpty -> kcad_singleton x
 | KSingle (r, p, c) -> KSingle (r, (push_packet x p), c)
-| KPair (l, r) -> KPair ((kcad_push x l), r)
+| KPair (_, _) ->
+  KSingle (RegG, (Pkt (Hole, (NOnlyEnd (KCadequeShim.mkBuf6 ((XBase
+    x) :: []))))), k)
 
 (** val kcad_inject : 'a1 kCadeque -> 'a1 -> 'a1 kCadeque **)
 
-let rec kcad_inject k x =
+let kcad_inject k x =
   match k with
   | KEmpty -> kcad_singleton x
   | KSingle (r, p, c) ->
     (match c with
      | KEmpty -> KSingle (r, (inject_packet p x), KEmpty)
-     | _ -> KSingle (r, p, (kcad_inject c x)))
-  | KPair (l, r) -> KPair (l, (kcad_inject r x))
+     | _ -> KSingle (r, p, (KPair (c, (kcad_singleton x)))))
+  | KPair (_, _) -> KPair (k, (kcad_singleton x))
 
 (** val kpair_smart : 'a1 kCadeque -> 'a1 kCadeque -> 'a1 kCadeque **)
 
