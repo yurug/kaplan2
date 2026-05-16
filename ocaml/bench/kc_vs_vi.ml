@@ -149,6 +149,34 @@ let adversarial_inject_then_pop ~prefix ~injects =
   for i = 0 to injects - 1 do acc := Kc.kcad_inject !acc i done;
   kc_pop !acc
 
+(* Stress test for Phase 5c: many concats then drain.  Each concat
+   wraps the previous result in a fresh KSingle with stored cells;
+   after N concats the nesting depth is N.  Drain first hits the
+   [kcad_pop] fallback which calls Coq-extracted [kcad_to_list] +
+   [kcad_from_list].  Both are O(total) on a flat structure but
+   [kcad_to_list] degenerates to **O(N × total)** on deeply-nested
+   structures because it uses left-associative [app] from the Coq
+   spec — each level concatenates its packet's content (which
+   itself unfolds the entire prev recursive result via [++]).
+
+   This is a Coq-spec limitation independent of Phase 5c's
+   concat redesign.  Fixing it requires either:
+   - An accumulator-style [kcad_to_list_fast] in Coq, proven
+     equivalent to [kcad_to_list], used in the fallback.
+   - The §12.4 [adopt6] incremental-unfold pop that doesn't
+     materialize the full list at all. *)
+let adversarial_concat_chain_then_drain ~depth ~per_chunk =
+  let chunk () =
+    let acc = ref Kc.kcad_empty in
+    for i = 0 to per_chunk - 1 do acc := Kc.kcad_push i !acc done;
+    !acc
+  in
+  let rec build d acc =
+    if d <= 0 then acc else build (d - 1) (Kc.kcad_concat acc (chunk ()))
+  in
+  let k = build depth Kc.kcad_empty in
+  kc_pop k
+
 let run_adversarial () =
   Printf.printf "\n=== Adversarial: 100k ops on a depth-1000 KPair tree ===\n";
   let _ = time "Kc push  (after concat depth 1000)"
@@ -159,10 +187,17 @@ let run_adversarial () =
                         ~depth:1000 ~injects:100_000) in
   Printf.printf "\n=== Adversarial: pop-all after concat+%d injects ===\n"
     10_000;
-  Printf.printf "    (residual Phase-5c gap: O(depth) pop on left-deep KPair tree)\n";
-  let _ = time "Kc pop-all"
+  let _ = time "Kc pop-all (after concat+10k injects)"
             (fun () -> adversarial_inject_then_pop
                         ~prefix:100 ~injects:10_000) in
+  Printf.printf "\n=== Adversarial: pop-all after 100 concats of 100-elt chunks ===\n";
+  let _ = time "Kc pop-all (100 concats × 100 elts)"
+            (fun () -> adversarial_concat_chain_then_drain
+                        ~depth:100 ~per_chunk:100) in
+  Printf.printf "\n=== Adversarial: pop-all after 1000 concats of 100-elt chunks ===\n";
+  let _ = time "Kc pop-all (1000 concats × 100 elts)"
+            (fun () -> adversarial_concat_chain_then_drain
+                        ~depth:1000 ~per_chunk:100) in
   ()
 
 let () =
