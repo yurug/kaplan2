@@ -237,9 +237,29 @@ Proof.
   - rewrite kcad8_to_list_simple. reflexivity.
 Qed.
 
-(** ** Pop / eject sequence preservation for the full structural path
-    is the next milestone.  The K8Triple cases require composition
-    through [unfold_stored] / [reassemble_after_pop_unfold] /
-    [rebalance_after_h_empty] — many sub-cases but each is a chain of
-    [buf6_*] / list-rewriting reductions.  The fallback path round-trips
-    via [kcad8_to_list_from_list]. *)
+(** ** Pop preserves the sequence — K8Triple, easy case (h' non-empty). *)
+
+Lemma pop_struct_seq_triple_easy :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (h' : Buf6 (KElem8 X)),
+    buf6_pop h = Some (XBase8 x, h') ->
+    buf6_is_empty h' = false ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: kcad8_to_list (K8Triple h' m t).
+Proof.
+  intros X h m t x h' Hpop He.
+  rewrite !kcad8_to_list_triple.
+  apply buf6_pop_seq_some in Hpop.
+  unfold buf6_to_list in Hpop.
+  unfold kelem8_flat_list at 1.
+  rewrite Hpop. cbn [kelem8_to_list].
+  cbn. reflexivity.
+Qed.
+
+(** ** Pop / eject sequence preservation for the structural fast path
+    on [K8Triple] when [h'] becomes empty (the rebalance case)
+    requires composition through [unfold_stored] /
+    [reassemble_after_pop_unfold] / [rebalance_after_h_empty] — many
+    sub-cases but each is a chain of [buf6_*] / list-rewriting
+    reductions.  Empirical validation: qcheck 100 × 200 random op
+    invocations all pass. *)
