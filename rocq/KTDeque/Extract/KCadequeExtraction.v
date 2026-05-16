@@ -81,6 +81,7 @@ Extraction "kCadeque.ml"
   kcad_empty
   kcad_singleton
   kcad_to_list
+  kcad_to_list_fast
   (* Operations. *)
   kcad_push
   kcad_inject

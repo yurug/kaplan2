@@ -262,13 +262,18 @@ Proof.
   rewrite kcad_to_list_fold_inject. cbn. reflexivity.
 Qed.
 
-(** ** Public pop/eject: try fast, fall back to [kcad_to_list]+rebuild. *)
+(** ** Public pop/eject: try fast, fall back to [kcad_to_list]+rebuild.
+
+    Phase 5c residual gap fix: the fallback uses [kcad_to_list_fast]
+    (O(n)) rather than [kcad_to_list] (O(n²) on deeply-concat'd
+    structures, due to left-associative [app] in the spec).
+    Correctness preserved via [kcad_to_list_fast_eq]. *)
 
 Definition kcad_pop {X : Type} (k : KCadeque X) : option (X * KCadeque X) :=
   match kcad_pop_struct k with
   | Some r => Some r
   | None =>
-      match kcad_to_list k with
+      match kcad_to_list_fast k with
       | []      => None
       | x :: xs => Some (x, kcad_from_list xs)
       end
@@ -278,7 +283,7 @@ Definition kcad_eject {X : Type} (k : KCadeque X) : option (KCadeque X * X) :=
   match kcad_eject_struct k with
   | Some r => Some r
   | None =>
-      match rev (kcad_to_list k) with
+      match rev (kcad_to_list_fast k) with
       | []      => None
       | x :: xs => Some (kcad_from_list (rev xs), x)
       end
@@ -453,7 +458,8 @@ Proof.
   destruct (kcad_pop_struct k) as [[a k_s]|] eqn:Hs.
   - injection Hpop as Hx Hk. subst a k'.
     apply (kcad_pop_struct_seq _ _ _ _ Hs).
-  - destruct (kcad_to_list k) as [|y ys] eqn:Hto; [discriminate|].
+  - rewrite <- (kcad_to_list_fast_eq X k).
+    destruct (kcad_to_list_fast k) as [|y ys] eqn:Hto; [discriminate|].
     injection Hpop as Hxy Hk'.
     rewrite <- Hk'. rewrite kcad_to_list_from_list.
     rewrite <- Hxy. reflexivity.
@@ -469,10 +475,11 @@ Proof.
   destruct (kcad_eject_struct k) as [[k_s a]|] eqn:Hs.
   - injection Hej as Hk Hx. subst a k'.
     apply (kcad_eject_struct_seq _ _ _ _ Hs).
-  - destruct (rev (kcad_to_list k)) as [|y ys] eqn:Hrev; [discriminate|].
+  - rewrite <- (kcad_to_list_fast_eq X k).
+    destruct (rev (kcad_to_list_fast k)) as [|y ys] eqn:Hrev; [discriminate|].
     injection Hej as Hk' Hxy.
     rewrite <- Hk'. rewrite kcad_to_list_from_list.
-    assert (Heq : kcad_to_list k = rev (y :: ys)).
+    assert (Heq : kcad_to_list_fast k = rev (y :: ys)).
     { rewrite <- Hrev. rewrite rev_involutive. reflexivity. }
     rewrite Heq. cbn. rewrite <- Hxy. reflexivity.
 Qed.

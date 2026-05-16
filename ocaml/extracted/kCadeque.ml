@@ -171,6 +171,96 @@ let kcad_to_list =
        in go (buf6_elems suf))
   in kcad_to_list0
 
+(** val kcad_to_list_acc : 'a1 kCadeque -> 'a1 list -> 'a1 list **)
+
+let kcad_to_list_acc =
+  let rec kelem_to_list_acc e acc =
+    match e with
+    | XBase x -> x :: acc
+    | XStored s -> stored_to_list_acc s acc
+  and stored_to_list_acc s acc =
+    match s with
+    | StoredSmall b ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems b) acc
+    | StoredBig (pre, c, suf) ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems pre)
+           (kcad_to_list_acc0 c
+             (let rec go l a =
+                match l with
+                | [] -> a
+                | e :: es -> kelem_to_list_acc e (go es a)
+              in go (buf6_elems suf) acc))
+  and kcad_to_list_acc0 k acc =
+    match k with
+    | KEmpty -> acc
+    | KSingle (_, p, c) -> packet_to_list_acc p (kcad_to_list_acc0 c acc)
+    | KPair (l, r) -> kcad_to_list_acc0 l (kcad_to_list_acc0 r acc)
+  and packet_to_list_acc p acc =
+    let Pkt (b, n) = p in body_to_list_acc b (node_to_list_acc n acc)
+  and body_to_list_acc b acc =
+    match b with
+    | Hole -> acc
+    | BSingleY (n, inner) -> node_to_list_acc n (body_to_list_acc inner acc)
+    | BPairY (n, bl, br) ->
+      node_to_list_acc n (body_to_list_acc bl (body_to_list_acc br acc))
+    | BPairO (n, bl, br) ->
+      node_to_list_acc n (body_to_list_acc bl (body_to_list_acc br acc))
+  and node_to_list_acc n acc =
+    match n with
+    | NOnlyEnd b ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems b) acc
+    | NOnly (pre, suf) ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems pre)
+           (let rec go l a =
+              match l with
+              | [] -> a
+              | e :: es -> kelem_to_list_acc e (go es a)
+            in go (buf6_elems suf) acc)
+    | NLeft (pre, suf) ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems pre)
+           (let rec go l a =
+              match l with
+              | [] -> a
+              | e :: es -> kelem_to_list_acc e (go es a)
+            in go (buf6_elems suf) acc)
+    | NRight (pre, suf) ->
+      let rec go l a =
+        match l with
+        | [] -> a
+        | e :: es -> kelem_to_list_acc e (go es a)
+      in go (buf6_elems pre)
+           (let rec go l a =
+              match l with
+              | [] -> a
+              | e :: es -> kelem_to_list_acc e (go es a)
+            in go (buf6_elems suf) acc)
+  in kcad_to_list_acc0
+
+(** val kcad_to_list_fast : 'a1 kCadeque -> 'a1 list **)
+
+let kcad_to_list_fast k =
+  kcad_to_list_acc k []
+
 (** val push_node : 'a1 -> 'a1 node -> 'a1 node **)
 
 let push_node x = function
@@ -392,7 +482,7 @@ let kcad_pop k =
   match kcad_pop_struct k with
   | Some r -> Some r
   | None ->
-    (match kcad_to_list k with
+    (match kcad_to_list_fast k with
      | [] -> None
      | x :: xs -> Some (x, (kcad_from_list xs)))
 
@@ -402,7 +492,7 @@ let kcad_eject k =
   match kcad_eject_struct k with
   | Some r -> Some r
   | None ->
-    (match rev (kcad_to_list k) with
+    (match rev (kcad_to_list_fast k) with
      | [] -> None
      | x :: xs -> Some ((kcad_from_list (rev xs)), x))
 

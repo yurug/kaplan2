@@ -57,6 +57,10 @@ val kcad_singleton : 'a1 -> 'a1 kCadeque
 
 val kcad_to_list : 'a1 kCadeque -> 'a1 list
 
+val kcad_to_list_acc : 'a1 kCadeque -> 'a1 list -> 'a1 list
+
+val kcad_to_list_fast : 'a1 kCadeque -> 'a1 list
+
 val push_node : 'a1 -> 'a1 node -> 'a1 node
 
 val inject_node : 'a1 node -> 'a1 -> 'a1 node

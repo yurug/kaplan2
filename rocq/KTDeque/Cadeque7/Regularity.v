@@ -234,7 +234,7 @@ Proof.
   destruct (kcad_pop_struct k) as [[xv kv]|] eqn:Hstruct.
   - injection Hpop as Hx Hk. subst x k'.
     eapply well_formed_kcad_pop_struct; eassumption.
-  - destruct (kcad_to_list k) as [|y ys] eqn:Htl; [discriminate|].
+  - destruct (kcad_to_list_fast k) as [|y ys] eqn:Htl; [discriminate|].
     injection Hpop as Hx Hk. subst x k'.
     apply well_formed_kcad_from_list_empty.
 Qed.
@@ -250,7 +250,7 @@ Proof.
   destruct (kcad_eject_struct k) as [[kv xv]|] eqn:Hstruct.
   - injection Heject as Hk Hx. subst x k'.
     eapply well_formed_kcad_eject_struct; eassumption.
-  - destruct (rev (kcad_to_list k)) as [|y ys] eqn:Htl; [discriminate|].
+  - destruct (rev (kcad_to_list_fast k)) as [|y ys] eqn:Htl; [discriminate|].
     injection Heject as Hk Hx. subst x k'.
     apply well_formed_kcad_from_list_empty.
 Qed.
