@@ -137,6 +137,17 @@ via the [`kCadequeShim.ml`](extracted/kCadequeShim.ml) bridge.
 See [`bench/kc_vs_vi.ml`](bench/kc_vs_vi.ml) for head-to-head
 timing vs Viennot's hand-coded reference.
 
+**Two `to_list` functions** — they compute the same list (Coq-proven
+equivalent via `kcad_to_list_fast_eq`), but differ in cost on deeply
+concat'd structures:
+
+- `kcad_to_list k` — the Coq spec, uses left-associative `++` and
+  degenerates to O(n²) when nested through many `concat`s.  Used
+  in the seq laws and proofs.
+- `kcad_to_list_fast k` — accumulator-based, O(n) in all cases.
+  **Prefer this in user code.**  `kcad_pop` / `kcad_eject` already
+  use it internally for the fallback path.
+
 ## Concurrency (OCaml 5 / Domain)
 
 A `kChain` value is fully immutable.  Every op produces a new
