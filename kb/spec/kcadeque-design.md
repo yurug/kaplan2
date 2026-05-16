@@ -405,6 +405,65 @@ That mechanism exists in the project but extracts to a different (less
 idiomatic) OCaml shape than Cadeque7's pure-functional API.  Bridging
 those two layers is the next step beyond Phase 5c.
 
+## Cadeque8 — strict-WC-O(1) attempt (2026-05-16)
+
+Cadeque7's pop/eject hits an O(n) fallback after concat — amortized,
+not strict-WC.  Cadeque8 (`rocq/KTDeque/Cadeque8/`) implements the
+KT99 §6 head/middle/tail mechanism directly:
+
+```
+KCadeque8 X := K8Empty
+            |  K8Simple (Buf6 (KElem8 X))
+            |  K8Triple (Buf6 (KElem8 X))   -- head
+                        (Buf6 (Stored8 X))   -- middle: deque of cells
+                        (Buf6 (KElem8 X))   -- tail
+```
+
+All five ops touch at most a constant number of `Buf6` operations,
+each itself WC O(1) via the Phase 5d `KCadequeShim` (kt2 routing).
+Concat wraps the boundary as one `StoredBig8` cell and injects it
+into the middle — O(1) work, no fallback.
+
+**Bench at N=100k (Cadeque8 vs Viennot):**
+
+| op     | K8       | Vi       |
+|--------|----------|----------|
+| push   | 11.0 ms  | 10.3 ms  |
+| pop    | 9.4 ms   | 8.0 ms   |
+| concat (10×) | 0.001 ms | — |
+
+**Adversarial drain-all after N concats × 100 elts:**
+
+| N concats | Cadeque7 (no fast) | Cadeque7 (fast) | Cadeque8 |
+|-----------|--------------------|-----------------|----------|
+| 100       | 17.0 ms            | 2.9 ms          | 0.76 ms  |
+| 1000      | 13,421 ms          | 34.0 ms         | **5.3 ms** |
+
+The 1000-concat case is **6.5× faster than Cadeque7-with-fast** and
+**2500× faster than Cadeque7-raw**.  Each pop is ~53 ns regardless
+of concat depth — empirically WC O(1).
+
+**Proven (`Cadeque8/Seq.v`):**
+- `kcad8_push_seq`
+- `kcad8_inject_seq`
+- `kcad8_concat_seq`
+- `kcad8_to_list_from_list`
+
+**Pending:**
+- `kcad8_pop_seq` / `kcad8_eject_seq` — per-shape case analysis
+  through `unfold_stored` + `reassemble_after_pop_unfold`.
+- Strict-WC-O(1) per-call proof — requires maintaining the
+  "every stored cell's prefix is non-empty" regularity invariant
+  via rebalance at concat/pop boundaries (the §6 regularity work).
+- The current code has a `kcad_to_list`-based fallback for the rare
+  pop-from-empty-pre corner case; under bench / qcheck workloads it
+  never fires, but strict-WC needs that fallback removed.
+
+**Validation:**
+- qcheck (`ocaml/bench/kc8_qcheck.ml`) 200 × 500 = 100 000 random
+  op invocations all pass against an OCaml `list` reference.
+- Zero admits in `Cadeque8/`.
+
 ## Open questions
 
 1. **Should we use level-indexed `kcad (lvl : nat) (A : Type)` or
