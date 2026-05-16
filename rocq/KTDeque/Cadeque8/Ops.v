@@ -123,6 +123,20 @@ Definition kcad8_from_list {X : Type} (xs : list X) : KCadeque8 X :=
     walk hits a case that requires nested unfolding (rare; the public
     [kcad8_pop] below falls back to to_list+rebuild for those). *)
 
+(** Rebalance step: when the head buffer just became empty, restore
+    the "K8Triple head non-empty" invariant by pulling the leftmost
+    stored cell from middle and unfolding it into the new head.  If
+    middle is also empty, collapse to a [K8Simple t]. *)
+
+Definition rebalance_after_h_empty {X : Type}
+  (m : Buf6 (Stored8 X)) (t : Buf6 (KElem8 X)) : KCadeque8 X :=
+  match buf6_pop m with
+  | Some (s, m_rest) =>
+      let '(pre, sub, suf) := unfold_stored s in
+      reassemble_after_pop_unfold pre sub suf m_rest t
+  | None => K8Simple t  (* middle empty; t is non-empty by invariant *)
+  end.
+
 Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
                             : option (X * KCadeque8 X) :=
   match k with
@@ -136,9 +150,15 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
   | K8Triple h m t =>
       match buf6_pop h with
       | Some (XBase8 x, h') =>
-          Some (x, K8Triple h' m t)
+          if buf6_is_empty h' then
+            (* Maintain the invariant: h must be non-empty in K8Triple.
+               Rebalance from middle (or collapse to K8Simple). *)
+            Some (x, rebalance_after_h_empty m t)
+          else
+            Some (x, K8Triple h' m t)
       | _ =>
-          (* Head empty.  Try to pop a stored cell from middle. *)
+          (* Should never happen if invariant holds: head non-empty.
+             Fallback for the rare construction path that violates it. *)
           match buf6_pop m with
           | Some (s, m_rest) =>
               let '(pre, sub, suf) := unfold_stored s in
@@ -148,7 +168,6 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
               | _ => None
               end
           | None =>
-              (* Middle empty: drain tail. *)
               match buf6_pop t with
               | Some (XBase8 x, t') =>
                   Some (x, if buf6_is_empty t' then K8Empty else K8Simple t')

@@ -64,6 +64,10 @@ val reassemble_after_eject_unfold :
 
 val kcad8_from_list : 'a1 list -> 'a1 kCadeque8
 
+val rebalance_after_h_empty :
+  'a1 stored8 KCadequeShim.buf6 -> 'a1 kElem8 KCadequeShim.buf6 -> 'a1
+  kCadeque8
+
 val kcad8_pop_struct : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option
 
 val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option
