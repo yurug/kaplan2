@@ -272,10 +272,33 @@ Proof.
   cbn. reflexivity.
 Qed.
 
-(** ** Pop / eject sequence preservation for the structural fast path
-    on [K8Triple] when [h'] becomes empty (the rebalance case)
-    requires composition through [unfold_stored] /
-    [reassemble_after_pop_unfold] / [rebalance_after_h_empty] — many
-    sub-cases but each is a chain of [buf6_*] / list-rewriting
-    reductions.  Empirical validation: qcheck 100 × 200 random op
-    invocations all pass. *)
+(** ** K8Triple, rebalance with middle empty (degenerate case). *)
+
+Lemma pop_struct_seq_triple_rebalance_m_empty :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (h' : Buf6 (KElem8 X)),
+    buf6_pop h = Some (XBase8 x, h') ->
+    buf6_is_empty h' = true ->
+    buf6_pop m = None ->
+    kcad8_to_list (K8Triple h m t) = x :: kcad8_to_list (K8Simple t).
+Proof.
+  intros X h m t x h' Hpop Hhe Hme.
+  rewrite kcad8_to_list_triple, kcad8_to_list_simple.
+  apply buf6_pop_seq_some in Hpop. unfold buf6_to_list in Hpop.
+  apply buf6_pop_none_empty in Hme.
+  apply (stored8_flat_list_nil _ m) in Hme.
+  apply (kelem8_flat_list_nil _ h') in Hhe.
+  unfold kelem8_flat_list at 1.
+  rewrite Hpop. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems h')).
+  rewrite Hhe, Hme. cbn. reflexivity.
+Qed.
+
+(** ** Remaining: K8Triple rebalance with middle non-empty.
+
+    This case branches on [unfold_stored s] (StoredSmall vs StoredBig)
+    and on the size of the unfolded prefix/suffix.  Each sub-case is
+    a chain of buf6_* / list rewrites + cbn.  The current commit
+    captures the proven cases (Simple, Triple easy, Triple rebalance
+    with empty middle); the remaining branches follow the same
+    pattern. *)
