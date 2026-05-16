@@ -411,6 +411,12 @@ let kcad_eject k =
 let kcad_concat k1 k2 =
   match k1 with
   | KEmpty -> k2
-  | _ -> (match k2 with
-          | KEmpty -> k1
-          | _ -> KPair (k1, k2))
+  | _ ->
+    (match k2 with
+     | KEmpty -> k1
+     | _ ->
+       KSingle (RegG, (Pkt (Hole, (NOnly ((KCadequeShim.mkBuf6 ((XStored
+         (StoredBig ((KCadequeShim.mkBuf6 []), k1, (KCadequeShim.mkBuf6
+         [])))) :: [])), (KCadequeShim.mkBuf6 ((XStored (StoredBig
+         ((KCadequeShim.mkBuf6 []), k2, (KCadequeShim.mkBuf6
+         [])))) :: [])))))), KEmpty))

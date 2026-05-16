@@ -117,13 +117,12 @@ Lemma well_formed_kcad_concat :
 Proof.
   intros X a b Ha Hb.
   unfold kcad_concat.
+  (* Phase 5c: kcad_concat now produces [KSingle r p KEmpty] when both
+     inputs are non-empty (the Stored-cell wrap); well_formed_kcad
+     of [KSingle _ _ KEmpty] reduces to [well_formed_kcad KEmpty = True]. *)
   destruct a as [|ra pa ca|al ar]; [exact Hb | |].
-  - destruct b as [|rb pb cb|bl br]; [exact Ha | |].
-    + cbn. split; [discriminate | split; [discriminate | split; assumption]].
-    + cbn. split; [discriminate | split; [discriminate | split; assumption]].
-  - destruct b as [|rb pb cb|bl br]; [exact Ha | |].
-    + cbn. split; [discriminate | split; [discriminate | split; assumption]].
-    + cbn. split; [discriminate | split; [discriminate | split; assumption]].
+  - destruct b as [|rb pb cb|bl br]; [exact Ha | exact I | exact I].
+  - destruct b as [|rb pb cb|bl br]; [exact Ha | exact I | exact I].
 Qed.
 
 (** ** [kpair_smart] preserves and concludes well-formedness. *)

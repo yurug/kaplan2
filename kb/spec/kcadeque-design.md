@@ -328,15 +328,15 @@ Each phase ends with a buildable, committed checkpoint.
 - [ ] Functional equivalence vs Viennot (qcheck).
 - [ ] Timing.
 
-## Status as of 2026-05-15 (Phases 5a/5b/5/5d landed)
+## Status as of 2026-05-16 (Phases 5a/5b/5c/5/5d landed)
 
-| Op     | Common case        | Worst case (deep KPair after concat)      |
-|--------|--------------------|-------------------------------------------|
-| push   | O(1) — packet      | O(1) — wraps as fresh KSingle (Phase 5b)  |
-| inject | O(1) — packet/wrap | O(1) — wraps as KPair (Phase 5b)          |
-| pop    | O(1) — structural  | **O(depth)** descent into left KPair spine|
-| eject  | O(1) — structural  | **O(depth)** descent into right KPair spine|
-| concat | O(1) — naive KPair | O(1) — naive KPair                        |
+| Op     | Common case        | Worst case (after concat)                          |
+|--------|--------------------|----------------------------------------------------|
+| push   | O(1) — packet      | O(1) — wraps as fresh KSingle (Phase 5b)           |
+| inject | O(1) — packet      | O(1) — stays in packet (Phase 5c stored-cell wrap) |
+| pop    | O(1) — structural  | **O(n) once** (fallback rebuild), then O(1)        |
+| eject  | O(1) — structural  | **O(n) once** (fallback rebuild), then O(1)        |
+| concat | O(1) — wrap        | O(1) — Stored-cell wrap (Phase 5c)                 |
 
 Phase 5d routes every Buf6 op through the certified `KChain` (kt2 family)
 via the OCaml extraction shim `KCadequeShim` — so buffer growth is also
@@ -372,18 +372,38 @@ random op invocations against an OCaml `list` reference at every step.
 All pass.  Persistence test (fork two divergent branches from a shared
 base, verify each reflects only its own ops) passes.
 
-**Adversarial gap (Phase 5c residual):** the pop-all-after-concat-then-inject
-workload exposes the O(depth) pop on left-deep KPair trees built by
-Phase 5b's inject.  Measured at ~31 µs/op for depth-10 000 vs ~70 ns/op
-for flat structures.  Closing this gap requires the KT §6 mechanism:
+**Phase 5c landed (2026-05-16):** `kcad_concat` now wraps both inputs
+as `Stored` cells inside a fresh `KSingle r p KEmpty` (instead of
+building a `KPair`).  Two cascading wins:
 
-- Replace `KPair K K` (a tree) with a structure that stores child
-  cadeques in a non-catenable WC O(1) deque (a `KChain`).
-- Or adopt the §6 head/middle/tail split: two non-catenable WC O(1)
-  deques bracketing a chain of stored elements.
+1. **No more KPair-tree growth from inject** — because the concat
+   result has `KEmpty` child, the next `kcad_inject` hits the
+   `KSingle r p KEmpty` branch in `PushInject.v` and stays inside
+   the packet's buffer (Phase 5b's `KSingle r p (KPair c …)` branch
+   is no longer reachable from a concat-rooted structure).
 
-Both options are substantial Coq redesigns and are deferred until
-the use case demands them.
+2. **Pop after concat is amortized O(1)** — the first pop on a
+   stored-cell-rooted structure hits the `kcad_pop` fallback (since
+   `pop_node_leftmost` doesn't unfold `XStored`), which rebuilds a
+   flat `KSingle` chain via `kcad_from_list`.  Subsequent pops are
+   O(1).  Total drain after concat + N injects + N pops is O(N).
+
+**Adversarial bench (pop-all after concat + 10 000 injects):**
+
+|             | Phase 5b (KPair) | Phase 5c (Stored wrap) |
+|-------------|------------------|------------------------|
+| pop-all     | 309 ms           | **4.4 ms (70× faster)**|
+| inject 100k after concat-depth-1000 | 24.5 ms | **10.5 ms (2.3×)** |
+
+**Residual gap (strict WC O(1) per pop):** the one O(n) fallback per
+"freshly concat'd subtree" violates strict WC O(1) (the user's
+adversarial bench can re-trigger it by replaying from a saved state).
+True strict WC O(1) would require incremental unfolding of `XStored`
+cells via the §12.4 [adopt6] dance from `Cadeque6/Adopt6.v` — a
+heap-monad layer where pop preserves O(1) per call by lazy unfolding.
+That mechanism exists in the project but extracts to a different (less
+idiomatic) OCaml shape than Cadeque7's pure-functional API.  Bridging
+those two layers is the next step beyond Phase 5c.
 
 ## Open questions
 
