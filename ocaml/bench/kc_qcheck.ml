@@ -168,6 +168,80 @@ let persistence_test ~ops_per_branch =
   end;
   !ok
 
+(* Concat-heavy stress test: builds a deque via many concats, applies
+   a sequence of injects + pops, and verifies correctness against
+   a list reference at every step.  This specifically exercises
+   Phase 5c's Stored-cell wrap path: concat → KSingle with stored
+   cells, subsequent injects stay in the packet, pop hits the
+   fallback once then drains O(1) per op. *)
+let concat_heavy_test ~num_concats ~per_chunk ~ops_after =
+  Random.init 0xC0DE;
+  let chunk_xs () =
+    let xs = ref [] in
+    for i = 0 to per_chunk - 1 do xs := i :: !xs done;
+    !xs
+  in
+  let chunk () =
+    List.fold_left (fun acc x -> Kc.kcad_push x acc) Kc.kcad_empty
+      (List.rev (chunk_xs ()))
+  in
+  let k = ref Kc.kcad_empty in
+  let ref_xs = ref [] in
+  for _ = 1 to num_concats do
+    let c = chunk () in
+    k := Kc.kcad_concat !k c;
+    ref_xs := !ref_xs @ chunk_xs ()
+  done;
+  let ok = ref true in
+  if Kc.kcad_to_list !k <> !ref_xs then begin
+    Printf.eprintf "concat_heavy_test: list mismatch after concats!\n%!";
+    ok := false
+  end;
+  for _ = 1 to ops_after do
+    if !ok then begin
+      match Random.int 4 with
+      | 0 ->
+          let v = Random.int 10000 in
+          k := Kc.kcad_push v !k;
+          ref_xs := v :: !ref_xs
+      | 1 ->
+          let v = Random.int 10000 in
+          k := Kc.kcad_inject !k v;
+          ref_xs := !ref_xs @ [v]
+      | 2 ->
+          (match Kc.kcad_pop !k with
+           | None -> ()
+           | Some (x, k') ->
+               k := k';
+               (match !ref_xs with
+                | y :: ys when y = x -> ref_xs := ys
+                | y :: _ ->
+                    Printf.eprintf "concat_heavy: pop got %d, expected %d\n%!"
+                      x y; ok := false
+                | [] ->
+                    Printf.eprintf "concat_heavy: pop got %d, ref empty\n%!"
+                      x; ok := false))
+      | _ ->
+          (match Kc.kcad_eject !k with
+           | None -> ()
+           | Some (k', x) ->
+               k := k';
+               match List.rev !ref_xs with
+               | y :: rest when y = x -> ref_xs := List.rev rest
+               | y :: _ ->
+                   Printf.eprintf "concat_heavy: eject got %d, expected %d\n%!"
+                     x y; ok := false
+               | [] ->
+                   Printf.eprintf "concat_heavy: eject got %d, ref empty\n%!"
+                     x; ok := false);
+      if !ok && Kc.kcad_to_list !k <> !ref_xs then begin
+        Printf.eprintf "concat_heavy: list mismatch mid-stream\n%!";
+        ok := false
+      end
+    end
+  done;
+  !ok
+
 let () =
   let num_runs    = if Array.length Sys.argv > 1
                     then int_of_string Sys.argv.(1) else 200 in
@@ -185,9 +259,18 @@ let () =
     exit 1
   end;
   Printf.printf "OK: %d/%d runs passed\n%!" num_runs num_runs;
+
   Printf.printf "Persistence test: forking 2 branches after 200 pushes...\n%!";
   if persistence_test ~ops_per_branch:500
   then Printf.printf "Persistence: OK\n%!"
   else begin
     Printf.printf "Persistence: FAILED\n%!"; exit 1
+  end;
+
+  Printf.printf "Concat-heavy test (%d concats × 50 elts + 500 random ops)...\n%!"
+    50;
+  if concat_heavy_test ~num_concats:50 ~per_chunk:50 ~ops_after:500
+  then Printf.printf "Concat-heavy: OK\n%!"
+  else begin
+    Printf.printf "Concat-heavy: FAILED\n%!"; exit 1
   end
