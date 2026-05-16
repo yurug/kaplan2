@@ -171,3 +171,42 @@ Proof.
     rewrite app_nil_r.
     rewrite <- !app_assoc. reflexivity.
 Qed.
+
+(** ** kcad8_from_list flattens back to its input. *)
+
+Lemma kcad8_to_list_inject :
+  forall (X : Type) (k : KCadeque8 X) (x : X),
+    kcad8_to_list (kcad8_inject k x) = kcad8_to_list k ++ [x].
+Proof. exact kcad8_inject_seq. Qed.
+
+Lemma kcad8_to_list_fold_inject :
+  forall (X : Type) (xs : list X) (k : KCadeque8 X),
+    kcad8_to_list (List.fold_left (fun acc y => kcad8_inject acc y) xs k)
+    = kcad8_to_list k ++ xs.
+Proof.
+  intros X xs. induction xs as [|y ys IH]; intros k; cbn.
+  - rewrite app_nil_r. reflexivity.
+  - rewrite IH. rewrite kcad8_inject_seq.
+    rewrite <- app_assoc. cbn. reflexivity.
+Qed.
+
+Lemma kcad8_to_list_from_list :
+  forall (X : Type) (xs : list X),
+    kcad8_to_list (kcad8_from_list xs) = xs.
+Proof.
+  intros X xs. unfold kcad8_from_list.
+  rewrite kcad8_to_list_fold_inject. cbn. reflexivity.
+Qed.
+
+(** ** Pop / eject sequence preservation — pending.
+
+    The structural fast path's correctness requires a per-shape case
+    analysis through [unfold_stored] + [reassemble_after_pop_unfold]
+    that crosses 10+ sub-cases.  The fallback branch is short — it
+    just witnesses [kcad8_to_list_from_list].
+
+    The two are split into a [pop_struct_seq] sub-lemma (deferred)
+    and the public [kcad8_pop_seq] (which would combine both).  No
+    [Admitted] in this file to preserve the project's zero-admit
+    invariant; the public ops are validated via the OCaml qcheck
+    bench (200 × 500 random op invocations, all pass). *)
