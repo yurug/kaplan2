@@ -34,3 +34,17 @@
 (executable
  (name catenable_compare)
  (libraries unix viennot_cadeque ktdeque))
+
+; kc_vs_vi.ml: Kc (KCadeque) vs Vi (Viennot) only — skips the Cadeque6
+; spec side (which uses O(n) cad_normalize per op).  Scales N up
+; through {1k, 10k, 100k} by default.
+(executable
+ (name kc_vs_vi)
+ (libraries unix viennot_cadeque ktdeque))
+
+; kc_qcheck.ml: property-based equivalence test of Kc against a
+; simple list reference.  Many runs × many ops; catches regressions
+; in the KCadequeShim, Phase 5b reformulation, etc.
+(executable
+ (name kc_qcheck)
+ (libraries ktdeque))

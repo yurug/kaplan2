@@ -328,6 +328,63 @@ Each phase ends with a buildable, committed checkpoint.
 - [ ] Functional equivalence vs Viennot (qcheck).
 - [ ] Timing.
 
+## Status as of 2026-05-15 (Phases 5a/5b/5/5d landed)
+
+| Op     | Common case        | Worst case (deep KPair after concat)      |
+|--------|--------------------|-------------------------------------------|
+| push   | O(1) — packet      | O(1) — wraps as fresh KSingle (Phase 5b)  |
+| inject | O(1) — packet/wrap | O(1) — wraps as KPair (Phase 5b)          |
+| pop    | O(1) — structural  | **O(depth)** descent into left KPair spine|
+| eject  | O(1) — structural  | **O(depth)** descent into right KPair spine|
+| concat | O(1) — naive KPair | O(1) — naive KPair                        |
+
+Phase 5d routes every Buf6 op through the certified `KChain` (kt2 family)
+via the OCaml extraction shim `KCadequeShim` — so buffer growth is also
+WC O(1) per op, not list-append.  The shim adds a small `front_spill` /
+`back_spill` cache to absorb level-`l > 0` cascade overflow when `pop_kt2`
+surfaces an aggregated pair-tree, but **push / inject always go through
+`push_kt2` / `inject_kt2`** to preserve the project's
+"no amortized building blocks" hard rule (the spill is only ever filled
+by the pop side, never used to absorb user state long-term).
+
+Phase 5 (regularity preservation): `rocq/KTDeque/Cadeque7/Regularity.v`
+defines a structural well-formedness predicate `well_formed_kcad` and
+proves it preserved by all 5 public ops via `well_formed_kcad_preservation`
+(plus separate lemmas for each).  Zero admits.  The invariant captures
+"every `KPair l r` has both `l` and `r` non-empty" — the only
+non-trivial structural shape constraint imposed by the builders.
+
+**Empirical performance (N=100k, push/inject/pop/eject/concat workload
+without deep concat):**
+
+| Op     | Kc       | Vi       | Verdict        |
+|--------|----------|----------|----------------|
+| push   | 12.9 ms  | 8.2 ms   | Kc 1.57× slower|
+| inject | 8.9 ms   | 8.3 ms   | tied           |
+| pop    | 6.3 ms   | 7.5 ms   | **Kc 1.20× faster** |
+| eject  | 6.3 ms   | 7.5 ms   | **Kc 1.19× faster** |
+| concat | ~0 ms    | 7 µs     | **Kc dominates**    |
+
+See `ocaml/bench/kc_vs_vi.ml`.
+
+**Validation:** `ocaml/bench/kc_qcheck.ml` runs 200 × 500 = 100 000
+random op invocations against an OCaml `list` reference at every step.
+All pass.  Persistence test (fork two divergent branches from a shared
+base, verify each reflects only its own ops) passes.
+
+**Adversarial gap (Phase 5c residual):** the pop-all-after-concat-then-inject
+workload exposes the O(depth) pop on left-deep KPair trees built by
+Phase 5b's inject.  Measured at ~31 µs/op for depth-10 000 vs ~70 ns/op
+for flat structures.  Closing this gap requires the KT §6 mechanism:
+
+- Replace `KPair K K` (a tree) with a structure that stores child
+  cadeques in a non-catenable WC O(1) deque (a `KChain`).
+- Or adopt the §6 head/middle/tail split: two non-catenable WC O(1)
+  deques bracketing a chain of stored elements.
+
+Both options are substantial Coq redesigns and are deferred until
+the use case demands them.
+
 ## Open questions
 
 1. **Should we use level-indexed `kcad (lvl : nat) (A : Type)` or
