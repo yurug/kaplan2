@@ -70,6 +70,10 @@ val rebalance_after_h_empty :
 
 val kcad8_pop_struct : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option
 
+val rebalance_after_t_empty :
+  'a1 kElem8 KCadequeShim.buf6 -> 'a1 stored8 KCadequeShim.buf6 -> 'a1
+  kCadeque8
+
 val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option
 
 val kcad8_pop : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option

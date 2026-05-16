@@ -281,6 +281,18 @@ let kcad8_pop_struct = function
             | XStored8 _ -> None)
          | None -> None)))
 
+(** val rebalance_after_t_empty :
+    'a1 kElem8 KCadequeShim.buf6 -> 'a1 stored8 KCadequeShim.buf6 -> 'a1
+    kCadeque8 **)
+
+let rebalance_after_t_empty h m =
+  match buf6_eject m with
+  | Some p ->
+    let (m_rest, s) = p in
+    let (p0, suf) = unfold_stored s in
+    let (pre, sub) = p0 in reassemble_after_eject_unfold h pre sub suf m_rest
+  | None -> K8Simple h
+
 (** val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option **)
 
 let kcad8_eject_struct = function
@@ -299,7 +311,10 @@ let kcad8_eject_struct = function
    | Some p ->
      let (t', k0) = p in
      (match k0 with
-      | XBase8 x -> Some ((K8Triple (h, m, t')), x)
+      | XBase8 x ->
+        if buf6_is_empty t'
+        then Some ((rebalance_after_t_empty h m), x)
+        else Some ((K8Triple (h, m, t')), x)
       | XStored8 _ ->
         (match buf6_eject m with
          | Some p0 ->

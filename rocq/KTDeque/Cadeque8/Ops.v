@@ -177,6 +177,17 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
       end
   end.
 
+(** Rebalance for tail emptying — symmetric to [rebalance_after_h_empty]. *)
+
+Definition rebalance_after_t_empty {X : Type}
+  (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X)) : KCadeque8 X :=
+  match buf6_eject m with
+  | Some (m_rest, s) =>
+      let '(pre, sub, suf) := unfold_stored s in
+      reassemble_after_eject_unfold h pre sub suf m_rest
+  | None => K8Simple h
+  end.
+
 Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
                               : option (KCadeque8 X * X) :=
   match k with
@@ -190,7 +201,10 @@ Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
   | K8Triple h m t =>
       match buf6_eject t with
       | Some (t', XBase8 x) =>
-          Some (K8Triple h m t', x)
+          if buf6_is_empty t' then
+            Some (rebalance_after_t_empty h m, x)
+          else
+            Some (K8Triple h m t', x)
       | _ =>
           match buf6_eject m with
           | Some (m_rest, s) =>
