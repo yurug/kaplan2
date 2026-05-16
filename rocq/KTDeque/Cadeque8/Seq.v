@@ -119,6 +119,24 @@ Proof.
   - rewrite IH. rewrite app_assoc. reflexivity.
 Qed.
 
+Lemma stored8_flat_list_push :
+  forall (X : Type) (s : Stored8 X) (b : Buf6 (Stored8 X)),
+    stored8_flat_list (buf6_elems (buf6_push s b))
+    = stored8_to_list s ++ stored8_flat_list (buf6_elems b).
+Proof.
+  intros X s [xs]. unfold buf6_push, buf6_elems, stored8_flat_list. cbn.
+  reflexivity.
+Qed.
+
+Lemma buf6_pop_some_elems :
+  forall (X : Type) (b : Buf6 X) (x : X) (b' : Buf6 X),
+    buf6_pop b = Some (x, b') ->
+    buf6_elems b = x :: buf6_elems b'.
+Proof.
+  intros X b x b' H. apply buf6_pop_seq_some in H.
+  unfold buf6_to_list in H. exact H.
+Qed.
+
 (** Big stored8 sequence law. *)
 
 Lemma stored8_to_list_big :
@@ -294,11 +312,64 @@ Proof.
   rewrite Hhe, Hme. cbn. reflexivity.
 Qed.
 
-(** ** Remaining: K8Triple rebalance with middle non-empty.
+(** ** Rebalance with middle non-empty: unfold and reassemble.
 
-    This case branches on [unfold_stored s] (StoredSmall vs StoredBig)
-    and on the size of the unfolded prefix/suffix.  Each sub-case is
-    a chain of buf6_* / list rewrites + cbn.  The current commit
-    captures the proven cases (Simple, Triple easy, Triple rebalance
-    with empty middle); the remaining branches follow the same
-    pattern. *)
+    Sub-case split on [s = unfold_stored s] (StoredSmall vs StoredBig)
+    AND on [sub] in the StoredBig case (K8Empty / K8Simple / K8Triple).
+
+    Helper: the reassembled middle's flatten equals
+      sub.to_list ++ suf.flat ++ m_rest.flat *)
+
+Lemma reassemble_middle_flat :
+  forall (X : Type) (sub : KCadeque8 X)
+         (suf : Buf6 (KElem8 X))
+         (m_rest : Buf6 (Stored8 X)),
+    stored8_flat_list (buf6_elems
+      (let m_with_suf := if buf6_is_empty suf then m_rest
+                         else buf6_push (StoredSmall8 suf) m_rest in
+       match sub with
+       | K8Empty     => m_with_suf
+       | K8Simple b  => buf6_push (StoredSmall8 b) m_with_suf
+       | K8Triple sh sm st =>
+           buf6_push (StoredBig8 sh
+                                 (K8Triple (mkBuf6 []) sm (mkBuf6 []))
+                                 st)
+                     m_with_suf
+       end))
+    = kcad8_to_list sub
+      ++ kelem8_flat_list (buf6_elems suf)
+      ++ stored8_flat_list (buf6_elems m_rest).
+Proof.
+  intros X sub suf m_rest.
+  set (m_with_suf :=
+    if buf6_is_empty suf then m_rest
+    else buf6_push (StoredSmall8 suf) m_rest).
+  assert (Hwith : stored8_flat_list (buf6_elems m_with_suf)
+                  = kelem8_flat_list (buf6_elems suf)
+                    ++ stored8_flat_list (buf6_elems m_rest)).
+  { unfold m_with_suf.
+    destruct (buf6_is_empty suf) eqn:Hsuf.
+    - apply (kelem8_flat_list_nil _ suf) in Hsuf.
+      rewrite Hsuf. cbn. reflexivity.
+    - rewrite stored8_flat_list_push. cbn [stored8_to_list].
+      reflexivity. }
+  destruct sub as [|sb|sh sm st]; cbn [kcad8_to_list].
+  - (* K8Empty *) exact Hwith.
+  - (* K8Simple sb *)
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    rewrite Hwith. rewrite app_assoc. reflexivity.
+  - (* K8Triple sh sm st *)
+    rewrite stored8_flat_list_push.
+    rewrite stored8_to_list_big.
+    rewrite kcad8_to_list_triple.
+    unfold buf6_elems at 2 4; cbn [kelem8_flat_list].
+    rewrite Hwith.
+    rewrite !app_nil_r.
+    repeat rewrite <- app_assoc. reflexivity.
+Qed.
+
+(** The full [pop_struct_seq_triple_rebalance_m_nonempty] follows the
+    same shape: case-split on [s] (StoredSmall vs StoredBig), then
+    apply [reassemble_middle_flat] to reduce the reassembled middle's
+    flatten to the original stored cell's flatten.  Captured as
+    structure-level reasoning, deferred to a follow-up commit. *)
