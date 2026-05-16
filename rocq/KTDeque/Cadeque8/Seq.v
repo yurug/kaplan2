@@ -198,15 +198,48 @@ Proof.
   rewrite kcad8_to_list_fold_inject. cbn. reflexivity.
 Qed.
 
-(** ** Pop / eject sequence preservation — pending.
+(** ** Helper: [buf6_is_empty] is exactly "buf6_elems is nil". *)
 
-    The structural fast path's correctness requires a per-shape case
-    analysis through [unfold_stored] + [reassemble_after_pop_unfold]
-    that crosses 10+ sub-cases.  The fallback branch is short — it
-    just witnesses [kcad8_to_list_from_list].
+Lemma buf6_is_empty_iff_nil :
+  forall (X : Type) (b : Buf6 X),
+    buf6_is_empty b = true <-> buf6_elems b = [].
+Proof.
+  intros X b. unfold buf6_is_empty.
+  destruct (buf6_elems b); split; intros H; try reflexivity; try discriminate.
+Qed.
 
-    The two are split into a [pop_struct_seq] sub-lemma (deferred)
-    and the public [kcad8_pop_seq] (which would combine both).  No
-    [Admitted] in this file to preserve the project's zero-admit
-    invariant; the public ops are validated via the OCaml qcheck
-    bench (200 × 500 random op invocations, all pass). *)
+Lemma kelem8_flat_list_nil :
+  forall (X : Type) (b : Buf6 (KElem8 X)),
+    buf6_is_empty b = true ->
+    kelem8_flat_list (buf6_elems b) = [].
+Proof.
+  intros X b H. rewrite buf6_is_empty_iff_nil in H. rewrite H. reflexivity.
+Qed.
+
+(** ** Pop preserves the sequence — K8Simple case. *)
+
+Lemma pop_struct_seq_simple :
+  forall (X : Type) (b : Buf6 (KElem8 X)) (x : X) (k' : KCadeque8 X),
+    kcad8_pop_struct (K8Simple b) = Some (x, k') ->
+    kcad8_to_list (K8Simple b) = x :: kcad8_to_list k'.
+Proof.
+  intros X b x k' H. cbn [kcad8_pop_struct] in H.
+  destruct (buf6_pop b) as [[e b']|] eqn:Hpop; [|discriminate].
+  destruct e as [xv|sv]; [|discriminate].
+  injection H as Hxv Hk'. subst xv k'.
+  apply buf6_pop_seq_some in Hpop.
+  unfold buf6_to_list in Hpop.
+  rewrite kcad8_to_list_simple. unfold kelem8_flat_list at 1.
+  rewrite Hpop. cbn [kelem8_to_list].
+  destruct (buf6_is_empty b') eqn:He.
+  - apply buf6_is_empty_iff_nil in He.
+    cbn. rewrite He. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
+Qed.
+
+(** ** Pop / eject sequence preservation for the full structural path
+    is the next milestone.  The K8Triple cases require composition
+    through [unfold_stored] / [reassemble_after_pop_unfold] /
+    [rebalance_after_h_empty] — many sub-cases but each is a chain of
+    [buf6_*] / list-rewriting reductions.  The fallback path round-trips
+    via [kcad8_to_list_from_list]. *)
