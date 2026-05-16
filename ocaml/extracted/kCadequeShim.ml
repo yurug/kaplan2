@@ -61,6 +61,23 @@ let buf6_elems (b : 'a buf6) : 'a list =
 let buf6_to_list = buf6_elems
 let buf6_size b = List.length (buf6_elems b)
 
+(* O(1) emptiness check — needed by Cadeque8 to avoid the O(n)
+   materialization that [buf6_elems] would do.  A buf6 is empty iff
+   all three components (front spill, kChain, back spill) are empty.
+   [kchain_to_list] would materialize the chain to a list, so use the
+   leftmost-pop instead and look only at whether it succeeds. *)
+let buf6_is_empty (b : 'a buf6) : bool =
+  match b.front_spill with
+  | _ :: _ -> false
+  | [] ->
+      (match b.back_spill with
+       | _ :: _ -> false
+       | [] ->
+           (* Both spills empty; check the chain. *)
+           (match KTDeque.pop_kt2 b.chain with
+            | None -> true
+            | Some _ -> false))
+
 (* push / inject always go through kt2 — no list-cons shortcut.
    This preserves the "WC O(1) per call, anchored in certified
    primitive" invariant.  The spill lists are only filled by the

@@ -48,3 +48,14 @@
 (executable
  (name kc_qcheck)
  (libraries ktdeque))
+
+; kc8_qcheck.ml: property-based equivalence test for Cadeque8
+; (the §6 strict-WC O(1) catenable deque).
+(executable
+ (name kc8_qcheck)
+ (libraries ktdeque))
+
+; kc8_vs_vi.ml: Cadeque8 vs Viennot timing + adversarial workloads.
+(executable
+ (name kc8_vs_vi)
+ (libraries unix viennot_cadeque ktdeque))
