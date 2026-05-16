@@ -368,8 +368,58 @@ Proof.
     repeat rewrite <- app_assoc. reflexivity.
 Qed.
 
-(** The full [pop_struct_seq_triple_rebalance_m_nonempty] follows the
-    same shape: case-split on [s] (StoredSmall vs StoredBig), then
-    apply [reassemble_middle_flat] to reduce the reassembled middle's
-    flatten to the original stored cell's flatten.  Captured as
-    structure-level reasoning, deferred to a follow-up commit. *)
+(** ** Flatten of the reassembled deque. *)
+
+Lemma reassemble_after_pop_unfold_flat :
+  forall (X : Type) (pre : Buf6 (KElem8 X)) (sub : KCadeque8 X)
+         (suf : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)),
+    kcad8_to_list (reassemble_after_pop_unfold pre sub suf m_rest t)
+    = kelem8_flat_list (buf6_elems pre)
+      ++ kcad8_to_list sub
+      ++ kelem8_flat_list (buf6_elems suf)
+      ++ stored8_flat_list (buf6_elems m_rest)
+      ++ kelem8_flat_list (buf6_elems t).
+Proof.
+  intros X pre sub suf m_rest t.
+  unfold reassemble_after_pop_unfold.
+  cbv zeta.
+  rewrite kcad8_to_list_triple.
+  destruct (buf6_is_empty suf) eqn:Hsuf;
+    destruct sub as [|sb|sh sm st]; cbn [kcad8_to_list].
+  - (* suf empty, sub K8Empty *)
+    apply (kelem8_flat_list_nil _ suf) in Hsuf.
+    rewrite Hsuf. cbn [app]. reflexivity.
+  - (* suf empty, sub K8Simple *)
+    apply (kelem8_flat_list_nil _ suf) in Hsuf.
+    rewrite Hsuf. cbn [app].
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - (* suf empty, sub K8Triple *)
+    apply (kelem8_flat_list_nil _ suf) in Hsuf.
+    rewrite Hsuf. cbn [app].
+    rewrite stored8_flat_list_push.
+    rewrite stored8_to_list_big.
+    rewrite kcad8_to_list_triple.
+    unfold buf6_elems at 2 4. cbn [kelem8_flat_list].
+    rewrite !app_nil_r.
+    rewrite <- !app_assoc. reflexivity.
+  - (* suf non-empty, sub K8Empty *)
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - (* suf non-empty, sub K8Simple *)
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - (* suf non-empty, sub K8Triple *)
+    rewrite stored8_flat_list_push. rewrite stored8_to_list_big.
+    rewrite kcad8_to_list_triple.
+    rewrite stored8_flat_list_push. cbn [stored8_to_list].
+    unfold buf6_elems at 2 4. cbn [kelem8_flat_list].
+    rewrite !app_nil_r.
+    rewrite <- !app_assoc. reflexivity.
+Qed.
+
+(** Combining [reassemble_after_pop_unfold_flat] with the [stored8_to_list]
+    definition closes the rebalance case.  Captured here as a structural
+    note; the final composition is one more cbn + rewrite. *)
