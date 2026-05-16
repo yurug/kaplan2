@@ -112,6 +112,31 @@ directly: `dune exec ocaml/examples/hello.exe`).  After
 ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 ```
 
+### Catenable (cadeque) variant
+
+For the **catenable** variant (which also supports O(1) concat),
+use the `KCadeque` module — the verified extraction of Cadeque7:
+
+```ocaml
+open KCadeque
+
+let () =
+  let a = kcad_push 1 (kcad_push 2 kcad_empty) in    (* a = [1; 2] *)
+  let b = kcad_inject (kcad_inject kcad_empty 3) 4 in (* b = [3; 4] *)
+  let c = kcad_concat a b in                         (* c = [1; 2; 3; 4] *)
+  match kcad_pop c with
+  | Some (x, _c') -> Printf.printf "front of concat = %d\n" x  (* "1" *)
+  | None -> ()
+```
+
+The five operations — `kcad_push / kcad_inject / kcad_pop /
+kcad_eject / kcad_concat` — are all WC O(1) per call (provided
+the input is reachable from the public API via these same ops);
+buffers are routed through the certified `KTDeque.kt2_*` family
+via the [`kCadequeShim.ml`](extracted/kCadequeShim.ml) bridge.
+See [`bench/kc_vs_vi.ml`](bench/kc_vs_vi.ml) for head-to-head
+timing vs Viennot's hand-coded reference.
+
 ## Concurrency (OCaml 5 / Domain)
 
 A `kChain` value is fully immutable.  Every op produces a new
@@ -171,17 +196,25 @@ channel is the transport.
 ```
 ocaml/
 ├── extracted/           PUBLIC LIBRARY (ktdeque)
-│   ├── kTDeque.ml      verified extraction snapshot
-│   ├── kTDeque.mli
-│   ├── test_ktdeque.ml smoke test against a list reference
-│   ├── diff_workload.ml     paired with c/tests/diff_workload.c
+│   ├── kTDeque.{ml,mli}        verified non-catenable WC O(1) deque
+│   ├── kTCatenableDeque.{ml,mli}  catenable spec layer (Cadeque6)
+│   ├── kCadeque.{ml,mli}       verified catenable cadeque (Cadeque7),
+│   │                              WC O(1) push/inject/pop/eject + O(1) concat
+│   ├── kCadequeShim.ml         Buf6 → kt2 routing for Cadeque7's buffers
+│   ├── test_ktdeque.ml         smoke test against a list reference
+│   ├── diff_workload.ml        paired with c/tests/diff_workload.c
 │   └── dune
 ├── lib/                 BENCH-HELPER LIBRARY (ktdeque_bench_helpers, internal)
 │   ├── deque4.ml            hand-written O(log n) variant for benchmarks
 │   ├── deque4_handwritten.ml
 │   ├── deque4_ref.ml        list-based oracle (used by QCheck/Monolith)
 │   └── dune
-├── bench/               microbenchmarks (compare.exe, crossover.exe, ...)
+├── bench/               microbenchmarks
+│   ├── compare.exe          KT vs Deque4 vs Viennot OCaml (non-catenable)
+│   ├── kc_vs_vi.exe         Cadeque7 (KCadeque) vs Viennot catenable
+│   ├── kc_qcheck.exe        property-based equivalence test for Cadeque7
+│   ├── catenable_compare.exe  Cadeque6 spec vs Cadeque7 vs Viennot catenable
+│   └── ...others
 ├── test_qcheck/         QCheck property tests against the bench-helpers
 ├── test_monolith/       Monolith model-based fuzzing against the bench-helpers
 └── README.md            this file
