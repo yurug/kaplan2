@@ -216,6 +216,22 @@ Proof.
   intros X b H. rewrite buf6_is_empty_iff_nil in H. rewrite H. reflexivity.
 Qed.
 
+Lemma stored8_flat_list_nil :
+  forall (X : Type) (m : Buf6 (Stored8 X)),
+    buf6_is_empty m = true ->
+    stored8_flat_list (buf6_elems m) = [].
+Proof.
+  intros X m H. rewrite buf6_is_empty_iff_nil in H. rewrite H. reflexivity.
+Qed.
+
+Lemma buf6_pop_none_empty :
+  forall (X : Type) (b : Buf6 X),
+    buf6_pop b = None -> buf6_is_empty b = true.
+Proof.
+  intros X b H. apply buf6_pop_seq_none in H.
+  rewrite buf6_is_empty_iff_nil. unfold buf6_to_list in H. exact H.
+Qed.
+
 (** ** Pop preserves the sequence — K8Simple case. *)
 
 Lemma pop_struct_seq_simple :
