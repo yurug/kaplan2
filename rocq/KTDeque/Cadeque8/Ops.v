@@ -156,9 +156,13 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
             Some (x, rebalance_after_h_empty m t)
           else
             Some (x, K8Triple h' m t)
-      | _ =>
-          (* Should never happen if invariant holds: head non-empty.
-             Fallback for the rare construction path that violates it. *)
+      | Some (XStored8 _, _) =>
+          (* Should never happen under the maintained invariant: h
+             holds only XBase8 cells.  Defer to the public fallback. *)
+          None
+      | None =>
+          (* h empty — invariant violation; defer to fallback for
+             the rare construction path that violates it. *)
           match buf6_pop m with
           | Some (s, m_rest) =>
               let '(pre, sub, suf) := unfold_stored s in
@@ -205,7 +209,10 @@ Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
             Some (rebalance_after_t_empty h m, x)
           else
             Some (K8Triple h m t', x)
-      | _ =>
+      | Some (_, XStored8 _) =>
+          (* Invariant: t only holds XBase8 cells; defer to fallback. *)
+          None
+      | None =>
           match buf6_eject m with
           | Some (m_rest, s) =>
               let '(pre, sub, suf) := unfold_stored s in

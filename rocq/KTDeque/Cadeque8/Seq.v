@@ -420,6 +420,599 @@ Proof.
     rewrite <- !app_assoc. reflexivity.
 Qed.
 
-(** Combining [reassemble_after_pop_unfold_flat] with the [stored8_to_list]
-    definition closes the rebalance case.  Captured here as a structural
-    note; the final composition is one more cbn + rewrite. *)
+(** ** Rebalance, middle non-empty — StoredSmall case. *)
+
+Lemma pop_struct_seq_triple_rebalance_small :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (h' : Buf6 (KElem8 X))
+         (b : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    buf6_pop h = Some (XBase8 x, h') ->
+    buf6_is_empty h' = true ->
+    buf6_pop m = Some (StoredSmall8 b, m_rest) ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: kcad8_to_list
+              (reassemble_after_pop_unfold b K8Empty (mkBuf6 []) m_rest t).
+Proof.
+  intros X h m t x h' b m_rest Hh Hhe Hm.
+  rewrite kcad8_to_list_triple.
+  apply buf6_pop_seq_some in Hh. unfold buf6_to_list in Hh.
+  apply (kelem8_flat_list_nil _ h') in Hhe.
+  unfold kelem8_flat_list at 1.
+  rewrite Hh. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems h')).
+  rewrite Hhe. cbn [app].
+  apply buf6_pop_some_elems in Hm.
+  unfold stored8_flat_list at 1.
+  rewrite Hm. fold (stored8_flat_list (buf6_elems m_rest)).
+  cbn [stored8_to_list].
+  rewrite reassemble_after_pop_unfold_flat.
+  cbn [kcad8_to_list].
+  (* RHS has kelem8_flat_list (buf6_elems (mkBuf6 [])) which we want to be []. *)
+  replace (kelem8_flat_list (buf6_elems (mkBuf6 (@nil (KElem8 X)))))
+    with (@nil X) by reflexivity.
+  cbn [app].
+  (* LHS is left-assoc, RHS is right-assoc — fix via app_assoc. *)
+  rewrite app_assoc. reflexivity.
+Qed.
+
+(** ** Rebalance, middle non-empty — StoredBig case. *)
+
+Lemma pop_struct_seq_triple_rebalance_big :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (h' : Buf6 (KElem8 X))
+         (pre : Buf6 (KElem8 X)) (sub : KCadeque8 X)
+         (suf : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    buf6_pop h = Some (XBase8 x, h') ->
+    buf6_is_empty h' = true ->
+    buf6_pop m = Some (StoredBig8 pre sub suf, m_rest) ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: kcad8_to_list
+              (reassemble_after_pop_unfold pre sub suf m_rest t).
+Proof.
+  intros X h m t x h' pre sub suf m_rest Hh Hhe Hm.
+  rewrite kcad8_to_list_triple.
+  apply buf6_pop_seq_some in Hh. unfold buf6_to_list in Hh.
+  apply (kelem8_flat_list_nil _ h') in Hhe.
+  unfold kelem8_flat_list at 1.
+  rewrite Hh. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems h')).
+  rewrite Hhe. cbn [app].
+  apply buf6_pop_some_elems in Hm.
+  unfold stored8_flat_list at 1.
+  rewrite Hm. fold (stored8_flat_list (buf6_elems m_rest)).
+  cbn [stored8_to_list].
+  rewrite reassemble_after_pop_unfold_flat.
+  rewrite <- !app_assoc. reflexivity.
+Qed.
+
+(** ** Boundary fallbacks: head already empty when pop is called.
+       These cover the cases in [kcad8_pop_struct] where the
+       structural walk descends through an empty [h] to [m] or [t].
+       They never fire under the maintained invariant but the code
+       handles them, so [seq] preservation must too. *)
+
+Lemma pop_struct_seq_triple_h_empty_small :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (b : Buf6 (KElem8 X))
+         (m_rest : Buf6 (Stored8 X)) (x : X) (b' : Buf6 (KElem8 X)),
+    buf6_pop h = None ->
+    buf6_pop m = Some (StoredSmall8 b, m_rest) ->
+    buf6_pop b = Some (XBase8 x, b') ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: kcad8_to_list
+              (reassemble_after_pop_unfold b' K8Empty (mkBuf6 []) m_rest t).
+Proof.
+  intros X h m t b m_rest x b' Hh Hm Hbp.
+  rewrite kcad8_to_list_triple.
+  apply buf6_pop_none_empty in Hh.
+  apply (kelem8_flat_list_nil _ h) in Hh.
+  rewrite Hh. cbn [app].
+  apply buf6_pop_some_elems in Hm.
+  unfold stored8_flat_list at 1.
+  rewrite Hm. fold (stored8_flat_list (buf6_elems m_rest)).
+  cbn [stored8_to_list].
+  apply buf6_pop_seq_some in Hbp. unfold buf6_to_list in Hbp.
+  unfold kelem8_flat_list at 1.
+  rewrite Hbp. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems b')).
+  rewrite reassemble_after_pop_unfold_flat.
+  cbn [kcad8_to_list].
+  replace (kelem8_flat_list (buf6_elems (mkBuf6 (@nil (KElem8 X)))))
+    with (@nil X) by reflexivity.
+  cbn [app].
+  rewrite app_assoc. reflexivity.
+Qed.
+
+Lemma pop_struct_seq_triple_h_empty_big :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (pre : Buf6 (KElem8 X))
+         (sub : KCadeque8 X) (suf : Buf6 (KElem8 X))
+         (m_rest : Buf6 (Stored8 X)) (x : X) (pre' : Buf6 (KElem8 X)),
+    buf6_pop h = None ->
+    buf6_pop m = Some (StoredBig8 pre sub suf, m_rest) ->
+    buf6_pop pre = Some (XBase8 x, pre') ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: kcad8_to_list
+              (reassemble_after_pop_unfold pre' sub suf m_rest t).
+Proof.
+  intros X h m t pre sub suf m_rest x pre' Hh Hm Hpre.
+  rewrite kcad8_to_list_triple.
+  apply buf6_pop_none_empty in Hh.
+  apply (kelem8_flat_list_nil _ h) in Hh.
+  rewrite Hh. cbn [app].
+  apply buf6_pop_some_elems in Hm.
+  unfold stored8_flat_list at 1.
+  rewrite Hm. fold (stored8_flat_list (buf6_elems m_rest)).
+  cbn [stored8_to_list].
+  apply buf6_pop_seq_some in Hpre. unfold buf6_to_list in Hpre.
+  unfold kelem8_flat_list at 1.
+  rewrite Hpre. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems pre')).
+  rewrite reassemble_after_pop_unfold_flat.
+  rewrite <- !app_assoc. reflexivity.
+Qed.
+
+Lemma pop_struct_seq_triple_h_m_empty_t :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X)),
+    buf6_pop h = None ->
+    buf6_pop m = None ->
+    buf6_pop t = Some (XBase8 x, t') ->
+    kcad8_to_list (K8Triple h m t)
+    = x :: (if buf6_is_empty t' then []
+            else kcad8_to_list (K8Simple t')).
+Proof.
+  intros X h m t x t' Hh Hm Ht.
+  rewrite kcad8_to_list_triple.
+  apply buf6_pop_none_empty in Hh.
+  apply (kelem8_flat_list_nil _ h) in Hh. rewrite Hh.
+  apply buf6_pop_none_empty in Hm.
+  apply (stored8_flat_list_nil _ m) in Hm. rewrite Hm.
+  cbn [app].
+  apply buf6_pop_seq_some in Ht. unfold buf6_to_list in Ht.
+  unfold kelem8_flat_list at 1. rewrite Ht. cbn [kelem8_to_list].
+  fold (kelem8_flat_list (buf6_elems t')).
+  destruct (buf6_is_empty t') eqn:Hte.
+  - apply (kelem8_flat_list_nil _ t') in Hte. rewrite Hte. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
+Qed.
+
+(** ** Composition: structural pop preserves the sequence. *)
+
+Theorem kcad8_pop_struct_seq :
+  forall (X : Type) (k : KCadeque8 X) (x : X) (k' : KCadeque8 X),
+    kcad8_pop_struct k = Some (x, k') ->
+    kcad8_to_list k = x :: kcad8_to_list k'.
+Proof.
+  intros X k x k' H.
+  destruct k as [|b|h m t].
+  - (* K8Empty *) discriminate.
+  - (* K8Simple *) apply pop_struct_seq_simple, H.
+  - (* K8Triple *)
+    cbn [kcad8_pop_struct] in H.
+    destruct (buf6_pop h) as [[e h']|] eqn:Hpop.
+    + destruct e as [xv|sv].
+      2: { discriminate H. }
+      destruct (buf6_is_empty h') eqn:Hhe.
+      * injection H as Hxv Hk'. subst xv k'.
+        unfold rebalance_after_h_empty.
+        destruct (buf6_pop m) as [[s m_rest]|] eqn:Hmp.
+        -- destruct s as [b|pre sub suf]; cbn [unfold_stored].
+           ++ apply pop_struct_seq_triple_rebalance_small
+                with (h' := h'); assumption.
+           ++ apply pop_struct_seq_triple_rebalance_big
+                with (h' := h'); assumption.
+        -- apply pop_struct_seq_triple_rebalance_m_empty
+             with (h' := h'); assumption.
+      * injection H as Hxv Hk'. subst xv k'.
+        apply pop_struct_seq_triple_easy with (h' := h'); assumption.
+    + destruct (buf6_pop m) as [[s m_rest]|] eqn:Hmp.
+      * destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
+        -- destruct (buf6_pop b) as [[e b']|] eqn:Hbp.
+           2: { discriminate H. }
+           destruct e as [xv|sv].
+           2: { discriminate H. }
+           injection H as Hxv Hk'. subst xv k'.
+           apply pop_struct_seq_triple_h_empty_small
+             with (b := b); assumption.
+        -- destruct (buf6_pop pre) as [[e pre']|] eqn:Hpep.
+           2: { discriminate H. }
+           destruct e as [xv|sv].
+           2: { discriminate H. }
+           injection H as Hxv Hk'. subst xv k'.
+           apply pop_struct_seq_triple_h_empty_big
+             with (pre := pre) (sub := sub) (suf := suf); assumption.
+      * destruct (buf6_pop t) as [[e t']|] eqn:Htp.
+        2: { discriminate H. }
+        destruct e as [xv|sv].
+        2: { discriminate H. }
+        injection H as Hxv Hk'. subst xv k'.
+        rewrite (pop_struct_seq_triple_h_m_empty_t _ _ _ _ x t' Hpop Hmp Htp).
+        destruct (buf6_is_empty t') eqn:Hte; reflexivity.
+Qed.
+
+(** ** Public pop preserves the sequence. *)
+
+Theorem kcad8_pop_seq :
+  forall (X : Type) (k : KCadeque8 X) (x : X) (k' : KCadeque8 X),
+    kcad8_pop k = Some (x, k') ->
+    kcad8_to_list k = x :: kcad8_to_list k'.
+Proof.
+  intros X k x k' H. unfold kcad8_pop in H.
+  destruct (kcad8_pop_struct k) as [[x0 k0]|] eqn:Hstr.
+  - injection H as Hx Hk. subst x0 k0.
+    apply kcad8_pop_struct_seq, Hstr.
+  - destruct (kcad8_to_list k) as [|y ys] eqn:Hlist; [discriminate|].
+    injection H as Hx Hk. subst y k'.
+    f_equal. symmetry. apply kcad8_to_list_from_list.
+Qed.
+
+(* =====================================================================
+   Eject preserves the sequence — symmetric mirror of pop.
+   ===================================================================== *)
+
+Lemma buf6_eject_some_elems :
+  forall (X : Type) (b : Buf6 X) (x : X) (b' : Buf6 X),
+    buf6_eject b = Some (b', x) ->
+    buf6_elems b = buf6_elems b' ++ [x].
+Proof.
+  intros X b x b' H. apply buf6_eject_seq_some in H.
+  unfold buf6_to_list in H. exact H.
+Qed.
+
+Lemma buf6_eject_none_empty :
+  forall (X : Type) (b : Buf6 X),
+    buf6_eject b = None -> buf6_is_empty b = true.
+Proof.
+  intros X b H. apply buf6_eject_seq_none in H.
+  rewrite buf6_is_empty_iff_nil. unfold buf6_to_list in H. exact H.
+Qed.
+
+(** ** Flat-list app distributes over kelem8_flat_list / stored8_flat_list. *)
+
+Lemma kelem8_flat_list_app :
+  forall (X : Type) (xs ys : list (KElem8 X)),
+    kelem8_flat_list (xs ++ ys)
+    = kelem8_flat_list xs ++ kelem8_flat_list ys.
+Proof.
+  intros X xs ys. unfold kelem8_flat_list.
+  induction xs as [|x xs IH]; cbn.
+  - reflexivity.
+  - rewrite IH. rewrite app_assoc. reflexivity.
+Qed.
+
+Lemma stored8_flat_list_app :
+  forall (X : Type) (xs ys : list (Stored8 X)),
+    stored8_flat_list (xs ++ ys)
+    = stored8_flat_list xs ++ stored8_flat_list ys.
+Proof.
+  intros X xs ys. unfold stored8_flat_list.
+  induction xs as [|x xs IH]; cbn.
+  - reflexivity.
+  - rewrite IH. rewrite app_assoc. reflexivity.
+Qed.
+
+(** ** Helper: kelem8_flat_list of a singleton XBase8. *)
+
+Lemma kelem8_flat_list_singleton_base :
+  forall (X : Type) (x : X),
+    kelem8_flat_list [XBase8 x] = [x].
+Proof. intros; reflexivity. Qed.
+
+(** ** Helper: rewrite kelem8_flat_list of (b' ++ [XBase8 x]) into the
+       expected shape. *)
+
+Lemma kelem8_flat_list_inject_form :
+  forall (X : Type) (b' : Buf6 (KElem8 X)) (b : Buf6 (KElem8 X)) (x : X),
+    buf6_elems b = buf6_elems b' ++ [XBase8 x] ->
+    kelem8_flat_list (buf6_elems b)
+    = kelem8_flat_list (buf6_elems b') ++ [x].
+Proof.
+  intros X b' b x H. rewrite H.
+  rewrite kelem8_flat_list_app.
+  rewrite kelem8_flat_list_singleton_base. reflexivity.
+Qed.
+
+(** ** Helper: rewrite stored8_flat_list of (b' ++ [s]) into the
+       expected shape. *)
+
+Lemma stored8_flat_list_inject_form :
+  forall (X : Type) (b' : Buf6 (Stored8 X)) (b : Buf6 (Stored8 X))
+         (s : Stored8 X),
+    buf6_elems b = buf6_elems b' ++ [s] ->
+    stored8_flat_list (buf6_elems b)
+    = stored8_flat_list (buf6_elems b') ++ stored8_to_list s.
+Proof.
+  intros X b' b s H. rewrite H.
+  rewrite stored8_flat_list_app.
+  cbn [stored8_flat_list]. rewrite app_nil_r. reflexivity.
+Qed.
+
+(** ** Eject preserves the sequence — K8Simple case. *)
+
+Lemma eject_struct_seq_simple :
+  forall (X : Type) (b : Buf6 (KElem8 X)) (k' : KCadeque8 X) (x : X),
+    kcad8_eject_struct (K8Simple b) = Some (k', x) ->
+    kcad8_to_list (K8Simple b) = kcad8_to_list k' ++ [x].
+Proof.
+  intros X b k' x H. cbn [kcad8_eject_struct] in H.
+  destruct (buf6_eject b) as [[b' e]|] eqn:Hej.
+  2: { discriminate H. }
+  destruct e as [xv|sv].
+  2: { discriminate H. }
+  injection H as Hk' Hxv. subst xv k'.
+  apply buf6_eject_some_elems in Hej.
+  rewrite kcad8_to_list_simple.
+  rewrite (kelem8_flat_list_inject_form _ b' b x Hej).
+  destruct (buf6_is_empty b') eqn:He.
+  - apply (kelem8_flat_list_nil _ b') in He. rewrite He. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
+Qed.
+
+(** ** Eject — K8Triple, easy case (t' non-empty). *)
+
+Lemma eject_struct_seq_triple_easy :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X)),
+    buf6_eject t = Some (t', XBase8 x) ->
+    buf6_is_empty t' = false ->
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list (K8Triple h m t') ++ [x].
+Proof.
+  intros X h m t x t' Het He.
+  rewrite !kcad8_to_list_triple.
+  apply buf6_eject_some_elems in Het.
+  rewrite (kelem8_flat_list_inject_form _ t' t x Het).
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+(** ** Eject — K8Triple, rebalance with middle empty. *)
+
+Lemma eject_struct_seq_triple_rebalance_m_empty :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X)),
+    buf6_eject t = Some (t', XBase8 x) ->
+    buf6_is_empty t' = true ->
+    buf6_eject m = None ->
+    kcad8_to_list (K8Triple h m t) = kcad8_to_list (K8Simple h) ++ [x].
+Proof.
+  intros X h m t x t' Het Hte Hme.
+  rewrite kcad8_to_list_triple, kcad8_to_list_simple.
+  apply buf6_eject_some_elems in Het.
+  apply buf6_eject_none_empty in Hme.
+  apply (stored8_flat_list_nil _ m) in Hme.
+  apply (kelem8_flat_list_nil _ t') in Hte.
+  rewrite (kelem8_flat_list_inject_form _ t' t x Het).
+  rewrite Hte, Hme. cbn [app]. reflexivity.
+Qed.
+
+(** ** Eject — reassemble flat. *)
+
+Lemma reassemble_after_eject_unfold_flat :
+  forall (X : Type) (h : Buf6 (KElem8 X))
+         (pre : Buf6 (KElem8 X)) (sub : KCadeque8 X)
+         (suf : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    kcad8_to_list (reassemble_after_eject_unfold h pre sub suf m_rest)
+    = kelem8_flat_list (buf6_elems h)
+      ++ stored8_flat_list (buf6_elems m_rest)
+      ++ kelem8_flat_list (buf6_elems pre)
+      ++ kcad8_to_list sub
+      ++ kelem8_flat_list (buf6_elems suf).
+Proof.
+  intros X h pre sub suf m_rest.
+  unfold reassemble_after_eject_unfold.
+  cbv zeta.
+  rewrite kcad8_to_list_triple.
+  destruct (buf6_is_empty pre) eqn:Hpre;
+    destruct sub as [|sb|sh sm st]; cbn [kcad8_to_list].
+  - apply (kelem8_flat_list_nil _ pre) in Hpre.
+    rewrite Hpre. cbn [app]. reflexivity.
+  - apply (kelem8_flat_list_nil _ pre) in Hpre.
+    rewrite Hpre. cbn [app].
+    rewrite stored8_flat_list_inject. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - apply (kelem8_flat_list_nil _ pre) in Hpre.
+    rewrite Hpre. cbn [app].
+    rewrite stored8_flat_list_inject. rewrite stored8_to_list_big.
+    rewrite kcad8_to_list_triple.
+    unfold buf6_elems at 2 4; cbn [kelem8_flat_list].
+    rewrite !app_nil_r.
+    rewrite <- !app_assoc. reflexivity.
+  - rewrite stored8_flat_list_inject. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - rewrite stored8_flat_list_inject. cbn [stored8_to_list].
+    rewrite stored8_flat_list_inject. cbn [stored8_to_list].
+    rewrite <- !app_assoc. reflexivity.
+  - rewrite stored8_flat_list_inject. rewrite stored8_to_list_big.
+    rewrite kcad8_to_list_triple.
+    rewrite stored8_flat_list_inject. cbn [stored8_to_list].
+    unfold buf6_elems at 2 4; cbn [kelem8_flat_list].
+    rewrite !app_nil_r.
+    rewrite <- !app_assoc. reflexivity.
+Qed.
+
+(** ** Eject — rebalance, StoredSmall case. *)
+
+Lemma eject_struct_seq_triple_rebalance_small :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X))
+         (b : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    buf6_eject t = Some (t', XBase8 x) ->
+    buf6_is_empty t' = true ->
+    buf6_eject m = Some (m_rest, StoredSmall8 b) ->
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list
+        (reassemble_after_eject_unfold h b K8Empty (mkBuf6 []) m_rest)
+      ++ [x].
+Proof.
+  intros X h m t x t' b m_rest Het Hte Hme.
+  rewrite kcad8_to_list_triple.
+  apply buf6_eject_some_elems in Het.
+  apply (kelem8_flat_list_nil _ t') in Hte.
+  rewrite (kelem8_flat_list_inject_form _ t' t x Het).
+  rewrite Hte. cbn [app].
+  apply buf6_eject_some_elems in Hme.
+  rewrite (stored8_flat_list_inject_form _ m_rest m (StoredSmall8 b) Hme).
+  cbn [stored8_to_list].
+  rewrite reassemble_after_eject_unfold_flat.
+  cbn [kcad8_to_list].
+  replace (kelem8_flat_list (buf6_elems (mkBuf6 (@nil (KElem8 X)))))
+    with (@nil X) by reflexivity.
+  cbn [app]. rewrite app_nil_r.
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+(** ** Eject — rebalance, StoredBig case. *)
+
+Lemma eject_struct_seq_triple_rebalance_big :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X))
+         (pre : Buf6 (KElem8 X)) (sub : KCadeque8 X)
+         (suf : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    buf6_eject t = Some (t', XBase8 x) ->
+    buf6_is_empty t' = true ->
+    buf6_eject m = Some (m_rest, StoredBig8 pre sub suf) ->
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list
+        (reassemble_after_eject_unfold h pre sub suf m_rest)
+      ++ [x].
+Proof.
+  intros X h m t x t' pre sub suf m_rest Het Hte Hme.
+  rewrite kcad8_to_list_triple.
+  apply buf6_eject_some_elems in Het.
+  apply (kelem8_flat_list_nil _ t') in Hte.
+  rewrite (kelem8_flat_list_inject_form _ t' t x Het).
+  rewrite Hte. cbn [app].
+  apply buf6_eject_some_elems in Hme.
+  rewrite (stored8_flat_list_inject_form _ m_rest m
+             (StoredBig8 pre sub suf) Hme).
+  rewrite stored8_to_list_big.
+  rewrite reassemble_after_eject_unfold_flat.
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+(** ** Eject — boundary fallbacks (t already empty).
+
+    Note: for [StoredSmall8 b] in the rightmost stored cell, the unfold
+    yields [suf = mkBuf6 []], whose eject is None — that case never
+    fires, so we only need the [StoredBig8] case. *)
+
+Lemma eject_struct_seq_triple_t_empty_big :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (pre : Buf6 (KElem8 X))
+         (sub : KCadeque8 X) (suf : Buf6 (KElem8 X))
+         (m_rest : Buf6 (Stored8 X)) (x : X) (suf' : Buf6 (KElem8 X)),
+    buf6_eject t = None ->
+    buf6_eject m = Some (m_rest, StoredBig8 pre sub suf) ->
+    buf6_eject suf = Some (suf', XBase8 x) ->
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list
+        (reassemble_after_eject_unfold h pre sub suf' m_rest)
+      ++ [x].
+Proof.
+  intros X h m t pre sub suf m_rest x suf' Ht Hm Hsf.
+  rewrite kcad8_to_list_triple.
+  apply buf6_eject_none_empty in Ht.
+  apply (kelem8_flat_list_nil _ t) in Ht. rewrite Ht. rewrite app_nil_r.
+  apply buf6_eject_some_elems in Hm.
+  rewrite (stored8_flat_list_inject_form _ m_rest m
+             (StoredBig8 pre sub suf) Hm).
+  rewrite stored8_to_list_big.
+  apply buf6_eject_some_elems in Hsf.
+  rewrite (kelem8_flat_list_inject_form _ suf' suf x Hsf).
+  rewrite reassemble_after_eject_unfold_flat.
+  rewrite !app_assoc. reflexivity.
+Qed.
+
+Lemma eject_struct_seq_triple_t_m_empty_h :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (h' : Buf6 (KElem8 X)),
+    buf6_eject t = None ->
+    buf6_eject m = None ->
+    buf6_eject h = Some (h', XBase8 x) ->
+    kcad8_to_list (K8Triple h m t)
+    = (if buf6_is_empty h' then []
+       else kcad8_to_list (K8Simple h')) ++ [x].
+Proof.
+  intros X h m t x h' Ht Hm Hh.
+  rewrite kcad8_to_list_triple.
+  apply buf6_eject_none_empty in Ht.
+  apply (kelem8_flat_list_nil _ t) in Ht. rewrite Ht. rewrite app_nil_r.
+  apply buf6_eject_none_empty in Hm.
+  apply (stored8_flat_list_nil _ m) in Hm. rewrite Hm. rewrite app_nil_r.
+  apply buf6_eject_some_elems in Hh.
+  rewrite (kelem8_flat_list_inject_form _ h' h x Hh).
+  destruct (buf6_is_empty h') eqn:Hhe.
+  - apply (kelem8_flat_list_nil _ h') in Hhe. rewrite Hhe. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
+Qed.
+
+(** ** Composition: structural eject preserves the sequence. *)
+
+Theorem kcad8_eject_struct_seq :
+  forall (X : Type) (k : KCadeque8 X) (k' : KCadeque8 X) (x : X),
+    kcad8_eject_struct k = Some (k', x) ->
+    kcad8_to_list k = kcad8_to_list k' ++ [x].
+Proof.
+  intros X k k' x H.
+  destruct k as [|b|h m t].
+  - discriminate.
+  - apply eject_struct_seq_simple, H.
+  - cbn [kcad8_eject_struct] in H.
+    destruct (buf6_eject t) as [[t' e]|] eqn:Het.
+    + destruct e as [xv|sv].
+      2: { discriminate H. }
+      destruct (buf6_is_empty t') eqn:Hte.
+      * injection H as Hk' Hxv. subst xv k'.
+        unfold rebalance_after_t_empty.
+        destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
+        -- destruct s as [b|pre sub suf]; cbn [unfold_stored].
+           ++ apply eject_struct_seq_triple_rebalance_small
+                with (t' := t'); assumption.
+           ++ apply eject_struct_seq_triple_rebalance_big
+                with (t' := t'); assumption.
+        -- apply eject_struct_seq_triple_rebalance_m_empty
+             with (t' := t'); assumption.
+      * injection H as Hk' Hxv. subst xv k'.
+        apply eject_struct_seq_triple_easy with (t' := t'); assumption.
+    + destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
+      * destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
+        -- (* StoredSmall — suf is empty; eject returns None, so
+              H is None = Some (k', x) which discriminates. *)
+           cbn in H. discriminate H.
+        -- destruct (buf6_eject suf) as [[suf' e]|] eqn:Hsp.
+           2: { discriminate H. }
+           destruct e as [xv|sv].
+           2: { discriminate H. }
+           injection H as Hk' Hxv. subst xv k'.
+           apply eject_struct_seq_triple_t_empty_big
+             with (pre := pre) (sub := sub) (suf := suf); assumption.
+      * destruct (buf6_eject h) as [[h' e]|] eqn:Hhp.
+        2: { discriminate H. }
+        destruct e as [xv|sv].
+        2: { discriminate H. }
+        injection H as Hk' Hxv. subst xv k'.
+        rewrite (eject_struct_seq_triple_t_m_empty_h _ _ _ _ x h' Het Hmp Hhp).
+        destruct (buf6_is_empty h') eqn:Hhe; reflexivity.
+Qed.
+
+(** ** Public eject preserves the sequence. *)
+
+Theorem kcad8_eject_seq :
+  forall (X : Type) (k : KCadeque8 X) (k' : KCadeque8 X) (x : X),
+    kcad8_eject k = Some (k', x) ->
+    kcad8_to_list k = kcad8_to_list k' ++ [x].
+Proof.
+  intros X k k' x H. unfold kcad8_eject in H.
+  destruct (kcad8_eject_struct k) as [[k0 x0]|] eqn:Hstr.
+  - injection H as Hk Hx. subst x0 k0.
+    apply kcad8_eject_struct_seq, Hstr.
+  - destruct (List.rev (kcad8_to_list k)) as [|y ys] eqn:Hrev;
+      [discriminate|].
+    injection H as Hk Hx. subst y k'.
+    rewrite kcad8_to_list_from_list.
+    (* Goal: kcad8_to_list k = List.rev ys ++ [x] *)
+    apply (f_equal (@List.rev X)) in Hrev.
+    rewrite rev_involutive in Hrev. cbn in Hrev.
+    rewrite Hrev. reflexivity.
+Qed.
