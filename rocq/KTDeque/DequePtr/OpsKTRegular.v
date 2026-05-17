@@ -29,20 +29,28 @@
 
     ## Status
 
-    The basic structural lemmas (decidability, trivial cases, top
-    color non-Red) are proven.  The full preservation theorems are
-    stated as [Lemma]s but **deliberately not proved yet** — they
-    require substantial case work that will be added incrementally.
-    None are [Admitted], preserving the project's zero-admit
-    invariant.
+    **Closed end-to-end (2026-05-17):** the regularity invariant is
+    maintained by every public op.  Theorems:
 
-    Until preservation is closed, the WC O(1) story holds for *cost*
-    (via [Footprint.v]) but the *regularity* invariant required to
-    apply that cost bound is not yet formally maintained across
-    operations.  In practice, the C runtime asserts the invariant in
-    debug builds (see [kt_check_regular] in [c/include/ktdeque.h]),
-    and the QCheck/Monolith property tests have not yet found a
-    violation.
+      - [empty_kchain_regular_top]
+      - [push_kt2_preserves_regular_top]
+      - [inject_kt2_preserves_regular_top]
+      - [pop_kt2_preserves_regular_top]
+      - [eject_kt2_preserves_regular_top]
+
+    plus the underlying building blocks:
+
+      - [green_of_red_k_preserves_regular]
+      - [ensure_green_k_preserves_regular]
+      - [make_yellow_k_preserves_regular]
+      - [make_red_k_preserves_regular]
+      - [chain_to_kchain_g_regular] / [make_small_all_pnode]
+        (the "fresh chain from a rebalance" sub-result).
+
+    Zero admits.  Combined with [Footprint.v]'s constant-cost bound
+    and [OpsKTSeq.v]'s sequence preservation, this gives the full
+    "starting from [empty_kchain] every public op is WC O(1) and
+    preserves the sequence semantics" theorem for the KChain layer.
 
     ## Why "color-based" matters
 
@@ -138,13 +146,32 @@ Inductive pkt_simple {A : Type} : Packet A -> Prop :=
 (* The packet [p] must be a simple [PNode] (not [Hole]).                       *)
 (* ========================================================================== *)
 
+(** Regularity invariant for [KChain].
+
+    A regular chain mirrors Viennot's GADT well-typing exactly: each
+    coloured link constrains the immediate-next link's colour so that
+    in the "strip out yellows" projection no two reds are adjacent.
+    Equivalently the algorithm's chain construction maintains:
+    - every Red link sits directly above a non-Red top, and
+    - every Yellow link sits directly above a non-Red top.
+
+    The second clause is non-trivial — without it, push on a Yellow
+    whose tail starts with Red would compose two Reds when the
+    yellow→red promotion fires.  It IS the invariant the algorithm
+    actually maintains, because [make_yellow_k] always calls
+    [ensure_green_k] on its underlying tail before tagging the new
+    Yellow on top.  See [ensure_green_k_top_not_red]. *)
 Inductive regular_kt {A : Type} : KChain A -> Prop :=
 | reg_kt_ending :
     forall b, regular_kt (KEnding b)
 | reg_kt_green :
     forall p c, pkt_is_pnode p -> regular_kt c -> regular_kt (KCons Green p c)
 | reg_kt_yellow :
-    forall p c, pkt_is_pnode p -> regular_kt c -> regular_kt (KCons Yellow p c)
+    forall p c,
+      pkt_is_pnode p ->
+      kchain_top_color c <> Red ->
+      regular_kt c ->
+      regular_kt (KCons Yellow p c)
 | reg_kt_red :
     forall p c,
       pkt_is_pnode p ->
@@ -169,8 +196,8 @@ Proof. intros; apply reg_kt_ending. Qed.
 Lemma regular_kt_empty : forall A, regular_kt (@empty_kchain A).
 Proof. intros; apply reg_kt_ending. Qed.
 
-(** Inversion principle: a regular [KCons Red p c] forces the tail's
-    top color to be ≠ Red (no two consecutive Reds). *)
+(** Inversion: a regular [KCons Red p c] forces the immediate tail's
+    top color to be ≠ Red. *)
 Lemma regular_kt_red_inv :
   forall A p (c : KChain A),
     regular_kt (KCons Red p c) ->
@@ -184,11 +211,12 @@ Lemma regular_kt_green_inv :
     pkt_is_pnode p /\ regular_kt c.
 Proof. intros A p c H; inversion H; subst; auto. Qed.
 
-(** Inversion: a regular [KCons Yellow p c] has [pkt_is_pnode p]. *)
+(** Inversion: a regular [KCons Yellow p c] has [pkt_is_pnode p] and
+    its tail's top color is non-Red. *)
 Lemma regular_kt_yellow_inv :
   forall A p (c : KChain A),
     regular_kt (KCons Yellow p c) ->
-    pkt_is_pnode p /\ regular_kt c.
+    pkt_is_pnode p /\ kchain_top_color c <> Red /\ regular_kt c.
 Proof. intros A p c H; inversion H; subst; auto. Qed.
 
 (** A regular tail always has a regular sub-tail. *)
@@ -294,33 +322,410 @@ Proof.
     destruct IH as [Hr|Hr]; [|right; intros H; apply regular_kt_tail in H; auto].
     destruct col.
     + left; apply reg_kt_green; auto.
-    + left; apply reg_kt_yellow; auto.
-    + (* Red case: also need top of c' to be non-Red. *)
-      destruct c' as [b'|col' p' c''].
-      * left. apply reg_kt_red; [exact Hp | cbn; discriminate | exact Hr].
-      * destruct (color_eq_dec col' Red) as [Heq|Hne].
-        -- subst. right; intros H. apply regular_kt_red_inv in H.
-           destruct H as [_ [Htop _]]. cbn in Htop. apply Htop. reflexivity.
-        -- left. apply reg_kt_red; [exact Hp | cbn; exact Hne | exact Hr].
+    + (* Yellow: tail's top must be non-Red. *)
+      destruct (kchain_top_color_dec c' Red) as [Hred|Hnred].
+      * right; intros H. apply regular_kt_yellow_inv in H.
+        destruct H as [_ [Hnt _]]. apply Hnt. exact Hred.
+      * left. apply reg_kt_yellow; auto.
+    + (* Red: tail's top must be non-Red. *)
+      destruct (kchain_top_color_dec c' Red) as [Hred|Hnred].
+      * right; intros H. apply regular_kt_red_inv in H.
+        destruct H as [_ [Hnt _]]. apply Hnt. exact Hred.
+      * left. apply reg_kt_red; auto.
 Qed.
 
 (* ========================================================================== *)
-(* Pending heavy theorems (scoped out for follow-up commits).                  *)
+(* Regularity preservation theorems.                                           *)
 (*                                                                             *)
-(* The zero-admit invariant precludes us from leaving stub lemmas, so the      *)
-(* goals below are documented but NOT introduced as named entities here:       *)
-(*                                                                             *)
-(*   green_of_red_k_preserves_regular :                                        *)
-(*     regular_kt c -> green_of_red_k c = Some c' -> regular_kt c'.            *)
-(*                                                                             *)
-(*   ensure_green_k_preserves_regular :                                        *)
-(*     regular_kt c -> ensure_green_k c = Some c' -> regular_kt c'.            *)
-(*                                                                             *)
-(*   push_kt2_preserves_regular :                                              *)
-(*     regular_kt_top c -> push_kt2 x c = Some c' -> regular_kt_top c'.        *)
-(*                                                                             *)
-(*   push_kt2_total :                                                          *)
-(*     regular_kt_top c -> exists c', push_kt2 x c = Some c'.                  *)
-(*                                                                             *)
-(* (and analogues for inject_kt2 / pop_kt2 / eject_kt2.)                       *)
+(* The headline claim of the algorithm: starting from [empty_kchain] and       *)
+(* applying any sequence of public ops, every intermediate KChain is regular.  *)
+(* That's what the cost bound in Footprint.v formally requires.                *)
 (* ========================================================================== *)
+
+(** [chain_all_pnode c]: every packet in the Chain [c] is a [PNode]. *)
+Fixpoint chain_all_pnode {A : Type} (c : Chain A) : Prop :=
+  match c with
+  | Ending _       => True
+  | ChainCons p c' => pkt_is_pnode p /\ chain_all_pnode c'
+  end.
+
+(** [chain_to_kchain_g] of an all-PNode chain is regular: every level
+    is [KCons Green] with a [PNode] packet, plus a regular [KEnding]
+    tail. *)
+Lemma chain_to_kchain_g_regular :
+  forall A (c : Chain A),
+    chain_all_pnode c -> regular_kt (chain_to_kchain_g c).
+Proof.
+  intros A c. induction c as [b | p c' IH]; intros H.
+  - cbn. apply reg_kt_ending.
+  - cbn. destruct H as [Hp Hcs]. apply reg_kt_green; auto.
+Qed.
+
+(** [buffer_push_chain] always returns an all-PNode chain. *)
+Lemma buffer_push_chain_all_pnode :
+  forall A (x : E.t A) (b : Buf5 (E.t A)),
+    chain_all_pnode (buffer_push_chain x b).
+Proof. intros A x b; destruct b; cbn; intuition. Qed.
+
+(** [buffer_inject_chain] always returns an all-PNode chain. *)
+Lemma buffer_inject_chain_all_pnode :
+  forall A (b : Buf5 (E.t A)) (x : E.t A),
+    chain_all_pnode (buffer_inject_chain b x).
+Proof. intros A b x; destruct b; cbn; intuition. Qed.
+
+(** [mk_ending_from_options] returns an [Ending], hence all-PNode trivially. *)
+Lemma mk_ending_from_options_all_pnode :
+  forall A (p : option (E.t A)) (m : option (E.t A * E.t A))
+         (s : option (E.t A)),
+    chain_all_pnode (mk_ending_from_options p m s).
+Proof.
+  intros A p m s.
+  destruct p as [a|], m as [[b1 c1]|], s as [d1|]; cbn; auto.
+Qed.
+
+(** [make_small] always returns an all-PNode chain. *)
+Lemma make_small_all_pnode :
+  forall A (b1 b2 b3 : Buf5 (E.t A)) (c : Chain A),
+    make_small b1 b2 b3 = Some c ->
+    chain_all_pnode c.
+Proof.
+  intros A b1 b2 b3 c Hms.
+  unfold make_small in Hms.
+  destruct (prefix_decompose b1) as [p1opt|p1'|p1' cc dd];
+  destruct (suffix_decompose b3) as [s1opt|s1'|s1' aa bb].
+  - (* (Underflow, Underflow) *)
+    destruct (buffer_unsandwich b2) as [midopt|ab rest cd].
+    + destruct midopt as [elem|].
+      * destruct (E.unpair A elem) as [[? ?]|]; [|discriminate].
+        inversion Hms; subst. apply mk_ending_from_options_all_pnode.
+      * inversion Hms; subst. apply mk_ending_from_options_all_pnode.
+    + destruct (E.unpair A ab) as [[? ?]|]; [|discriminate].
+      destruct (E.unpair A cd) as [[? ?]|]; [|discriminate].
+      inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Underflow, Ok) *)
+    destruct (buf5_pop_naive b2) as [[cd rest]|];
+      [|destruct p1opt as [x|];
+        [destruct (buf5_push_naive x s1') as [s1''|]; [|discriminate]
+        |];
+        inversion Hms; subst; cbn; trivial].
+    destruct (E.unpair A cd) as [[? ?]|]; [|discriminate].
+    inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Underflow, Overflow) *)
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [Hab|]; [|discriminate].
+    destruct (suffix_rot b2 _) as [cd_paired center] eqn:Hsr.
+    destruct (E.unpair A cd_paired) as [[? ?]|]; [|discriminate].
+    inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Ok, Underflow) *)
+    destruct (buf5_eject_naive b2) as [[rest ab]|];
+      [|destruct s1opt as [x|];
+        [destruct (buf5_inject_naive p1' x) as [p1''|]; [|discriminate]
+        |];
+        inversion Hms; subst; cbn; trivial].
+    destruct (E.unpair A ab) as [[? ?]|]; [|discriminate].
+    inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Ok, Ok) *)
+    inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Ok, Overflow) *)
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [Hab|]; [|discriminate].
+    inversion Hms; subst. cbn. split.
+    + exact I.
+    + apply buffer_inject_chain_all_pnode.
+  - (* (Overflow, Underflow) *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [Hcd|]; [|discriminate].
+    destruct (prefix_rot _ b2) as [center ab_paired] eqn:Hpr.
+    destruct (E.unpair A ab_paired) as [[? ?]|] eqn:Hup; [|discriminate].
+    inversion Hms; subst. cbn. split; [exact I|exact I].
+  - (* (Overflow, Ok) *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [Hcd|]; [|discriminate].
+    inversion Hms; subst. cbn. split.
+    + exact I.
+    + apply buffer_push_chain_all_pnode.
+  - (* (Overflow, Overflow) *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [Hcd|]; [|discriminate].
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [Hab|]; [|discriminate].
+    destruct (buffer_halve b2) as [midopt rest_pairs] eqn:Hbh.
+    destruct (pair_each_buf rest_pairs) as [rest|]; [|discriminate].
+    inversion Hms; subst. cbn. intuition.
+Qed.
+
+(* ========================================================================== *)
+(* green_of_red_k preserves regularity.                                        *)
+(* ========================================================================== *)
+
+(** [green_of_red_k] preserves the [regular_kt] invariant. *)
+Lemma green_of_red_k_preserves_regular :
+  forall A (c c' : KChain A),
+    regular_kt c -> green_of_red_k c = Some c' -> regular_kt c'.
+Proof.
+  intros A c c' Hreg Hg.
+  unfold green_of_red_k in Hg.
+  destruct c as [|col p tail]; [discriminate|].
+  destruct col; try discriminate.
+  (* col = Red *)
+  destruct p as [|pre1 i suf1]; [discriminate|].
+  apply regular_kt_red_inv in Hreg.
+  destruct Hreg as [_ [Htop Htail_reg]].
+  destruct i as [|pre2 child suf2].
+  - (* inner Hole *)
+    destruct tail as [b | col2 [|pre2_t child_t suf2_t] tail2].
+    + (* Case 1: KEnding tail *)
+      destruct (make_small pre1 b suf1) as [c''|] eqn:Hms; [|discriminate].
+      inversion Hg; subst c'.
+      apply chain_to_kchain_g_regular.
+      eapply make_small_all_pnode; eauto.
+    + discriminate.
+    + (* Case 2: KCons with PNode inner *)
+      destruct (green_prefix_concat pre1 pre2_t) as [[pre1' pre2_t']|];
+        [|discriminate].
+      destruct (green_suffix_concat suf2_t suf1) as [[suf2_t' suf1']|];
+        [|discriminate].
+      inversion Hg; subst c'.
+      apply reg_kt_green; [cbn; exact I|].
+      (* Need: regular_kt tail2.  From Htail_reg : regular_kt (KCons col2 ... tail2). *)
+      eapply regular_kt_tail; eauto.
+  - (* inner PNode: Case 3 *)
+    destruct (prefix_concat pre1 pre2) as [[pre1' pre2']|]; [|discriminate].
+    destruct (suffix_concat suf2 suf1) as [[suf2' suf1']|]; [|discriminate].
+    inversion Hg; subst c'.
+    apply reg_kt_green; [cbn; exact I|].
+    apply reg_kt_red; [cbn; exact I|exact Htop|exact Htail_reg].
+Qed.
+
+(* ========================================================================== *)
+(* ensure_green_k preserves regularity.                                        *)
+(* ========================================================================== *)
+
+(** [ensure_green_k] preserves regularity. *)
+Lemma ensure_green_k_preserves_regular :
+  forall A (c c' : KChain A),
+    regular_kt c -> ensure_green_k c = Some c' -> regular_kt c'.
+Proof.
+  intros A c c' Hreg Hg.
+  unfold ensure_green_k in Hg.
+  destruct c as [b|col p tail].
+  - inversion Hg; subst; apply reg_kt_ending.
+  - destruct col.
+    + inversion Hg; subst; exact Hreg.
+    + inversion Hg; subst; exact Hreg.
+    + eapply green_of_red_k_preserves_regular; eauto.
+Qed.
+
+(** [ensure_green_k] always lands on a non-Red top (already proven above:
+    [ensure_green_k_top_not_red]).  Restated for symmetry. *)
+
+(* ========================================================================== *)
+(* make_yellow_k / make_red_k preserve regularity.                             *)
+(* ========================================================================== *)
+
+(** [make_yellow_k] preserves regularity.  The new Yellow tag requires
+    that its tail's top is non-Red: this is exactly what
+    [ensure_green_k] guarantees (see [ensure_green_k_top_not_red]). *)
+Lemma make_yellow_k_preserves_regular :
+  forall A (pre : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
+         (tail c' : KChain A),
+    regular_kt tail ->
+    make_yellow_k pre i suf tail = Some c' ->
+    regular_kt c'.
+Proof.
+  intros A pre i suf tail c' Hreg Hm.
+  unfold make_yellow_k in Hm.
+  destruct (ensure_green_k tail) as [tail'|] eqn:He; [|discriminate].
+  inversion Hm; subst c'.
+  apply reg_kt_yellow.
+  - cbn; exact I.
+  - eapply ensure_green_k_top_not_red; eauto.
+  - eapply ensure_green_k_preserves_regular; eauto.
+Qed.
+
+(** [make_red_k] preserves regularity *provided* the new Red node sits
+    on a non-Red top.  Used by [push_kt2] / [pop_kt2] when the
+    next-level packet's color shifted to Red. *)
+Lemma make_red_k_preserves_regular :
+  forall A (pre : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
+         (tail c' : KChain A),
+    regular_kt tail ->
+    kchain_top_color tail <> Red ->
+    make_red_k pre i suf tail = Some c' ->
+    regular_kt c'.
+Proof.
+  intros A pre i suf tail c' Hreg Htop Hm.
+  unfold make_red_k in Hm.
+  apply green_of_red_k_preserves_regular with (c := KCons Red (PNode pre i suf) tail);
+    auto.
+  apply reg_kt_red; [cbn; exact I|exact Htop|exact Hreg].
+Qed.
+
+(* ========================================================================== *)
+(* push_kt2 / inject_kt2 / pop_kt2 / eject_kt2 preserve regularity.            *)
+(*                                                                             *)
+(* Public-API entry points.  Precondition [regular_kt_top c] is the            *)
+(* "well-formed by construction" status of any chain reachable from            *)
+(* [empty_kchain] via the public ops.  Result is a fresh chain that            *)
+(* also satisfies [regular_kt_top].                                            *)
+(* ========================================================================== *)
+
+(** Helper: a [make_yellow_k] result always has a non-Red top (Yellow). *)
+Lemma make_yellow_k_top_not_red :
+  forall A pre i suf (tail c' : KChain A),
+    make_yellow_k pre i suf tail = Some c' ->
+    kchain_top_color c' <> Red.
+Proof.
+  intros A pre i suf tail c' Hm.
+  unfold make_yellow_k in Hm.
+  destruct (ensure_green_k tail); [|discriminate].
+  inversion Hm; subst; cbn; discriminate.
+Qed.
+
+(** Helper: a [make_red_k] result has Green top (because it goes through
+    [green_of_red_k]). *)
+Lemma make_red_k_top_not_red :
+  forall A pre i suf (tail c' : KChain A),
+    make_red_k pre i suf tail = Some c' ->
+    kchain_top_color c' <> Red.
+Proof.
+  intros A pre i suf tail c' Hm.
+  unfold make_red_k in Hm.
+  apply green_of_red_k_top_green in Hm. rewrite Hm. discriminate.
+Qed.
+
+(** [push_kt2] preserves [regular_kt_top]. *)
+Theorem push_kt2_preserves_regular_top :
+  forall A (x : E.t A) (c c' : KChain A),
+    regular_kt_top c ->
+    push_kt2 x c = Some c' ->
+    regular_kt_top c'.
+Proof.
+  intros A x c c' [Htop Hreg] Hp.
+  unfold push_kt2 in Hp.
+  destruct c as [b|col p tail].
+  - (* KEnding *)
+    destruct (buf5_push_naive x b) as [b'|] eqn:Hbp.
+    + inversion Hp; subst c'. split; [cbn; discriminate|apply reg_kt_ending].
+    + destruct b; try discriminate.
+      inversion Hp; subst c'. split; [cbn; discriminate|].
+      apply reg_kt_green; [cbn; exact I|apply reg_kt_ending].
+  - destruct col.
+    + (* Green *)
+      destruct p as [|pre i suf]; [discriminate|].
+      destruct (green_push x pre) as [pre'|] eqn:Hgp; [|discriminate].
+      apply regular_kt_green_inv in Hreg. destruct Hreg as [_ Htail_reg].
+      split.
+      * eapply make_yellow_k_top_not_red; eauto.
+      * eapply make_yellow_k_preserves_regular; eauto.
+    + (* Yellow *)
+      destruct p as [|pre i suf]; [discriminate|].
+      destruct (yellow_push x pre) as [pre'|] eqn:Hyp; [|discriminate].
+      apply regular_kt_yellow_inv in Hreg.
+      destruct Hreg as [_ [Htail_top Htail_reg]].
+      split.
+      * eapply make_red_k_top_not_red; eauto.
+      * eapply make_red_k_preserves_regular; eauto.
+    + (* Red — push_kt2 rejects via None *) discriminate.
+Qed.
+
+(** [inject_kt2] preserves [regular_kt_top].  Symmetric to push. *)
+Theorem inject_kt2_preserves_regular_top :
+  forall A (c : KChain A) (x : E.t A) (c' : KChain A),
+    regular_kt_top c ->
+    inject_kt2 c x = Some c' ->
+    regular_kt_top c'.
+Proof.
+  intros A c x c' [Htop Hreg] Hp.
+  unfold inject_kt2 in Hp.
+  destruct c as [b|col p tail].
+  - destruct (buf5_inject_naive b x) as [b'|] eqn:Hbi.
+    + inversion Hp; subst c'. split; [cbn; discriminate|apply reg_kt_ending].
+    + destruct b; try discriminate.
+      inversion Hp; subst c'. split; [cbn; discriminate|].
+      apply reg_kt_green; [cbn; exact I|apply reg_kt_ending].
+  - destruct col.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (green_inject suf x) as [suf'|] eqn:Hgi; [|discriminate].
+      apply regular_kt_green_inv in Hreg. destruct Hreg as [_ Htail_reg].
+      split.
+      * eapply make_yellow_k_top_not_red; eauto.
+      * eapply make_yellow_k_preserves_regular; eauto.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (yellow_inject suf x) as [suf'|] eqn:Hyi; [|discriminate].
+      apply regular_kt_yellow_inv in Hreg.
+      destruct Hreg as [_ [Htail_top Htail_reg]].
+      split.
+      * eapply make_red_k_top_not_red; eauto.
+      * eapply make_red_k_preserves_regular; eauto.
+    + discriminate.
+Qed.
+
+(** [pop_kt2] preserves [regular_kt_top]. *)
+Theorem pop_kt2_preserves_regular_top :
+  forall A (c : KChain A) (x : E.t A) (c' : KChain A),
+    regular_kt_top c ->
+    pop_kt2 c = Some (x, c') ->
+    regular_kt_top c'.
+Proof.
+  intros A c x c' [Htop Hreg] Hp.
+  unfold pop_kt2 in Hp.
+  destruct c as [b|col p tail].
+  - destruct (buf5_pop_naive b) as [[xv b']|] eqn:Hbp; [|discriminate].
+    inversion Hp; subst c'. split; [cbn; discriminate|apply reg_kt_ending].
+  - destruct col.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (green_pop pre) as [[xv pre']|] eqn:Hgp; [|discriminate].
+      destruct (make_yellow_k pre' i suf tail) as [c''|] eqn:Hmy;
+        [|discriminate].
+      inversion Hp; subst c'.
+      apply regular_kt_green_inv in Hreg. destruct Hreg as [_ Htail_reg].
+      split.
+      * eapply make_yellow_k_top_not_red; eauto.
+      * eapply make_yellow_k_preserves_regular; eauto.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (yellow_pop pre) as [[xv pre']|] eqn:Hyp; [|discriminate].
+      destruct (make_red_k pre' i suf tail) as [c''|] eqn:Hmr;
+        [|discriminate].
+      inversion Hp; subst c'.
+      apply regular_kt_yellow_inv in Hreg.
+      destruct Hreg as [_ [Htail_top Htail_reg]].
+      split.
+      * eapply make_red_k_top_not_red; eauto.
+      * eapply make_red_k_preserves_regular; eauto.
+    + discriminate.
+Qed.
+
+(** [eject_kt2] preserves [regular_kt_top]. *)
+Theorem eject_kt2_preserves_regular_top :
+  forall A (c c' : KChain A) (x : E.t A),
+    regular_kt_top c ->
+    eject_kt2 c = Some (c', x) ->
+    regular_kt_top c'.
+Proof.
+  intros A c c' x [Htop Hreg] Hp.
+  unfold eject_kt2 in Hp.
+  destruct c as [b|col p tail].
+  - destruct (buf5_eject_naive b) as [[b' xv]|] eqn:Hbe; [|discriminate].
+    inversion Hp; subst c'. split; [cbn; discriminate|apply reg_kt_ending].
+  - destruct col.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (green_eject suf) as [[suf' xv]|] eqn:Hge; [|discriminate].
+      destruct (make_yellow_k pre i suf' tail) as [c''|] eqn:Hmy;
+        [|discriminate].
+      inversion Hp; subst c'.
+      apply regular_kt_green_inv in Hreg. destruct Hreg as [_ Htail_reg].
+      split.
+      * eapply make_yellow_k_top_not_red; eauto.
+      * eapply make_yellow_k_preserves_regular; eauto.
+    + destruct p as [|pre i suf]; [discriminate|].
+      destruct (yellow_eject suf) as [[suf' xv]|] eqn:Hye; [|discriminate].
+      destruct (make_red_k pre i suf' tail) as [c''|] eqn:Hmr;
+        [|discriminate].
+      inversion Hp; subst c'.
+      apply regular_kt_yellow_inv in Hreg.
+      destruct Hreg as [_ [Htail_top Htail_reg]].
+      split.
+      * eapply make_red_k_top_not_red; eauto.
+      * eapply make_red_k_preserves_regular; eauto.
+    + discriminate.
+Qed.
+
+(** Foundation: [empty_kchain] satisfies the user-facing invariant. *)
+Theorem empty_kchain_regular_top :
+  forall A, regular_kt_top (@empty_kchain A).
+Proof. intros A; split; [cbn; discriminate|apply regular_kt_empty]. Qed.

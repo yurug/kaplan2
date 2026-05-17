@@ -52,7 +52,7 @@ code), skip this tree — read `../c/README.md` or
 | `make_small` (9-case rebalancing gateway)          | ✅ Done | `KTDeque/DequePtr/OpsKTSeq.v` |
 | `green_of_red_k` (Viennot's 3-case red→green fix)  | ✅ Done | `KTDeque/DequePtr/OpsKTSeq.v` |
 | Regularity invariant: definition + decidability    | ✅ Done | `KTDeque/DequePtr/OpsKTRegular.v` |
-| Regularity preservation (push/pop/...)             | 🚧 In progress | `KTDeque/DequePtr/OpsKTRegular.v` |
+| Regularity preservation (push/pop/inject/eject)    | ✅ Done — `push_kt2_preserves_regular_top` and analogues | `KTDeque/DequePtr/OpsKTRegular.v` |
 | Cost bound (≤ 6 heap ops per push)                 | ✅ Done (older `Chain` model) | `KTDeque/DequePtr/Footprint.v` |
 | Catenable Cadeque8 sequence preservation (all 5 ops, KT99 §6) | ✅ Done | `KTDeque/Cadeque8/Seq.v` |
 | Catenable Cadeque8 strict WC O(1) per call         | ✅ Bench-validated (~87 ns/op under adversarial concat mix) | `ocaml/bench/kc8_vs_vi.exe` |
