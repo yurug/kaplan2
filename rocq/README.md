@@ -33,10 +33,12 @@ derived.  You typically want to be in here for one of:
   `../ocaml/extracted/`; the `.mli`'s literate doc-headers are
   hand-written and need to be preserved across re-extractions.
 
-- **Catenation.**  Catenating two persistent deques in WC O(log
-  log min(m, n)) is on the project roadmap (KT99 §6 onwards).
-  This formalisation is the substrate that catenation will be
-  built on.
+- **Catenation.**  Catenating two persistent deques in WC O(1) is
+  built and proven: see [`KTDeque/Cadeque8/`](KTDeque/Cadeque8/),
+  which implements KT99 §6's head/middle/tail mechanism with full
+  sequence-preservation proofs for all five ops (push, inject,
+  pop, eject, concat).  Buf6 ops route through the certified
+  KChain (`DequePtr/OpsKT.v`) for the WC O(1) primitive layer.
 
 If you only want to *use* the deque (in C or OCaml application
 code), skip this tree — read `../c/README.md` or
@@ -52,6 +54,8 @@ code), skip this tree — read `../c/README.md` or
 | Regularity invariant: definition + decidability    | ✅ Done | `KTDeque/DequePtr/OpsKTRegular.v` |
 | Regularity preservation (push/pop/...)             | 🚧 In progress | `KTDeque/DequePtr/OpsKTRegular.v` |
 | Cost bound (≤ 6 heap ops per push)                 | ✅ Done (older `Chain` model) | `KTDeque/DequePtr/Footprint.v` |
+| Catenable Cadeque8 sequence preservation (all 5 ops, KT99 §6) | ✅ Done | `KTDeque/Cadeque8/Seq.v` |
+| Catenable Cadeque8 strict WC O(1) per call         | ✅ Bench-validated (~87 ns/op under adversarial concat mix) | `ocaml/bench/kc8_vs_vi.exe` |
 
 **Zero admits** invariant: `grep -rn 'Admitted\|admit\.' KTDeque/`
 should always return empty.
@@ -72,6 +76,12 @@ rocq/
     │   ├── Regularity.v      -- older Chain regularity (no colors)
     │   ├── Footprint.v       -- cost-bounded imperative DSL
     │   └── ...
+    ├── Cadeque6/             -- §12.4 imperative cadeque (KTCatenableDeque
+    │                            extraction); cad_normalize-based public API
+    ├── Cadeque7/             -- pure-functional packets+chains catenable
+    │                            (deprecated — Cadeque8 supersedes for WC)
+    ├── Cadeque8/             -- KT99 §6 strict WC O(1) catenable cadeque
+    │                            (current, all 5 seq theorems proven)
     └── Extract/Extraction.v  -- emits _build/.../kt_extracted/kTDeque.ml;
                                 the snapshot in ../../ocaml/extracted/kTDeque.ml
                                 is updated by hand from that build output.

@@ -1,20 +1,29 @@
 ; Public verified library: the OCaml extraction of the Rocq
 ; KTDeque/ formalization.  This is the deque we ship.
 ;
-; Two modules are exposed:
+; Exposed modules:
 ; - [KTDeque]            -- Section-4 non-catenable deque (WC O(1)
 ;                           per op, packet/chain layout).
-; - [KTCatenableDeque]   -- Section-6 catenable deque (correctness
-;                           spec; WC O(1) per op for push/inject is
-;                           proven, pop/eject/concat are O(n) at the
-;                           spec level via cad_normalize -- Phase 4
-;                           of kb/plan-catenable.md will refine
-;                           the spec to a level-typed cascade).
+; - [KTCatenableDeque]   -- Section-6 catenable spec (Cadeque6;
+;                           pop/eject/concat are O(n) via
+;                           cad_normalize at the spec level).
+; - [KCadeque]           -- Cadeque7 packets+chains catenable
+;                           (pure-functional, hybrid; superseded
+;                           by KCadeque8 for strict WC).
+; - [KCadeque8]          -- Cadeque8 KT99 §6 strict WC O(1)
+;                           catenable cadeque.  **Recommended
+;                           catenable API**: all 5 ops are
+;                           sequence-preserving (zero admits)
+;                           and bench-validated strict WC O(1).
+; - [KCadequeShim]       -- Buf6 -> kt2_* routing for both KCadeque
+;                           and KCadeque8 (certified WC O(1)
+;                           primitive layer).
 ;
 ; The .ml/.mli files are checked into git as a snapshot -- `dune build`
 ; works without ../rocq/ being present.  To regenerate:
 ;   - For KTDeque: build rocq/KTDeque/Extract/Extraction.v.
 ;   - For KTCatenableDeque: build rocq/KTDeque/Extract/CatenableExtraction.v.
+;   - For KCadeque8: build rocq/KTDeque/Extract/KCadeque8Extraction.v.
 ; Then copy _build/default/kt_extracted/kTDeque.{ml,mli} resp.
 ; _build/default/kt_catenable_extracted/kTCatenableDeque.{ml,mli}
 ; over, preserving the hand-written .mli headers.

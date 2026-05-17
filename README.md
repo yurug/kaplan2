@@ -220,31 +220,37 @@ See each tree's README for the full instructions and details.
   enabled.  Numbers in [`c/COMPARISON.md`](c/COMPARISON.md) and
   reproducible via `make bench-three-way`.
 
-### Section 6 (catenable, in progress)
+### Section 6 (catenable, shipped as Cadeque8)
 
 The headline KT99 §6–§7 result — concatenation of two persistent
 deques in **worst-case `O(1)`** while every other op also stays at
-WC O(1) — is under construction.  Plan and current status in
-[`kb/plan-catenable.md`](kb/plan-catenable.md).  Intuition layer in
-[`kb/spec/why-catenable.md`](kb/spec/why-catenable.md).
+WC O(1) — is implemented and verified in `rocq/KTDeque/Cadeque8/`
+and extracted as `KCadeque8` in [`ocaml/extracted/`](ocaml/extracted/).
+Design notes in [`kb/spec/kcadeque-design.md`](kb/spec/kcadeque-design.md);
+intuition in [`kb/spec/why-catenable.md`](kb/spec/why-catenable.md).
 
-Done so far (zero admits):
-- Phase 0: intuition document.
-- Phase 1: `Buf6` foundation (record + small-move primitives).
-- Phase 2: `Cadeque6/Model.v` types (Triple / Cadeque / Stored) +
-  abstract sequence flattening.
-- Phase 3: abstract operations (push, inject, pop, eject, concat) +
-  five sequence-preservation theorems.  The headline
-  `cad_concat_seq` is proved.
-- Phase 5 (foundation): `cad_nonempty` + totality theorems for
-  `cad_pop` / `cad_eject` + size laws for all five operations.
+Status (zero admits):
+- `Cadeque8/Model.v` — KElem8 / Stored8 / KCadeque8 mutual
+  inductive (K8Empty | K8Simple | K8Triple) + flat-list semantics.
+- `Cadeque8/Ops.v` — all five ops, including §6 rebalance
+  (`rebalance_after_h_empty` / `_t_empty`) so head/tail buffers
+  stay non-empty under the invariant.
+- `Cadeque8/Seq.v` — sequence preservation for all five ops
+  (`kcad8_push_seq`, `_inject_seq`, `_pop_seq`, `_eject_seq`,
+  `_concat_seq`).
+- Buf6 ops route through the certified WC O(1) KChain
+  (`DequePtr/OpsKT.v`) via [`kCadequeShim.ml`](ocaml/extracted/kCadequeShim.ml).
+- Bench-validated strict WC O(1): pop-all after 1000 concats ×
+  100 elts = 8.7 ms (~87 ns/op, no degradation under adversarial
+  concat mix).  See `ocaml/bench/kc8_vs_vi.exe`.
 
-Pending: Phase 4 (cost bound — WC `O(1)` for all five ops including
-concat), full Section-6 colour invariant, the new
-`KTCatenableDeque` OCaml module (shipped *alongside* `KTDeque`
-rather than extending it — the library will expose two distinct
-data structures, one with catenation and one without), and the C
-port.
+The intermediate Cadeque6 (KTCatenableDeque) and Cadeque7
+(KCadeque) layers remain in the tree for backwards compatibility
+and reference; **prefer KCadeque8 for new catenable code**.
+
+Pending (non-blocking): a dedicated C port of Cadeque8 (the
+non-catenable C side already implements the WC O(1) chain
+primitives Cadeque8 depends on).
 
 For details, see the per-tree READMEs and [`kb/`](kb/) for design
 documents and session-by-session progress notes.

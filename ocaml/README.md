@@ -114,39 +114,36 @@ ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 
 ### Catenable (cadeque) variant
 
-For the **catenable** variant (which also supports O(1) concat),
-use the `KCadeque` module — the verified extraction of Cadeque7:
+For the **catenable** variant (push + inject + pop + eject + concat
+all WC O(1)), use the `KCadeque8` module — the verified extraction
+of Cadeque8 (KT99 §6 strict WC O(1)):
 
 ```ocaml
-open KCadeque
+open KCadeque8
 
 let () =
-  let a = kcad_push 1 (kcad_push 2 kcad_empty) in    (* a = [1; 2] *)
-  let b = kcad_inject (kcad_inject kcad_empty 3) 4 in (* b = [3; 4] *)
-  let c = kcad_concat a b in                         (* c = [1; 2; 3; 4] *)
-  match kcad_pop c with
+  let a = kcad8_push 1 (kcad8_push 2 kcad8_empty) in    (* a = [1; 2] *)
+  let b = kcad8_inject (kcad8_inject kcad8_empty 3) 4 in (* b = [3; 4] *)
+  let c = kcad8_concat a b in                           (* c = [1; 2; 3; 4] *)
+  match kcad8_pop c with
   | Some (x, _c') -> Printf.printf "front of concat = %d\n" x  (* "1" *)
   | None -> ()
 ```
 
-The five operations — `kcad_push / kcad_inject / kcad_pop /
-kcad_eject / kcad_concat` — are all WC O(1) per call (provided
-the input is reachable from the public API via these same ops);
-buffers are routed through the certified `KTDeque.kt2_*` family
+The five operations — `kcad8_push / kcad8_inject / kcad8_pop /
+kcad8_eject / kcad8_concat` — are all WC O(1) per call, with
+sequence-preservation proven end-to-end in Coq (zero admits):
+see [`../rocq/KTDeque/Cadeque8/Seq.v`](../rocq/KTDeque/Cadeque8/Seq.v).
+Buffers are routed through the certified `KTDeque.kt2_*` family
 via the [`kCadequeShim.ml`](extracted/kCadequeShim.ml) bridge.
-See [`bench/kc_vs_vi.ml`](bench/kc_vs_vi.ml) for head-to-head
-timing vs Viennot's hand-coded reference.
+See [`bench/kc8_vs_vi.ml`](bench/kc8_vs_vi.ml) for head-to-head
+timing vs Viennot's hand-coded reference, including the
+adversarial pop-after-N-concats workload that confirms strict WC.
 
-**Two `to_list` functions** — they compute the same list (Coq-proven
-equivalent via `kcad_to_list_fast_eq`), but differ in cost on deeply
-concat'd structures:
-
-- `kcad_to_list k` — the Coq spec, uses left-associative `++` and
-  degenerates to O(n²) when nested through many `concat`s.  Used
-  in the seq laws and proofs.
-- `kcad_to_list_fast k` — accumulator-based, O(n) in all cases.
-  **Prefer this in user code.**  `kcad_pop` / `kcad_eject` already
-  use it internally for the fallback path.
+The older `KCadeque` (Cadeque7) is still exposed but its
+`kcad_pop` / `kcad_eject` fall back to an O(n) `kcad_to_list_fast`
+rebuild on the rare invariant-violation paths.  Use `KCadeque8`
+for new code; the API is identical except for the `kcad8_` prefix.
 
 ## Concurrency (OCaml 5 / Domain)
 
@@ -209,9 +206,13 @@ ocaml/
 ├── extracted/           PUBLIC LIBRARY (ktdeque)
 │   ├── kTDeque.{ml,mli}        verified non-catenable WC O(1) deque
 │   ├── kTCatenableDeque.{ml,mli}  catenable spec layer (Cadeque6)
-│   ├── kCadeque.{ml,mli}       verified catenable cadeque (Cadeque7),
-│   │                              WC O(1) push/inject/pop/eject + O(1) concat
-│   ├── kCadequeShim.ml         Buf6 → kt2 routing for Cadeque7's buffers
+│   ├── kCadeque.{ml,mli}       Cadeque7 catenable cadeque
+│   │                              (superseded by kCadeque8; kept for
+│   │                              backwards compat)
+│   ├── kCadeque8.{ml,mli}      ** verified strict WC O(1) catenable
+│   │                              cadeque (Cadeque8, KT99 §6);
+│   │                              recommended catenable API **
+│   ├── kCadequeShim.ml         Buf6 → kt2 routing (shared by both)
 │   ├── test_ktdeque.ml         smoke test against a list reference
 │   ├── diff_workload.ml        paired with c/tests/diff_workload.c
 │   └── dune
@@ -224,6 +225,9 @@ ocaml/
 │   ├── compare.exe          KT vs Deque4 vs Viennot OCaml (non-catenable)
 │   ├── kc_vs_vi.exe         Cadeque7 (KCadeque) vs Viennot catenable
 │   ├── kc_qcheck.exe        property-based equivalence test for Cadeque7
+│   ├── kc8_vs_vi.exe        ** Cadeque8 vs Viennot, includes adversarial
+│   │                           pop-after-N-concats workload **
+│   ├── kc8_qcheck.exe       property-based equivalence test for Cadeque8
 │   ├── catenable_compare.exe  Cadeque6 spec vs Cadeque7 vs Viennot catenable
 │   └── ...others
 ├── test_qcheck/         QCheck property tests against the bench-helpers

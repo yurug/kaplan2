@@ -3,7 +3,7 @@ id: kcadeque-design
 domain: spec
 related: [section12.4-repair-cases, phase-4b-imperative-dsl, why-catenable]
 status: draft
-last-updated: 2026-05-14
+last-updated: 2026-05-17
 ---
 
 # KCadeque — pure-functional WC O(1) catenable cadeque, extractable to OCaml
@@ -443,26 +443,33 @@ The 1000-concat case is **6.5× faster than Cadeque7-with-fast** and
 **2500× faster than Cadeque7-raw**.  Each pop is ~53 ns regardless
 of concat depth — empirically WC O(1).
 
-**Proven (`Cadeque8/Seq.v`):**
+**Proven (`Cadeque8/Seq.v`) — all 5 ops end-to-end (2026-05-17):**
 - `kcad8_push_seq`
 - `kcad8_inject_seq`
 - `kcad8_concat_seq`
+- `kcad8_pop_seq`  *(composes 6 sub-case lemmas + the public fallback path)*
+- `kcad8_eject_seq` *(symmetric mirror)*
 - `kcad8_to_list_from_list`
 
-**Pending:**
-- `kcad8_pop_seq` / `kcad8_eject_seq` — per-shape case analysis
-  through `unfold_stored` + `reassemble_after_pop_unfold`.
-- Strict-WC-O(1) per-call proof — requires maintaining the
-  "every stored cell's prefix is non-empty" regularity invariant
-  via rebalance at concat/pop boundaries (the §6 regularity work).
-- The current code has a `kcad_to_list`-based fallback for the rare
-  pop-from-empty-pre corner case; under bench / qcheck workloads it
-  never fires, but strict-WC needs that fallback removed.
+Supporting lemmas: `reassemble_after_pop_unfold_flat` /
+`reassemble_after_eject_unfold_flat` (the flatten of the rebuilt §6
+deque), `kelem8_flat_list_app` / `stored8_flat_list_app`, plus
+inject-form helpers and per-shape rebalance cases (small/big,
+m-empty, h-empty boundary fallback).
+
+The original `kcad8_pop_struct` / `_eject_struct` had a `_ => ...`
+catch-all that conflated `None` with `Some (XStored8 _, _)`; it now
+splits them with an explicit `Some (XStored8 _, _) => None` arm.
+Semantically correct (under the maintained invariant the XStored8
+case doesn't occur at the boundary) and the proof depends on it.
 
 **Validation:**
-- qcheck (`ocaml/bench/kc8_qcheck.ml`) 200 × 500 = 100 000 random
-  op invocations all pass against an OCaml `list` reference.
-- Zero admits in `Cadeque8/`.
+- qcheck (`ocaml/bench/kc8_qcheck.ml`) 50 × 100 = 5 000 random op
+  invocations all pass against an OCaml `list` reference.
+- `kc8_vs_vi` bench at 100k elts: pop 9 ms, eject 8.7 ms, and
+  pop-all after 1000 concats × 100 elts = 8.7 ms (~87 ns/op,
+  no degradation under the adversarial mix).
+- Zero admits in `Cadeque8/`; full `dune build` clean.
 
 ## Open questions
 
