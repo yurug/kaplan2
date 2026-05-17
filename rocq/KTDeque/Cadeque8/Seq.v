@@ -298,10 +298,10 @@ Lemma pop_struct_seq_triple_rebalance_m_empty :
     buf6_pop h = Some (XBase8 x, h') ->
     buf6_is_empty h' = true ->
     buf6_pop m = None ->
-    kcad8_to_list (K8Triple h m t) = x :: kcad8_to_list (K8Simple t).
+    kcad8_to_list (K8Triple h m t) = x :: kcad8_to_list (kcad8_simple_or_empty t).
 Proof.
   intros X h m t x h' Hpop Hhe Hme.
-  rewrite kcad8_to_list_triple, kcad8_to_list_simple.
+  rewrite kcad8_to_list_triple.
   apply buf6_pop_seq_some in Hpop. unfold buf6_to_list in Hpop.
   apply buf6_pop_none_empty in Hme.
   apply (stored8_flat_list_nil _ m) in Hme.
@@ -309,7 +309,11 @@ Proof.
   unfold kelem8_flat_list at 1.
   rewrite Hpop. cbn [kelem8_to_list].
   fold (kelem8_flat_list (buf6_elems h')).
-  rewrite Hhe, Hme. cbn. reflexivity.
+  rewrite Hhe, Hme. cbn.
+  unfold kcad8_simple_or_empty.
+  destruct (buf6_is_empty t) eqn:Ht.
+  - apply (kelem8_flat_list_nil _ t) in Ht. rewrite Ht. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
 Qed.
 
 (** ** Rebalance with middle non-empty: unfold and reassemble.
@@ -774,16 +778,21 @@ Lemma eject_struct_seq_triple_rebalance_m_empty :
     buf6_eject t = Some (t', XBase8 x) ->
     buf6_is_empty t' = true ->
     buf6_eject m = None ->
-    kcad8_to_list (K8Triple h m t) = kcad8_to_list (K8Simple h) ++ [x].
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list (kcad8_simple_or_empty h) ++ [x].
 Proof.
   intros X h m t x t' Het Hte Hme.
-  rewrite kcad8_to_list_triple, kcad8_to_list_simple.
+  rewrite kcad8_to_list_triple.
   apply buf6_eject_some_elems in Het.
   apply buf6_eject_none_empty in Hme.
   apply (stored8_flat_list_nil _ m) in Hme.
   apply (kelem8_flat_list_nil _ t') in Hte.
   rewrite (kelem8_flat_list_inject_form _ t' t x Het).
-  rewrite Hte, Hme. cbn [app]. reflexivity.
+  rewrite Hte, Hme. cbn [app].
+  unfold kcad8_simple_or_empty.
+  destruct (buf6_is_empty h) eqn:Hh.
+  - apply (kelem8_flat_list_nil _ h) in Hh. rewrite Hh. reflexivity.
+  - rewrite kcad8_to_list_simple. reflexivity.
 Qed.
 
 (** ** Eject — reassemble flat. *)

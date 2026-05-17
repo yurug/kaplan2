@@ -128,13 +128,18 @@ Definition kcad8_from_list {X : Type} (xs : list X) : KCadeque8 X :=
     stored cell from middle and unfolding it into the new head.  If
     middle is also empty, collapse to a [K8Simple t]. *)
 
+(** Collapse [K8Simple b] to [K8Empty] when [b] is empty.  Preserves
+    the "[K8Simple] always has a non-empty buffer" invariant. *)
+Definition kcad8_simple_or_empty {X : Type} (b : Buf6 (KElem8 X)) : KCadeque8 X :=
+  if buf6_is_empty b then K8Empty else K8Simple b.
+
 Definition rebalance_after_h_empty {X : Type}
   (m : Buf6 (Stored8 X)) (t : Buf6 (KElem8 X)) : KCadeque8 X :=
   match buf6_pop m with
   | Some (s, m_rest) =>
       let '(pre, sub, suf) := unfold_stored s in
       reassemble_after_pop_unfold pre sub suf m_rest t
-  | None => K8Simple t  (* middle empty; t is non-empty by invariant *)
+  | None => kcad8_simple_or_empty t  (* middle empty; collapse *)
   end.
 
 Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
@@ -189,7 +194,7 @@ Definition rebalance_after_t_empty {X : Type}
   | Some (m_rest, s) =>
       let '(pre, sub, suf) := unfold_stored s in
       reassemble_after_eject_unfold h pre sub suf m_rest
-  | None => K8Simple h
+  | None => kcad8_simple_or_empty h  (* middle empty; collapse *)
   end.
 
 Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
