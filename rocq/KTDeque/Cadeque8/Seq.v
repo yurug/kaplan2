@@ -598,15 +598,20 @@ Proof.
     + destruct e as [xv|sv].
       2: { discriminate H. }
       destruct (buf6_is_empty h') eqn:Hhe.
-      * injection H as Hxv Hk'. subst xv k'.
-        unfold rebalance_after_h_empty.
+      * (* rebalance_after_h_empty returned Some k' *)
+        unfold rebalance_after_h_empty in H.
         destruct (buf6_pop m) as [[s m_rest]|] eqn:Hmp.
-        -- destruct s as [b|pre sub suf]; cbn [unfold_stored].
-           ++ apply pop_struct_seq_triple_rebalance_small
+        -- destruct (stored_sub_left_safe s) eqn:Hsls.
+           2: { discriminate H. }
+           destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
+           ++ injection H as Hxv Hk'. subst xv k'.
+              apply pop_struct_seq_triple_rebalance_small
                 with (h' := h'); assumption.
-           ++ apply pop_struct_seq_triple_rebalance_big
+           ++ injection H as Hxv Hk'. subst xv k'.
+              apply pop_struct_seq_triple_rebalance_big
                 with (h' := h'); assumption.
-        -- apply pop_struct_seq_triple_rebalance_m_empty
+        -- injection H as Hxv Hk'. subst xv k'.
+           apply pop_struct_seq_triple_rebalance_m_empty
              with (h' := h'); assumption.
       * injection H as Hxv Hk'. subst xv k'.
         apply pop_struct_seq_triple_easy with (h' := h'); assumption.
@@ -972,15 +977,19 @@ Proof.
     + destruct e as [xv|sv].
       2: { discriminate H. }
       destruct (buf6_is_empty t') eqn:Hte.
-      * injection H as Hk' Hxv. subst xv k'.
-        unfold rebalance_after_t_empty.
+      * unfold rebalance_after_t_empty in H.
         destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
-        -- destruct s as [b|pre sub suf]; cbn [unfold_stored].
-           ++ apply eject_struct_seq_triple_rebalance_small
+        -- destruct (stored_sub_right_safe s) eqn:Hsrs.
+           2: { discriminate H. }
+           destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
+           ++ injection H as Hk' Hxv. subst xv k'.
+              apply eject_struct_seq_triple_rebalance_small
                 with (t' := t'); assumption.
-           ++ apply eject_struct_seq_triple_rebalance_big
+           ++ injection H as Hk' Hxv. subst xv k'.
+              apply eject_struct_seq_triple_rebalance_big
                 with (t' := t'); assumption.
-        -- apply eject_struct_seq_triple_rebalance_m_empty
+        -- injection H as Hk' Hxv. subst xv k'.
+           apply eject_struct_seq_triple_rebalance_m_empty
              with (t' := t'); assumption.
       * injection H as Hk' Hxv. subst xv k'.
         apply eject_struct_seq_triple_easy with (t' := t'); assumption.

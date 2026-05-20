@@ -133,13 +133,48 @@ Definition kcad8_from_list {X : Type} (xs : list X) : KCadeque8 X :=
 Definition kcad8_simple_or_empty {X : Type} (b : Buf6 (KElem8 X)) : KCadeque8 X :=
   if buf6_is_empty b then K8Empty else K8Simple b.
 
+(** True iff a stored cell's [sub] (if it's a [K8Triple]) has a
+    non-empty head.  Used as the WC O(1) guard on the rebalance step:
+    when the popped stored cell's [sub] has empty head, the rebalance
+    would push a new stored cell with empty prefix — violating the
+    strong wf invariant.  Falling back to the public [kcad8_from_list]
+    path keeps the invariant intact (the fallback produces [K8Empty]
+    or non-empty [K8Simple]). *)
+Definition stored_sub_left_safe {X : Type} (s : Stored8 X) : bool :=
+  match s with
+  | StoredSmall8 _              => true
+  | StoredBig8 _ K8Empty _      => true
+  | StoredBig8 _ (K8Simple b) _ => negb (buf6_is_empty b)
+  | StoredBig8 _ (K8Triple sh _ _) _ =>
+      negb (buf6_is_empty sh)
+  end.
+
+(** Eject-side safety: in addition to the sub-left check (the pushed
+    stored cell's pre = sub.sh must be non-empty when sub is K8Triple),
+    the OUTER suf must be non-empty so the reassembled K8Triple's tail
+    is non-empty.  StoredSmall always has an empty outer suf, so always
+    fails the check. *)
+Definition stored_sub_right_safe {X : Type} (s : Stored8 X) : bool :=
+  match s with
+  | StoredSmall8 _              => false
+  | StoredBig8 _ K8Empty suf      =>
+      negb (buf6_is_empty suf)
+  | StoredBig8 _ (K8Simple b) suf =>
+      andb (negb (buf6_is_empty b)) (negb (buf6_is_empty suf))
+  | StoredBig8 _ (K8Triple sh _ _) suf =>
+      andb (negb (buf6_is_empty sh)) (negb (buf6_is_empty suf))
+  end.
+
 Definition rebalance_after_h_empty {X : Type}
-  (m : Buf6 (Stored8 X)) (t : Buf6 (KElem8 X)) : KCadeque8 X :=
+  (m : Buf6 (Stored8 X)) (t : Buf6 (KElem8 X)) : option (KCadeque8 X) :=
   match buf6_pop m with
   | Some (s, m_rest) =>
-      let '(pre, sub, suf) := unfold_stored s in
-      reassemble_after_pop_unfold pre sub suf m_rest t
-  | None => kcad8_simple_or_empty t  (* middle empty; collapse *)
+      if stored_sub_left_safe s then
+        let '(pre, sub, suf) := unfold_stored s in
+        Some (reassemble_after_pop_unfold pre sub suf m_rest t)
+      else
+        None  (* fall back: would push empty-prefix stored cell *)
+  | None => Some (kcad8_simple_or_empty t)
   end.
 
 Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
@@ -158,7 +193,10 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
           if buf6_is_empty h' then
             (* Maintain the invariant: h must be non-empty in K8Triple.
                Rebalance from middle (or collapse to K8Simple). *)
-            Some (x, rebalance_after_h_empty m t)
+            match rebalance_after_h_empty m t with
+            | Some k' => Some (x, k')
+            | None    => None  (* fall back via public path *)
+            end
           else
             Some (x, K8Triple h' m t)
       | Some (XStored8 _, _) =>
@@ -189,12 +227,15 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
 (** Rebalance for tail emptying — symmetric to [rebalance_after_h_empty]. *)
 
 Definition rebalance_after_t_empty {X : Type}
-  (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X)) : KCadeque8 X :=
+  (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X)) : option (KCadeque8 X) :=
   match buf6_eject m with
   | Some (m_rest, s) =>
-      let '(pre, sub, suf) := unfold_stored s in
-      reassemble_after_eject_unfold h pre sub suf m_rest
-  | None => kcad8_simple_or_empty h  (* middle empty; collapse *)
+      if stored_sub_right_safe s then
+        let '(pre, sub, suf) := unfold_stored s in
+        Some (reassemble_after_eject_unfold h pre sub suf m_rest)
+      else
+        None  (* fall back: would push empty-suffix stored cell *)
+  | None => Some (kcad8_simple_or_empty h)
   end.
 
 Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
@@ -211,7 +252,10 @@ Definition kcad8_eject_struct {X : Type} (k : KCadeque8 X)
       match buf6_eject t with
       | Some (t', XBase8 x) =>
           if buf6_is_empty t' then
-            Some (rebalance_after_t_empty h m, x)
+            match rebalance_after_t_empty h m with
+            | Some k' => Some (k', x)
+            | None    => None
+            end
           else
             Some (K8Triple h m t', x)
       | Some (_, XStored8 _) =>
