@@ -59,3 +59,8 @@
 (executable
  (name kc8_vs_vi)
  (libraries unix viennot_cadeque ktdeque))
+
+; kc8_csv.ml: CSV-emitting bench for plotting (bench/plot_cadeque8.py).
+(executable
+ (name kc8_csv)
+ (libraries unix viennot_cadeque ktdeque))
