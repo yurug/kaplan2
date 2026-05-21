@@ -64,3 +64,8 @@
 (executable
  (name kc8_csv)
  (libraries unix viennot_cadeque ktdeque))
+
+; k8_alloc.ml: alloc-rate breakdown for push/inject on Cadeque8 vs Viennot.
+(executable
+ (name k8_alloc)
+ (libraries unix viennot_cadeque ktdeque))

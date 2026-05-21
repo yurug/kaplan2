@@ -20,7 +20,22 @@
 
     The kt4-family (no-option result types) is used throughout —
     saves one heap allocation per buf6 op compared to the option-
-    returning kt2 family. *)
+    returning kt2 family.
+
+    ## Closure-free hot path
+
+    The push/inject body avoids a local [let push_chain = ...]
+    closure that would capture [x] and allocate ~3 words per call.
+    The match-on-buf6 is split into two arms that each inline the
+    [push_kt4] call directly, so [x] stays on the stack.
+
+    ## Inlined level-0 [ExistT] wrap
+
+    [KTDeque.Coq_E.base x] is just [ExistT (0, Obj.magic x)] but
+    crosses a module boundary (no flambda → no cross-module
+    inlining).  We allocate the [ExistT] inline at the buf6 op
+    site so the only cross-module call per push/inject is the
+    single [push_kt4]/[inject_kt4] dispatch. *)
 
 type 'a buf6 =
   | Plain   of 'a KTDeque.kChain
@@ -76,7 +91,9 @@ let buf6_is_empty (b : 'a buf6) : bool =
             | KTDeque.PopOk _ -> false))
 
 (* ============================================================== *
- * push / inject — always go through kt4.  Hot path is Plain.     *)
+ * push / inject — always go through kt4.  Hot path is Plain.     *
+ * No local closures: the [push_kt4] / [inject_kt4] call site is  *
+ * inlined into each arm so [x] stays on the stack.               *)
 
 let buf6_singleton (x : 'a) : 'a buf6 =
   match KTDeque.push_kt4 (KTDeque.Coq_E.base x) empty_chain with
@@ -84,24 +101,28 @@ let buf6_singleton (x : 'a) : 'a buf6 =
   | KTDeque.PushFail -> failwith "buf6_singleton"
 
 let buf6_push (x : 'a) (b : 'a buf6) : 'a buf6 =
-  let push_chain c =
-    match KTDeque.push_kt4 (KTDeque.Coq_E.base x) c with
-    | KTDeque.PushOk c' -> c'
-    | KTDeque.PushFail  -> failwith "buf6_push: kt4 invariant"
-  in
+  let elt : 'a KTDeque.Coq_E.t = KTDeque.ExistT (0, (Obj.magic x : 'a KTDeque.xpow)) in
   match b with
-  | Plain c                  -> Plain (push_chain c)
-  | Spilled (c, front, back) -> Spilled (push_chain c, front, back)
+  | Plain c ->
+      (match KTDeque.push_kt4 elt c with
+       | KTDeque.PushOk c'  -> Plain c'
+       | KTDeque.PushFail   -> failwith "buf6_push: kt4 invariant")
+  | Spilled (c, front, back) ->
+      (match KTDeque.push_kt4 elt c with
+       | KTDeque.PushOk c'  -> Spilled (c', front, back)
+       | KTDeque.PushFail   -> failwith "buf6_push: kt4 invariant")
 
 let buf6_inject (b : 'a buf6) (x : 'a) : 'a buf6 =
-  let inject_chain c =
-    match KTDeque.inject_kt4 c (KTDeque.Coq_E.base x) with
-    | KTDeque.PushOk c' -> c'
-    | KTDeque.PushFail  -> failwith "buf6_inject: kt4 invariant"
-  in
+  let elt : 'a KTDeque.Coq_E.t = KTDeque.ExistT (0, (Obj.magic x : 'a KTDeque.xpow)) in
   match b with
-  | Plain c                  -> Plain (inject_chain c)
-  | Spilled (c, front, back) -> Spilled (inject_chain c, front, back)
+  | Plain c ->
+      (match KTDeque.inject_kt4 c elt with
+       | KTDeque.PushOk c'  -> Plain c'
+       | KTDeque.PushFail   -> failwith "buf6_inject: kt4 invariant")
+  | Spilled (c, front, back) ->
+      (match KTDeque.inject_kt4 c elt with
+       | KTDeque.PushOk c'  -> Spilled (c', front, back)
+       | KTDeque.PushFail   -> failwith "buf6_inject: kt4 invariant")
 
 (* ============================================================== *
  * pop / eject — kt4 + spill management.  Plain is the hot path.  *)
