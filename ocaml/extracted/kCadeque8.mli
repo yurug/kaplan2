@@ -1,4 +1,6 @@
 
+val negb : bool -> bool
+
 val app : 'a1 list -> 'a1 list -> 'a1 list
 
 val rev : 'a1 list -> 'a1 list
@@ -64,15 +66,21 @@ val reassemble_after_eject_unfold :
 
 val kcad8_from_list : 'a1 list -> 'a1 kCadeque8
 
+val kcad8_simple_or_empty : 'a1 kElem8 KCadequeShim.buf6 -> 'a1 kCadeque8
+
+val stored_sub_left_safe : 'a1 stored8 -> bool
+
+val stored_sub_right_safe : 'a1 stored8 -> bool
+
 val rebalance_after_h_empty :
   'a1 stored8 KCadequeShim.buf6 -> 'a1 kElem8 KCadequeShim.buf6 -> 'a1
-  kCadeque8
+  kCadeque8 option
 
 val kcad8_pop_struct : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option
 
 val rebalance_after_t_empty :
   'a1 kElem8 KCadequeShim.buf6 -> 'a1 stored8 KCadequeShim.buf6 -> 'a1
-  kCadeque8
+  kCadeque8 option
 
 val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option
 
@@ -81,3 +89,25 @@ val kcad8_pop : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option
 val kcad8_eject : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option
 
 val kcad8_concat : 'a1 kCadeque8 -> 'a1 kCadeque8 -> 'a1 kCadeque8
+
+type 'x pop_result8 =
+| PopFail8
+| PopOk8 of 'x * 'x kCadeque8
+
+type 'x eject_result8 =
+| EjectFail8
+| EjectOk8 of 'x kCadeque8 * 'x
+
+val kcad8_push_fast : 'a1 -> 'a1 kCadeque8 -> 'a1 kCadeque8
+
+val kcad8_inject_fast : 'a1 kCadeque8 -> 'a1 -> 'a1 kCadeque8
+
+val kcad8_pop_struct_fast : 'a1 kCadeque8 -> 'a1 pop_result8
+
+val kcad8_pop_fast : 'a1 kCadeque8 -> 'a1 pop_result8
+
+val kcad8_eject_struct_fast : 'a1 kCadeque8 -> 'a1 eject_result8
+
+val kcad8_eject_fast : 'a1 kCadeque8 -> 'a1 eject_result8
+
+val kcad8_concat_fast : 'a1 kCadeque8 -> 'a1 kCadeque8 -> 'a1 kCadeque8

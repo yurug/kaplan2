@@ -7,7 +7,7 @@ From Stdlib Require Import ExtrOcamlBasic.
 From Stdlib Require Import ExtrOcamlNatInt.
 
 From KTDeque.Buffer6   Require Import SizedBuffer.
-From KTDeque.Cadeque8  Require Import Model Ops.
+From KTDeque.Cadeque8  Require Import Model Ops OpsFast.
 
 Set Extraction Output Directory "kcadeque8_extracted".
 
@@ -42,4 +42,11 @@ Extraction "kCadeque8.ml"
   kcad8_pop
   kcad8_eject
   kcad8_concat
-  kcad8_from_list.
+  kcad8_from_list
+  (* OpsFast — extraction-friendly variants (kt4-style flat sum types). *)
+  pop_result8 eject_result8
+  kcad8_push_fast
+  kcad8_inject_fast
+  kcad8_pop_fast
+  kcad8_eject_fast
+  kcad8_concat_fast.

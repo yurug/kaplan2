@@ -24,13 +24,16 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 COLORS = {
-    "Cadeque8": "#1f77b4",     # blue
-    "Viennot":  "#d62728",     # red
+    "Cadeque8":      "#1f77b4",   # blue
+    "Cadeque8_fast": "#2ca02c",   # green
+    "Viennot":       "#d62728",   # red
 }
 MARKERS = {
-    "Cadeque8": "o",
-    "Viennot":  "s",
+    "Cadeque8":      "o",
+    "Cadeque8_fast": "D",
+    "Viennot":       "s",
 }
+IMPLS = ["Cadeque8", "Cadeque8_fast", "Viennot"]
 
 
 def read_csv(path):
@@ -62,7 +65,7 @@ def plot_scaling(data, out_path):
 
     for ax, op in zip(axes.flat, ops):
         ax.set_title(op, fontsize=12)
-        for impl in ["Cadeque8", "Viennot"]:
+        for impl in IMPLS:
             pts = data.get(op, {}).get(impl, [])
             if not pts:
                 continue
@@ -133,47 +136,54 @@ def plot_summary(data, out_path):
     # Pick the largest N across all ops/impls
     all_ns = set()
     for op in ops:
-        for impl in ("Cadeque8", "Viennot"):
+        for impl in IMPLS:
             for (n, _) in data.get(op, {}).get(impl, []):
                 all_ns.add(n)
     if not all_ns:
         return
     biggest_n = max(all_ns)
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
+    fig, ax = plt.subplots(figsize=(11, 5.5))
     ax.set_title(
-        f"Cadeque8 vs Viennot at N = {biggest_n:,} — ns/op per operation",
+        f"Cadeque8 vs Cadeque8_fast vs Viennot at N = {biggest_n:,} — ns/op",
         fontsize=12, fontweight="bold")
 
     x = list(range(len(ops)))
-    width = 0.38
+    width = 0.27
 
-    k8_vals = []
-    vi_vals = []
+    vals_by_impl = {impl: [] for impl in IMPLS}
     for op in ops:
-        k8_pts = dict(data.get(op, {}).get("Cadeque8", []))
-        vi_pts = dict(data.get(op, {}).get("Viennot", []))
-        k8_vals.append(k8_pts.get(biggest_n, 0))
-        vi_vals.append(vi_pts.get(biggest_n, 0))
+        for impl in IMPLS:
+            pts = dict(data.get(op, {}).get(impl, []))
+            vals_by_impl[impl].append(pts.get(biggest_n, 0))
 
-    bars_k = ax.bar([xi - width/2 for xi in x], k8_vals, width,
-                    color=COLORS["Cadeque8"], label="Cadeque8 (verified)")
-    bars_v = ax.bar([xi + width/2 for xi in x], vi_vals, width,
-                    color=COLORS["Viennot"],  label="Viennot OCaml")
+    offsets = {"Cadeque8": -width, "Cadeque8_fast": 0, "Viennot": width}
+    labels  = {"Cadeque8":      "Cadeque8 (verified, option-typed)",
+               "Cadeque8_fast": "Cadeque8_fast (verified, flat sum)",
+               "Viennot":       "Viennot OCaml (hand-written ref)"}
+    for impl in IMPLS:
+        ax.bar([xi + offsets[impl] for xi in x],
+               vals_by_impl[impl], width,
+               color=COLORS[impl], label=labels[impl])
 
-    # Annotate ratio Cadeque8/Viennot above each pair
-    for i, (k, v) in enumerate(zip(k8_vals, vi_vals)):
-        if v > 0:
-            ratio = k / v
-            ax.text(i, max(k, v) * 1.04,
-                    f"{ratio:.2f}×",
-                    ha="center", fontsize=9, color="#555")
+    # Annotate fast/orig ratio (improvement) above each op's bars
+    for i, op in enumerate(ops):
+        orig = vals_by_impl["Cadeque8"][i]
+        fast = vals_by_impl["Cadeque8_fast"][i]
+        if orig > 0:
+            delta = 100 * (fast - orig) / orig
+            sign = "" if delta >= 0 else ""
+            top = max(orig, fast, vals_by_impl["Viennot"][i])
+            ax.text(i, top * 1.04,
+                    f"fast {sign}{delta:+.0f}%",
+                    ha="center", fontsize=9,
+                    color="#2ca02c" if delta < 0 else "#888")
 
     ax.set_xticks(x)
     ax.set_xticklabels(ops)
     ax.set_ylabel("ns / op", fontsize=10)
     ax.grid(True, axis="y", alpha=0.3)
-    ax.legend(fontsize=10)
+    ax.legend(fontsize=9)
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=110)
