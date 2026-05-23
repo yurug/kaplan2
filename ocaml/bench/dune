@@ -98,3 +98,9 @@
 (executable
  (name k8_wc_stress)
  (libraries unix ktdeque))
+
+; k8_concat_pop_stress.ml: targeted check for the K8Simple-concat-K8Triple
+; rebalance path that may trigger the O(n) fallback.
+(executable
+ (name k8_concat_pop_stress)
+ (libraries unix ktdeque))

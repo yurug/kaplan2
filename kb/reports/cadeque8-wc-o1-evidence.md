@@ -7,10 +7,26 @@
 > implementation must achieve worst-case O(1) per operation, not amortized or
 > O(log n). We owe an honest accounting.
 >
-> **Recent progress (commit pending):** the `kcad8_pop_fast` fallback is now
-> **proven dead code** under an explicit invariant `inv_kcad8_top` — see
-> §2.4 below. The remaining gap is preservation of `inv_kcad8_top` by the
-> five operations.
+> **Critical finding (commit pending):** while trying to prove preservation of
+> the `inv_kcad8_top` invariant by `kcad8_concat`, we identified — and
+> empirically confirmed — that the `K8Simple ba `concat` K8Triple h2 m2 t2`
+> path produces a stored cell whose sub-deque has an empty left boundary
+> (`K8Triple ø m2 ø`).  A subsequent pop sequence that drains `ba` then
+> triggers `rebalance_after_h_empty`, which checks
+> `stored_sub_left_safe` on this cell, sees the empty left boundary,
+> and returns `None` — forcing the O(n) `kcad8_from_list` fallback.
+> See [§5: empirical confirmation of the O(n) gap].  **This is a real
+> algorithmic gap in `kcad8_concat`** — not a proof artifact.  The
+> existing structural fast-path totality proof
+> ([WFInvariant.v:kcad8_pop_struct_fast_total]) is correct under
+> `inv_kcad8_top`, but `inv_kcad8_top` is **NOT** preserved by
+> `kcad8_concat` in this case, so we cannot claim unconditional WC O(1)
+> for `kcad8_pop` until either:
+>   1. `kcad8_concat` is restructured so the sub-deque of any
+>      `StoredBig8` it creates always has a non-empty left boundary, or
+>   2. `rebalance_after_h_empty` is extended with a case for stored
+>      cells whose sub has empty left boundary, recovering the data
+>      without falling back.
 
 ## 1. What is fully proven in Rocq (zero admits)
 
@@ -196,12 +212,98 @@ ratio does **not** grow with N, which is the empirical signature of WC O(1).
 | Sequence semantics correct | ✅ | ✅ (1M-op QCheck) |
 | Regularity preserved by all ops | ✅ | — |
 | Chain primitives are WC O(1) | ✅ (Footprint.v cost monad) | ✅ |
-| Cadeque8 structural pop is WC O(1) | ✅ under `inv_kcad8_top` (`WFInvariant.v`) | ✅ (10M-scale stress) |
-| `kcad8_pop_fast` fallback is dead code | ✅ under `inv_kcad8_top` | ✅ never observed |
-| `inv_kcad8_top` is preserved by all 5 ops | ❌ open | ✅ (1M-op QCheck) |
-| Cadeque8 structural eject is WC O(1) | ❌ requires algorithmic fix | ✅ (10M-scale stress) |
-| Level-0 invariant on boundary chains | ✅ via `all_xbase8` in `inv_kcad8_top` | ✅ never observed |
+| Cadeque8 structural pop is WC O(1) **under `inv_kcad8_top`** | ✅ (`WFInvariant.v`) | ✅ (on workloads where `inv_kcad8_top` holds) |
+| `kcad8_pop_fast` fallback is dead code **under `inv_kcad8_top`** | ✅ | n/a |
+| `inv_kcad8_top` preserved by `push`, `inject` | ❌ open (easy) | ✅ |
+| `inv_kcad8_top` preserved by `concat` | **❌ FALSE** (algorithm bug) | **❌ FALSIFIED — see §5** |
+| `inv_kcad8_top` preserved by `pop`, `eject` | ❌ open | ✅ on workloads |
+| Cadeque8 structural eject is WC O(1) | ❌ requires algorithmic fix | ✅ (10M push-built stress) |
+| Level-0 invariant on boundary chains | ✅ via `all_xbase8` in `inv_kcad8_top` | ✅ |
 | Inline `Obj.magic` cast is sound | ✅ under `inv_kcad8_top` | ✅ never observed |
+
+## 5. Empirical confirmation of the O(n) gap in `concat`+`pop`
+
+`ocaml/bench/k8_concat_pop_stress.ml` runs the exact problematic
+workload:
+  1. Build `k8s` = `K8Simple` with N elements (via `push`).
+  2. Build `k8t` = `K8Triple` with N elements (via `concat`-self).
+  3. Compute `r = k8s `concat` k8t`.
+  4. Drain `r` via `pop`, measuring per-batch and worst-batch times.
+
+Output (`dune exec ocaml/bench/k8_concat_pop_stress.exe`):
+
+```
+== N = 1000 (each half) ==
+  K8Simple |+| K8Triple   avg=  539  max-batch=     918   ratio=    1.7x
+== N = 10000 (each half) ==
+  K8Simple |+| K8Triple   avg=  246  max-batch=    3118   ratio=   12.7x
+== N = 100000 (each half) ==
+  K8Simple |+| K8Triple   avg=  396  max-batch=   61852   ratio=  156.2x
+== N = 1000000 (each half) ==
+  K8Simple |+| K8Triple   avg=  725  max-batch= 1279681   ratio= 1765.9x
+```
+
+The max-batch time scales **linearly with N** — `ratio` (max/avg)
+grows from 1.7× at N=1K to **1766× at N=1M**.  At N=1M, the worst
+single pop takes ~1.28 ms = clearly Θ(N).  This is the
+`kcad8_to_list ; kcad8_from_list` fallback firing.
+
+This refutes the "WC O(1) for all `KCadeque8` operations"
+claim **on workloads that include this concat pattern**.
+The earlier `k8_wc_stress` test showed flat scaling because its
+concat-build phase used `K8Triple `concat` K8Simple` (which
+inserts `StoredSmall8 t1` via `buf6_inject m1 (StoredSmall8 t1)`,
+trivially safe — no problematic K8Triple-with-empty-sh sub).
+
+## 6. Proposed fixes (not yet attempted)
+
+Two paths to genuinely-WC-O(1):
+
+**(A)** **Restructure `kcad8_concat` for the `K8Simple ba `concat`
+K8Triple h2 m2 t2` case** so the resulting middle cell has a
+sub with non-empty left boundary.  E.g., split into two stored
+cells `[StoredSmall8 h2; StoredBig8 ø (K8Triple ø m2 ø) ø]`.
+Wait, that still has empty sub-left.  More plausibly:
+
+  Construct `m_new = mkBuf6 [StoredSmall8 h2; ...m2's cells...; StoredSmall8 ø]`
+  but this requires re-traversing m2, which is O(|m2|).  So this
+  approach loses WC O(1) for concat itself.
+
+  Alternative: change the encoding so the leftmost cell in the
+  outer m can carry the "this is a wrapper around m2's middle"
+  semantic with a special marker constructor.  Substantial spec
+  change.
+
+**(B)** **Strengthen `rebalance_after_h_empty`** to handle the
+`StoredBig8 pre (K8Triple ø sm st) suf` case without falling back.
+The sub's left boundary is empty, but its `sm` is a valid middle
+buffer of stored cells — we could promote `sm` directly into the
+outer `m_rest` (via concat-like buf6 ops) and use `pre` as the new
+boundary.  Requires inspecting `sm`'s leftmost cell, which is
+itself a `Stored8` and again may need unfolding.  This is
+essentially the §6 "trailing carrier" handling that the current
+implementation doesn't fully realize.
+
+Both fixes require non-trivial proof and algorithmic work and
+are deferred.
+
+## 7. Recommendation
+
+For the moment, the truthful claims are:
+
+- **`kcad8_push` / `kcad8_inject`**: WC O(1), algorithmically and
+  empirically.
+- **`kcad8_pop` / `kcad8_eject` on workloads without `K8Simple `concat`
+  K8Triple` operations**: WC O(1) (validated empirically).
+- **`kcad8_pop` / `kcad8_eject` on arbitrary workloads with concat**:
+  **amortized** O(1), not strict WC O(1).  A single op can be Θ(n)
+  in the worst case (confirmed by `k8_concat_pop_stress`).
+- **`kcad8_concat`**: O(1) algorithmically, but the cost is paid by
+  a later pop that triggers the fallback.
+
+This is honestly weaker than what the project's HARD RULE in
+`CLAUDE.md` requires.  Closing the gap is a real, identified
+piece of remaining algorithmic work.
 
 The empirical evidence is strong — 4 orders of magnitude in N, ~10⁷ ops total
 across multiple workloads (push-only, inject-only, concat-built, mixed), zero
