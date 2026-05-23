@@ -1,10 +1,16 @@
 # Cadeque8 worst-case O(1): what's proven, what's not
 
-> **Status (2026-05-23).** This document records what is *machine-checked* about
-> WC O(1) for `KCadeque8` (and the inline variants in `KCadeque8Inline`), what is
-> *only verified empirically*, and what remains an open proof obligation. The
-> hard rule in `CLAUDE.md` is that this implementation must achieve worst-case
-> O(1) per operation, not amortized or O(log n). We owe an honest accounting.
+> **Status (2026-05-23, updated).** This document records what is
+> *machine-checked* about WC O(1) for `KCadeque8` (and the inline variants in
+> `KCadeque8Inline`), what is *only verified empirically*, and what remains an
+> open proof obligation. The hard rule in `CLAUDE.md` is that this
+> implementation must achieve worst-case O(1) per operation, not amortized or
+> O(log n). We owe an honest accounting.
+>
+> **Recent progress (commit pending):** the `kcad8_pop_fast` fallback is now
+> **proven dead code** under an explicit invariant `inv_kcad8_top` — see
+> §2.4 below. The remaining gap is preservation of `inv_kcad8_top` by the
+> five operations.
 
 ## 1. What is fully proven in Rocq (zero admits)
 
@@ -76,6 +82,42 @@ operation IS WC O(1) (since the structural path is O(1) by inspection of the
 match's case count).
 
 Same gap exists for `kcad8_eject_fast`.
+
+### 2.4 Status update: `pop` side is mechanized (modulo preservation)
+
+`rocq/KTDeque/Cadeque8/WFInvariant.v` now provides a fully proven
+(zero admits) totality theorem for the structural pop fast path:
+
+```coq
+Theorem kcad8_pop_struct_fast_total :
+  forall X (k : KCadeque8 X),
+    inv_kcad8_top k ->
+    k <> K8Empty ->
+    exists x k', kcad8_pop_struct_fast k = PopOk8 x k'.
+
+Corollary kcad8_pop_fast_no_fallback :
+  forall X (k : KCadeque8 X),
+    inv_kcad8_top k ->
+    k <> K8Empty ->
+    exists x k', kcad8_pop_fast k = PopOk8 x k' /\
+                 kcad8_pop_struct_fast k = PopOk8 x k'.
+```
+
+The invariant `inv_kcad8_top` makes precise the two facts needed for
+fast-path totality:
+
+1. **`all_xbase8`** on every `Buf6 (KElem8 X)` in the structure
+   (rules out the `Some (XStored8 _, _) -> PopFail8` arm).
+2. **`stored_sub_left_ok`** on every `StoredBig8` cell's sub-deque
+   (the sub's left boundary is non-empty when it's `K8Simple` or
+   `K8Triple`) — this is the prop-level mirror of the dynamic
+   `stored_sub_left_safe` check used by `rebalance_after_h_empty`.
+
+So the formal accounting is now: **under `inv_kcad8_top`,
+`kcad8_pop_fast` is O(1)** (the structural fast path always succeeds,
+and the `kcad8_to_list ; kcad8_from_list` arm is unreachable). To
+make this *unconditional*, we still need the five preservation
+theorems for `inv_kcad8_top`.
 
 ### 2.2 The level-0 invariant for boundary buffers
 
@@ -154,10 +196,12 @@ ratio does **not** grow with N, which is the empirical signature of WC O(1).
 | Sequence semantics correct | ✅ | ✅ (1M-op QCheck) |
 | Regularity preserved by all ops | ✅ | — |
 | Chain primitives are WC O(1) | ✅ (Footprint.v cost monad) | ✅ |
-| Cadeque8 structural ops are WC O(1) | ⚠️ algorithmic only | ✅ (10M-scale stress) |
-| Fallback path is unreachable under wf | ❌ open lemma | ✅ never observed |
-| Level-0 invariant on boundary chains | ❌ open lemma | ✅ never observed |
-| Inline `Obj.magic` cast is sound | ❌ depends on lemma above | ✅ never observed |
+| Cadeque8 structural pop is WC O(1) | ✅ under `inv_kcad8_top` (`WFInvariant.v`) | ✅ (10M-scale stress) |
+| `kcad8_pop_fast` fallback is dead code | ✅ under `inv_kcad8_top` | ✅ never observed |
+| `inv_kcad8_top` is preserved by all 5 ops | ❌ open | ✅ (1M-op QCheck) |
+| Cadeque8 structural eject is WC O(1) | ❌ requires algorithmic fix | ✅ (10M-scale stress) |
+| Level-0 invariant on boundary chains | ✅ via `all_xbase8` in `inv_kcad8_top` | ✅ never observed |
+| Inline `Obj.magic` cast is sound | ✅ under `inv_kcad8_top` | ✅ never observed |
 
 The empirical evidence is strong — 4 orders of magnitude in N, ~10⁷ ops total
 across multiple workloads (push-only, inject-only, concat-built, mixed), zero
