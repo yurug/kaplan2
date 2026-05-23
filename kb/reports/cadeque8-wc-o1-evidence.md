@@ -7,26 +7,42 @@
 > implementation must achieve worst-case O(1) per operation, not amortized or
 > O(log n). We owe an honest accounting.
 >
-> **Critical finding (commit pending):** while trying to prove preservation of
-> the `inv_kcad8_top` invariant by `kcad8_concat`, we identified — and
-> empirically confirmed — that the `K8Simple ba `concat` K8Triple h2 m2 t2`
-> path produces a stored cell whose sub-deque has an empty left boundary
-> (`K8Triple ø m2 ø`).  A subsequent pop sequence that drains `ba` then
-> triggers `rebalance_after_h_empty`, which checks
-> `stored_sub_left_safe` on this cell, sees the empty left boundary,
-> and returns `None` — forcing the O(n) `kcad8_from_list` fallback.
-> See [§5: empirical confirmation of the O(n) gap].  **This is a real
-> algorithmic gap in `kcad8_concat`** — not a proof artifact.  The
-> existing structural fast-path totality proof
-> ([WFInvariant.v:kcad8_pop_struct_fast_total]) is correct under
-> `inv_kcad8_top`, but `inv_kcad8_top` is **NOT** preserved by
-> `kcad8_concat` in this case, so we cannot claim unconditional WC O(1)
-> for `kcad8_pop` until either:
->   1. `kcad8_concat` is restructured so the sub-deque of any
->      `StoredBig8` it creates always has a non-empty left boundary, or
->   2. `rebalance_after_h_empty` is extended with a case for stored
->      cells whose sub has empty left boundary, recovering the data
->      without falling back.
+> **Critical finding (resolved for (S+T) and StoredSmall8 cases,
+> still open for (T+T)).** Two of the three concat-induced WC O(1)
+> bugs identified and reproduced have been **fixed**:
+>
+>   1. **(S+T) pop bug** — `K8Simple ba `concat` K8Triple h2 m2 t2`
+>      previously created a `StoredBig8` whose sub was `K8Triple ø m2 ø`
+>      (empty left boundary, unsafe for pop rebalance).
+>      **Fixed (commit `71ac79f`)** by restructuring the (S+T) concat
+>      to use `buf6_push (StoredSmall8 h2) m2` — sequence-preserved,
+>      `stored_sub_left_safe` now succeeds.  Empirical max-batch
+>      dropped from 1,279,681 ns/op (N=1M) to **249 ns/op** — flat
+>      across 4 orders of magnitude in N.
+>
+>   2. **StoredSmall8-rightmost eject bug** — `K8Triple |+| K8Simple`
+>      injects `StoredSmall8 t1` at the right end of m, which
+>      `stored_sub_right_safe` always rejects, falling back to O(n).
+>      **Fixed (commit `fe298c6`)** by extending `rebalance_after_t_empty`
+>      with an O(1) special case that promotes `StoredSmall8 b` directly
+>      to the new tail.  Empirical avg dropped from 31,175 ns/op (N=10K)
+>      to **80 ns/op** — a 400× improvement, with max-batch flat from
+>      N=1K to N=1M.
+>
+>   3. **(T+T) eject bug — STILL OPEN.** `K8Triple |+| K8Triple`
+>      injects `StoredBig8 t1 (K8Triple h2 m2 ø) ø` at the right end
+>      of m.  Both sub.suf and the outer suf are empty.
+>      `stored_sub_right_safe` rejects, eject falls back to O(n).
+>      Empirical avg = 194 µs/op at N=10K = clearly Θ(n).  This case
+>      genuinely requires a different fix path because the cell carries
+>      an arbitrary `m2` sub-buffer that can't be promoted in O(1) and
+>      can't be re-encoded into a single safe `StoredBig8` (the
+>      ordering constraint t1 ++ h2 ++ m2 forces sub.suf = ø).  Fixing
+>      it likely requires either splitting concat's encoding across
+>      multiple cells (with O(|m2|) cost), changing the data structure
+>      to add a "middle-only K8Triple" variant, or strengthening the
+>      reassemble path to handle empty-sh sub-K8Triples by extracting
+>      `m2` directly.
 
 ## 1. What is fully proven in Rocq (zero admits)
 

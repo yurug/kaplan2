@@ -109,3 +109,8 @@
 (executable
  (name k8_concat_eject_stress)
  (libraries unix ktdeque))
+
+; k8_tt_concat_stress.ml: (T+T) concat stress — likely STILL O(n).
+(executable
+ (name k8_tt_concat_stress)
+ (libraries unix ktdeque))
