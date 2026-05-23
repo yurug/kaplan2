@@ -203,10 +203,13 @@ Proof.
       * unfold rebalance_after_t_empty in H.
         destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
         -- destruct (stored_sub_right_safe s) eqn:Hsrs.
-           2: { discriminate H. }
-           destruct s as [b|pre' sub' suf']; cbn in H.
-           ++ injection H as Hk' Hxv. subst xv k'. cbn. exact I.
-           ++ injection H as Hk' Hxv. subst xv k'. cbn. exact I.
+           ++ destruct s as [b|pre' sub' suf']; cbn in H.
+              ** injection H as Hk' Hxv. subst xv k'. cbn. exact I.
+              ** injection H as Hk' Hxv. subst xv k'. cbn. exact I.
+           ++ (* WC O(1) fix path: StoredSmall8 → K8Triple h m_rest b *)
+              destruct s as [b|pre' sub' suf']; cbn in H.
+              ** injection H as Hk' Hxv. subst xv k'. cbn. exact I.
+              ** discriminate H.
         -- injection H as Hk' Hxv. subst xv k'.
            apply kcad8_simple_or_empty_wf.
       * injection H as Hk' Hxv. subst xv k'. cbn. exact I.
@@ -646,17 +649,21 @@ Proof.
       destruct (buf6_is_empty t') eqn:Hte.
       * unfold rebalance_after_t_empty in H.
         destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
-        -- destruct (stored_sub_right_safe s) eqn:Hsrs.
-           2: { discriminate H. }
-           assert (Hs_wf : wf_stored8 s /\ wf_middle m_rest)
+        -- assert (Hs_wf : wf_stored8 s /\ wf_middle m_rest)
              by (eapply buf6_eject_wf_middle; eauto).
            destruct Hs_wf as [Hsw Hmr].
-           destruct s as [b|pre0 sub0 suf0]; cbn in H.
-           ++ (* StoredSmall: stored_sub_right_safe = false — discriminate *)
-              discriminate Hsrs.
-           ++ injection H as Hk' Hxv. subst xv k'.
-              eapply (reassemble_after_eject_unfold_wf _
-                       (StoredBig8 pre0 sub0 suf0)); eauto.
+           destruct (stored_sub_right_safe s) eqn:Hsrs.
+           ++ destruct s as [b|pre0 sub0 suf0]; cbn in H.
+              ** (* StoredSmall: stored_sub_right_safe = false — discriminate *)
+                 discriminate Hsrs.
+              ** injection H as Hk' Hxv. subst xv k'.
+                 eapply (reassemble_after_eject_unfold_wf _
+                          (StoredBig8 pre0 sub0 suf0)); eauto.
+           ++ (* WC O(1) fix path. *)
+              destruct s as [b|pre0 sub0 suf0]; cbn in H.
+              ** injection H as Hk' Hxv. subst xv k'. cbn.
+                 split; [exact Hh | split; [cbn in Hsw; exact Hsw | exact Hmr]].
+              ** discriminate H.
         -- injection H as Hk' Hxv. subst xv k'.
            cbn. unfold kcad8_simple_or_empty.
            destruct (buf6_is_empty h) eqn:Hh'; cbn.

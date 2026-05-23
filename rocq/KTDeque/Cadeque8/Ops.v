@@ -224,7 +224,40 @@ Definition kcad8_pop_struct {X : Type} (k : KCadeque8 X)
       end
   end.
 
-(** Rebalance for tail emptying — symmetric to [rebalance_after_h_empty]. *)
+(** Rebalance for tail emptying — symmetric to [rebalance_after_h_empty].
+
+    **WC O(1) FIX (2026-05-23):** the prior version returned [None]
+    on every cell where [stored_sub_right_safe = false], which
+    [reassemble_after_eject_unfold] needs to produce a non-empty
+    [t] in the result.  This includes every [StoredSmall8] cell
+    (always rejected by [stored_sub_right_safe]) — and those ARE
+    legitimately produced by the algorithm: e.g.
+    [kcad8_concat]'s [K8Triple h1 m1 t1 |+| K8Simple bb] case
+    injects exactly such a [StoredSmall8 t1] at the right end of
+    the new [m].  When eject later drained [bb], rebalance fell
+    back to the Θ(n) [kcad8_from_list] path — confirmed by
+    [k8_concat_eject_stress] (31 µs/op at N=10K).
+
+    The new code handles [StoredSmall8 b] inline: such a cell
+    represents the buffer [b] (with [pre = b], [sub = K8Empty],
+    [suf = mkBuf6 []]).  We promote [b] DIRECTLY to be the new
+    tail of the result [K8Triple h m_rest b], avoiding the
+    [reassemble_after_eject_unfold] path entirely (which would
+    have produced an empty-[suf] K8Triple — invalid).
+
+    Sequence:
+      flatten(K8Triple h m_rest b) = h ++ flatten(m_rest) ++ flatten(b)
+    Input (rebalance is invoked with t already empty):
+      flatten = h ++ flatten(m) = h ++ flatten(inject m_rest (StoredSmall8 b))
+              = h ++ flatten(m_rest) ++ flatten(b).
+    Matches.
+
+    Other [stored_sub_right_safe = false] shapes (e.g. [StoredBig8]
+    with empty suf, produced by [kcad8_concat]'s (T+T) case and by
+    [reassemble_after_eject_unfold]'s K8Triple sub-case) STILL fall
+    back to [None].  Those are the remaining WC O(1) gap on
+    eject — documented in
+    [kb/reports/cadeque8-wc-o1-evidence.md]. *)
 
 Definition rebalance_after_t_empty {X : Type}
   (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X)) : option (KCadeque8 X) :=
@@ -234,7 +267,11 @@ Definition rebalance_after_t_empty {X : Type}
         let '(pre, sub, suf) := unfold_stored s in
         Some (reassemble_after_eject_unfold h pre sub suf m_rest)
       else
-        None  (* fall back: would push empty-suffix stored cell *)
+        (* WC O(1) fix: handle the StoredSmall8 case in O(1). *)
+        match s with
+        | StoredSmall8 b => Some (K8Triple h m_rest b)
+        | _              => None
+        end
   | None => Some (kcad8_simple_or_empty h)
   end.
 

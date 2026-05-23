@@ -879,6 +879,31 @@ Proof.
   rewrite !app_assoc. reflexivity.
 Qed.
 
+(** ** Eject — rebalance via the WC O(1) fix path (StoredSmall8
+       promoted directly to new tail, bypassing reassemble). *)
+
+Lemma eject_struct_seq_triple_rebalance_small_promote :
+  forall (X : Type) (h : Buf6 (KElem8 X)) (m : Buf6 (Stored8 X))
+         (t : Buf6 (KElem8 X)) (x : X) (t' : Buf6 (KElem8 X))
+         (b : Buf6 (KElem8 X)) (m_rest : Buf6 (Stored8 X)),
+    buf6_eject t = Some (t', XBase8 x) ->
+    buf6_is_empty t' = true ->
+    buf6_eject m = Some (m_rest, StoredSmall8 b) ->
+    kcad8_to_list (K8Triple h m t)
+    = kcad8_to_list (K8Triple h m_rest b) ++ [x].
+Proof.
+  intros X h m t x t' b m_rest Het Hte Hme.
+  rewrite !kcad8_to_list_triple.
+  apply buf6_eject_some_elems in Het.
+  apply (kelem8_flat_list_nil _ t') in Hte.
+  rewrite (kelem8_flat_list_inject_form _ t' t x Het).
+  rewrite Hte. cbn [app].
+  apply buf6_eject_some_elems in Hme.
+  rewrite (stored8_flat_list_inject_form _ m_rest m (StoredSmall8 b) Hme).
+  cbn [stored8_to_list].
+  rewrite !app_assoc. reflexivity.
+Qed.
+
 (** ** Eject — rebalance, StoredBig case. *)
 
 Lemma eject_struct_seq_triple_rebalance_big :
@@ -983,14 +1008,19 @@ Proof.
       * unfold rebalance_after_t_empty in H.
         destruct (buf6_eject m) as [[m_rest s]|] eqn:Hmp.
         -- destruct (stored_sub_right_safe s) eqn:Hsrs.
-           2: { discriminate H. }
-           destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
-           ++ injection H as Hk' Hxv. subst xv k'.
-              apply eject_struct_seq_triple_rebalance_small
-                with (t' := t'); assumption.
-           ++ injection H as Hk' Hxv. subst xv k'.
-              apply eject_struct_seq_triple_rebalance_big
-                with (t' := t'); assumption.
+           ++ destruct s as [b|pre sub suf]; cbn [unfold_stored] in H.
+              ** injection H as Hk' Hxv. subst xv k'.
+                 apply eject_struct_seq_triple_rebalance_small
+                   with (t' := t'); assumption.
+              ** injection H as Hk' Hxv. subst xv k'.
+                 apply eject_struct_seq_triple_rebalance_big
+                   with (t' := t'); assumption.
+           ++ (* WC O(1) fix path: StoredSmall8 promoted to new tail. *)
+              destruct s as [b|pre sub suf]; cbn in H.
+              ** injection H as Hk' Hxv. subst xv k'.
+                 apply eject_struct_seq_triple_rebalance_small_promote
+                   with (t' := t'); assumption.
+              ** discriminate H.
         -- injection H as Hk' Hxv. subst xv k'.
            apply eject_struct_seq_triple_rebalance_m_empty
              with (t' := t'); assumption.

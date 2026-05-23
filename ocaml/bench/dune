@@ -104,3 +104,8 @@
 (executable
  (name k8_concat_pop_stress)
  (libraries unix ktdeque))
+
+; k8_concat_eject_stress.ml: eject-side analog.
+(executable
+ (name k8_concat_eject_stress)
+ (libraries unix ktdeque))

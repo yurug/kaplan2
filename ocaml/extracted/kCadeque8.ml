@@ -309,7 +309,9 @@ let rebalance_after_t_empty h m =
     then let (p0, suf) = unfold_stored s in
          let (pre, sub) = p0 in
          Some (reassemble_after_eject_unfold h pre sub suf m_rest)
-    else None
+    else (match s with
+          | StoredSmall8 b -> Some (K8Triple (h, m_rest, b))
+          | StoredBig8 (_, _, _) -> None)
   | None -> Some (kcad8_simple_or_empty h)
 
 (** val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option **)
