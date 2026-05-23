@@ -74,3 +74,15 @@
 (executable
  (name k8i_check)
  (libraries ktdeque))
+
+; k8i_chain_shapes.ml: histogram of boundary-buffer chain shapes in
+; the steady-state push workload (used to design hot-of-hot patterns).
+(executable
+ (name k8i_chain_shapes)
+ (libraries ktdeque))
+
+; k8_aggregate.ml: mixed-workload throughput bench for the headline
+; aggregate Cadeque8_inline-vs-Viennot story.
+(executable
+ (name k8_aggregate)
+ (libraries unix viennot_cadeque ktdeque))
