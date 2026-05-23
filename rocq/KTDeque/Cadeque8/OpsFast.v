@@ -201,9 +201,8 @@ Definition kcad8_concat_fast {X : Type} (a b : KCadeque8 X) : KCadeque8 X :=
       | K8Empty => a
       | K8Simple bb => K8Triple ba (mkBuf6 []) bb
       | K8Triple h2 m2 t2 =>
-          let boundary :=
-            StoredBig8 h2 (K8Triple (mkBuf6 []) m2 (mkBuf6 [])) (mkBuf6 []) in
-          K8Triple ba (mkBuf6 [boundary]) t2
+          (* WC O(1) fix — see comment in Ops.v *)
+          K8Triple ba (buf6_push (StoredSmall8 h2) m2) t2
       end
   | K8Triple h1 m1 t1 =>
       match b with

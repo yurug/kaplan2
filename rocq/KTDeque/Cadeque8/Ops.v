@@ -334,12 +334,25 @@ Definition kcad8_concat {X : Type}
   | K8Simple ba, K8Triple h2 m2 t2 =>
       (* Want flatten = ba ++ h2 ++ m2 ++ t2.
          Result = K8Triple ba m_new t2 with flatten m_new = h2 ++ m2.
-         m_new wraps (h2, m2-as-cadeque, []) as ONE stored cell. *)
-      let boundary :=
-        StoredBig8 h2
-                   (K8Triple (mkBuf6 []) m2 (mkBuf6 []))
-                   (mkBuf6 []) in
-      K8Triple ba (mkBuf6 [boundary]) t2
+
+         **WC O(1) FIX (2026-05-23):** the prior encoding wrapped
+         (h2, m2) as a single [StoredBig8 h2 (K8Triple ø m2 ø) ø]
+         stored cell.  But that cell's sub-deque had an empty left
+         boundary [ø], making [stored_sub_left_safe] return false
+         on the rebalance triggered when [ba] later drains via pop.
+         The pop fallback then ran [kcad8_to_list ; kcad8_from_list]
+         in Θ(n), violating WC O(1).
+         (See [k8_concat_pop_stress] and the prior commit's KB note.)
+
+         The new encoding pushes [h2] to the front of [m2] as a
+         [StoredSmall8] cell.  [stored_sub_left_safe] is trivially
+         true on [StoredSmall8], so the rebalance succeeds in O(1).
+         Sequence is preserved (proof in [Seq.v]):
+           flatten m_new
+         = flatten (push (StoredSmall8 h2) m2)
+         = stored8_to_list (StoredSmall8 h2) ++ flatten m2
+         = flatten h2 ++ flatten m2.                                    *)
+      K8Triple ba (buf6_push (StoredSmall8 h2) m2) t2
 
   | K8Triple h1 m1 t1, K8Simple bb =>
       (* Want flatten = h1 ++ m1 ++ t1 ++ bb.

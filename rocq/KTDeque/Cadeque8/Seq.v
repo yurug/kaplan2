@@ -148,6 +148,12 @@ Lemma stored8_to_list_big :
       ++ kelem8_flat_list (buf6_elems suf).
 Proof. intros; reflexivity. Qed.
 
+(** Small stored8 sequence law. *)
+Lemma stored8_to_list_small :
+  forall (X : Type) (b : Buf6 (KElem8 X)),
+    stored8_to_list (StoredSmall8 b) = kelem8_flat_list (buf6_elems b).
+Proof. intros; reflexivity. Qed.
+
 (** ** Concat preserves the sequence. *)
 
 Theorem kcad8_concat_seq :
@@ -164,14 +170,11 @@ Proof.
   - (* Simple, Simple → K8Triple ba [] bb *)
     rewrite !kcad8_to_list_simple, kcad8_to_list_triple.
     unfold buf6_elems; cbn [stored8_flat_list]. reflexivity.
-  - (* Simple, Triple: K8Triple ba (mkBuf6 [boundary]) t2 *)
+  - (* Simple, Triple (WC O(1) fix):
+       K8Triple ba (buf6_push (StoredSmall8 h2) m2) t2 *)
     rewrite kcad8_to_list_simple, !kcad8_to_list_triple.
-    unfold buf6_elems; cbn [stored8_flat_list].
-    rewrite app_nil_r.
-    rewrite stored8_to_list_big.
-    rewrite kcad8_to_list_triple.
-    unfold buf6_elems; cbn [kelem8_flat_list].
-    rewrite app_nil_r.
+    rewrite stored8_flat_list_push.
+    rewrite stored8_to_list_small.
     rewrite <- !app_assoc. reflexivity.
   - cbn. rewrite app_nil_r. reflexivity.       (* Triple, Empty *)
   - (* Triple, Simple: K8Triple h1 (inject m1 (StoredSmall8 t1)) bb *)

@@ -298,6 +298,18 @@ Proof.
   intros X. unfold wf_middle, buf6_elems. constructor.
 Qed.
 
+(** wf_middle preserved by buf6_push of a wf_stored8 cell.  (Moved
+    here from below so [kcad8_concat_wf_strong]'s (Simple, Triple)
+    case can use it.) *)
+Lemma wf_middle_push :
+  forall (X : Type) (s : Stored8 X) (m : Buf6 (Stored8 X)),
+    wf_stored8 s -> wf_middle m -> wf_middle (buf6_push s m).
+Proof.
+  intros X s [xs] Hs Hm.
+  unfold wf_middle, buf6_push, buf6_elems in *.
+  apply Forall_cons; auto.
+Qed.
+
 (* --- strong preservation for the constructive ops --- *)
 
 Theorem kcad8_push_wf_strong :
@@ -339,10 +351,11 @@ Proof.
   - exact Ha.
   - cbn in Ha, Hb |- *.
     split; [exact Ha | split; [exact Hb | apply wf_middle_empty]].
-  - cbn in Ha, Hb |- *.
-    destruct Hb as [Hh2 [Ht2 _]].
+  - (* (Simple, Triple) WC O(1) fix: buf6_push (StoredSmall8 h2) m2 *)
+    cbn in Ha, Hb |- *.
+    destruct Hb as [Hh2 [Ht2 Hm2]].
     split; [exact Ha | split; [exact Ht2 |]].
-    apply wf_middle_singleton. cbn. exact Hh2.
+    apply wf_middle_push; [cbn; exact Hh2 | exact Hm2].
   - exact Ha.
   - cbn in Ha, Hb |- *.
     destruct Ha as [Hh1 [Ht1 Hm1]].
@@ -457,16 +470,6 @@ Proof.
   apply Forall_app in Hm. destruct Hm as [Hm_rest Hy].
   inversion Hy; subst.
   split; [assumption | exact Hm_rest].
-Qed.
-
-(** wf_middle preserved by buf6_push of a wf_stored8 cell. *)
-Lemma wf_middle_push :
-  forall (X : Type) (s : Stored8 X) (m : Buf6 (Stored8 X)),
-    wf_stored8 s -> wf_middle m -> wf_middle (buf6_push s m).
-Proof.
-  intros X s [xs] Hs Hm.
-  unfold wf_middle, buf6_push, buf6_elems in *.
-  apply Forall_cons; auto.
 Qed.
 
 (** Reassemble preserves wf_strong when input cell satisfies the

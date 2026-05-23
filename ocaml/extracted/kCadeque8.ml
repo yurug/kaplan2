@@ -391,10 +391,7 @@ let kcad8_concat a b =
      | K8Empty -> a
      | K8Simple bb -> K8Triple (ba, (KCadequeShim.mkBuf6 []), bb)
      | K8Triple (h2, m2, t2) ->
-       let boundary = StoredBig8 (h2, (K8Triple ((KCadequeShim.mkBuf6 []),
-         m2, (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
-       in
-       K8Triple (ba, (KCadequeShim.mkBuf6 (boundary :: [])), t2))
+       K8Triple (ba, (buf6_push (StoredSmall8 h2) m2), t2))
   | K8Triple (h1, m1, t1) ->
     (match b with
      | K8Empty -> a
@@ -561,10 +558,7 @@ let kcad8_concat_fast a b =
      | K8Empty -> a
      | K8Simple bb -> K8Triple (ba, (KCadequeShim.mkBuf6 []), bb)
      | K8Triple (h2, m2, t2) ->
-       let boundary = StoredBig8 (h2, (K8Triple ((KCadequeShim.mkBuf6 []),
-         m2, (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
-       in
-       K8Triple (ba, (KCadequeShim.mkBuf6 (boundary :: [])), t2))
+       K8Triple (ba, (buf6_push (StoredSmall8 h2) m2), t2))
   | K8Triple (h1, m1, t1) ->
     (match b with
      | K8Empty -> a
