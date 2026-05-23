@@ -86,3 +86,15 @@
 (executable
  (name k8_aggregate)
  (libraries unix viennot_cadeque ktdeque))
+
+; k8i_qcheck.ml: property-based test of cert + fast + inline variants
+; against a list reference (push/inject/pop/eject/concat).
+(executable
+ (name k8i_qcheck)
+ (libraries ktdeque))
+
+; k8_wc_stress.ml: empirical per-op WC bound — flat scaling of max
+; per-op time refutes hidden O(n) fallbacks.
+(executable
+ (name k8_wc_stress)
+ (libraries unix ktdeque))
