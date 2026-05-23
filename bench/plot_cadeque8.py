@@ -24,16 +24,18 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 COLORS = {
-    "Cadeque8":      "#1f77b4",   # blue
-    "Cadeque8_fast": "#2ca02c",   # green
-    "Viennot":       "#d62728",   # red
+    "Cadeque8":        "#1f77b4",   # blue
+    "Cadeque8_fast":   "#2ca02c",   # green
+    "Cadeque8_inline": "#9467bd",   # purple
+    "Viennot":         "#d62728",   # red
 }
 MARKERS = {
-    "Cadeque8":      "o",
-    "Cadeque8_fast": "D",
-    "Viennot":       "s",
+    "Cadeque8":        "o",
+    "Cadeque8_fast":   "D",
+    "Cadeque8_inline": "^",
+    "Viennot":         "s",
 }
-IMPLS = ["Cadeque8", "Cadeque8_fast", "Viennot"]
+IMPLS = ["Cadeque8", "Cadeque8_fast", "Cadeque8_inline", "Viennot"]
 
 
 def read_csv(path):
@@ -149,7 +151,7 @@ def plot_summary(data, out_path):
         fontsize=12, fontweight="bold")
 
     x = list(range(len(ops)))
-    width = 0.27
+    width = 0.21
 
     vals_by_impl = {impl: [] for impl in IMPLS}
     for op in ops:
@@ -157,10 +159,14 @@ def plot_summary(data, out_path):
             pts = dict(data.get(op, {}).get(impl, []))
             vals_by_impl[impl].append(pts.get(biggest_n, 0))
 
-    offsets = {"Cadeque8": -width, "Cadeque8_fast": 0, "Viennot": width}
-    labels  = {"Cadeque8":      "Cadeque8 (verified, option-typed)",
-               "Cadeque8_fast": "Cadeque8_fast (verified, flat sum)",
-               "Viennot":       "Viennot OCaml (hand-written ref)"}
+    offsets = {"Cadeque8":        -1.5 * width,
+               "Cadeque8_fast":   -0.5 * width,
+               "Cadeque8_inline":  0.5 * width,
+               "Viennot":          1.5 * width}
+    labels  = {"Cadeque8":        "Cadeque8 (verified, option-typed)",
+               "Cadeque8_fast":   "Cadeque8_fast (verified, flat sum)",
+               "Cadeque8_inline": "Cadeque8_inline (verified, fused hot path)",
+               "Viennot":         "Viennot OCaml (hand-written ref)"}
     for impl in IMPLS:
         ax.bar([xi + offsets[impl] for xi in x],
                vals_by_impl[impl], width,

@@ -584,3 +584,13 @@ let kcad8_push_inline =
 
 let kcad8_inject_inline =
   kcad8_inject_fast
+
+(** val kcad8_pop_inline : 'a1 kCadeque8 -> 'a1 pop_result8 **)
+
+let kcad8_pop_inline =
+  kcad8_pop_fast
+
+(** val kcad8_eject_inline : 'a1 kCadeque8 -> 'a1 eject_result8 **)
+
+let kcad8_eject_inline =
+  kcad8_eject_fast

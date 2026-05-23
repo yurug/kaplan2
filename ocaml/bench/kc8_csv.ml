@@ -96,6 +96,24 @@ let k8i_inject_n n =
   for i = 0 to n - 1 do acc := KI.kcad8_inject_inline !acc i done;
   !acc
 
+let k8i_pop_all d =
+  let acc = ref d in
+  let cont = ref true in
+  while !cont do
+    match KI.kcad8_pop_inline !acc with
+    | K.PopFail8 -> cont := false
+    | K.PopOk8 (_, d') -> acc := d'
+  done
+
+let k8i_eject_all d =
+  let acc = ref d in
+  let cont = ref true in
+  while !cont do
+    match KI.kcad8_eject_inline !acc with
+    | K.EjectFail8 -> cont := false
+    | K.EjectOk8 (d', _) -> acc := d'
+  done
+
 (* --- Viennot op closures --- *)
 let vi_push_n n =
   let acc = ref Vi.empty in
@@ -145,13 +163,14 @@ let run n =
   emit n "inject" "Cadeque8_inline" ns;
   let (ns, dvi) = time_ns_per_op n (fun () -> vi_inject_n n) in
   emit n "inject" "Viennot" ns;
-  ignore dki_p; ignore dki_i;
 
   (* pop *)
   let (ns, ()) = time_ns_per_op n (fun () -> k8_pop_all dk) in
   emit n "pop" "Cadeque8" ns;
   let (ns, ()) = time_ns_per_op n (fun () -> k8f_pop_all dkf) in
   emit n "pop" "Cadeque8_fast" ns;
+  let (ns, ()) = time_ns_per_op n (fun () -> k8i_pop_all dki_p) in
+  emit n "pop" "Cadeque8_inline" ns;
   let (ns, ()) = time_ns_per_op n (fun () -> vi_pop_all dv) in
   emit n "pop" "Viennot" ns;
 
@@ -160,6 +179,8 @@ let run n =
   emit n "eject" "Cadeque8" ns;
   let (ns, ()) = time_ns_per_op n (fun () -> k8f_eject_all dkfi) in
   emit n "eject" "Cadeque8_fast" ns;
+  let (ns, ()) = time_ns_per_op n (fun () -> k8i_eject_all dki_i) in
+  emit n "eject" "Cadeque8_inline" ns;
   let (ns, ()) = time_ns_per_op n (fun () -> vi_eject_all dvi) in
   emit n "eject" "Viennot" ns;
 

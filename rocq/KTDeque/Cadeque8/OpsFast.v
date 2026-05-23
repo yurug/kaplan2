@@ -418,6 +418,12 @@ Definition kcad8_push_inline {X : Type} (x : X) (k : KCadeque8 X) : KCadeque8 X 
 Definition kcad8_inject_inline {X : Type} (k : KCadeque8 X) (x : X) : KCadeque8 X :=
   kcad8_inject_fast k x.
 
+Definition kcad8_pop_inline {X : Type} (k : KCadeque8 X) : pop_result8 X :=
+  kcad8_pop_fast k.
+
+Definition kcad8_eject_inline {X : Type} (k : KCadeque8 X) : eject_result8 X :=
+  kcad8_eject_fast k.
+
 (** Equivalences by reflexivity. *)
 Lemma kcad8_push_inline_eq :
   forall (X : Type) (x : X) (k : KCadeque8 X),
@@ -427,6 +433,16 @@ Proof. reflexivity. Qed.
 Lemma kcad8_inject_inline_eq :
   forall (X : Type) (k : KCadeque8 X) (x : X),
     kcad8_inject_inline k x = kcad8_inject_fast k x.
+Proof. reflexivity. Qed.
+
+Lemma kcad8_pop_inline_eq :
+  forall (X : Type) (k : KCadeque8 X),
+    kcad8_pop_inline k = kcad8_pop_fast k.
+Proof. reflexivity. Qed.
+
+Lemma kcad8_eject_inline_eq :
+  forall (X : Type) (k : KCadeque8 X),
+    kcad8_eject_inline k = kcad8_eject_fast k.
 Proof. reflexivity. Qed.
 
 (** Sequence preservation transferred from [_fast]. *)
@@ -440,6 +456,18 @@ Theorem kcad8_inject_inline_seq :
     kcad8_to_list (kcad8_inject_inline k x) = kcad8_to_list k ++ [x].
 Proof. apply kcad8_inject_fast_seq. Qed.
 
+Theorem kcad8_pop_inline_seq :
+  forall (X : Type) (k : KCadeque8 X) (x : X) (k' : KCadeque8 X),
+    kcad8_pop_inline k = PopOk8 x k' ->
+    kcad8_to_list k = x :: kcad8_to_list k'.
+Proof. apply kcad8_pop_fast_seq. Qed.
+
+Theorem kcad8_eject_inline_seq :
+  forall (X : Type) (k : KCadeque8 X) (k' : KCadeque8 X) (x : X),
+    kcad8_eject_inline k = EjectOk8 k' x ->
+    kcad8_to_list k = kcad8_to_list k' ++ [x].
+Proof. apply kcad8_eject_fast_seq. Qed.
+
 (** Regularity preservation transferred from [_fast]. *)
 Theorem kcad8_push_inline_wf_strong :
   forall (X : Type) (x : X) (k : KCadeque8 X),
@@ -450,3 +478,13 @@ Theorem kcad8_inject_inline_wf_strong :
   forall (X : Type) (k : KCadeque8 X) (x : X),
     wf_kcad8_strong k -> wf_kcad8_strong (kcad8_inject_inline k x).
 Proof. apply kcad8_inject_fast_wf_strong. Qed.
+
+Theorem kcad8_pop_inline_wf_strong :
+  forall (X : Type) (k : KCadeque8 X) (x : X) (k' : KCadeque8 X),
+    wf_kcad8_strong k -> kcad8_pop_inline k = PopOk8 x k' -> wf_kcad8_strong k'.
+Proof. apply kcad8_pop_fast_wf_strong. Qed.
+
+Theorem kcad8_eject_inline_wf_strong :
+  forall (X : Type) (k : KCadeque8 X) (k' : KCadeque8 X) (x : X),
+    wf_kcad8_strong k -> kcad8_eject_inline k = EjectOk8 k' x -> wf_kcad8_strong k'.
+Proof. apply kcad8_eject_fast_wf_strong. Qed.

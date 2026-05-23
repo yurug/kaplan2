@@ -69,3 +69,8 @@
 (executable
  (name k8_alloc)
  (libraries unix viennot_cadeque ktdeque))
+
+; k8i_check.ml: differential correctness check for KCadeque8Inline.
+(executable
+ (name k8i_check)
+ (libraries ktdeque))

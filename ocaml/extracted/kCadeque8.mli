@@ -122,3 +122,11 @@ val kcad8_push_inline : 'a1 -> 'a1 kCadeque8 -> 'a1 kCadeque8
 
 (** Hand-fused hot path — semantically equal to {!kcad8_inject_fast}. *)
 val kcad8_inject_inline : 'a1 kCadeque8 -> 'a1 -> 'a1 kCadeque8
+
+(** Hand-fused hot path — semantically equal to {!kcad8_pop_fast}; skips the
+    [buf6_pop] option boxing and the [Coq_E.to_list] singleton list
+    allocation by inspecting the [ExistT] payload directly. *)
+val kcad8_pop_inline : 'a1 kCadeque8 -> 'a1 pop_result8
+
+(** Hand-fused hot path — semantically equal to {!kcad8_eject_fast}. *)
+val kcad8_eject_inline : 'a1 kCadeque8 -> 'a1 eject_result8

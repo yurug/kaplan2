@@ -62,4 +62,6 @@ Extraction "kCadeque8.ml"
   kcad8_concat_fast
   (* Inline variants — see [KCadeque8Inline.ml] for the OCaml override. *)
   kcad8_push_inline
-  kcad8_inject_inline.
+  kcad8_inject_inline
+  kcad8_pop_inline
+  kcad8_eject_inline.
