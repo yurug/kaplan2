@@ -32,6 +32,9 @@ let () =
   measure "Cadeque8 push_fast (flat)" ~n
     ~mk:(fun () -> K.kcad8_empty)
     ~op:K.kcad8_push_fast;
+  measure "Cadeque8 push_inline (1-call)" ~n
+    ~mk:(fun () -> K.kcad8_empty)
+    ~op:KCadeque8Inline.kcad8_push_inline;
   measure "Viennot push (ref)" ~n
     ~mk:(fun () -> Vi.empty)
     ~op:Vi.push;
@@ -42,6 +45,9 @@ let () =
   measure "Cadeque8 inject_fast (flat)" ~n
     ~mk:(fun () -> K.kcad8_empty)
     ~op:(fun i d -> K.kcad8_inject_fast d i);
+  measure "Cadeque8 inject_inline (1-call)" ~n
+    ~mk:(fun () -> K.kcad8_empty)
+    ~op:(fun i d -> KCadeque8Inline.kcad8_inject_inline d i);
   measure "Viennot inject (ref)" ~n
     ~mk:(fun () -> Vi.empty)
     ~op:(fun i d -> Vi.inject d i)

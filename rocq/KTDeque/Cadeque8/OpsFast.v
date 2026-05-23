@@ -399,3 +399,54 @@ Proof.
   injection H as Hk Hx. subst y k''.
   eapply kcad8_eject_wf_strong; eauto.
 Qed.
+
+(* ========================================================================== *)
+(* Inline variants — pure Rocq-level aliases of the [_fast] operations,       *)
+(* exposed for extraction so the OCaml side can attach a hand-fused           *)
+(* hot-path implementation that bypasses the [KCadequeShim] cross-module      *)
+(* hop.  At the spec level [kcad8_push_inline = kcad8_push_fast]; the only    *)
+(* purpose is to give a Rocq name that the OCaml shim                         *)
+(* [KCadeque8Inline.kcad8_push_inline] is the verified counterpart of.        *)
+(*                                                                            *)
+(* All correctness lemmas (sequence preservation, regularity preservation)    *)
+(* are transferred from the [_fast] versions by [reflexivity].                *)
+(* ========================================================================== *)
+
+Definition kcad8_push_inline {X : Type} (x : X) (k : KCadeque8 X) : KCadeque8 X :=
+  kcad8_push_fast x k.
+
+Definition kcad8_inject_inline {X : Type} (k : KCadeque8 X) (x : X) : KCadeque8 X :=
+  kcad8_inject_fast k x.
+
+(** Equivalences by reflexivity. *)
+Lemma kcad8_push_inline_eq :
+  forall (X : Type) (x : X) (k : KCadeque8 X),
+    kcad8_push_inline x k = kcad8_push_fast x k.
+Proof. reflexivity. Qed.
+
+Lemma kcad8_inject_inline_eq :
+  forall (X : Type) (k : KCadeque8 X) (x : X),
+    kcad8_inject_inline k x = kcad8_inject_fast k x.
+Proof. reflexivity. Qed.
+
+(** Sequence preservation transferred from [_fast]. *)
+Theorem kcad8_push_inline_seq :
+  forall (X : Type) (x : X) (k : KCadeque8 X),
+    kcad8_to_list (kcad8_push_inline x k) = x :: kcad8_to_list k.
+Proof. apply kcad8_push_fast_seq. Qed.
+
+Theorem kcad8_inject_inline_seq :
+  forall (X : Type) (k : KCadeque8 X) (x : X),
+    kcad8_to_list (kcad8_inject_inline k x) = kcad8_to_list k ++ [x].
+Proof. apply kcad8_inject_fast_seq. Qed.
+
+(** Regularity preservation transferred from [_fast]. *)
+Theorem kcad8_push_inline_wf_strong :
+  forall (X : Type) (x : X) (k : KCadeque8 X),
+    wf_kcad8_strong k -> wf_kcad8_strong (kcad8_push_inline x k).
+Proof. apply kcad8_push_fast_wf_strong. Qed.
+
+Theorem kcad8_inject_inline_wf_strong :
+  forall (X : Type) (k : KCadeque8 X) (x : X),
+    wf_kcad8_strong k -> wf_kcad8_strong (kcad8_inject_inline k x).
+Proof. apply kcad8_inject_fast_wf_strong. Qed.

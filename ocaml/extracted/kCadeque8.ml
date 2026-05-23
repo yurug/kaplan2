@@ -574,3 +574,13 @@ let kcad8_concat_fast a b =
          []))), (KCadequeShim.mkBuf6 []))
        in
        K8Triple (h1, (buf6_inject m1 boundary), t2))
+
+(** val kcad8_push_inline : 'a1 -> 'a1 kCadeque8 -> 'a1 kCadeque8 **)
+
+let kcad8_push_inline =
+  kcad8_push_fast
+
+(** val kcad8_inject_inline : 'a1 kCadeque8 -> 'a1 -> 'a1 kCadeque8 **)
+
+let kcad8_inject_inline =
+  kcad8_inject_fast

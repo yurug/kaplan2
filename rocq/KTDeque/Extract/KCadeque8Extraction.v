@@ -29,6 +29,16 @@ Extract Constant buf6_pop       => "KCadequeShim.buf6_pop".
 Extract Constant buf6_eject     => "KCadequeShim.buf6_eject".
 Extract Constant buf6_is_empty  => "KCadequeShim.buf6_is_empty".
 
+(* NB: [kcad8_push_inline] / [kcad8_inject_inline] in [Cadeque8/OpsFast.v]
+   are defined as definitional aliases of the [_fast] variants, so
+   the extracted versions are [let kcad8_push_inline = kcad8_push_fast].
+   The faster, hand-fused implementations live in [KCadeque8Inline.ml]
+   (a separate hand-written module that depends on [KCadeque8] for
+   type definitions — making it an [Extract Constant] override here
+   would create a module cycle).  Bench / consumer code should call
+   [KCadeque8Inline.kcad8_push_inline] directly when the fused hot
+   path is desired. *)
+
 Extraction "kCadeque8.ml"
   Buf6
   buf6_empty buf6_singleton buf6_push buf6_inject buf6_pop buf6_eject
@@ -49,4 +59,7 @@ Extraction "kCadeque8.ml"
   kcad8_inject_fast
   kcad8_pop_fast
   kcad8_eject_fast
-  kcad8_concat_fast.
+  kcad8_concat_fast
+  (* Inline variants — see [KCadeque8Inline.ml] for the OCaml override. *)
+  kcad8_push_inline
+  kcad8_inject_inline.

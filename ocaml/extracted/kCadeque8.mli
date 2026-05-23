@@ -111,3 +111,14 @@ val kcad8_eject_struct_fast : 'a1 kCadeque8 -> 'a1 eject_result8
 val kcad8_eject_fast : 'a1 kCadeque8 -> 'a1 eject_result8
 
 val kcad8_concat_fast : 'a1 kCadeque8 -> 'a1 kCadeque8 -> 'a1 kCadeque8
+
+(** Hand-fused hot path — semantically equal to {!kcad8_push_fast} but
+    bypasses the [KCadequeShim.buf6_push] cross-module hop.  See the
+    Rocq side [Cadeque8/OpsFast.v:kcad8_push_inline] (defined as
+    [kcad8_push_inline := kcad8_push_fast]).  All correctness lemmas
+    (sequence preservation, regularity preservation) transfer to the
+    inline variant by reflexivity at the Rocq level. *)
+val kcad8_push_inline : 'a1 -> 'a1 kCadeque8 -> 'a1 kCadeque8
+
+(** Hand-fused hot path — semantically equal to {!kcad8_inject_fast}. *)
+val kcad8_inject_inline : 'a1 kCadeque8 -> 'a1 -> 'a1 kCadeque8

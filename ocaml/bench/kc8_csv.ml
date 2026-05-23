@@ -14,6 +14,7 @@
 *)
 
 module K  = KCadeque8
+module KI = KCadeque8Inline
 module Vi = Viennot_cadeque.Cadeque.Base
 
 let emit n op impl ns_per_op =
@@ -84,6 +85,17 @@ let k8f_eject_all d =
     | K.EjectOk8 (d', _) -> acc := d'
   done
 
+(* --- K8 op closures (inline, hand-fused hot path) --- *)
+let k8i_push_n n =
+  let acc = ref K.kcad8_empty in
+  for i = 0 to n - 1 do acc := KI.kcad8_push_inline i !acc done;
+  !acc
+
+let k8i_inject_n n =
+  let acc = ref K.kcad8_empty in
+  for i = 0 to n - 1 do acc := KI.kcad8_inject_inline !acc i done;
+  !acc
+
 (* --- Viennot op closures --- *)
 let vi_push_n n =
   let acc = ref Vi.empty in
@@ -119,6 +131,8 @@ let run n =
   emit n "push" "Cadeque8" ns;
   let (ns, dkf) = time_ns_per_op n (fun () -> k8f_push_n n) in
   emit n "push" "Cadeque8_fast" ns;
+  let (ns, dki_p) = time_ns_per_op n (fun () -> k8i_push_n n) in
+  emit n "push" "Cadeque8_inline" ns;
   let (ns, dv) = time_ns_per_op n (fun () -> vi_push_n n) in
   emit n "push" "Viennot" ns;
 
@@ -127,8 +141,11 @@ let run n =
   emit n "inject" "Cadeque8" ns;
   let (ns, dkfi) = time_ns_per_op n (fun () -> k8f_inject_n n) in
   emit n "inject" "Cadeque8_fast" ns;
+  let (ns, dki_i) = time_ns_per_op n (fun () -> k8i_inject_n n) in
+  emit n "inject" "Cadeque8_inline" ns;
   let (ns, dvi) = time_ns_per_op n (fun () -> vi_inject_n n) in
   emit n "inject" "Viennot" ns;
+  ignore dki_p; ignore dki_i;
 
   (* pop *)
   let (ns, ()) = time_ns_per_op n (fun () -> k8_pop_all dk) in
