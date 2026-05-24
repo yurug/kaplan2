@@ -260,6 +260,125 @@ Proof.
   rewrite rev_app_distr. cbn. rewrite rev_involutive. reflexivity.
 Qed.
 
+(** ** Size lower-bound predicate and lemmas (for Cadeque9).
+
+    The KT99 §6 algorithm — and Viennot's faithful Coq encoding of
+    it — requires buffers of size ≥ 3 for stored cells, ≥ 5 for
+    node boundaries.  Cadeque9 enforces these extrinsically via
+    [buf6_size_ge]. *)
+
+Definition buf6_size_ge {X : Type} (n : nat) (b : Buf6 X) : Prop :=
+  buf6_size b >= n.
+
+Lemma buf6_size_ge_iff_size :
+  forall (X : Type) (n : nat) (b : Buf6 X),
+    buf6_size_ge n b <-> buf6_size b >= n.
+Proof. intros; unfold buf6_size_ge; reflexivity. Qed.
+
+(** Push and inject grow the buffer by 1, so they STRENGTHEN any
+    size lower bound — n becomes S n. *)
+
+Lemma buf6_size_ge_push :
+  forall (X : Type) (n : nat) (x : X) (b : Buf6 X),
+    buf6_size_ge n b -> buf6_size_ge (S n) (buf6_push x b).
+Proof.
+  intros X n x b H. unfold buf6_size_ge in *.
+  rewrite buf6_push_size. lia.
+Qed.
+
+Lemma buf6_size_ge_inject :
+  forall (X : Type) (n : nat) (b : Buf6 X) (x : X),
+    buf6_size_ge n b -> buf6_size_ge (S n) (buf6_inject b x).
+Proof.
+  intros X n b x H. unfold buf6_size_ge in *.
+  rewrite buf6_inject_size. lia.
+Qed.
+
+(** Push and inject also preserve the same lower bound (since size
+    only grows).  Useful when you don't want to track the strengthened
+    bound. *)
+
+Lemma buf6_size_ge_push_preserve :
+  forall (X : Type) (n : nat) (x : X) (b : Buf6 X),
+    buf6_size_ge n b -> buf6_size_ge n (buf6_push x b).
+Proof.
+  intros X n x b H. unfold buf6_size_ge in *.
+  rewrite buf6_push_size. lia.
+Qed.
+
+Lemma buf6_size_ge_inject_preserve :
+  forall (X : Type) (n : nat) (b : Buf6 X) (x : X),
+    buf6_size_ge n b -> buf6_size_ge n (buf6_inject b x).
+Proof.
+  intros X n b x H. unfold buf6_size_ge in *.
+  rewrite buf6_inject_size. lia.
+Qed.
+
+(** Pop and eject shrink the buffer by 1.  If the source has
+    size ≥ S n, the result has size ≥ n. *)
+
+Lemma buf6_size_ge_pop :
+  forall (X : Type) (n : nat) (b : Buf6 X) (x : X) (b' : Buf6 X),
+    buf6_size_ge (S n) b ->
+    buf6_pop b = Some (x, b') ->
+    buf6_size_ge n b'.
+Proof.
+  intros X n b x b' Hge Hpop. unfold buf6_size_ge in *.
+  apply buf6_pop_size_some in Hpop. lia.
+Qed.
+
+Lemma buf6_size_ge_eject :
+  forall (X : Type) (n : nat) (b : Buf6 X) (b' : Buf6 X) (x : X),
+    buf6_size_ge (S n) b ->
+    buf6_eject b = Some (b', x) ->
+    buf6_size_ge n b'.
+Proof.
+  intros X n b b' x Hge Hej. unfold buf6_size_ge in *.
+  apply buf6_eject_size_some in Hej. lia.
+Qed.
+
+(** A buffer with [buf6_size_ge (S n)] is in particular non-empty
+    (size ≥ 1), so [buf6_pop] / [buf6_eject] return [Some]. *)
+
+Lemma buf6_pop_of_size_ge_S :
+  forall (X : Type) (n : nat) (b : Buf6 X),
+    buf6_size_ge (S n) b ->
+    exists x b', buf6_pop b = Some (x, b').
+Proof.
+  intros X n [xs] H. unfold buf6_size_ge, buf6_size, buf6_elems in H. cbn in H.
+  destruct xs as [|y ys]; [cbn in H; lia|].
+  exists y. exists (mkBuf6 ys). reflexivity.
+Qed.
+
+Lemma buf6_eject_of_size_ge_S :
+  forall (X : Type) (n : nat) (b : Buf6 X),
+    buf6_size_ge (S n) b ->
+    exists b' x, buf6_eject b = Some (b', x).
+Proof.
+  intros X n [xs] H. unfold buf6_size_ge, buf6_size, buf6_elems in H. cbn in H.
+  destruct xs as [|y ys]; [cbn in H; lia|].
+  unfold buf6_eject, buf6_elems.
+  destruct (rev (y :: ys)) as [|z zs] eqn:Hrev.
+  - exfalso.
+    assert (Hlen : length (rev (y :: ys)) = length (y :: ys))
+      by (rewrite length_rev; reflexivity).
+    rewrite Hrev in Hlen. cbn in Hlen. discriminate.
+  - exists (mkBuf6 (rev zs)). exists z. reflexivity.
+Qed.
+
+(** [buf6_size_ge n] implies the buffer is non-empty (for n ≥ 1).
+    Useful bridge to the existing [buf6_is_empty = false] facts. *)
+
+Lemma buf6_size_ge_S_not_empty :
+  forall (X : Type) (n : nat) (b : Buf6 X),
+    buf6_size_ge (S n) b ->
+    buf6_is_empty b = false.
+Proof.
+  intros X n [xs] H. unfold buf6_size_ge, buf6_size, buf6_elems in H. cbn in H.
+  unfold buf6_is_empty, buf6_elems. cbn.
+  destruct xs as [|y ys]; [cbn in H; lia | reflexivity].
+Qed.
+
 (** ** Examples. *)
 
 Example buf6_push_pop_roundtrip :
