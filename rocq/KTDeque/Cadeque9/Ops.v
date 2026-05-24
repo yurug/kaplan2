@@ -717,6 +717,141 @@ Proof.
       apply refill_h_K9Triple_wf; assumption.
 Qed.
 
+(* ========================================================================== *)
+(* Concat — trivially O(1) under the strong invariant.                        *)
+(* ========================================================================== *)
+
+(** The structural payoff: with [StoredBig9 pre sm suf] taking a flat
+    [sm : Buf6 (Stored9 X)] (not a nested KCadeque9), and the wf
+    invariant requiring boundary buffers to have size ≥ 5 (and
+    stored-cell pre/suf size ≥ 3), the (T+T) concat case is one
+    allocation:
+
+      K9Triple h1 m1 t1 |+| K9Triple h2 m2 t2 =
+        K9Triple h1 (buf6_inject m1 (StoredBig9 t1 m2 h2)) t2
+
+    where:
+      cell.pre = t1, size ≥ 5 ≥ 3 ✓
+      cell.sm  = m2 (the inner stored chain)
+      cell.suf = h2, size ≥ 5 ≥ 3 ✓
+
+    No empty-boundary cells, no edge cases, no need for the
+    (T+T)-eject-bug Option B borrow.  This is the SOLE point of
+    Cadeque9. *)
+
+Definition kcad9_concat {X : Type} (a b : KCadeque9 X) : KCadeque9 X :=
+  match a, b with
+  | K9Empty, _ => b
+  | _, K9Empty => a
+
+  | K9Simple ba, K9Simple bb =>
+      (* Both are size ≥ 1.  Combined size ≥ 2.  Result: K9Simple of
+         concatenated buffer.  (Under the wf, we can't promote to a
+         K9Triple here without size ≥ 5 boundaries.) *)
+      K9Simple (buf6_concat ba bb)
+
+  | K9Simple ba, K9Triple h2 m2 t2 =>
+      (* Push (StoredSmall9 h2) to the front of m2 if |h2| ≥ 3
+         (which is weaker than the K9Triple's |h2| ≥ 5 — always holds).
+         The combined ba ++ h2 will be the new head buffer.
+         BUT this loses the ≥5 head invariant if |ba| < 5.
+
+         Cleanest recipe: concat ba into h2's front, giving the new
+         result's head.  No boundary cell adjustment needed since
+         t2 remains as the tail.
+
+         |new_h| = |ba| + |h2| ≥ 1 + 5 = 6 ≥ 5 ✓ *)
+      K9Triple (buf6_concat ba h2) m2 t2
+
+  | K9Triple h1 m1 t1, K9Simple bb =>
+      (* Concat bb into t1's back.  |new_t| = |t1| + |bb| ≥ 5 + 1 = 6 ✓. *)
+      K9Triple h1 m1 (buf6_concat t1 bb)
+
+  | K9Triple h1 m1 t1, K9Triple h2 m2 t2 =>
+      (* THE HEADLINE CASE.  Result middle contains:
+           m1's cells, then [StoredSmall9 (t1 ++ h2)], then m2's cells.
+         This flattens to:
+           flatten(m1) ++ (t1 ++ h2) ++ flatten(m2)
+         giving the total: h1 ++ flatten(m1) ++ t1 ++ h2 ++ flatten(m2) ++ t2.
+         Match! ✓
+         The merged cell has size |t1|+|h2| ≥ 5+5 = 10 ≥ 3 ✓ for wf. *)
+      let cell := StoredSmall9 (buf6_concat t1 h2) in
+      let m_new := buf6_concat (buf6_inject m1 cell) m2 in
+      K9Triple h1 m_new t2
+  end.
+
+(** ** Concat sequence preservation. *)
+
+Theorem kcad9_concat_seq :
+  forall (X : Type) (a b : KCadeque9 X),
+    kcad9_to_list (kcad9_concat a b) = kcad9_to_list a ++ kcad9_to_list b.
+Proof.
+  intros X a b.
+  destruct a as [|ba|h1 m1 t1]; destruct b as [|bb|h2 m2 t2];
+    cbn [kcad9_concat].
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - cbn [kcad9_to_list]. rewrite app_nil_r. reflexivity.
+  - (* Simple, Simple *)
+    rewrite !kcad9_to_list_simple. apply kelem9_flat_list_concat.
+  - (* Simple, Triple *)
+    rewrite kcad9_to_list_simple, !kcad9_to_list_triple.
+    rewrite kelem9_flat_list_concat.
+    rewrite <- !app_assoc. reflexivity.
+  - cbn [kcad9_to_list]. rewrite app_nil_r. reflexivity.
+  - (* Triple, Simple *)
+    rewrite kcad9_to_list_simple, !kcad9_to_list_triple.
+    rewrite kelem9_flat_list_concat.
+    rewrite <- !app_assoc. reflexivity.
+  - (* Triple, Triple — the headline case *)
+    rewrite !kcad9_to_list_triple.
+    rewrite stored9_flat_list_concat.
+    rewrite stored9_flat_list_inject.
+    rewrite stored9_to_list_small.
+    rewrite kelem9_flat_list_concat.
+    rewrite <- !app_assoc. reflexivity.
+Qed.
+
+(** ** Concat WF preservation. *)
+
+Theorem kcad9_concat_wf_strong :
+  forall (X : Type) (a b : KCadeque9 X),
+    wf_kcad9_strong a -> wf_kcad9_strong b ->
+    wf_kcad9_strong (kcad9_concat a b).
+Proof.
+  intros X a b Ha Hb.
+  destruct a as [|ba|h1 m1 t1]; destruct b as [|bb|h2 m2 t2];
+    cbn [kcad9_concat]; auto.
+  - (* Simple, Simple *)
+    cbn in Ha, Hb |- *.
+    apply buf6_size_ge_concat_l. exact Ha.
+  - (* Simple, Triple *)
+    cbn in Ha, Hb |- *. destruct Hb as [Hh2 [Ht2 Hm2]].
+    repeat split.
+    + apply buf6_size_ge_concat_r. exact Hh2.
+    + exact Ht2.
+    + exact Hm2.
+  - (* Triple, Simple *)
+    cbn in Ha, Hb |- *. destruct Ha as [Hh1 [Ht1 Hm1]].
+    repeat split.
+    + exact Hh1.
+    + apply buf6_size_ge_concat_l. exact Ht1.
+    + exact Hm1.
+  - (* Triple, Triple — THE HEADLINE CASE *)
+    cbn in Ha, Hb |- *.
+    destruct Ha as [Hh1 [Ht1 Hm1]]. destruct Hb as [Hh2 [Ht2 Hm2]].
+    repeat split.
+    + exact Hh1.
+    + exact Ht2.
+    + apply wf_middle9_concat.
+      * apply wf_middle9_inject; [exact Hm1 |].
+        (* StoredSmall9 (t1 ++ h2) wf: size ≥ |t1| + |h2| ≥ 5 + 5 = 10 ≥ 3 *)
+        cbn. eapply buf6_size_ge_weaken;
+          [|eapply buf6_size_ge_concat_sum; eassumption]. lia.
+      * exact Hm2.
+Qed.
+
 Theorem kcad9_eject_wf_strong :
   forall (X : Type) (k : KCadeque9 X) (k' : KCadeque9 X) (x : X),
     wf_kcad9_strong k ->
