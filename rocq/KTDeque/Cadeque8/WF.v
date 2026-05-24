@@ -96,8 +96,13 @@ Theorem kcad8_concat_wf :
 Proof.
   intros X a b Ha Hb.
   destruct a as [|ba|h1 m1 t1]; destruct b as [|bb|h2 m2 t2];
-    cbn [kcad8_concat]; auto.
-  all: try exact I.
+    cbn [kcad8_concat]; auto;
+    try exact I.
+  (* (T+T) case has a buf6_pop t2 match; all branches yield K8Triple
+     which trivially satisfies wf_kcad8 (= True). *)
+  destruct (buf6_pop t2) as [[x_first t2_rest]|].
+  - destruct (buf6_is_empty t2_rest); exact I.
+  - exact I.
 Qed.
 
 (** [kcad8_from_list] always returns a [wf_kcad8] result. *)
@@ -364,10 +369,21 @@ Proof.
     destruct Ha as [Hh1 [Ht1 Hm1]].
     split; [exact Hh1 | split; [exact Hb |]].
     apply wf_middle_inject; [exact Hm1 | cbn; exact Ht1].
-  - cbn in Ha, Hb |- *.
-    destruct Ha as [Hh1 [Ht1 Hm1]]. destruct Hb as [Hh2 [Ht2 _]].
-    split; [exact Hh1 | split; [exact Ht2 |]].
-    apply wf_middle_inject; [exact Hm1 | cbn; exact Ht1].
+  - (* (Triple, Triple) WC O(1) Option B Case 1 + fallback paths. *)
+    cbn in Ha, Hb |- *.
+    destruct Ha as [Hh1 [Ht1 Hm1]]. destruct Hb as [Hh2 [Ht2 Hm2]].
+    destruct (buf6_pop t2) as [[x_first t2_rest]|] eqn:Hpop.
+    + destruct (buf6_is_empty t2_rest) eqn:Hempty.
+      * (* Fallback: |t2| = 1.  Old encoding; t2 unchanged. *)
+        cbn. split; [exact Hh1 | split; [exact Ht2 |]].
+        apply wf_middle_inject; [exact Hm1 | cbn; exact Ht1].
+      * (* Borrow: cell with cell.suf = [x_first], new t = t2_rest. *)
+        cbn. split; [exact Hh1 | split; [exact Hempty |]].
+        apply wf_middle_inject; [exact Hm1 | cbn; exact Ht1].
+    + (* Defensive: buf6_pop t2 = None contradicts Ht2 (t2 non-empty). *)
+      exfalso. destruct t2 as [xs]. unfold buf6_pop, buf6_elems in Hpop.
+      unfold buf6_is_empty, buf6_elems in Ht2.
+      destruct xs; [discriminate Ht2 | discriminate Hpop].
 Qed.
 
 (** [kcad8_from_list] on any list always returns a [wf_kcad8_strong]

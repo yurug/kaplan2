@@ -1,5 +1,5 @@
-(** k8_tt_concat_stress — checks WC O(1) on the (T+T) concat case
-    which my fixes do NOT address. *)
+(** k8_tt_concat_stress — (T+T) concat then drain-eject.
+    Cleaner version. *)
 
 module K = KCadeque8
 
@@ -14,40 +14,39 @@ let build_triple n =
 
 let batch_size = 1_000
 
-let drain_stats label ~drain d0 =
+let drain_eject d0 =
   let d = ref d0 in
-  let max_batch = ref 0.0 in
-  let total = ref 0.0 in
-  let count = ref 0 in
+  let max_batch_ns = ref 0.0 in
+  let total_ns = ref 0.0 in
+  let total_ejects = ref 0 in
+  let batches_done = ref 0 in
   let cont = ref true in
   while !cont do
-    let t0 = Unix.gettimeofday () in
-    let n = ref 0 in
-    while !n < batch_size && !cont do
-      if drain d then incr n; incr count;
-      if not (drain d) then cont := false
+    let t_start = Unix.gettimeofday () in
+    let count = ref 0 in
+    while !count < batch_size && !cont do
+      (match K.kcad8_eject !d with
+       | None -> cont := false
+       | Some (d', _) -> d := d'; incr count; incr total_ejects)
     done;
-    let t1 = Unix.gettimeofday () in
-    if !n > 0 then begin
-      let bt = (t1 -. t0) *. 1e9 /. float_of_int !n in
-      total := !total +. (t1 -. t0);
-      if bt > !max_batch then max_batch := bt
+    let t_end = Unix.gettimeofday () in
+    if !count > 0 then begin
+      let batch_ns_per_op = (t_end -. t_start) *. 1e9 /. float_of_int !count in
+      total_ns := !total_ns +. (t_end -. t_start) *. 1e9;
+      incr batches_done;
+      if batch_ns_per_op > !max_batch_ns then
+        max_batch_ns := batch_ns_per_op
     end
   done;
-  if !count > 0 then
-    let avg = !total *. 1e9 /. float_of_int !count in
-    Printf.printf "  %-32s avg=%6.0f  max-batch=%9.0f  ratio=%6.1fx\n"
-      label avg !max_batch (!max_batch /. avg)
+  (!total_ejects, !max_batch_ns, !total_ns /. float_of_int !total_ejects)
 
 let () =
-  Printf.printf "k8_tt_concat_stress: testing (T+T) concat then drain.\n\n";
+  Printf.printf "k8_tt_concat_stress: (T+T) concat then drain-eject.\n\n";
   List.iter (fun n ->
-    Printf.printf "== N = %d (each half) ==\n" n;
     let t1 = build_triple n in
     let t2 = build_triple n in
     let combined = K.kcad8_concat t1 t2 in
-    (* eject drain from the right — the (T+T) boundary cell is rightmost in m *)
-    drain_stats "(T+T) eject"
-      ~drain:(fun d -> match K.kcad8_eject !d with None -> false | Some (d', _) -> d := d'; true)
-      combined;
+    let (ejects, max_b, avg) = drain_eject combined in
+    Printf.printf "  N = %d (each half) — %d ejects, avg=%.0f, max-batch=%.0f, ratio=%.1fx\n"
+      n ejects avg max_b (max_b /. avg)
   ) [1_000; 10_000]

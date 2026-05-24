@@ -183,14 +183,44 @@ Proof.
     cbn [stored8_to_list].
     unfold buf6_elems; cbn [kelem8_flat_list].
     rewrite <- !app_assoc. reflexivity.
-  - (* Triple, Triple *)
-    rewrite !kcad8_to_list_triple.
-    rewrite stored8_flat_list_inject.
-    rewrite stored8_to_list_big.
-    rewrite kcad8_to_list_triple.
-    unfold buf6_elems; cbn [kelem8_flat_list].
-    rewrite app_nil_r.
-    rewrite <- !app_assoc. reflexivity.
+  - (* Triple, Triple (WC O(1) Option B Case 1 + fallback paths) *)
+    destruct (buf6_pop t2) as [[x_first t2_rest]|] eqn:Hpop.
+    + (* buf6_pop t2 = Some (x_first, t2_rest) *)
+      apply buf6_pop_some_elems in Hpop.
+      assert (Ht2_split : kelem8_flat_list (buf6_elems t2)
+                          = kelem8_to_list x_first
+                            ++ kelem8_flat_list (buf6_elems t2_rest))
+        by (unfold kelem8_flat_list; rewrite Hpop; reflexivity).
+      destruct (buf6_is_empty t2_rest) eqn:Hempty.
+      * (* Fallback: |t2| = 1 — old encoding (t2 unchanged in result). *)
+        rewrite !kcad8_to_list_triple.
+        rewrite stored8_flat_list_inject.
+        rewrite stored8_to_list_big.
+        rewrite kcad8_to_list_triple.
+        unfold buf6_elems; cbn [kelem8_flat_list].
+        rewrite app_nil_r.
+        rewrite <- !app_assoc. reflexivity.
+      * (* Borrow path: cell.suf = [x_first], new t = t2_rest. *)
+        rewrite !kcad8_to_list_triple.
+        rewrite stored8_flat_list_inject.
+        rewrite stored8_to_list_big.
+        rewrite kcad8_to_list_triple.
+        rewrite Ht2_split.
+        unfold buf6_elems; cbn [kelem8_flat_list].
+        rewrite app_nil_r. rewrite app_nil_r.
+        rewrite <- !app_assoc. reflexivity.
+    + (* Defensive: t2 empty (excluded by wf, but proof is total). *)
+      apply buf6_pop_seq_none in Hpop.
+      assert (Ht2_flat : kelem8_flat_list (buf6_elems t2) = [])
+        by (unfold kelem8_flat_list, buf6_to_list in *; rewrite Hpop; reflexivity).
+      rewrite !kcad8_to_list_triple.
+      rewrite stored8_flat_list_inject.
+      rewrite stored8_to_list_big.
+      rewrite kcad8_to_list_triple.
+      rewrite Ht2_flat.
+      unfold buf6_elems; cbn [kelem8_flat_list].
+      rewrite app_nil_r.
+      rewrite <- !app_assoc. reflexivity.
 Qed.
 
 (** ** kcad8_from_list flattens back to its input. *)

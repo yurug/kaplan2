@@ -6,6 +6,14 @@
 > shows Θ(n) per op (`k8_tt_concat_stress` reports avg 194 µs/op at
 > N=10K, max-batch 1.94 ms; ratio 10× and growing with N).  This document
 > proposes a concrete path to close it.
+>
+> **2026-05-24 update:** an attempt at Option B Case 1 was implemented
+> (see §4.7 below).  It halves the avg cost (92 µs/op at N=10K) but
+> does NOT close the bug — `reassemble_after_eject_unfold` independently
+> produces unsafe cells (`StoredBig8 sh (K8Triple ø sm ø) st`) which
+> reproduce the issue on the very next eject.  The plan is REVISED:
+> Option B must also be applied at the reassemble layer, not just at
+> concat.  See §4.7 for the discovered deeper requirement.
 
 ## 1. The problem, precisely
 
@@ -387,6 +395,86 @@ The fast variant of concat must match.
 - `kb/reports/cadeque8-wc-o1-evidence.md`: mark (T+T) as resolved with
   empirical evidence.
 - This file: archive as "completed plan".
+
+### Step 4.7: Discovered during implementation — the deeper layer
+
+When implementing Step 4.1, we observed (via `k8_tt_concat_stress`)
+that the bug PERSISTS even after the concat-layer fix.  Tracing
+through:
+
+1. After my fix, `(T+T)` concat produces:
+   `K8Triple h1 (inject m1 boundary) t2_rest`
+   where `boundary = StoredBig8 t1 (K8Triple h2 m2 ø) (mkBuf6 [x_first])`
+   — this cell IS safe for eject (cell.suf and sub.sh non-empty).
+
+2. Drain ejects `t2_rest` (~|t2|−1 elements).  All fast.
+
+3. The next eject empties `t2_rest`.  Rebalance fires on `boundary`
+   — succeeds (the cell is safe).  `reassemble_after_eject_unfold`
+   produces the new K8Triple:
+
+       K8Triple h1 m_final (mkBuf6 [x_first])
+
+   where `m_final = inject (inject m_rest_outer (StoredSmall8 t1))
+                            (StoredBig8 h2 (K8Triple ø m2 ø) ø)`.
+
+4. **The rightmost cell of `m_final` is
+   `StoredBig8 h2 (K8Triple ø m2 ø) ø`** — sub.sh = ø, cell.suf = ø
+   — UNSAFE.  This is the SAME shape that the concat fix tried to
+   avoid, just produced one level deeper by reassemble.
+
+5. The next eject empties `mkBuf6 [x_first]`.  Rebalance examines
+   the unsafe `m_final` rightmost cell.  Falls back to O(n).
+
+So the (T+T) eject bug requires fixing BOTH:
+
+  **Layer A: `kcad8_concat` (T+T) case** — done in 2026-05-24
+    attempt (halves the cost but doesn't close the bug).
+
+  **Layer B: `reassemble_after_eject_unfold`'s K8Triple-sub case**
+    — needed to avoid producing the unsafe shape during rebalance.
+
+### Step 4.8: Layer B sketch
+
+The current code:
+
+```coq
+| K8Triple sh sm st =>
+    buf6_inject m_with_pre (StoredBig8 sh (K8Triple ø sm ø) st)
+```
+
+When `sm = ø`: flatten content is `sh ++ st`.  Replace with TWO
+StoredSmall8 cells (now safe at right after the `fe298c6` promote
+fix):
+
+```coq
+| K8Triple sh sm st when buf6_is_empty sm ->
+    if buf6_is_empty st then
+      (* flatten = sh; one StoredSmall8 cell *)
+      buf6_inject m_with_pre (StoredSmall8 sh)
+    else
+      (* flatten = sh ++ st; two cells, rightmost is StoredSmall8 st *)
+      buf6_inject (buf6_inject m_with_pre (StoredSmall8 sh))
+                  (StoredSmall8 st)
+| K8Triple sh sm st (* sm non-empty *) ->
+    (* OLD encoding — still unsafe; residual gap for non-empty sm *)
+    buf6_inject m_with_pre (StoredBig8 sh (K8Triple ø sm ø) st)
+```
+
+For our benchmark (sub built by (S+S) concat: sub = K8Triple half ø half,
+so `sm = ø ∧ st = ø` after concat fix processes it): Layer B's
+empty-sm-AND-empty-st case fires, producing `StoredSmall8 sh`.  Safe.
+
+The non-empty-sm case remains as a residual gap — but it's narrower
+(only triggered by deeply-nested concats producing non-trivial m's).
+
+### Step 4.9: Symmetric — `reassemble_after_pop_unfold`
+
+The pop side has the SYMMETRIC issue with `StoredBig8 sh (K8Triple ø sm ø) st`
+being unsafe for POP (sub.sh = ø).  After my (S+T) fix this case
+doesn't fire in steady-state pop workloads (the (S+T) cell unfolds
+with sub = K8Empty, not K8Triple).  But for symmetry, applying the
+same fix to `reassemble_after_pop_unfold` is good hygiene.
 
 ## 5. Estimated effort
 

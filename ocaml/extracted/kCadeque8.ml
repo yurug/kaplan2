@@ -401,10 +401,24 @@ let kcad8_concat a b =
        let m_new = buf6_inject m1 (StoredSmall8 t1) in
        K8Triple (h1, m_new, bb)
      | K8Triple (h2, m2, t2) ->
-       let boundary = StoredBig8 (t1, (K8Triple (h2, m2, (KCadequeShim.mkBuf6
-         []))), (KCadequeShim.mkBuf6 []))
-       in
-       let m_new = buf6_inject m1 boundary in K8Triple (h1, m_new, t2))
+       (match buf6_pop t2 with
+        | Some p ->
+          let (x_first, t2_rest) = p in
+          if buf6_is_empty t2_rest
+          then let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+                 (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
+               in
+               K8Triple (h1, (buf6_inject m1 boundary), t2)
+          else let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+                 (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6
+                 (x_first :: [])))
+               in
+               K8Triple (h1, (buf6_inject m1 boundary), t2_rest)
+        | None ->
+          let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+            (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
+          in
+          K8Triple (h1, (buf6_inject m1 boundary), t2)))
 
 type 'x pop_result8 =
 | PopFail8
@@ -566,10 +580,24 @@ let kcad8_concat_fast a b =
      | K8Empty -> a
      | K8Simple bb -> K8Triple (h1, (buf6_inject m1 (StoredSmall8 t1)), bb)
      | K8Triple (h2, m2, t2) ->
-       let boundary = StoredBig8 (t1, (K8Triple (h2, m2, (KCadequeShim.mkBuf6
-         []))), (KCadequeShim.mkBuf6 []))
-       in
-       K8Triple (h1, (buf6_inject m1 boundary), t2))
+       (match buf6_pop t2 with
+        | Some p ->
+          let (x_first, t2_rest) = p in
+          if buf6_is_empty t2_rest
+          then let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+                 (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
+               in
+               K8Triple (h1, (buf6_inject m1 boundary), t2)
+          else let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+                 (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6
+                 (x_first :: [])))
+               in
+               K8Triple (h1, (buf6_inject m1 boundary), t2_rest)
+        | None ->
+          let boundary = StoredBig8 (t1, (K8Triple (h2, m2,
+            (KCadequeShim.mkBuf6 []))), (KCadequeShim.mkBuf6 []))
+          in
+          K8Triple (h1, (buf6_inject m1 boundary), t2)))
 
 (** val kcad8_push_inline : 'a1 -> 'a1 kCadeque8 -> 'a1 kCadeque8 **)
 

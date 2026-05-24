@@ -400,17 +400,61 @@ Definition kcad8_concat {X : Type}
 
   | K8Triple h1 m1 t1, K8Triple h2 m2 t2 =>
       (* Want flatten = h1 ++ m1 ++ t1 ++ h2 ++ m2 ++ t2.
-         Result = K8Triple h1 m_new t2 with flatten m_new
-                  = m1 ++ t1 ++ h2 ++ m2.
-         boundary = StoredBig8 t1 (K8Triple h2 m2 (mkBuf6 [])) (mkBuf6 [])
-           flattens to t1 ++ (h2 ++ m2 ++ []) ++ [] = t1 ++ h2 ++ m2.
-         m_new = inject m1 boundary. *)
-      let boundary :=
-        StoredBig8 t1
-                   (K8Triple h2 m2 (mkBuf6 []))
-                   (mkBuf6 []) in
-      let m_new := buf6_inject m1 boundary in
-      K8Triple h1 m_new t2
+
+         **WC O(1) FIX (2026-05-24, Option B Case 1):** the prior
+         encoding wrapped (t1, h2, m2) in [StoredBig8 t1 (K8Triple
+         h2 m2 ø) ø] — both cell.suf and sub.st empty.  When a
+         subsequent eject drained [t2] and rebalance examined this
+         cell as the rightmost in [m], [stored_sub_right_safe]
+         returned false (cell.suf empty), and eject fell back to
+         the Θ(n) [kcad8_from_list] path.  Confirmed by
+         [k8_tt_concat_stress] (avg 194 µs/op at N=10K).
+
+         The new encoding (when [|t2| ≥ 2]) BORROWS one element
+         from [t2]'s front to act as the cell's suf, making the
+         cell eject-safe.  When [|t2| = 1] we fall back to the
+         OLD encoding — that case is a documented residual gap
+         (see [kb/spec/cadeque8-tt-eject-wc-o1-plan.md]).
+
+         Ordering preservation (for the borrow path):
+           Original flatten = ... ++ t1 ++ h2 ++ flatten(m2) ++ t2
+                            = ... ++ t1 ++ h2 ++ flatten(m2) ++ ([x] ++ t2_rest)
+           New encoding flatten:
+             cell.flatten = t1 ++ flatten(K8Triple h2 m2 ø) ++ [x]
+                          = t1 ++ h2 ++ flatten(m2) ++ [x]
+             result.flatten = h1 ++ flatten(m1) ++ cell.flatten ++ t2_rest
+                            = ... ++ t1 ++ h2 ++ flatten(m2) ++ [x] ++ t2_rest
+           Match ✓.
+
+         Safety for the borrow path:
+           cell.suf = [x] non-empty ✓
+           sub.sh = h2 non-empty (wf of arg 2) ✓
+           [stored_sub_right_safe] = true, eject-safe.
+           sub.sh = h2 non-empty → [stored_sub_left_safe] = true,
+           pop-safe too.
+
+         Fallback path (|t2|=1): identical to the old encoding,
+         which is correct but eject-unsafe — same residual O(n)
+         on drain-eject in this narrower input shape. *)
+      match buf6_pop t2 with
+      | Some (x_first, t2_rest) =>
+          if buf6_is_empty t2_rest then
+            (* |t2| = 1: fall back to old encoding. *)
+            let boundary :=
+              StoredBig8 t1 (K8Triple h2 m2 (mkBuf6 [])) (mkBuf6 []) in
+            K8Triple h1 (buf6_inject m1 boundary) t2
+          else
+            (* |t2| ≥ 2: borrow x_first to fill the cell's suf. *)
+            let boundary :=
+              StoredBig8 t1 (K8Triple h2 m2 (mkBuf6 []))
+                         (mkBuf6 [x_first]) in
+            K8Triple h1 (buf6_inject m1 boundary) t2_rest
+      | None =>
+          (* t2 empty: ruled out by wf, but defensive. *)
+          let boundary :=
+            StoredBig8 t1 (K8Triple h2 m2 (mkBuf6 [])) (mkBuf6 []) in
+          K8Triple h1 (buf6_inject m1 boundary) t2
+      end
   end.
 
 (* kcad8_from_list defined above; needed before kcad8_pop's fallback. *)
