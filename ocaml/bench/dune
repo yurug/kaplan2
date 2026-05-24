@@ -114,3 +114,19 @@
 (executable
  (name k8_tt_concat_stress)
  (libraries unix ktdeque))
+
+; k9_tt_concat_stress.ml: Cadeque9 (T+T) — same workload, structurally O(1).
+(executable
+ (name k9_tt_concat_stress)
+ (libraries unix ktdeque))
+
+; k9_qcheck.ml: Cadeque9 property-based test against a list reference.
+(executable
+ (name k9_qcheck)
+ (libraries ktdeque))
+
+; k9_wc_stress.ml: Cadeque9 batched WC O(1) stress (push/pop/inject/eject
+; at sizes 1K..10M, both push-built and concat-built).
+(executable
+ (name k9_wc_stress)
+ (libraries unix ktdeque))
