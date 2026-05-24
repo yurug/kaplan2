@@ -247,6 +247,76 @@ Example buf6_concat_ex :
   = [1; 2; 3; 4].
 Proof. reflexivity. Qed.
 
+(** ** Cadeque9 size laws — relate take_first3 / take_last3 to size_ge.
+
+    [buf6_take_first3 b = Some _] iff [b] has size ≥ 3.  The
+    [_succ] direction is what Cadeque9's rebalance uses to know
+    the take will succeed; the [_size] direction is what the wf
+    proofs use to learn that the residue has size = size(b) - 3. *)
+
+Lemma buf6_take_first3_succ :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size_ge 3 b ->
+    exists x1 x2 x3 b',
+      buf6_take_first3 b = Some (x1, x2, x3, b').
+Proof.
+  intros X [xs] H.
+  unfold buf6_take_first3, buf6_elems, buf6_size_ge, buf6_size in *.
+  cbn in H.
+  destruct xs as [|y1 [|y2 [|y3 rest]]];
+    try (cbn in H; lia).
+  exists y1, y2, y3, (mkBuf6 rest). reflexivity.
+Qed.
+
+Lemma buf6_take_last3_succ :
+  forall (X : Type) (b : Buf6 X),
+    buf6_size_ge 3 b ->
+    exists b' x1 x2 x3,
+      buf6_take_last3 b = Some (b', x1, x2, x3).
+Proof.
+  intros X [xs] H.
+  unfold buf6_take_last3, buf6_elems, buf6_size_ge, buf6_size in *.
+  cbn in H.
+  destruct (rev xs) as [|y3 [|y2 [|y1 rest]]] eqn:Hrev.
+  - exfalso. assert (Hlen : length (rev xs) = length xs)
+      by (rewrite length_rev; reflexivity).
+    rewrite Hrev in Hlen. cbn in Hlen. lia.
+  - exfalso. assert (Hlen : length (rev xs) = length xs)
+      by (rewrite length_rev; reflexivity).
+    rewrite Hrev in Hlen. cbn in Hlen. lia.
+  - exfalso. assert (Hlen : length (rev xs) = length xs)
+      by (rewrite length_rev; reflexivity).
+    rewrite Hrev in Hlen. cbn in Hlen. lia.
+  - exists (mkBuf6 (rev rest)). exists y1, y2, y3. reflexivity.
+Qed.
+
+(** Size of the residue after [take_first3] / [take_last3].  Used
+    by the wf proofs to check that the boundary's new size is at
+    least 5 after a refill. *)
+
+Lemma buf6_take_first3_size :
+  forall (X : Type) (b : Buf6 X) (x1 x2 x3 : X) (b' : Buf6 X),
+    buf6_take_first3 b = Some (x1, x2, x3, b') ->
+    buf6_size b = 3 + buf6_size b'.
+Proof.
+  intros X b x1 x2 x3 b' Heq.
+  apply buf6_take_first3_seq in Heq.
+  unfold buf6_size, buf6_to_list in *.
+  rewrite Heq. cbn. reflexivity.
+Qed.
+
+Lemma buf6_take_last3_size :
+  forall (X : Type) (b : Buf6 X) (b' : Buf6 X) (x1 x2 x3 : X),
+    buf6_take_last3 b = Some (b', x1, x2, x3) ->
+    buf6_size b = 3 + buf6_size b'.
+Proof.
+  intros X b b' x1 x2 x3 Heq.
+  apply buf6_take_last3_seq in Heq.
+  unfold buf6_size, buf6_to_list in *.
+  rewrite Heq.
+  rewrite length_app. cbn. lia.
+Qed.
+
 Example buf6_halve_ex :
   buf6_halve (mkBuf6 [1; 2; 3; 4 : nat])
   = (mkBuf6 [1; 2], mkBuf6 [3; 4]).
