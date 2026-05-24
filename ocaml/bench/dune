@@ -130,3 +130,13 @@
 (executable
  (name k9_wc_stress)
  (libraries unix ktdeque))
+
+; k9_compare.ml: Cadeque9 vs Cadeque8_inline vs Viennot side-by-side.
+(executable
+ (name k9_compare)
+ (libraries unix viennot_cadeque ktdeque))
+
+; k9_smoke.ml: smoke test of Cadeque9 ops.
+(executable
+ (name k9_smoke)
+ (libraries ktdeque))
