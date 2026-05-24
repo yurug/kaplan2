@@ -247,6 +247,41 @@ Example buf6_concat_ex :
   = [1; 2; 3; 4].
 Proof. reflexivity. Qed.
 
+(** ** buf6_concat at the elems level. *)
+
+Lemma buf6_concat_elems :
+  forall (X : Type) (a b : Buf6 X),
+    buf6_elems (buf6_concat a b) = buf6_elems a ++ buf6_elems b.
+Proof. intros X [xs] [ys]. reflexivity. Qed.
+
+(** Concat preserves [buf6_size_ge].  If [|a| ≥ n] then [|a ++ b| ≥ n].
+    A symmetric version for [|b| ≥ n]. *)
+
+Lemma buf6_size_ge_concat_l :
+  forall (X : Type) (n : nat) (a b : Buf6 X),
+    buf6_size_ge n a -> buf6_size_ge n (buf6_concat a b).
+Proof.
+  intros X n a b H. unfold buf6_size_ge in *.
+  rewrite buf6_concat_size. lia.
+Qed.
+
+Lemma buf6_size_ge_concat_r :
+  forall (X : Type) (n : nat) (a b : Buf6 X),
+    buf6_size_ge n b -> buf6_size_ge n (buf6_concat a b).
+Proof.
+  intros X n a b H. unfold buf6_size_ge in *.
+  rewrite buf6_concat_size. lia.
+Qed.
+
+Lemma buf6_size_ge_concat_sum :
+  forall (X : Type) (na nb : nat) (a b : Buf6 X),
+    buf6_size_ge na a -> buf6_size_ge nb b ->
+    buf6_size_ge (na + nb) (buf6_concat a b).
+Proof.
+  intros X na nb a b Ha Hb. unfold buf6_size_ge in *.
+  rewrite buf6_concat_size. lia.
+Qed.
+
 (** ** Cadeque9 size laws — relate take_first3 / take_last3 to size_ge.
 
     [buf6_take_first3 b = Some _] iff [b] has size ≥ 3.  The

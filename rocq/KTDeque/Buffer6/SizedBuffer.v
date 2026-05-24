@@ -275,6 +275,14 @@ Lemma buf6_size_ge_iff_size :
     buf6_size_ge n b <-> buf6_size b >= n.
 Proof. intros; unfold buf6_size_ge; reflexivity. Qed.
 
+(** Weakening: if [|b| ≥ n] and [m ≤ n], then [|b| ≥ m]. *)
+Lemma buf6_size_ge_weaken :
+  forall (X : Type) (m n : nat) (b : Buf6 X),
+    m <= n -> buf6_size_ge n b -> buf6_size_ge m b.
+Proof.
+  intros X m n b Hle H. unfold buf6_size_ge in *. lia.
+Qed.
+
 (** Push and inject grow the buffer by 1, so they STRENGTHEN any
     size lower bound — n becomes S n. *)
 
