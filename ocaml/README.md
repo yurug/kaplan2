@@ -8,7 +8,15 @@ mechanism after every push/inject/pop/eject operation has been proven
 sequence-preserving against the abstract specification.
 
 In other words: this OCaml is a verified front-end for the algorithm.
-The proofs live in `../rocq/KTDeque/DequePtr/OpsKTSeq.v`.  The extraction
+The proofs live in `../rocq/KTDeque/DequePtr/`.  The single canonical
+public-theorem bundle for the extracted `push_kt4 / inject_kt4 /
+pop_kt4 / eject_kt4` family is
+[`../rocq/KTDeque/DequePtr/PublicTheorems.v`](../rocq/KTDeque/DequePtr/PublicTheorems.v) —
+it packages sequence correctness and regularity preservation per op and
+documents what remains open (totality under the public invariant and a
+chain-level worst-case-cost theorem).  Run `make wc-o1-kt4-assumptions`
+to print the axiom dependencies of every theorem in that bundle (current
+status: every theorem closed under the global context).  The extraction
 output is checked into `extracted/kTDeque.ml{,.mli}` so this tree
 builds standalone — no Rocq toolchain required.
 

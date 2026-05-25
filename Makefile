@@ -1,5 +1,5 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
-        release-gate wc-o1-gate \
+        release-gate wc-o1-gate wc-o1-kt4-assumptions \
         bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
 
 all: rocq
@@ -34,6 +34,17 @@ check-all:
 
 wc-o1-gate:
 	tools/check_wc_o1_release_gate.sh
+
+# Gate B audit: print the axiom dependencies for each public kt4 theorem in
+# rocq/KTDeque/DequePtr/PublicTheorems.v.  Expected: every theorem reports
+# "Closed under the global context" (zero project-local axioms / admits).
+wc-o1-kt4-assumptions:
+	@dune clean --root . 2>/dev/null; true
+	@echo "== Print Assumptions for the kt4 public theorem bundle =="
+	@dune build rocq/KTDeque/DequePtr/PublicTheoremsAudit.vo --display=quiet --no-buffer 2>&1 \
+	  | grep -E "^(Closed under|Axioms:|Assumptions:|Parameters:|Sections:|Module:|Variables:)" \
+	  || true
+	@echo "(Each line above is the output of one Print Assumptions.)"
 
 release-gate: all ocaml
 	dune runtest

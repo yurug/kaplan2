@@ -2,7 +2,7 @@
 id: minimum-release-gate
 domain: verification
 status: active
-last-updated: 2026-05-24
+last-updated: 2026-05-25
 ---
 
 # Minimum Release Gate
@@ -48,35 +48,63 @@ Any remaining hit must be historical context with an explicit "not current" or
 
 ## Gate B - non-catenable production proof spine
 
-Status: not closed.
+Status: partially closed (2026-05-25).  Sequence correctness and regularity
+preservation are bundled and axiom-clean for the extracted `push_kt4 /
+inject_kt4 / pop_kt4 / eject_kt4` family.  Totality under the public invariant
+and a chain-level constant-cost theorem remain open.
 
 Required theorem package for the exact public family:
 
-- totality under the public regular invariant;
-- sequence correctness;
-- regularity preservation;
-- constant cost independent of length/history;
-- a short extraction mapping explaining why the OCaml functions are the ones
-  covered by those theorem names.
+- sequence correctness — **closed** for `push_kt4 / inject_kt4 / pop_kt4 /
+  eject_kt4` via the `*_kt4_seq` lemmas, re-exported as `*_kt4_seq_thm` in
+  `rocq/KTDeque/DequePtr/PublicTheorems.v`.
+- regularity preservation — **closed** for the same family via the new
+  `*_kt4_preserves_regular_top` theorems in `PublicTheorems.v` (proved
+  directly against `kt4`'s `push_result` / `pop_result` shape, not lifted
+  from `kt2`).
+- totality under the public regular invariant — **open**.  `regular_kt`
+  does not currently constrain that a Green/Yellow-tagged packet has
+  buffer-colour-consistent prefix/suffix sizes, so a chain satisfying
+  `regular_kt_top` can still drive `push_kt4` into `PushFail`.  The
+  reachable subset from `empty_kchain` is total but proving that needs an
+  additional tag-vs-buffer-size invariant.
+- constant cost independent of length/history — **open at the chain level**.
+  `Footprint.v` proves `exec_*_pkt_C_cost ≤ NF_PUSH_PKT_FULL = 9` for the
+  imperative DSL on packets.  The structural argument that `push_kt4` etc.
+  perform at most a constant number of such packet operations is immediate
+  by inspection (the functions are non-recursive), but a formal chain-level
+  cost theorem connecting `push_kt4` to a packet-cost count is not yet
+  written.
+- extraction mapping — `rocq/KTDeque/Extract/Extraction.v` is the single
+  source of truth.  `push_kt4 / inject_kt4 / pop_kt4 / eject_kt4` (along
+  with `empty_kchain` and `kchain_to_list`) are exactly the names extracted
+  to the OCaml side.
 
-Implementation tasks:
+Implementation tasks (status):
 
-- Add a `KTDeque/DequePtr/PublicTheorems.v` or equivalent summary module that
-  imports the needed lemmas and exposes one named theorem bundle per operation.
-- Add a `Print Assumptions`/assumption-audit command for the bundle.
-- Update the OCaml README to point to the bundle, not scattered proof files.
+- `KTDeque/DequePtr/PublicTheorems.v` — **landed**.  Bundles the closed
+  theorems and documents the open items inline.
+- `Print Assumptions` audit — **landed** as
+  `PublicTheoremsAudit.v` + `make wc-o1-kt4-assumptions`.  Current output:
+  every theorem reports "Closed under the global context".
+- OCaml README pointer — **landed** in `ocaml/README.md`.
 
-Exit checks:
+Exit checks (current):
 
 ```sh
-dune build rocq/KTDeque
-dune runtest
-make -C c check
+dune build rocq/KTDeque         # passes
+dune runtest                    # passes
+make -C c check                 # passes
+make wc-o1-kt4-assumptions      # all theorems closed under the global context
 ```
 
-Then run the assumption audit described by the bundle. The expected output for
-public theorems is no project-local admits and no unaccounted axioms beyond
-module signatures that are intentionally abstract.
+The remaining checklist before declaring Gate B fully closed:
+
+- prove totality (`push_kt4 x c <> PushFail`) under a strengthened invariant
+  that ties packet tags to buffer colours, and reuse that invariant for
+  `pop_kt4` / `eject_kt4` non-emptiness.
+- state and prove a chain-level worst-case cost theorem (bound on the
+  number of `green_of_red_k` / `exec_*_pkt_C` events per `push_kt4` call).
 
 ## Gate C - static no-linear-path guard
 
