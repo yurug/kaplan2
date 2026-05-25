@@ -112,11 +112,13 @@ directly: `dune exec ocaml/examples/hello.exe`).  After
 ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 ```
 
-### Catenable (cadeque) variant
+### Catenable (cadeque) variants
 
-For the **catenable** variant (push + inject + pop + eject + concat
-all WC O(1)), use the `KCadeque8` module — the verified extraction
-of Cadeque8 (KT99 §6 strict WC O(1)):
+The catenable modules are currently **experimental/reference** code. Do
+not use `KCadeque8`, `KCadeque9`, or their inline variants as a strict
+WC O(1) production API yet.
+
+You can still experiment with the API shape:
 
 ```ocaml
 open KCadeque8
@@ -130,20 +132,20 @@ let () =
   | None -> ()
 ```
 
-The five operations — `kcad8_push / kcad8_inject / kcad8_pop /
-kcad8_eject / kcad8_concat` — are all WC O(1) per call, with
-sequence-preservation proven end-to-end in Coq (zero admits):
-see [`../rocq/KTDeque/Cadeque8/Seq.v`](../rocq/KTDeque/Cadeque8/Seq.v).
-Buffers are routed through the certified `KTDeque.kt2_*` family
-via the [`kCadequeShim.ml`](extracted/kCadequeShim.ml) bridge.
-See [`bench/kc8_vs_vi.ml`](bench/kc8_vs_vi.ml) for head-to-head
-timing vs Viennot's hand-coded reference, including the
-adversarial pop-after-N-concats workload that confirms strict WC.
+Current status:
 
-The older `KCadeque` (Cadeque7) is still exposed but its
-`kcad_pop` / `kcad_eject` fall back to an O(n) `kcad_to_list_fast`
-rebuild on the rare invariant-violation paths.  Use `KCadeque8`
-for new code; the API is identical except for the `kcad8_` prefix.
+- `KCadeque8` has sequence-preservation evidence, but a known `(T+T)`
+  eject case can fall back through list rebuilds and is not WC O(1).
+- `KCadeque9` fixes that specific post-concat drain shape, but the
+  extracted implementation still uses linear `buf6_size` and
+  `buf6_concat` paths.
+- `KCadeque` (Cadeque7) and `KTCatenableDeque` (Cadeque6) remain
+  reference/legacy layers with known linear paths.
+
+The current audit is
+[`../kb/reports/wc-o1-verification-audit-2026-05-24.md`](../kb/reports/wc-o1-verification-audit-2026-05-24.md).
+The release plan is
+[`../kb/runbooks/minimum-release-gate.md`](../kb/runbooks/minimum-release-gate.md).
 
 ## Concurrency (OCaml 5 / Domain)
 
@@ -205,13 +207,14 @@ channel is the transport.
 ocaml/
 ├── extracted/           PUBLIC LIBRARY (ktdeque)
 │   ├── kTDeque.{ml,mli}        verified non-catenable WC O(1) deque
-│   ├── kTCatenableDeque.{ml,mli}  catenable spec layer (Cadeque6)
+│   ├── kTCatenableDeque.{ml,mli}  catenable spec layer (Cadeque6;
+│   │                              reference, not WC O(1))
 │   ├── kCadeque.{ml,mli}       Cadeque7 catenable cadeque
-│   │                              (superseded by kCadeque8; kept for
-│   │                              backwards compat)
-│   ├── kCadeque8.{ml,mli}      ** verified strict WC O(1) catenable
-│   │                              cadeque (Cadeque8, KT99 §6);
-│   │                              recommended catenable API **
+│   │                              (legacy/reference, known linear paths)
+│   ├── kCadeque8.{ml,mli}      Cadeque8 catenable experiment
+│   │                              (known T+T fallback blocker)
+│   ├── kCadeque9.{ml,mli}      Cadeque9 catenable experiment
+│   │                              (known linear buf6_size/buf6_concat)
 │   ├── kCadequeShim.ml         Buf6 → kt2 routing (shared by both)
 │   ├── test_ktdeque.ml         smoke test against a list reference
 │   ├── diff_workload.ml        paired with c/tests/diff_workload.c
@@ -225,9 +228,10 @@ ocaml/
 │   ├── compare.exe          KT vs Deque4 vs Viennot OCaml (non-catenable)
 │   ├── kc_vs_vi.exe         Cadeque7 (KCadeque) vs Viennot catenable
 │   ├── kc_qcheck.exe        property-based equivalence test for Cadeque7
-│   ├── kc8_vs_vi.exe        ** Cadeque8 vs Viennot, includes adversarial
-│   │                           pop-after-N-concats workload **
+│   ├── kc8_vs_vi.exe        Cadeque8 vs Viennot, includes adversarial
+│   │                        workloads that reproduce/track known blockers
 │   ├── kc8_qcheck.exe       property-based equivalence test for Cadeque8
+│   ├── k9_concat_cost.exe   operation-level Cadeque9 concat timing
 │   ├── catenable_compare.exe  Cadeque6 spec vs Cadeque7 vs Viennot catenable
 │   └── ...others
 ├── test_qcheck/         QCheck property tests against the bench-helpers

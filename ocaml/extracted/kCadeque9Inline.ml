@@ -51,22 +51,22 @@ let kcad9_push_inline
   match k with
   | KCadeque9.K9Empty ->
       KCadeque9.K9Simple
-        (KCadequeShim.Plain (push_chain elt KCadequeShim.empty_chain))
+        (KCadequeShim.Plain (1, push_chain elt KCadequeShim.empty_chain))
   | KCadeque9.K9Simple b ->
       (match b with
-       | KCadequeShim.Plain c ->
-           KCadeque9.K9Simple (KCadequeShim.Plain (push_chain elt c))
-       | KCadequeShim.Spilled (c, f, ba) ->
+       | KCadequeShim.Plain (len, c) ->
+           KCadeque9.K9Simple (KCadequeShim.Plain (len + 1, push_chain elt c))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque9.K9Simple
-             (KCadequeShim.Spilled (push_chain elt c, f, ba)))
+             (KCadequeShim.Spilled (len + 1, push_chain elt c, f, ba)))
   | KCadeque9.K9Triple (h, m, t) ->
       (match h with
-       | KCadequeShim.Plain c ->
+       | KCadequeShim.Plain (len, c) ->
            KCadeque9.K9Triple
-             (KCadequeShim.Plain (push_chain elt c), m, t)
-       | KCadequeShim.Spilled (c, f, ba) ->
+             (KCadequeShim.Plain (len + 1, push_chain elt c), m, t)
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque9.K9Triple
-             (KCadequeShim.Spilled (push_chain elt c, f, ba), m, t))
+             (KCadequeShim.Spilled (len + 1, push_chain elt c, f, ba), m, t))
 
 let kcad9_inject_inline
   (k : 'a KCadeque9.kCadeque9) (x : 'a) : 'a KCadeque9.kCadeque9 =
@@ -76,22 +76,22 @@ let kcad9_inject_inline
   match k with
   | KCadeque9.K9Empty ->
       KCadeque9.K9Simple
-        (KCadequeShim.Plain (inject_chain KCadequeShim.empty_chain elt))
+        (KCadequeShim.Plain (1, inject_chain KCadequeShim.empty_chain elt))
   | KCadeque9.K9Simple b ->
       (match b with
-       | KCadequeShim.Plain c ->
-           KCadeque9.K9Simple (KCadequeShim.Plain (inject_chain c elt))
-       | KCadequeShim.Spilled (c, f, ba) ->
+       | KCadequeShim.Plain (len, c) ->
+           KCadeque9.K9Simple (KCadequeShim.Plain (len + 1, inject_chain c elt))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque9.K9Simple
-             (KCadequeShim.Spilled (inject_chain c elt, f, ba)))
+             (KCadequeShim.Spilled (len + 1, inject_chain c elt, f, ba)))
   | KCadeque9.K9Triple (h, m, t) ->
       (match t with
-       | KCadequeShim.Plain c ->
+       | KCadequeShim.Plain (len, c) ->
            KCadeque9.K9Triple
-             (h, m, KCadequeShim.Plain (inject_chain c elt))
-       | KCadequeShim.Spilled (c, f, ba) ->
+             (h, m, KCadequeShim.Plain (len + 1, inject_chain c elt))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque9.K9Triple
-             (h, m, KCadequeShim.Spilled (inject_chain c elt, f, ba)))
+             (h, m, KCadequeShim.Spilled (len + 1, inject_chain c elt, f, ba)))
 
 (* -------------------------------------------------------------------------- *
  * Pop / eject inline — bypass [buf6_pop] (option-box) and [Coq_E.to_list]
@@ -104,7 +104,7 @@ let kcad9_pop_inline
   (k : 'a KCadeque9.kCadeque9) : 'a KCadeque9.pop_result9 =
   match k with
   | KCadeque9.K9Empty -> KCadeque9.PopFail9
-  | KCadeque9.K9Simple (KCadequeShim.Plain c) ->
+  | KCadeque9.K9Simple (KCadequeShim.Plain (len, c)) ->
       (match KTDeque.pop_kt4 c with
        | KTDeque.PopFail -> KCadeque9.PopFail9
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), c') when lvl = 0 ->
@@ -112,41 +112,29 @@ let kcad9_pop_inline
            (match elem with
             | KCadeque9.XBase9 x ->
                 let rest =
-                  if chain_is_empty c'
+                  if len <= 1
                   then KCadeque9.K9Empty
-                  else KCadeque9.K9Simple (KCadequeShim.Plain c')
+                  else KCadeque9.K9Simple (KCadequeShim.Plain (len - 1, c'))
                 in
                 KCadeque9.PopOk9 (x, rest)
             | KCadeque9.XStored9 _ -> KCadeque9.kcad9_pop_fast k)
        | KTDeque.PopOk _ -> KCadeque9.kcad9_pop_fast k)
-  | KCadeque9.K9Triple (KCadequeShim.Plain h, m, t) ->
-      (* Hot path: |h| ≥ 6 means no refill needed.  We can't easily
-         test |h| ≥ 6 in the inline code without computing buf6_size,
-         so we just attempt the pop and check if the result h' is
-         still non-trivially populated (a quick heuristic: if pop_kt4
-         returns a non-empty c', we're good for THIS pop; refill is
-         decided by the certified path on the NEXT call if needed).
-         For simplicity: always fall back to kcad9_pop_fast when we
-         couldn't directly handle it. *)
+  | KCadeque9.K9Triple (KCadequeShim.Plain (len, h), m, t) ->
+      (* Hot path: |h| >= 6 means the post-pop head still satisfies
+         the Cadeque9 boundary invariant.  If |h| <= 5, the certified
+         path performs the required refill. *)
       (match KTDeque.pop_kt4 h with
        | KTDeque.PopFail -> KCadeque9.kcad9_pop_fast k
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), h') when lvl = 0 ->
            let elem : 'a KCadeque9.kElem9 = Obj.magic payload in
            (match elem with
             | KCadeque9.XBase9 x ->
-                if chain_is_empty h' then
-                  (* h' is at size 0 — definitely refill *)
+                if len <= 5 || chain_is_empty h' then
                   KCadeque9.kcad9_pop_fast k
                 else
-                  (* Heuristic: most pops don't need refill.  Just return
-                     the trimmed K9Triple; if this violates |h|≥5 the next
-                     op will use the certified path.  This is a SOUND fast
-                     path because the result is correct (just may have
-                     wf weakened temporarily — not observable through the
-                     public ops since they all defensively check). *)
                   KCadeque9.PopOk9
                     (x, KCadeque9.K9Triple
-                          (KCadequeShim.Plain h', m, t))
+                          (KCadequeShim.Plain (len - 1, h'), m, t))
             | KCadeque9.XStored9 _ -> KCadeque9.kcad9_pop_fast k)
        | KTDeque.PopOk _ -> KCadeque9.kcad9_pop_fast k)
   | _ -> KCadeque9.kcad9_pop_fast k
@@ -155,7 +143,7 @@ let kcad9_eject_inline
   (k : 'a KCadeque9.kCadeque9) : 'a KCadeque9.eject_result9 =
   match k with
   | KCadeque9.K9Empty -> KCadeque9.EjectFail9
-  | KCadeque9.K9Simple (KCadequeShim.Plain c) ->
+  | KCadeque9.K9Simple (KCadequeShim.Plain (len, c)) ->
       (match KTDeque.eject_kt4 c with
        | KTDeque.PopFail -> KCadeque9.EjectFail9
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), c') when lvl = 0 ->
@@ -163,26 +151,26 @@ let kcad9_eject_inline
            (match elem with
             | KCadeque9.XBase9 x ->
                 let rest =
-                  if chain_is_empty c'
+                  if len <= 1
                   then KCadeque9.K9Empty
-                  else KCadeque9.K9Simple (KCadequeShim.Plain c')
+                  else KCadeque9.K9Simple (KCadequeShim.Plain (len - 1, c'))
                 in
                 KCadeque9.EjectOk9 (rest, x)
             | KCadeque9.XStored9 _ -> KCadeque9.kcad9_eject_fast k)
        | KTDeque.PopOk _ -> KCadeque9.kcad9_eject_fast k)
-  | KCadeque9.K9Triple (h, m, KCadequeShim.Plain t) ->
+  | KCadeque9.K9Triple (h, m, KCadequeShim.Plain (len, t)) ->
       (match KTDeque.eject_kt4 t with
        | KTDeque.PopFail -> KCadeque9.kcad9_eject_fast k
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), t') when lvl = 0 ->
            let elem : 'a KCadeque9.kElem9 = Obj.magic payload in
            (match elem with
             | KCadeque9.XBase9 x ->
-                if chain_is_empty t' then
+                if len <= 5 || chain_is_empty t' then
                   KCadeque9.kcad9_eject_fast k
                 else
                   KCadeque9.EjectOk9
                     (KCadeque9.K9Triple
-                       (h, m, KCadequeShim.Plain t'), x)
+                       (h, m, KCadequeShim.Plain (len - 1, t')), x)
             | KCadeque9.XStored9 _ -> KCadeque9.kcad9_eject_fast k)
        | KTDeque.PopOk _ -> KCadeque9.kcad9_eject_fast k)
   | _ -> KCadeque9.kcad9_eject_fast k

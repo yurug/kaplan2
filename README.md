@@ -211,8 +211,10 @@ See each tree's README for the full instructions and details.
   elements): proved end-to-end for all four operations and three
   optimization variants. Zero admits.
 - **Regularity invariant** (the colored-chain well-formedness that
-  guarantees worst-case O(1)): foundation laid; preservation theorems
-  in progress.
+  guarantees worst-case O(1)): preservation theorems are present in
+  `rocq/KTDeque/DequePtr/OpsKTRegular.v`; the release gate now tracks the
+  remaining packaging work needed to expose one consolidated public theorem
+  bundle for the exact shipped operation family.
 - **Performance**: the Rocq-extracted OCaml is roughly tied with
   Viennot's hand-written reference (within ~15% on every standard
   workload at n=1M), and the C port is **~1.5×–~2.9× faster than
@@ -220,37 +222,25 @@ See each tree's README for the full instructions and details.
   enabled.  Numbers in [`c/COMPARISON.md`](c/COMPARISON.md) and
   reproducible via `make bench-three-way`.
 
-### Section 6 (catenable, shipped as Cadeque8)
+### Section 6 (catenable, experimental/reference)
 
-The headline KT99 §6–§7 result — concatenation of two persistent
-deques in **worst-case `O(1)`** while every other op also stays at
-WC O(1) — is implemented and verified in `rocq/KTDeque/Cadeque8/`
-and extracted as `KCadeque8` in [`ocaml/extracted/`](ocaml/extracted/).
-Design notes in [`kb/spec/kcadeque-design.md`](kb/spec/kcadeque-design.md);
-intuition in [`kb/spec/why-catenable.md`](kb/spec/why-catenable.md).
+The catenable modules remain in the tree for proof experiments,
+benchmarks, and historical comparison, but there is currently **no
+production catenable API with a valid strict WC O(1) claim**.
 
-Status (zero admits):
-- `Cadeque8/Model.v` — KElem8 / Stored8 / KCadeque8 mutual
-  inductive (K8Empty | K8Simple | K8Triple) + flat-list semantics.
-- `Cadeque8/Ops.v` — all five ops, including §6 rebalance
-  (`rebalance_after_h_empty` / `_t_empty`) so head/tail buffers
-  stay non-empty under the invariant.
-- `Cadeque8/Seq.v` — sequence preservation for all five ops
-  (`kcad8_push_seq`, `_inject_seq`, `_pop_seq`, `_eject_seq`,
-  `_concat_seq`).
-- Buf6 ops route through the certified WC O(1) KChain
-  (`DequePtr/OpsKT.v`) via [`kCadequeShim.ml`](ocaml/extracted/kCadequeShim.ml).
-- Bench-validated strict WC O(1): pop-all after 1000 concats ×
-  100 elts = 8.7 ms (~87 ns/op, no degradation under adversarial
-  concat mix).  See `ocaml/bench/kc8_vs_vi.exe`.
+Current blockers:
 
-The intermediate Cadeque6 (KTCatenableDeque) and Cadeque7
-(KCadeque) layers remain in the tree for backwards compatibility
-and reference; **prefer KCadeque8 for new catenable code**.
+- `KCadeque8` still has a known `(T+T) eject` case where the public
+  operation can fall back through `kcad8_to_list` / `kcad8_from_list`.
+- `KCadeque9` removes that specific post-concat drain pathology, but
+  its extracted `buf6_size` and `buf6_concat` paths are linear.
+- Inline catenable variants are hand-written optimizations and are not
+  covered by the same invariant/cost theorem as the Rocq operations.
 
-Pending (non-blocking): a dedicated C port of Cadeque8 (the
-non-catenable C side already implements the WC O(1) chain
-primitives Cadeque8 depends on).
+Use the catenable modules only as experimental/reference code until the
+release gate in [`kb/runbooks/minimum-release-gate.md`](kb/runbooks/minimum-release-gate.md)
+is closed. The current detailed audit is
+[`kb/reports/wc-o1-verification-audit-2026-05-24.md`](kb/reports/wc-o1-verification-audit-2026-05-24.md).
 
 For details, see the per-tree READMEs and [`kb/`](kb/) for design
 documents and session-by-session progress notes.

@@ -2398,31 +2398,15 @@ kt_deque kt_pop(kt_deque d, kt_elem* out, int* out_was_nonempty) {
          * here has no Rocq counterpart.  KT_TRACE_FALLBACK trace runs
          * across sizes 1..100k for push_pop/inject_eject/mixed (and
          * region variants) all reported ZERO hits, indicating that
-         * well-formed chains never reach this branch (the spine
-         * invariant maintained by green_of_red ensures pre is
-         * non-empty whenever there is content elsewhere in this link
-         * or deeper).  The branch is retained behind an assert so any
-         * future regression that drives reachability surfaces in
-         * test_debug; we still keep the original recovery logic for
-         * NDEBUG builds in case a future state shape exercises it. */
+         * well-formed chains never reach this branch.  Do not keep a
+         * release-build recovery path here: the old recovery copied
+         * O(depth) buffers, which is incompatible with a strict WC O(1)
+         * release claim if the branch ever becomes reachable. */
 #ifdef KT_TRACE_FALLBACK
         g_fallback_pop_suf++;
 #endif
         assert(0 && "F2 audit: kt_pop pre-empty branch unreachable per phase-S trace");
-        const kt_buf* s_eff = link_outer_suf(top);
-        if (buf_size(s_eff) > 0) {
-            kt_elem x; kt_buf rest;
-            buf_pop(s_eff, &x, &rest);
-            if (out) *out = x;
-            if (out_was_nonempty) *out_was_nonempty = 1;
-            uint8_t depth = link_depth(top);
-            kt_buf bb[2 * MAX_PACKET_DEPTH] = {0};
-            for (int i = 0; i < 2 * depth; i++) bb[i] = *link_buf_at(top, i);
-            bb[1] = rest;
-            return (kt_deque)alloc_link(top->chain_pos, depth, bb, link_tail(top));
-        }
-        if (out_was_nonempty) *out_was_nonempty = 0;
-        return d;
+        abort();
     }
     if (out) *out = buf_at0(p1);
     if (out_was_nonempty) *out_was_nonempty = 1;
@@ -2544,26 +2528,14 @@ kt_deque kt_eject(kt_deque d, kt_elem* out, int* out_was_nonempty) {
     int s1_sz = (int)buf_size(s1);
     if (s1_sz == 0) {
         /* Outer suf empty.  Phase S audit (F2): symmetric to the kt_pop
-         * branch — also has no Rocq counterpart, also unreachable per
-         * the KT_TRACE_FALLBACK trace.  Same retention strategy. */
+         * branch.  It also has no Rocq counterpart and is unreachable
+         * per the KT_TRACE_FALLBACK trace.  Fail fast rather than
+         * retaining the old O(depth) recovery in release builds. */
 #ifdef KT_TRACE_FALLBACK
         g_fallback_eject_pre++;
 #endif
         assert(0 && "F2 audit: kt_eject suf-empty branch unreachable per phase-S trace");
-        const kt_buf* p_eff = link_outer_pre(top);
-        if (buf_size(p_eff) > 0) {
-            kt_buf rest; kt_elem x;
-            buf_eject(p_eff, &rest, &x);
-            if (out) *out = x;
-            if (out_was_nonempty) *out_was_nonempty = 1;
-            uint8_t depth = link_depth(top);
-            kt_buf bb[2 * MAX_PACKET_DEPTH] = {0};
-            for (int i = 0; i < 2 * depth; i++) bb[i] = *link_buf_at(top, i);
-            bb[0] = rest;
-            return (kt_deque)alloc_link(top->chain_pos, depth, bb, link_tail(top));
-        }
-        if (out_was_nonempty) *out_was_nonempty = 0;
-        return d;
+        abort();
     }
     /* Read tail element directly (no temp). */
     if (out) *out = (s1_sz == 1) ? buf_at0(s1) : s1->e[s1_sz - 1];

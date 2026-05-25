@@ -1,4 +1,5 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
+        release-gate wc-o1-gate \
         bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
 
 all: rocq
@@ -30,6 +31,14 @@ check check-c:
 check-all:
 	dune build ocaml/extracted/diff_workload.exe
 	$(MAKE) -C c check-all
+
+wc-o1-gate:
+	tools/check_wc_o1_release_gate.sh
+
+release-gate: all ocaml
+	dune runtest
+	$(MAKE) -C c check
+	$(MAKE) wc-o1-gate
 
 # Top-level reproducible benchmarks.  See bench/README.md for methodology.
 #   bench-three-way  — our C / our OCaml / Viennot OCaml at n=1M

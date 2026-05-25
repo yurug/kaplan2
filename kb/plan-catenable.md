@@ -8,14 +8,14 @@ last-updated: 2026-05-17
 
 # Plan — catenable deques (KT99 §5–§7)
 
-> **Status (2026-05-17): superseded.** The original Cadeque6 plan is
-> done; Cadeque7 (pure-functional packets+chains) and Cadeque8 (KT99
-> §6 strict WC O(1)) both shipped after this plan was written. See
-> [`spec/kcadeque-design.md`](spec/kcadeque-design.md) for the
-> current end-state: Cadeque8 has all 5 ops proven seq-preserving
-> end-to-end with zero admits, and bench-validated strict WC O(1)
-> per call (~87 ns/op holding under 1000-concat adversarial mix).
-> The Cadeque6 work below remains accurate for that layer.
+> **Status (2026-05-24): superseded historical plan.** The original
+> Cadeque6 plan is done, but later claims that Cadeque8/Cadeque9 closed
+> the strict WC O(1) catenable release gate were too strong.  The current
+> status is tracked in
+> [`reports/wc-o1-verification-audit-2026-05-24.md`](reports/wc-o1-verification-audit-2026-05-24.md)
+> and [`runbooks/minimum-release-gate.md`](runbooks/minimum-release-gate.md).
+> Keep the plan below as historical design context, not current release
+> status.
 
 ## What we are about to build
 

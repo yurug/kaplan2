@@ -5,9 +5,10 @@
 
     ## Compact two-constructor representation
 
-    Common case: [buf6] is just a [kChain] (no spill).  We use a
-    flat 2-constructor sum so the common case fits in 2 words
-    (tag + chain pointer) instead of 4 (3-field record).
+    Common case: [buf6] is a cached logical length plus a [kChain]
+    (no spill).  The cached length is required because catenable
+    operations inspect [buf6_size] on hot paths; deriving it from
+    [buf6_elems] would traverse the whole buffer.
 
     Rare case: [pop_kt4] surfaces a level-[l > 0] element holding
     [2^l] base values; we return one and stash the rest in a small
@@ -38,27 +39,29 @@
     single [push_kt4]/[inject_kt4] dispatch. *)
 
 type 'a buf6 =
-  | Plain   of 'a KTDeque.kChain
+  | Plain   of int * 'a KTDeque.kChain
     (** the common case: no spill state *)
-  | Spilled of 'a KTDeque.kChain * 'a list * 'a list
-    (** [Spilled (chain, front_spill, back_spill)]:
+  | Spilled of int * 'a KTDeque.kChain * 'a list * 'a list
+    (** [Spilled (len, chain, front_spill, back_spill)]:
+        [len] is the logical number of values represented by all parts.
         front_spill drained left-first; back_spill drained
         in reverse (newer-injected appears last). *)
 
 let empty_chain = KTDeque.empty_kchain
 
-let buf6_empty : 'a buf6 = Plain empty_chain
+let buf6_empty : 'a buf6 = Plain (0, empty_chain)
 
 (** [chain_of b] and [front_of b] / [back_of b] — accessors used
     in the rest of the shim.  Only [chain_of] is on the hot path;
     the spill accessors are only consulted in the rare branch. *)
 let chain_of : 'a buf6 -> 'a KTDeque.kChain = function
-  | Plain c              -> c
-  | Spilled (c, _, _)    -> c
+  | Plain (_, c)              -> c
+  | Spilled (_, c, _, _)      -> c
 
 let mkBuf6 (xs : 'a list) : 'a buf6 =
   Plain
-    (List.fold_left (fun c x ->
+    (List.length xs,
+     List.fold_left (fun c x ->
        match KTDeque.inject_kt4 c (KTDeque.Coq_E.base x) with
        | KTDeque.PushOk c' -> c'
        | KTDeque.PushFail  -> failwith "mkBuf6: kt4 invariant"
@@ -67,28 +70,18 @@ let mkBuf6 (xs : 'a list) : 'a buf6 =
 (** Project to a list (the abstract semantic). *)
 let buf6_elems (b : 'a buf6) : 'a list =
   match b with
-  | Plain c                     -> KTDeque.kchain_to_list c
-  | Spilled (c, front, back)    ->
+  | Plain (_, c)                     -> KTDeque.kchain_to_list c
+  | Spilled (_, c, front, back)      ->
       front @ KTDeque.kchain_to_list c @ List.rev back
 
 let buf6_to_list = buf6_elems
-let buf6_size b = List.length (buf6_elems b)
+let buf6_size = function
+  | Plain (len, _) -> len
+  | Spilled (len, _, _, _) -> len
 
 (** O(1) emptiness check. *)
 let buf6_is_empty (b : 'a buf6) : bool =
-  match b with
-  | Plain c ->
-      (match KTDeque.pop_kt4 c with
-       | KTDeque.PopFail   -> true
-       | KTDeque.PopOk _   -> false)
-  | Spilled (c, front, back) ->
-      (match front, back with
-       | _ :: _, _   -> false
-       | _, _ :: _   -> false
-       | [], []      ->
-           (match KTDeque.pop_kt4 c with
-            | KTDeque.PopFail -> true
-            | KTDeque.PopOk _ -> false))
+  buf6_size b = 0
 
 (* ============================================================== *
  * push / inject — always go through kt4.  Hot path is Plain.     *
@@ -97,31 +90,31 @@ let buf6_is_empty (b : 'a buf6) : bool =
 
 let buf6_singleton (x : 'a) : 'a buf6 =
   match KTDeque.push_kt4 (KTDeque.Coq_E.base x) empty_chain with
-  | KTDeque.PushOk c -> Plain c
+  | KTDeque.PushOk c -> Plain (1, c)
   | KTDeque.PushFail -> failwith "buf6_singleton"
 
 let buf6_push (x : 'a) (b : 'a buf6) : 'a buf6 =
   let elt : 'a KTDeque.Coq_E.t = KTDeque.ExistT (0, (Obj.magic x : 'a KTDeque.xpow)) in
   match b with
-  | Plain c ->
+  | Plain (len, c) ->
       (match KTDeque.push_kt4 elt c with
-       | KTDeque.PushOk c'  -> Plain c'
+       | KTDeque.PushOk c'  -> Plain (len + 1, c')
        | KTDeque.PushFail   -> failwith "buf6_push: kt4 invariant")
-  | Spilled (c, front, back) ->
+  | Spilled (len, c, front, back) ->
       (match KTDeque.push_kt4 elt c with
-       | KTDeque.PushOk c'  -> Spilled (c', front, back)
+       | KTDeque.PushOk c'  -> Spilled (len + 1, c', front, back)
        | KTDeque.PushFail   -> failwith "buf6_push: kt4 invariant")
 
 let buf6_inject (b : 'a buf6) (x : 'a) : 'a buf6 =
   let elt : 'a KTDeque.Coq_E.t = KTDeque.ExistT (0, (Obj.magic x : 'a KTDeque.xpow)) in
   match b with
-  | Plain c ->
+  | Plain (len, c) ->
       (match KTDeque.inject_kt4 c elt with
-       | KTDeque.PushOk c'  -> Plain c'
+       | KTDeque.PushOk c'  -> Plain (len + 1, c')
        | KTDeque.PushFail   -> failwith "buf6_inject: kt4 invariant")
-  | Spilled (c, front, back) ->
+  | Spilled (len, c, front, back) ->
       (match KTDeque.inject_kt4 c elt with
-       | KTDeque.PushOk c'  -> Spilled (c', front, back)
+       | KTDeque.PushOk c'  -> Spilled (len + 1, c', front, back)
        | KTDeque.PushFail   -> failwith "buf6_inject: kt4 invariant")
 
 (* ============================================================== *
@@ -129,66 +122,74 @@ let buf6_inject (b : 'a buf6) (x : 'a) : 'a buf6 =
 
 let buf6_pop (b : 'a buf6) : ('a * 'a buf6) option =
   match b with
-  | Plain c ->
+  | Plain (len, c) ->
       (match KTDeque.pop_kt4 c with
        | KTDeque.PopOk (e, c') ->
+           let len' = len - 1 in
            (match KTDeque.Coq_E.to_list e with
             | []       -> failwith "buf6_pop: empty element"
-            | [x]      -> Some (x, Plain c')   (* common case *)
-            | x :: rs  -> Some (x, Spilled (c', rs, [])))
+            | [x]      -> Some (x, Plain (len', c'))   (* common case *)
+            | x :: rs  -> Some (x, Spilled (len', c', rs, [])))
        | KTDeque.PopFail -> None)
-  | Spilled (c, front, back) ->
+  | Spilled (len, c, front, back) ->
       (match front with
        | x :: rest ->
+           let len' = len - 1 in
            Some (x, (match rest, back with
-                     | [], []  -> Plain c
-                     | _, _    -> Spilled (c, rest, back)))
+                     | [], []  -> Plain (len', c)
+                     | _, _    -> Spilled (len', c, rest, back)))
        | [] ->
            (match KTDeque.pop_kt4 c with
             | KTDeque.PopOk (e, c') ->
+                let len' = len - 1 in
                 (match KTDeque.Coq_E.to_list e with
                  | []       -> failwith "buf6_pop: empty element"
                  | [x]      -> Some (x, (match back with
-                                         | [] -> Plain c'
-                                         | _  -> Spilled (c', [], back)))
-                 | x :: rs  -> Some (x, Spilled (c', rs, back)))
+                                         | [] -> Plain (len', c')
+                                         | _  -> Spilled (len', c', [], back)))
+                 | x :: rs  -> Some (x, Spilled (len', c', rs, back)))
             | KTDeque.PopFail ->
                 (match List.rev back with
                  | []      -> None
                  | x :: rs ->
+                     let len' = len - 1 in
                      Some (x, (match rs with
-                               | [] -> Plain empty_chain
-                               | _  -> Spilled (empty_chain, rs, []))))))
+                               | [] -> Plain (0, empty_chain)
+                               | _  -> Spilled (len', empty_chain, rs, []))))))
 
 let buf6_eject (b : 'a buf6) : ('a buf6 * 'a) option =
   match b with
-  | Plain c ->
+  | Plain (len, c) ->
       (match KTDeque.eject_kt4 c with
        | KTDeque.PopOk (e, c') ->
+           let len' = len - 1 in
            (match List.rev (KTDeque.Coq_E.to_list e) with
             | []       -> failwith "buf6_eject: empty element"
-            | [x]      -> Some (Plain c', x)
-            | x :: rs  -> Some (Spilled (c', [], rs), x))
+            | [x]      -> Some (Plain (len', c'), x)
+            | x :: rs  -> Some (Spilled (len', c', [], rs), x))
        | KTDeque.PopFail -> None)
-  | Spilled (c, front, back) ->
+  | Spilled (len, c, front, back) ->
       (match back with
        | x :: rest ->
+           let len' = len - 1 in
            Some ((match front, rest with
-                  | [], []  -> Plain c
-                  | _, _    -> Spilled (c, front, rest)), x)
+                  | [], []  -> Plain (len', c)
+                  | _, _    -> Spilled (len', c, front, rest)), x)
        | [] ->
            (match KTDeque.eject_kt4 c with
             | KTDeque.PopOk (e, c') ->
+                let len' = len - 1 in
                 (match List.rev (KTDeque.Coq_E.to_list e) with
                  | []       -> failwith "buf6_eject: empty element"
                  | [x]      -> Some ((match front with
-                                       | [] -> Plain c'
-                                       | _  -> Spilled (c', front, [])), x)
-                 | x :: rs  -> Some (Spilled (c', front, rs), x))
+                                       | [] -> Plain (len', c')
+                                       | _  -> Spilled (len', c', front, [])), x)
+                 | x :: rs  -> Some (Spilled (len', c', front, rs), x))
             | KTDeque.PopFail ->
                 (match List.rev front with
                  | []      -> None
                  | x :: rs ->
+                     let len' = len - 1 in
                      Some ((match rs with
-                            | [] -> Plain empty_chain
-                            | _  -> Spilled (empty_chain, [], rs)), x))))
+                            | [] -> Plain (0, empty_chain)
+                            | _  -> Spilled (len', empty_chain, [], rs)), x))))

@@ -115,9 +115,15 @@
  (name k8_tt_concat_stress)
  (libraries unix ktdeque))
 
-; k9_tt_concat_stress.ml: Cadeque9 (T+T) — same workload, structurally O(1).
+; k9_tt_concat_stress.ml: Cadeque9 (T+T) drain-after-concat stress.
+; This times eject after the concat, not the concat call itself.
 (executable
  (name k9_tt_concat_stress)
+ (libraries unix ktdeque))
+
+; k9_concat_cost.ml: times the concat call itself, not the later drain.
+(executable
+ (name k9_concat_cost)
  (libraries unix ktdeque))
 
 ; k9_qcheck.ml: Cadeque9 property-based test against a list reference.

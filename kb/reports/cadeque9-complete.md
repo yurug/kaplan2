@@ -1,5 +1,13 @@
 # Cadeque9 — paper-faithful KT99 §6, WC O(1) bug closed
 
+> **Superseded status (2026-05-24):** This report is historical.  It correctly
+> records that Cadeque9 removes the Cadeque8 post-concat drain-eject pathology,
+> but it overclaims the full WC O(1) result.  The current extracted
+> implementation still has linear `buf6_size` and `buf6_concat` paths, so
+> `KCadeque9` is not a production strict WC O(1) catenable API.  See
+> [`wc-o1-verification-audit-2026-05-24.md`](wc-o1-verification-audit-2026-05-24.md)
+> and [`../runbooks/minimum-release-gate.md`](../runbooks/minimum-release-gate.md).
+
 > **Status (2026-05-24):** Cadeque9 lands.  All 11 phases of the
 > [cadeque9-paper-faithful-plan.md] are complete.  The (T+T) eject
 > WC O(1) bug that plagued Cadeque8 (and was documented in

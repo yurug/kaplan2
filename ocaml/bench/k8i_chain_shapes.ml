@@ -7,7 +7,7 @@ module K = KCadeque8
 let classify (k : 'a K.kCadeque8) : string =
   match k with
   | K.K8Empty -> "K8Empty"
-  | K.K8Simple (KCadequeShim.Plain c) ->
+  | K.K8Simple (KCadequeShim.Plain (_, c)) ->
       (match c with
        | KTDeque.KEnding b ->
            (match b with

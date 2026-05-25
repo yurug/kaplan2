@@ -72,22 +72,22 @@ let kcad8_push_inline
   match k with
   | KCadeque8.K8Empty ->
       KCadeque8.K8Simple
-        (KCadequeShim.Plain (push_chain elt KCadequeShim.empty_chain))
+        (KCadequeShim.Plain (1, push_chain elt KCadequeShim.empty_chain))
   | KCadeque8.K8Simple b ->
       (match b with
-       | KCadequeShim.Plain c ->
-           KCadeque8.K8Simple (KCadequeShim.Plain (push_chain elt c))
-       | KCadequeShim.Spilled (c, f, ba) ->
+       | KCadequeShim.Plain (len, c) ->
+           KCadeque8.K8Simple (KCadequeShim.Plain (len + 1, push_chain elt c))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque8.K8Simple
-             (KCadequeShim.Spilled (push_chain elt c, f, ba)))
+             (KCadequeShim.Spilled (len + 1, push_chain elt c, f, ba)))
   | KCadeque8.K8Triple (h, m, t) ->
       (match h with
-       | KCadequeShim.Plain c ->
+       | KCadequeShim.Plain (len, c) ->
            KCadeque8.K8Triple
-             (KCadequeShim.Plain (push_chain elt c), m, t)
-       | KCadequeShim.Spilled (c, f, ba) ->
+             (KCadequeShim.Plain (len + 1, push_chain elt c), m, t)
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque8.K8Triple
-             (KCadequeShim.Spilled (push_chain elt c, f, ba), m, t))
+             (KCadequeShim.Spilled (len + 1, push_chain elt c, f, ba), m, t))
 
 (** [kcad8_inject_inline k x] — semantically [KCadeque8.kcad8_inject_fast k x]. *)
 let kcad8_inject_inline
@@ -98,22 +98,22 @@ let kcad8_inject_inline
   match k with
   | KCadeque8.K8Empty ->
       KCadeque8.K8Simple
-        (KCadequeShim.Plain (inject_chain KCadequeShim.empty_chain elt))
+        (KCadequeShim.Plain (1, inject_chain KCadequeShim.empty_chain elt))
   | KCadeque8.K8Simple b ->
       (match b with
-       | KCadequeShim.Plain c ->
-           KCadeque8.K8Simple (KCadequeShim.Plain (inject_chain c elt))
-       | KCadequeShim.Spilled (c, f, ba) ->
+       | KCadequeShim.Plain (len, c) ->
+           KCadeque8.K8Simple (KCadequeShim.Plain (len + 1, inject_chain c elt))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque8.K8Simple
-             (KCadequeShim.Spilled (inject_chain c elt, f, ba)))
+             (KCadequeShim.Spilled (len + 1, inject_chain c elt, f, ba)))
   | KCadeque8.K8Triple (h, m, t) ->
       (match t with
-       | KCadequeShim.Plain c ->
+       | KCadequeShim.Plain (len, c) ->
            KCadeque8.K8Triple
-             (h, m, KCadequeShim.Plain (inject_chain c elt))
-       | KCadequeShim.Spilled (c, f, ba) ->
+             (h, m, KCadequeShim.Plain (len + 1, inject_chain c elt))
+       | KCadequeShim.Spilled (len, c, f, ba) ->
            KCadeque8.K8Triple
-             (h, m, KCadequeShim.Spilled (inject_chain c elt, f, ba)))
+             (h, m, KCadequeShim.Spilled (len + 1, inject_chain c elt, f, ba)))
 
 (* -------------------------------------------------------------------------- *
  * Pop / eject inline — bypass [buf6_pop] (which allocates an [option]) and
@@ -141,7 +141,7 @@ let kcad8_pop_inline
   (k : 'a KCadeque8.kCadeque8) : 'a KCadeque8.pop_result8 =
   match k with
   | KCadeque8.K8Empty -> KCadeque8.PopFail8
-  | KCadeque8.K8Simple (KCadequeShim.Plain c) ->
+  | KCadeque8.K8Simple (KCadequeShim.Plain (len, c)) ->
       (match KTDeque.pop_kt4 c with
        | KTDeque.PopFail -> KCadeque8.PopFail8
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), c') when lvl = 0 ->
@@ -149,14 +149,14 @@ let kcad8_pop_inline
            (match elem with
             | KCadeque8.XBase8 x ->
                 let rest =
-                  if chain_is_empty c'
+                  if len <= 1
                   then KCadeque8.K8Empty
-                  else KCadeque8.K8Simple (KCadequeShim.Plain c')
+                  else KCadeque8.K8Simple (KCadequeShim.Plain (len - 1, c'))
                 in
                 KCadeque8.PopOk8 (x, rest)
             | KCadeque8.XStored8 _ -> KCadeque8.kcad8_pop_fast k)
        | KTDeque.PopOk _ -> KCadeque8.kcad8_pop_fast k)
-  | KCadeque8.K8Triple (KCadequeShim.Plain h, m, t) ->
+  | KCadeque8.K8Triple (KCadequeShim.Plain (len, h), m, t) ->
       (match KTDeque.pop_kt4 h with
        | KTDeque.PopFail -> KCadeque8.kcad8_pop_fast k  (* needs rebalance *)
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), h') when lvl = 0 ->
@@ -167,7 +167,7 @@ let kcad8_pop_inline
                 then KCadeque8.kcad8_pop_fast k  (* h emptied, rebalance *)
                 else KCadeque8.PopOk8
                        (x, KCadeque8.K8Triple
-                             (KCadequeShim.Plain h', m, t))
+                             (KCadequeShim.Plain (len - 1, h'), m, t))
             | KCadeque8.XStored8 _ -> KCadeque8.kcad8_pop_fast k)
        | KTDeque.PopOk _ -> KCadeque8.kcad8_pop_fast k)
   | _ -> KCadeque8.kcad8_pop_fast k
@@ -177,7 +177,7 @@ let kcad8_eject_inline
   (k : 'a KCadeque8.kCadeque8) : 'a KCadeque8.eject_result8 =
   match k with
   | KCadeque8.K8Empty -> KCadeque8.EjectFail8
-  | KCadeque8.K8Simple (KCadequeShim.Plain c) ->
+  | KCadeque8.K8Simple (KCadequeShim.Plain (len, c)) ->
       (match KTDeque.eject_kt4 c with
        | KTDeque.PopFail -> KCadeque8.EjectFail8
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), c') when lvl = 0 ->
@@ -185,14 +185,14 @@ let kcad8_eject_inline
            (match elem with
             | KCadeque8.XBase8 x ->
                 let rest =
-                  if chain_is_empty c'
+                  if len <= 1
                   then KCadeque8.K8Empty
-                  else KCadeque8.K8Simple (KCadequeShim.Plain c')
+                  else KCadeque8.K8Simple (KCadequeShim.Plain (len - 1, c'))
                 in
                 KCadeque8.EjectOk8 (rest, x)
             | KCadeque8.XStored8 _ -> KCadeque8.kcad8_eject_fast k)
        | KTDeque.PopOk _ -> KCadeque8.kcad8_eject_fast k)
-  | KCadeque8.K8Triple (h, m, KCadequeShim.Plain t) ->
+  | KCadeque8.K8Triple (h, m, KCadequeShim.Plain (len, t)) ->
       (match KTDeque.eject_kt4 t with
        | KTDeque.PopFail -> KCadeque8.kcad8_eject_fast k
        | KTDeque.PopOk (KTDeque.ExistT (lvl, payload), t') when lvl = 0 ->
@@ -203,7 +203,7 @@ let kcad8_eject_inline
                 then KCadeque8.kcad8_eject_fast k
                 else KCadeque8.EjectOk8
                        (KCadeque8.K8Triple
-                          (h, m, KCadequeShim.Plain t'), x)
+                          (h, m, KCadequeShim.Plain (len - 1, t')), x)
             | KCadeque8.XStored8 _ -> KCadeque8.kcad8_eject_fast k)
        | KTDeque.PopOk _ -> KCadeque8.kcad8_eject_fast k)
   | _ -> KCadeque8.kcad8_eject_fast k
