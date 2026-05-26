@@ -1,5 +1,26 @@
 # CLAUDE.md — project guidance
 
+## Methodology
+
+This project follows the spec-driven agentic workflow defined in
+[`agentic-dev-kit/`](agentic-dev-kit/): `methodology/spec-driven-development.md`
+is the philosophy, `skills/spec-driven-dev.md` is the phase-by-phase
+procedure, `templates/claude-md/spec-driven.md` is the prescribed
+CLAUDE.md skeleton, and `templates/kb/` is the KB layout this repo's
+[`kb/`](kb/) mirrors.
+
+The KB is the source of truth for *intent* (the code in `rocq/`,
+`ocaml/`, `c/`, `rust/` is the source of truth for *behaviour*). Before
+any non-trivial change:
+
+1. Load [`kb/INDEX.md`](kb/INDEX.md) and the relevant row from
+   [`kb/indexes/by-task.md`](kb/indexes/by-task.md).
+2. Cite ADRs (`kb/architecture/decisions/`) and specs explicitly when
+   they govern the change.
+3. Treat the current release-gate state — [`kb/runbooks/minimum-release-gate.md`](kb/runbooks/minimum-release-gate.md)
+   and [`kb/reports/wc-o1-verification-audit-2026-05-24.md`](kb/reports/wc-o1-verification-audit-2026-05-24.md)
+   — as load-bearing context for any worst-case-O(1) claim.
+
 ## Hard rule: worst-case O(1) per operation
 
 Kaplan-Tarjan deques are non-trivial *only* because they achieve purely-functional **worst-case** O(1) per operation.  Not amortized.  Not "typically fast".  Not O(log n).  Worst-case.
