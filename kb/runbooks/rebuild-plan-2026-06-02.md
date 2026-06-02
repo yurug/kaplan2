@@ -7,9 +7,10 @@ last-updated: 2026-06-02
 
 # Rebuild plan — 2026-06-02
 
-**Status: PROPOSED — awaiting approval before Phase 2 (the first destructive
-step).** Phases 0–1 (preserve + honest baseline) are non-destructive and are
-being landed now.
+**Status: decisions resolved 2026-06-02 (see below). Work happens on the
+`rebuild` branch.** Phases 0–1 (preserve + honest baseline) done. Phase 2
+(re-curate, destructive) still awaits explicit go-ahead, and per the catenable
+decision is now sequenced *after* the Phase-3 paper work.
 
 ## Why we are doing this
 
@@ -58,8 +59,8 @@ first**. Re-audit done.
 - WIP-commit the full drifted tree → `f1d701f`.
 - `archive/pre-rebuild-2026-06-02` branch + `archive-pre-rebuild-2026-06-02`
   tag pin the complete state (all variants + in-progress Gate D).
-- **Open decision:** push the archive branch/tag to `origin`? (Currently local
-  only; `main` is 254 commits ahead of `origin/main`.)
+- **DONE:** archive branch + tag pushed to `origin` (2026-06-02). `main` and the
+  `rebuild` branch remain local (not pushed) pending the rebuild's completion.
 
 ### Phase 1 — Honest baseline on `main` (IN PROGRESS, non-destructive)
 - Land `reports/honest-audit-2026-06-02.md` (done).
@@ -75,10 +76,11 @@ Keep on rebuilt `main`:
   `rocq/KTDeque/Extract` trimmed to `kTDeque` + the chosen catenable extraction.
 - `c/` (the empirical port), the qcheck suite, and a *minimal* bench set.
 
+Keep also: `RBR` (decision #2 — finish `Succ.v`, do not drop).
+
 Remove from `main` (retained on `archive/`):
 - The non-canonical catenable variants (`Cadeque6`, `Cadeque7`, `Cadeque8`, and
-  `Cadeque9` if Phase 3b rejects it), `RBR` (unless Phase-3 work needs it),
-  `Public` if unused.
+  `Cadeque9` if Phase 3b rejects it), `Public` if unused.
 - The dead extractions (`kCadeque8*`, `kCadeque`, `kTCatenableDeque`) and the
   ~20 variant-specific benches (`k8_*`, `kc8_*`, …).
 
@@ -87,19 +89,42 @@ point of no easy return for casual readers, so it waits for explicit sign-off
 and for the Phase-3b catenable decision.
 
 ### Phase 3 — Paper specs for the two keystones (the methodology fix)
-- **3a — Deque reachable-state invariant (Gate B).** Define invariant `I` such
-  that `empty ⊨ I`, every public op preserves `I`, and `I ⇒
-  kt4_all_role_heap_packet_view_repr`. This is the KT99 §7 alternating
-  green/yellow + jump-pointer (`D4Cell.jump4`) argument made precise. Write it in
-  `kb/spec/` with the unconditional theorem statement
+
+**Sources (confirmed present in-repo, 2026-06-02):** `jacm-final.pdf` (KT99,
+27pp — authoritative §1–§7); `viennot-wendling-gueneau-pottier-verified-catenable-deques.pdf`
+(Viennot et al. 2025, 65pp); vendored Viennot Coq dev `external-refs/VerifiedCatenableDeque/`
+and OCaml reference `ocaml/bench/viennot/`. Decision (2026-06-02): **follow KT99
+closely; mine Viennot for insight only** (no port of intrinsic types / `Equations`
+proofs, per ADR-0004).
+
+**Pre-draft reading not yet done** (the orientation pass flagged these as the
+gaps): KT99 **§6** (catenable) and **§7** (cascade / jump-pointer depth bound)
+are *not* transcribed in the KB (only §4.2 is, in `spec/section4-repair-cases.md`),
+and the team's manual §7.5 is source-corrupted — re-extract from the PDF. The
+production deque invariant is `regular_kt` in `DequePtr/OpsKTRegular.v` (not
+`Regularity.v`'s older colour-less `regular_chain`). The catenable concat-cost
+bridge lives in `Cadeque9/Normalize.v` + `spec/cadeque9-paper-faithful-plan.md`.
+
+- **3a — Deque reachable-state invariant (Gate B).** Transcribe KT99 §7 to
+  `kb/spec/`, read `OpsKTRegular.v`'s `regular_kt`, then define invariant `I`
+  such that `empty ⊨ I`, every public op preserves `I`, and `I ⇒
+  kt4_all_role_heap_packet_view_repr`. Note the gap precisely: regularity is the
+  *size budget* (top ≤ 4, spine ≤ 3) and is currently only proved
+  `regular_chain → regular_top_chain` (one step, weakened); the all-role
+  invariant is an *orthogonal* heap-realizability + colour-aware + per-op
+  executability layer. `I` must carry both. State the unconditional theorem
   `∀ s, reachable s → cost(op s) ≤ K ∧ op s ≠ Fail`.
-- **3b — Catenable–catenable concat (Gate D).** Decide the canonical catenable
-  variant by writing, from KT99 §6, the representation/invariant under which
-  `concat(catenable, catenable)` is genuinely O(1) (constant linking, no operand
-  traversal). State the unconditional theorem. **This may reveal that the
-  current Cadeque9 representation cannot support it without change** — the plan
-  must allow that discovery and treat it as the real research result, not a
-  failure to paper over.
+- **3b — Catenable–catenable concat (Gate D).** Transcribe KT99 §6 (the
+  GYOR colour scheme; cf. Viennot `Color/GYOR.v`) to `kb/spec/`, then state the
+  representation/invariant under which `concat(catenable, catenable)` is
+  genuinely O(1). Key reconciliation to make explicit: `kcad9_concat` already has
+  the correct *constant-linking shape*, but the abstract model uses `Buf6 = list`
+  so concat is `++` (O(length)) in the model; real O(1) is deferred to
+  `Normalize.v`'s constant-fuel-over-reachable-states bridge. The paper-spec must
+  state the single reachable-state invariant that makes the linked spines O(1) to
+  join in the real representation. **This may reveal the current Cadeque9
+  representation needs change** — treat that as the real research result, not a
+  failure to paper over. (Canonical catenable variant is decided by this step.)
 
 ### Phase 4 — Promote proofs against the specs
 Per keystone, in dependency order, either:
@@ -114,16 +139,17 @@ catenable public theorems → extraction`, each through the Phase-1 promotion ga
 - README / package claims matched to *closed* theorems only; the adversarial
   persistent-fork bench retained as the operational WC O(1) evidence.
 
-## Open decisions for you
+## Decisions (resolved 2026-06-02)
 
-1. **Catenable canonical variant** — resolved by Phase 3b on paper (likely
-   `Cadeque9`, but only if §6 says its representation supports
-   catenable–catenable O(1)).
-2. **RBR** — finish `Succ.v` (close the `Abort.`) or drop it to `archive/`?
-3. **Branch topology** — rebuild on `main` directly (current plan), or on a
-   `rebuild/` branch promoted to `main` at the end?
-4. **Push** — push `archive/pre-rebuild-2026-06-02` to `origin` now for
-   off-machine backup?
+1. **Catenable canonical variant** — *follow KT99 closely, take insight from
+   Viennot.* Don't pre-commit to Cadeque9; decide the design at Phase 3b from
+   the paper. (See Phase 3 sources.)
+2. **RBR** — *finish* `Succ.v` (close the `Abort.`); RBR stays in the rebuilt
+   tree. Queued as a Phase-4 proof task.
+3. **Branch topology** — *work on the `rebuild` branch*, promote to `main` at
+   the end. (`rebuild` created 2026-06-02 off the honest baseline `8b10737`.)
+4. **Backup** — *archive pushed* to `origin` (branch + tag). `main`/`rebuild`
+   stay local until the rebuild lands.
 
 ## Risks
 
