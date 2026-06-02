@@ -187,9 +187,25 @@ just the top), and `well_leveled` gives the second. Hence:
 5. `deque_wc_o1`, then a `Print Assumptions` audit; the new gate checks
    `deque_wc_o1` itself.
 
-### Risk
-Ingredient 3 (`well_leveled`) touches the abstract `Element` axioms
-(`Common/Element.v`). Step 1 must confirm those axioms actually let us conclude
-`E.level c = E.level d` for the overflow pair from well-leveledness; if the
-`Element` interface is too weak, `well_leveled` needs strengthening or an extra
-`Element` law. This is the first thing to check when the Rocq starts.
+### Element-interface check (resolved 2026-06-02)
+Ingredient 3 (`well_leveled`) interacts with `Common/Element.v`. Status after
+reading the `ELEMENT` module type:
+- **Overflow direction — covered.** `green_of_red_k`'s overflow arms need
+  `E.level c = E.level d` for the ejected pair (`OpsKT.v:423`). From
+  `well_leveled` (both elements at the same level `k`) this is immediate, and
+  `level_pair` gives the re-paired element level `k+1`. The existing
+  `unpair_level` (`Element.v:247`) handles the reverse relation.
+- **Underflow direction — needs ONE new law.** The underflow arms `green_pop`
+  then `E.unpair` the popped element (`OpsKT.v:413–417`); they need a
+  *positive-level element to actually unpair*. The `ELEMENT` module type has
+  `unpair_base` (level 0 → `None`) and `unpair_pair` (a `pair` → `Some`) but
+  **no** `level e = S l → ∃ x y, unpair e = Some (x,y) ∧ level x = l`. Both
+  instances satisfy it (`ElementTree`: `existT (S l') _` always unpairs;
+  `ElementFlat`: `XF1/XF2`, and `XFP` under matching levels which `well_leveled`
+  guarantees), so it is a sound interface strengthening.
+
+**Action:** add `Axiom unpair_total_of_pos_level` to the `ELEMENT` module type and
+discharge it in both instances. This is a deliberate, minimal interface addition
+(not an unproven assumption) — flag it explicitly in the Gate-B audit so the
+axiom count stays honest. With it, the buffer-op totality lemmas go through and
+`I_kt` is push-closed.
