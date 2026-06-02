@@ -1,7 +1,7 @@
 ---
 id: catenable-concat-invariant
 domain: spec
-status: draft
+status: decided
 last-updated: 2026-06-02
 ---
 
@@ -88,12 +88,22 @@ Then `cat_wc_o1`'s concat clause follows from §6 Lemma 6.2 (catenate preserves
 regularity) + "constant number of top compressed-forest levels touched"; pop/eject
 from Lemmas 6.3/6.4 + O(1) compressed-forest access.
 
-## Open question for the reviewer
-Before committing to a from-§6 rebuild of the catenable structure (a larger
-effort than promoting Cadeque9): do you want me to **prove or refute** that
-Cadeque9's head/middle/tail spine *cannot* support `concat(catenable, catenable)`
-in O(1) — i.e. spend a focused pass attempting the general concat on Cadeque9's
-representation — or take the §6/Viennot structure as the decided target on the
-strength of the audit + this paper analysis? The honest reading is that Cadeque9
-is a dead-end for the general case, but that claim deserves either a proof or an
-explicit "assumed, not proven" label.
+## Decision (2026-06-02): adopt the faithful §6 / Viennot GYOR structure
+
+The canonical catenable structure is the §6 design — triples (stored/only/left/
+right) + GYOR colors + preferred paths + compressed forest with adoptive
+pointers — mining **Viennot's `Color/GYOR.v` + `Cadeque/`** (vendored at
+`external-refs/VerifiedCatenableDeque/`) for the *design* of `J` and the case
+structure, **not** porting their intrinsic types / `Equations` proofs (ADR-0004).
+Cadeque9 is **not** canonical and stays on `archive/` only.
+
+Note recorded honestly: we did **not** prove Cadeque9's spine *cannot* do general
+concat; we take §6/Viennot as the decided target on the strength of the audit
+(Cadeque9 closes only `concat(catenable, simple)`) plus this paper analysis. The
+"Cadeque9 is a dead-end for the general case" reading is therefore **assumed, not
+proven** — if a cheap salvage ever matters, that refutation is the thing to
+revisit.
+
+Phase 4 builds the new catenable tree fresh from `J` (this doc's invariant) and
+§6's operations; it is a larger effort than the deque keystone and is sequenced
+after it.

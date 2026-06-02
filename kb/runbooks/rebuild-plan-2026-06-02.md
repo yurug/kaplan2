@@ -8,9 +8,10 @@ last-updated: 2026-06-02
 # Rebuild plan — 2026-06-02
 
 **Status: decisions resolved 2026-06-02 (see below). Work happens on the
-`rebuild` branch.** Phases 0–1 (preserve + honest baseline) done. Phase 2
-(re-curate, destructive) still awaits explicit go-ahead, and per the catenable
-decision is now sequenced *after* the Phase-3 paper work.
+`rebuild` branch.** Phases 0–1 (preserve + honest baseline) done. **Phase 3
+(paper specs) DONE and the keystone targets decided** (deque = abstract bound,
+no jump4; catenable = faithful §6/Viennot GYOR). Phase 2 (re-curate, destructive)
+and Phase 4 (prove) still await explicit go-ahead.
 
 ## Why we are doing this
 
@@ -141,15 +142,25 @@ catenable public theorems → extraction`, each through the Phase-1 promotion ga
 
 ## Decisions (resolved 2026-06-02)
 
-1. **Catenable canonical variant** — *follow KT99 closely, take insight from
-   Viennot.* Don't pre-commit to Cadeque9; decide the design at Phase 3b from
-   the paper. (See Phase 3 sources.)
+1. **Catenable canonical variant** — *follow KT99 §6 closely, mine Viennot for
+   insight.* Resolved by decision #6: adopt the §6/Viennot GYOR structure;
+   Cadeque9 is not canonical.
 2. **RBR** — *finish* `Succ.v` (close the `Abort.`); RBR stays in the rebuilt
    tree. Queued as a Phase-4 proof task.
 3. **Branch topology** — *work on the `rebuild` branch*, promote to `main` at
    the end. (`rebuild` created 2026-06-02 off the honest baseline `8b10737`.)
 4. **Backup** — *archive pushed* to `origin` (branch + tag). `main`/`rebuild`
    stay local until the rebuild lands.
+5. **Deque keystone target** — *abstract chain bound, no `jump4`* (cost = cell
+   touches in the model; bounded repair offset from packet bundling). Sidesteps
+   the heap-realizability bridge. Remaining work = abstract totality +
+   preservation of `I` = `regular_kt` + size/color consistency. See
+   [`../spec/deque-reachable-invariant.md`](../spec/deque-reachable-invariant.md).
+6. **Catenable keystone target** — *adopt the faithful KT99 §6 / Viennot GYOR
+   structure now* (triples + preferred paths + compressed forest). Build the
+   catenable tree fresh from `J`; Cadeque9 → archive only. Sequenced after the
+   deque keystone. See
+   [`../spec/catenable-concat-invariant.md`](../spec/catenable-concat-invariant.md).
 
 ## Risks
 

@@ -1,7 +1,7 @@
 ---
 id: deque-reachable-invariant
 domain: spec
-status: draft
+status: decided
 last-updated: 2026-06-02
 ---
 
@@ -102,9 +102,26 @@ the cascade to a single red→green conversion).
 - State `I` and `deque_wc_o1` first; only then prove preservation. Do **not**
   reintroduce the `*_ready_state` candidate ladder.
 
-## Open question for the reviewer
-Is the intended production target the **abstract** chain bound (cost = cell
-touches in the model, where packet bundling already gives the O(1) offset), or
-the **imperative** heap bound (which per KT99 needs `jump4`)? The honest-audit
-cost contract is stated at the imperative `exec_*_C` layer, so faithfully closing
-it points to mechanizing `jump4`.
+## Decision (2026-06-02): abstract chain bound, no jump pointer
+
+The keystone targets the **abstract chain bound** — cost = cell touches in the
+model — proving the bounded repair offset from the packet / yellow-run bundling
+already present in `KChain` (`KCons color packet chain`). We do **not** mechanize
+`jump4`; the imperative heap bound becomes an optional future refinement, not the
+keystone. This is the deliberate move that sidesteps the heap-realizability
+bridge (`all_role_heap_packet_view_repr`) that the accretion never closed.
+
+Consequences for the proof (Phase 4):
+- The O(1) operation is the **non-recursive single repair** (one
+  `green_of_red_k` dispatch — already proven `*_green_calls_le_1`), **not** the
+  recursive `push_chain_full` (which `CLAUDE.md` flags as an O(log n) proof
+  artifact). Cost = the existing packet budgets (`NF_PUSH_PKT_FULL` etc.).
+- The remaining open work shrinks to **abstract totality + preservation**: define
+  `I` = `regular_kt` **plus** the buffer-size/color consistency that makes the
+  single repair *total* (no `PushFail`) — the gap the `kt4_total_state` /
+  level-aware predicates were circling — and prove `empty ⊨ I`, every op
+  preserves `I`, and `I` ⇒ the single-repair precondition. This is tractable in a
+  way the heap bridge was not.
+- Clauses (2) heap-faithfulness and (3) heap re-entrancy in the proposed `I`
+  above are **dropped** (they belonged to the imperative target); `I` is purely
+  an abstract-chain predicate.
