@@ -117,11 +117,79 @@ Consequences for the proof (Phase 4):
   recursive `push_chain_full` (which `CLAUDE.md` flags as an O(log n) proof
   artifact). Cost = the existing packet budgets (`NF_PUSH_PKT_FULL` etc.).
 - The remaining open work shrinks to **abstract totality + preservation**: define
-  `I` = `regular_kt` **plus** the buffer-size/color consistency that makes the
-  single repair *total* (no `PushFail`) — the gap the `kt4_total_state` /
-  level-aware predicates were circling — and prove `empty ⊨ I`, every op
-  preserves `I`, and `I` ⇒ the single-repair precondition. This is tractable in a
-  way the heap bridge was not.
+  `I` = `regular_kt` **plus** the consistency that makes the single repair
+  *total*, and prove `empty ⊨ I`, every op preserves `I`, and `I` ⇒ the
+  single-repair precondition. This is tractable in a way the heap bridge was not.
 - Clauses (2) heap-faithfulness and (3) heap re-entrancy in the proposed `I`
   above are **dropped** (they belonged to the imperative target); `I` is purely
   an abstract-chain predicate.
+
+## Pinned `I_kt` — validated against the code (2026-06-02)
+
+Traced where every op actually fails (`OpsKT.v`) and what `green_of_red_k`
+(`OpsKT.v:1084`) needs. `kt4_total_state` (`PublicTheorems.v:7780`) already
+encodes top-level totality but is **not push-closed** because it asserts its
+conditions only at the top, not recursively. The validated invariant has **three
+ingredients**, all abstract-chain predicates:
+
+1. **`regular_kt c`** (`OpsKTRegular.v:164`) — reds separated by greens
+   (ignoring yellows); packets are `PNode`. *Already proven preserved.*
+2. **`colors_consistent c`** — at **every** link and inside every packet's
+   yellow-run `PNode`s:
+   - `Green`-tagged ⟹ both buffers `buf5_is_green_shape` (`B2`/`B3`);
+   - `Yellow`-tagged ⟹ both buffers `buf5_is_not_red_shape` (`B1`–`B4`).
+   This kills the *immediate* `PushFail` arms (`OpsKT.v:1485,1497,1499,1500`):
+   push on a `Green` link needs prefix `∈ {B2,B3}`; on a `Yellow` link needs
+   prefix `∈ {B1..B4}`.
+3. **`well_leveled c`** — at chain-depth `k`, every element in the level-`k`
+   buffers has `E.level = k`. *This is the ingredient my first hypothesis
+   missed.* The repair's buffer-concat ops (`green_prefix_concat` etc.,
+   `OpsKT.v:408`) re-pair the overflow via `E.pair`, which requires
+   `E.level c = E.level d` (`OpsKT.v:423`) and `E.unpair` to succeed — pure
+   level conditions, exactly what the old `kt4_*_packet_view_ready` predicates
+   (`PublicTheorems.v:679`) were grasping at.
+
+`I_kt c ≜ regular_kt c ∧ colors_consistent c ∧ well_leveled c`.
+
+### Why `I_kt` is push-closed (the crux the accretion missed)
+`green_of_red_k` returns `None` only via its buffer-concat ops (under
+`regular_kt` the catch-all `_ ⇒ None` at `OpsKT.v:1116` is unreachable: tails are
+`KEnding`/`PNode`-headed, so Cases 1–3 cover it). Each concat op
+(`OpsKT.v:408–506`) succeeds when the **level-below** buffer is green-sized
+(so `green_push` doesn't hit a full `B5`) and the elements are well-leveled (so
+`E.pair`/`E.unpair` succeed). `colors_consistent` gives the first
+**recursively** (so the green below a red is green-*sized* at every depth, not
+just the top), and `well_leveled` gives the second. Hence:
+
+> **Crux lemma.** If `regular_kt (KCons Red p tail)`, `colors_consistent`, and
+> `well_leveled`, then `green_of_red_k (KCons Red p tail) = Some c'` and `c'`
+> satisfies `regular_kt ∧ colors_consistent ∧ well_leveled` with a green/yellow
+> top. (Decomposes into 4 buffer-op totality+preservation lemmas for
+> `green_prefix_concat` / `green_suffix_concat` / `prefix_concat` /
+> `suffix_concat` + 1 for `make_small`.)
+
+### The unconditional keystone
+> **`deque_wc_o1`.** `empty_kchain ⊨ I_kt`; for `op ∈ {push,inject,pop,eject}`
+> and every `c` with `I_kt c` (and `kt4_nonempty_state c` for pop/eject):
+> `op c ≠ Fail`, the result satisfies `I_kt`, and the operation dispatches
+> `green_of_red_k` at most once, so its cost is ≤ the proven packet budget
+> (`NF_PUSH_PKT_FULL` / `NF_POP_PKT_FULL`). No heap-view premise.
+
+### Proof architecture (Phase 4a, bottom-up; new file `DequePtr/DequeKeystone.v`)
+1. Buffer-op lemmas: `green_prefix_concat`/`…_suffix`/`prefix_concat`/`suffix_concat`
+   total + green/not-red-preserving + level-preserving when the level-below
+   buffer is green-shaped and well-leveled; same for `make_small`.
+2. Crux lemma (above) by the 3 `green_of_red_k` cases.
+3. `I_kt ⟹ kt4_total_state` (top-level totality precondition) — discharges the
+   recursive `green_of_red_k`-success clauses from (2).
+4. `colors_consistent` + `well_leveled` preserved by each op (reuse existing
+   `*_kt4_preserves_regular_top` for ingredient 1).
+5. `deque_wc_o1`, then a `Print Assumptions` audit; the new gate checks
+   `deque_wc_o1` itself.
+
+### Risk
+Ingredient 3 (`well_leveled`) touches the abstract `Element` axioms
+(`Common/Element.v`). Step 1 must confirm those axioms actually let us conclude
+`E.level c = E.level d` for the overflow pair from well-leveledness; if the
+`Element` interface is too weak, `well_leveled` needs strengthening or an extra
+`Element` law. This is the first thing to check when the Rocq starts.
