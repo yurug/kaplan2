@@ -244,7 +244,7 @@ install: lib
 	@echo 'includedir=$${prefix}/include'          >> ktdeque.pc.tmp
 	@echo ''                                       >> ktdeque.pc.tmp
 	@echo 'Name: ktdeque'                    >> ktdeque.pc.tmp
-	@echo 'Description: Kaplan-Tarjan persistent real-time deque (worst-case O(1))' >> ktdeque.pc.tmp
+	@echo 'Description: Kaplan-Tarjan persistent real-time deque, empirical C port' >> ktdeque.pc.tmp
 	@echo 'Version: 0.1.0'                         >> ktdeque.pc.tmp
 	@echo 'Libs: -L$${libdir} -l$(LIBNAME)'        >> ktdeque.pc.tmp
 	@echo 'Cflags: -I$${includedir}'               >> ktdeque.pc.tmp

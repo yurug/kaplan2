@@ -67,9 +67,26 @@ let drain_eject_inline d0 =
   done;
   (!total_ejects, !max_batch_ns, !total_ns /. float_of_int !total_ejects)
 
+let fail_if_obvious_regression label samples =
+  match samples with
+  | [] | [_] -> ()
+  | (_, first_max) :: rest ->
+      let baseline = max 250.0 first_max in
+      let limit = max 50_000.0 (baseline *. 200.0) in
+      List.iter (fun (n, max_b) ->
+        if max_b > limit then begin
+          Printf.eprintf
+            "k9_tt_concat_stress: %s max batch at N=%d was %.0f ns/op, above %.0f ns/op regression limit\n%!"
+            label n max_b limit;
+          exit 1
+        end
+      ) rest
+
 let () =
   Printf.printf "k9_tt_concat_stress: Cadeque9 (T+T) concat then drain-eject.\n";
   Printf.printf "If WC O(1): max-batch flat across N.\n\n";
+  let default_samples = ref [] in
+  let inline_samples = ref [] in
   List.iter (fun n ->
     let t1 = build_triple n in
     let t2 = build_triple n in
@@ -78,7 +95,11 @@ let () =
     let (ejects, max_b, avg) = drain_eject combined in
     Printf.printf "  N=%d   default: %d ejects avg=%.0f max=%.0f ratio=%.1fx\n"
       n ejects avg max_b (max_b /. avg);
+    default_samples := !default_samples @ [(n, max_b)];
     let (ejects_i, max_bi, avg_i) = drain_eject_inline combined2 in
     Printf.printf "  N=%d   inline:  %d ejects avg=%.0f max=%.0f ratio=%.1fx\n"
-      n ejects_i avg_i max_bi (max_bi /. avg_i)
-  ) [1_000; 10_000; 100_000; 1_000_000]
+      n ejects_i avg_i max_bi (max_bi /. avg_i);
+    inline_samples := !inline_samples @ [(n, max_bi)]
+  ) [1_000; 10_000; 100_000; 1_000_000];
+  fail_if_obvious_regression "default" !default_samples;
+  fail_if_obvious_regression "inline" !inline_samples

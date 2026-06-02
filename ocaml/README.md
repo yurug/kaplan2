@@ -1,20 +1,23 @@
-# ktdeque (OCaml) — verified persistent real-time deque
+# ktdeque (OCaml) - Rocq-extracted persistent real-time deque
 
 This is the OCaml side of the kaplan2 deque project: a purely-functional,
-persistent double-ended queue with **worst-case O(1) per operation**.
-The library here is the **OCaml extraction of the Rocq formalization**
-in [`../rocq/`](../rocq/) — extracted automatically by Coq's extraction
-mechanism after every push/inject/pop/eject operation has been proven
-sequence-preserving against the abstract specification.
+persistent double-ended queue extracted from the Rocq formalization in
+[`../rocq/`](../rocq/). The algorithm is the Kaplan-Tarjan real-time
+deque; the release gate is deliberately explicit about which parts of
+the proof spine are already closed and which parts are still open.
 
-In other words: this OCaml is a verified front-end for the algorithm.
-The proofs live in `../rocq/KTDeque/DequePtr/`.  The single canonical
+The mechanically checked source proofs live in `../rocq/KTDeque/DequePtr/`.
+The single canonical
 public-theorem bundle for the extracted `push_kt4 / inject_kt4 /
 pop_kt4 / eject_kt4` family is
 [`../rocq/KTDeque/DequePtr/PublicTheorems.v`](../rocq/KTDeque/DequePtr/PublicTheorems.v) —
-it packages sequence correctness and regularity preservation per op and
-documents what remains open (totality under the public invariant and a
-chain-level worst-case-cost theorem).  Run `make wc-o1-kt4-assumptions`
+it packages sequence correctness, regularity preservation, bounded
+`green_of_red_k` dispatch, sufficient totality preconditions per op, and a
+reusable `kt4_total_state` predicate that implies those preconditions.  It also
+documents what remains open: strengthening that state predicate with
+level/future-repair closure and completing the pure-to-imperative cost
+refinement.  Run
+`make wc-o1-kt4-assumptions`
 to print the axiom dependencies of every theorem in that bundle (current
 status: every theorem closed under the global context).  The extraction
 output is checked into `extracted/kTDeque.ml{,.mli}` so this tree
@@ -42,18 +45,22 @@ specifically when one of these matches your situation:
   O(1) only on average.  Their amortised analysis falls apart in
   the persistent setting where one state may be re-used by many
   forks (see `bench/adversarial.sh` for the empirical demonstration
-  of exactly this failure on our hand-written D4).  This library is
-  WC O(1) per op — every individual call is bounded.
+  of exactly this failure on our hand-written D4).  This package is
+  the current Rocq-extracted implementation of the real-time design;
+  the theorem bundle now derives all three `green_of_red_k` structural
+  red-repair witnesses from shape and levels, and the release gate keeps the
+  remaining invariant-strengthening/preservation and pure-to-imperative
+  cost-refinement theorems visible until the WC O(1) claim is fully packaged.
 
 - **You're building branching computations** — beam search,
   planners, persistent search trees, IDE-style cursors with undo.
   Every fork is free; both branches are fully usable; operations
   on one don't disturb the other.
 
-- **You want a verified-correct algorithm without writing it
+- **You want a proof-backed implementation without writing it
   yourself.**  The implementation is the OCaml extraction of a
-  Rocq proof; sequence preservation is mechanically checked, and
-  the extraction is property-tested via QCheck and Monolith
+  Rocq development; sequence preservation and regularity preservation
+  are mechanically checked, and the extraction is property-tested via QCheck and Monolith
   (`ocaml/test_qcheck/`, `ocaml/test_monolith/`).
 
 When you would NOT use this:
@@ -68,7 +75,7 @@ When you would NOT use this:
 
 ## Install
 
-The verified library is published as the opam package `ktdeque`.
+The Rocq-extracted library is published as the opam package `ktdeque`.
 From a clone of the repository:
 
 ```sh
@@ -105,8 +112,13 @@ let () =
 `Coq_E.base` wraps a value as a base element; `Coq_E.to_list e` flattens
 an element back to a list of base values (depth-1 elements become
 singletons).  The `kt2` family (`push_kt2 / inject_kt2 / pop_kt2 /
-eject_kt2`) is the bounded-cascade worst-case-O(1) entry point —
-what you want for production.  The library also exports
+eject_kt2`) is the clarity-oriented public operation family; the
+`kt4` family is the allocation-lean variant covered by the public
+theorem bundle. Both are the bounded-cascade real-time design, and
+the release gate tracks the remaining invariant-strengthening/preservation and
+pure-to-imperative cost-refinement theorems before advertising the WC O(1) claim
+as fully packaged.
+The library also exports
 `push_chain_rec / pop_chain_rec / ...` (recursive, O(log n) cascade);
 those are proof-artifact variants kept for the Rocq refinement
 theorems and not recommended for new code.
@@ -122,31 +134,20 @@ ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 
 ### Catenable (cadeque) variants
 
-The catenable modules are currently **experimental/reference** code. Do
-not use `KCadeque8`, `KCadeque9`, or their inline variants as a strict
-WC O(1) production API yet.
-
-You can still experiment with the API shape:
-
-```ocaml
-open KCadeque8
-
-let () =
-  let a = kcad8_push 1 (kcad8_push 2 kcad8_empty) in    (* a = [1; 2] *)
-  let b = kcad8_inject (kcad8_inject kcad8_empty 3) 4 in (* b = [3; 4] *)
-  let c = kcad8_concat a b in                           (* c = [1; 2; 3; 4] *)
-  match kcad8_pop c with
-  | Some (x, _c') -> Printf.printf "front of concat = %d\n" x  (* "1" *)
-  | None -> ()
-```
+The catenable modules are currently **experimental/reference** code and are
+not installed as part of the public `ktdeque` package. Do not use
+`KCadeque8`, `KCadeque9`, or their inline variants as a strict WC O(1)
+production API yet. In-tree benches and proof experiments can still link them
+through the private workspace library `ktdeque_experimental`.
 
 Current status:
 
-- `KCadeque8` has sequence-preservation evidence, but a known `(T+T)`
-  eject case can fall back through list rebuilds and is not WC O(1).
-- `KCadeque9` fixes that specific post-concat drain shape, but the
-  extracted implementation still uses linear `buf6_size` and
-  `buf6_concat` paths.
+- `KCadeque8` no longer uses the public list-rebuild fallback in OCaml; the
+  former `(T+T)` eject drain shape is handled by structural normalization.
+- `KCadeque9` carries concatenated middle buffers through constant-shape stored
+  cells instead of `buf6_concat`.
+- Both remain experimental until the catenable proof/refinement story is
+  completed for the OCaml shim and middle-cell representations.
 - `KCadeque` (Cadeque7) and `KTCatenableDeque` (Cadeque6) remain
   reference/legacy layers with known linear paths.
 
@@ -213,17 +214,17 @@ channel is the transport.
 
 ```
 ocaml/
-├── extracted/           PUBLIC LIBRARY (ktdeque)
-│   ├── kTDeque.{ml,mli}        verified non-catenable WC O(1) deque
-│   ├── kTCatenableDeque.{ml,mli}  catenable spec layer (Cadeque6;
+├── extracted/           PUBLIC LIBRARY (ktdeque) + private experiments
+│   ├── kTDeque.{ml,mli}        public non-catenable Rocq extraction
+│   ├── kTCatenableDeque.{ml,mli}  private catenable spec layer (Cadeque6;
 │   │                              reference, not WC O(1))
-│   ├── kCadeque.{ml,mli}       Cadeque7 catenable cadeque
+│   ├── kCadeque.{ml,mli}       private Cadeque7 catenable cadeque
 │   │                              (legacy/reference, known linear paths)
-│   ├── kCadeque8.{ml,mli}      Cadeque8 catenable experiment
-│   │                              (known T+T fallback blocker)
-│   ├── kCadeque9.{ml,mli}      Cadeque9 catenable experiment
-│   │                              (known linear buf6_size/buf6_concat)
-│   ├── kCadequeShim.ml         Buf6 → kt2 routing (shared by both)
+│   ├── kCadeque8.{ml,mli}      private Cadeque8 catenable experiment
+│   │                              (OCaml fallback removed; proof pending)
+│   ├── kCadeque9.{ml,mli}      private Cadeque9 catenable experiment
+│   │                              (constant-shape concat; proof pending)
+│   ├── kCadequeShim.ml         private Buf6 -> kt2 routing (shared by both)
 │   ├── test_ktdeque.ml         smoke test against a list reference
 │   ├── diff_workload.ml        paired with c/tests/diff_workload.c
 │   └── dune
@@ -247,9 +248,9 @@ ocaml/
 └── README.md            this file
 ```
 
-The public library is *only* `ktdeque` (the verified extraction).
+The public library is *only* `ktdeque` (the Rocq extraction).
 Everything under `lib/` is bench-only support — those modules exist to
-let `bench/compare.exe` compare the verified library against a
+let `bench/compare.exe` compare the extracted library against a
 hand-written variant and a list reference.  They are not installed.
 
 ## How the extraction works
@@ -257,7 +258,7 @@ hand-written variant and a list reference.  They are not installed.
 The Coq side proves a family of sequence-preservation theorems
 (`push_kt2_seq`, `pop_kt2_seq`, ..., `eject_kt4_seq`) against an
 abstract list semantics.  Coq's `Extraction` plugin then translates
-the verified imperative DSL into pure OCaml.  The resulting `.ml` /
+the Rocq definitions into pure OCaml.  The resulting `.ml` /
 `.mli` files are checked into git as a snapshot, so the OCaml tree
 builds without the Coq toolchain.
 
@@ -292,7 +293,7 @@ for a critical reading of how convincing that evidence is.
 
 ```sh
 dune runtest          # all QCheck property suites
-dune exec ocaml/test_monolith/fuzz_ktdeque.exe   # Monolith on verified
+dune exec ocaml/test_monolith/fuzz_ktdeque.exe   # Monolith on KTDeque extraction
 dune exec ocaml/test_monolith/fuzz_deque4.exe         # Monolith on bench-helper
 dune exec ocaml/extracted/test_ktdeque.exe       # extracted-library smoke
 ```
@@ -300,7 +301,7 @@ dune exec ocaml/extracted/test_ktdeque.exe       # extracted-library smoke
 `dune runtest` runs two parallel QCheck suites — both target the
 public library and the bench-helper, mirroring the Monolith setup:
 
-- `test_qcheck/test_ktdeque.ml` — properties on the **verified
+- `test_qcheck/test_ktdeque.ml` - properties on the **Rocq
   extracted library** (`KTDeque.push_kt2 / pop_kt2 / inject_kt2 /
   eject_kt2`), 1000 random op-sequences × 6 properties.  This is the
   property suite for the published `ktdeque` package.
@@ -315,7 +316,7 @@ list reference oracle).  Both are coverage-guided and run until you
 stop them; a clean exit without a counterexample print means no
 divergence has been found in that window.
 
-Beyond the in-process oracles, the strongest evidence for the verified
+Beyond the in-process oracles, the strongest evidence for the extracted
 library comes from (a) the Rocq sequence-preservation theorems in
 `../rocq/KTDeque/DequePtr/OpsKTSeq.v` and (b) the bit-for-bit C↔OCaml
 differential at n=400k (`make -C ../c check-diff-multi`).
@@ -323,7 +324,7 @@ differential at n=400k (`make -C ../c check-diff-multi`).
 ## Microbenchmarks
 
 The `bench/compare.exe` driver runs push / pop / inject / eject and a
-mixed workload at n ∈ {10k, 100k, 1M}, comparing the verified extraction
+mixed workload at n ∈ {10k, 100k, 1M}, comparing the Rocq extraction
 against Viennot's reference deque:
 
 ```sh

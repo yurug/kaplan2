@@ -1,14 +1,14 @@
 (executable
  (name compare)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque ktdeque_experimental ktdeque_bench_helpers))
 
 (executable
  (name crossover)
- (libraries unix viennot_deque ktdeque))
+ (libraries unix viennot_deque ktdeque ktdeque_experimental))
 
 (executable
  (name diag_inject)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
 (executable
  (name viennot_alloc)
@@ -19,130 +19,142 @@
 ; Driven from bench/canonical.sh.
 (executable
  (name canonical)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque ktdeque_experimental ktdeque_bench_helpers))
 
 ; adversarial.ml: persistent-fork microbench — re-run a single op from
 ; a saved state M times to defeat the amortized analysis on D4.  Driven
 ; from bench/adversarial.sh.
 (executable
  (name adversarial)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque ktdeque_experimental ktdeque_bench_helpers))
 
 ; catenable_compare.ml: extracted catenable cadeque (Cadeque6) vs
 ; Viennot et al.'s catenable cadeque.  Functional equivalence over a
 ; random workload + timing of each public op (push/inject/pop/eject/concat).
 (executable
  (name catenable_compare)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; kc_vs_vi.ml: Kc (KCadeque) vs Vi (Viennot) only — skips the Cadeque6
 ; spec side (which uses O(n) cad_normalize per op).  Scales N up
 ; through {1k, 10k, 100k} by default.
 (executable
  (name kc_vs_vi)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; kc_qcheck.ml: property-based equivalence test of Kc against a
 ; simple list reference.  Many runs × many ops; catches regressions
 ; in the KCadequeShim, Phase 5b reformulation, etc.
 (executable
  (name kc_qcheck)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
-; kc8_qcheck.ml: property-based equivalence test for Cadeque8
-; (the §6 strict-WC O(1) catenable deque).
+; kc8_qcheck.ml: property-based equivalence test for the private
+; Cadeque8 catenable experiment.
 (executable
  (name kc8_qcheck)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
 ; kc8_vs_vi.ml: Cadeque8 vs Viennot timing + adversarial workloads.
 (executable
  (name kc8_vs_vi)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; kc8_csv.ml: CSV-emitting bench for plotting (bench/plot_cadeque8.py).
 (executable
  (name kc8_csv)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; k8_alloc.ml: alloc-rate breakdown for push/inject on Cadeque8 vs Viennot.
 (executable
  (name k8_alloc)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; k8i_check.ml: differential correctness check for KCadeque8Inline.
 (executable
  (name k8i_check)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
 ; k8i_chain_shapes.ml: histogram of boundary-buffer chain shapes in
 ; the steady-state push workload (used to design hot-of-hot patterns).
 (executable
  (name k8i_chain_shapes)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
 ; k8_aggregate.ml: mixed-workload throughput bench for the headline
 ; aggregate Cadeque8_inline-vs-Viennot story.
 (executable
  (name k8_aggregate)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; k8i_qcheck.ml: property-based test of cert + fast + inline variants
 ; against a list reference (push/inject/pop/eject/concat).
 (executable
  (name k8i_qcheck)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
 
 ; k8_wc_stress.ml: empirical per-op WC bound — flat scaling of max
 ; per-op time refutes hidden O(n) fallbacks.
 (executable
  (name k8_wc_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k8_concat_pop_stress.ml: targeted check for the K8Simple-concat-K8Triple
 ; rebalance path that may trigger the O(n) fallback.
 (executable
  (name k8_concat_pop_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k8_concat_eject_stress.ml: eject-side analog.
 (executable
  (name k8_concat_eject_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k8_tt_concat_stress.ml: (T+T) concat stress — likely STILL O(n).
 (executable
  (name k8_tt_concat_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k9_tt_concat_stress.ml: Cadeque9 (T+T) drain-after-concat stress.
 ; This times eject after the concat, not the concat call itself.
 (executable
  (name k9_tt_concat_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k9_concat_cost.ml: times the concat call itself, not the later drain.
 (executable
  (name k9_concat_cost)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k9_qcheck.ml: Cadeque9 property-based test against a list reference.
 (executable
  (name k9_qcheck)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
+
+; k9_depth_probe.ml: deterministic bounded-depth guard for StoredMiddle9
+; under public Cadeque9 concat/drain operations.
+(executable
+ (name k9_depth_probe)
+ (libraries ktdeque ktdeque_experimental))
 
 ; k9_wc_stress.ml: Cadeque9 batched WC O(1) stress (push/pop/inject/eject
 ; at sizes 1K..10M, both push-built and concat-built).
 (executable
  (name k9_wc_stress)
- (libraries unix ktdeque))
+ (libraries unix ktdeque ktdeque_experimental))
 
 ; k9_compare.ml: Cadeque9 vs Cadeque8_inline vs Viennot side-by-side.
 (executable
  (name k9_compare)
- (libraries unix viennot_cadeque ktdeque))
+ (libraries unix viennot_cadeque ktdeque ktdeque_experimental))
 
 ; k9_smoke.ml: smoke test of Cadeque9 ops.
 (executable
  (name k9_smoke)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))
+
+; kshim_qcheck.ml: executable refinement check for the hand-written
+; KCadequeShim Buf6 extraction override against abstract list semantics.
+(executable
+ (name kshim_qcheck)
+ (libraries ktdeque ktdeque_experimental))

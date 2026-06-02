@@ -880,25 +880,27 @@ Proof.
     eapply buf5_pop_naive_preserves_not_full; eauto.
   - (* ChainCons *)
     destruct p as [|pre i suf]; [discriminate|].
-    destruct i as [|ipre ii isuf]; [|discriminate].
-    inversion HR as [|? ? ? Hnf_pre Hnf_suf Habsc'|? ? ? ? ? ? ? ? ?]; subst.
-    destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp.
-    + (* Naive pop succeeded *)
+    destruct i as [|ipre ii isuf].
+    + inversion HR as [|? ? ? Hnf_pre Hnf_suf Habsc'|? ? ? ? ? ? ? ? ?]; subst.
+      destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp.
+      * (* Naive pop succeeded *)
+        inversion Hpop; subst xp c'; clear Hpop.
+        apply rtc_cons; trivial.
+        -- eapply buf5_pop_naive_preserves_not_full; eauto.
+        -- eapply absorbable_chain_implies_regular_top; eauto.
+      * (* Underflow: fire make_green *)
+        unfold make_green_pop_chain in Hpop.
+        destruct (pop_chain c0) as [[paired c0'']|] eqn:Hpop_c0; [|discriminate].
+        destruct (E.unpair A paired) as [[xa ya]|] eqn:Hup; [|discriminate].
+        inversion Hpop; subst x c'; clear Hpop.
+        apply rtc_cons; cbn; trivial.
+        eapply absorbable_chain_implies_regular_top.
+        eapply absorbable_pop; eauto.
+    + destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp; [|discriminate].
       inversion Hpop; subst xp c'; clear Hpop.
-      apply rtc_cons; trivial.
-      * eapply buf5_pop_naive_preserves_not_full; eauto.
-      * eapply absorbable_chain_implies_regular_top; eauto.
-    + (* Underflow: fire make_green *)
-      unfold make_green_pop_chain in Hpop.
-      destruct (pop_chain c0) as [[paired c0'']|] eqn:Hpop_c0; [|discriminate].
-      destruct (E.unpair A paired) as [[xa ya]|] eqn:Hup; [|discriminate].
-      inversion Hpop; subst x c'; clear Hpop.
-      apply rtc_cons; cbn; trivial.
-      (* Need: regular_top_chain c0''.  We have absorbable_chain c0
-         and pop_chain c0 = Some (paired, c0'').  By absorbable_pop,
-         c0'' is absorbable, hence regular_top. *)
-      eapply absorbable_chain_implies_regular_top.
-      eapply absorbable_pop; eauto.
+      inversion HR; subst.
+      apply rtc_nested; eauto using buf5_pop_naive_preserves_not_full,
+        buf_can_absorb_one_implies_not_full, absorbable_chain_implies_regular_top.
 Qed.
 
 Theorem eject_chain_full_regular :
@@ -916,18 +918,23 @@ Proof.
     apply rtc_ending.
     eapply buf5_eject_naive_preserves_not_full; eauto.
   - destruct p as [|pre i suf]; [discriminate|].
-    destruct i as [|ipre ii isuf]; [|discriminate].
-    inversion HR as [|? ? ? Hnf_pre Hnf_suf Habsc'|? ? ? ? ? ? ? ? ?]; subst.
-    destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp.
-    + inversion Hej; subst c' xp; clear Hej.
-      apply rtc_cons; trivial.
-      * eapply buf5_eject_naive_preserves_not_full; eauto.
-      * eapply absorbable_chain_implies_regular_top; eauto.
-    + unfold make_green_eject_chain in Hej.
-      destruct (eject_chain c0) as [[c0'' paired]|] eqn:Hej_c0; [|discriminate].
-      destruct (E.unpair A paired) as [[xa ya]|] eqn:Hup; [|discriminate].
-      inversion Hej; subst c' x; clear Hej.
-      apply rtc_cons; cbn; trivial.
-      eapply absorbable_chain_implies_regular_top.
-      eapply absorbable_eject; eauto.
+    destruct i as [|ipre ii isuf].
+    + inversion HR as [|? ? ? Hnf_pre Hnf_suf Habsc'|? ? ? ? ? ? ? ? ?]; subst.
+      destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp.
+      * inversion Hej; subst c' xp; clear Hej.
+        apply rtc_cons; trivial.
+        -- eapply buf5_eject_naive_preserves_not_full; eauto.
+        -- eapply absorbable_chain_implies_regular_top; eauto.
+      * unfold make_green_eject_chain in Hej.
+        destruct (eject_chain c0) as [[c0'' paired]|] eqn:Hej_c0; [|discriminate].
+        destruct (E.unpair A paired) as [[xa ya]|] eqn:Hup; [|discriminate].
+        inversion Hej; subst c' x; clear Hej.
+        apply rtc_cons; cbn; trivial.
+        eapply absorbable_chain_implies_regular_top.
+        eapply absorbable_eject; eauto.
+    + destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp; [|discriminate].
+      inversion Hej; subst c' xp; clear Hej.
+      inversion HR; subst.
+      apply rtc_nested; eauto using buf5_eject_naive_preserves_not_full,
+        buf_can_absorb_one_implies_not_full, absorbable_chain_implies_regular_top.
 Qed.

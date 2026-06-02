@@ -34,6 +34,7 @@ and 'x stored8 =
 | StoredSmall8 of 'x kElem8 KCadequeShim.buf6
 | StoredBig8 of 'x kElem8 KCadequeShim.buf6 * 'x kCadeque8
    * 'x kElem8 KCadequeShim.buf6
+| StoredMiddle8 of 'x stored8 KCadequeShim.buf6
 and 'x kCadeque8 =
 | K8Empty
 | K8Simple of 'x kElem8 KCadequeShim.buf6

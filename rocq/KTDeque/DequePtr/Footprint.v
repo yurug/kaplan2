@@ -94,6 +94,7 @@
 From KTDeque.Common Require Import Prelude FinMapHeap HeapExt Monad
                                     Element CostMonad Buf5 Buf5Ops.
 From KTDeque.DequePtr Require Import Model OpsAbstract.
+From KTDeque.DequePtr Require OpsKT.
 
 (** ** Heap cell for a packet/chain node.
 
@@ -1244,6 +1245,140 @@ Definition exec_eject_pkt_full_C {A : Type} (lroot : Loc)
         end
     end).
 
+(** ** Repaired pop/eject variants for nested singleton underflow.
+
+    The legacy [exec_pop_pkt_full_C] / [exec_eject_pkt_full_C] preserve the
+    pending [B0] nested packet after a Yellow singleton endpoint is consumed.
+    That pending view is useful as a proof boundary, but it is not enough for
+    the future all-role heap invariant: future pop/eject operations would have
+    to step directly from the pending nested [B0] abstract chain, and that step
+    is false.
+
+    These variants add the bounded Case-3 repair at the point where the
+    singleton endpoint drains to [B0].  They read the inner packet, run the same
+    pure [prefix_concat] / [suffix_concat] split as [green_of_red_k] Case 3,
+    allocate one promoted inner link and one Green top, and return the endpoint
+    element already consumed by the public pop/eject.  The extra work is still
+    constant: one top read + one inner read + two alloc-freezes = 6, below the
+    existing [NF_POP_PKT_FULL] budget. *)
+Definition exec_pop_pkt_full_repair_C {A : Type} (lroot : Loc)
+  : MC (PCell (E.t A)) (option (E.t A * Loc)) :=
+  bindC (@read_MC (PCell (E.t A)) lroot) (fun cell =>
+    match buf5_pop_naive (pcell_pre cell) with
+    | Some (x, pre') =>
+        match pre' with
+        | B0 =>
+            match pcell_inner cell with
+            | Some inner_loc =>
+                bindC (@read_MC (PCell (E.t A)) inner_loc) (fun inner_cell =>
+                  match @OpsKT.prefix_concat A pre' (pcell_pre inner_cell),
+                        @OpsKT.suffix_concat A (pcell_suf inner_cell)
+                                               (pcell_suf cell) with
+                  | Some (pre_outer', pre_inner'),
+                    Some (suf_inner', suf_outer') =>
+                      bindC (@alloc_freeze_MC (PCell (E.t A))
+                              (mkPCell pre_inner' suf_inner'
+                                       (pcell_inner inner_cell)
+                                       (pcell_tail cell)))
+                            (fun new_link =>
+                               bindC (@alloc_freeze_MC (PCell (E.t A))
+                                       (mkPCell pre_outer' suf_outer'
+                                                None (Some new_link)))
+                                     (fun lnew =>
+                                        @retC (PCell (E.t A))
+                                              (option (E.t A * Loc))
+                                              (Some (x, lnew))))
+                  | _, _ => @failC (PCell (E.t A)) (option (E.t A * Loc))
+                  end)
+            | None =>
+                bindC (@alloc_freeze_MC (PCell (E.t A))
+                        (mkPCell pre' (pcell_suf cell)
+                                 (pcell_inner cell) (pcell_tail cell)))
+                      (fun lnew =>
+                         @retC (PCell (E.t A)) (option (E.t A * Loc))
+                               (Some (x, lnew)))
+            end
+        | _ =>
+            bindC (@alloc_freeze_MC (PCell (E.t A))
+                    (mkPCell pre' (pcell_suf cell)
+                             (pcell_inner cell) (pcell_tail cell)))
+                  (fun lnew =>
+                     @retC (PCell (E.t A)) (option (E.t A * Loc))
+                           (Some (x, lnew)))
+        end
+    | None =>
+        match pcell_tail cell with
+        | None =>
+            @retC (PCell (E.t A)) (option (E.t A * Loc)) None
+        | Some _ => exec_make_green_pop_pkt_C lroot
+        end
+    end).
+
+Definition exec_eject_pkt_full_repair_C {A : Type} (lroot : Loc)
+  : MC (PCell (E.t A)) (option (Loc * E.t A)) :=
+  bindC (@read_MC (PCell (E.t A)) lroot) (fun cell =>
+    match pcell_tail cell with
+    | None =>
+        match buf5_eject_naive (pcell_pre cell) with
+        | Some (pre', x) =>
+            bindC (@alloc_freeze_MC (PCell (E.t A))
+                    (mkPCell pre' (pcell_suf cell)
+                             (pcell_inner cell) (pcell_tail cell)))
+                  (fun lnew =>
+                     @retC (PCell (E.t A)) (option (Loc * E.t A))
+                           (Some (lnew, x)))
+        | None =>
+            @retC (PCell (E.t A)) (option (Loc * E.t A)) None
+        end
+    | Some _ =>
+        match buf5_eject_naive (pcell_suf cell) with
+        | Some (suf', x) =>
+            match suf' with
+            | B0 =>
+                match pcell_inner cell with
+                | Some inner_loc =>
+                    bindC (@read_MC (PCell (E.t A)) inner_loc) (fun inner_cell =>
+                      match @OpsKT.prefix_concat A (pcell_pre cell)
+                                                   (pcell_pre inner_cell),
+                            @OpsKT.suffix_concat A (pcell_suf inner_cell)
+                                                   suf' with
+                      | Some (pre_outer', pre_inner'),
+                        Some (suf_inner', suf_outer') =>
+                          bindC (@alloc_freeze_MC (PCell (E.t A))
+                                  (mkPCell pre_inner' suf_inner'
+                                           (pcell_inner inner_cell)
+                                           (pcell_tail cell)))
+                                (fun new_link =>
+                                   bindC (@alloc_freeze_MC (PCell (E.t A))
+                                           (mkPCell pre_outer' suf_outer'
+                                                    None (Some new_link)))
+                                         (fun lnew =>
+                                            @retC (PCell (E.t A))
+                                                  (option (Loc * E.t A))
+                                                  (Some (lnew, x))))
+                      | _, _ => @failC (PCell (E.t A)) (option (Loc * E.t A))
+                      end)
+                | None =>
+                    bindC (@alloc_freeze_MC (PCell (E.t A))
+                            (mkPCell (pcell_pre cell) suf'
+                                     (pcell_inner cell) (pcell_tail cell)))
+                          (fun lnew =>
+                             @retC (PCell (E.t A)) (option (Loc * E.t A))
+                                   (Some (lnew, x)))
+                end
+            | _ =>
+                bindC (@alloc_freeze_MC (PCell (E.t A))
+                        (mkPCell (pcell_pre cell) suf'
+                                 (pcell_inner cell) (pcell_tail cell)))
+                      (fun lnew =>
+                         @retC (PCell (E.t A)) (option (Loc * E.t A))
+                               (Some (lnew, x)))
+            end
+        | None =>
+            exec_make_green_eject_pkt_C lroot
+        end
+    end).
+
 (** ** Cost constants for make_green / pop-eject-full. *)
 Definition NF_MAKE_GREEN_PKT : nat := 6.
 Definition NF_POP_PKT_FULL : nat := NF_PUSH_PKT + NF_MAKE_GREEN_PKT.
@@ -1406,6 +1541,124 @@ Proof.
       unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
 Qed.
 
+Lemma exec_pop_pkt_full_repair_C_cost :
+  forall (A : Type) (lroot : Loc)
+         (H H' : HeapP (E.t A)) (r : option (E.t A * Loc)) (n : nat),
+    exec_pop_pkt_full_repair_C lroot H = Some (H', r, n) ->
+    n <= NF_POP_PKT_FULL.
+Proof.
+  intros A lroot H H' r n Hexec.
+  unfold exec_pop_pkt_full_repair_C, bindC in Hexec.
+  destruct (@read_MC (PCell (E.t A)) lroot H) as [[[H0 cell] k0]|] eqn:Hr;
+    [|discriminate].
+  unfold read_MC in Hr.
+  destruct (lookup H lroot) as [c0|] eqn:Hlk; [|discriminate].
+  inversion Hr; subst H0 cell k0; clear Hr.
+  destruct (buf5_pop_naive (pcell_pre c0)) as [[xp pre']|] eqn:Hpop.
+  - destruct pre' as [|a|a b|a b cc|a b cc d|a b cc d e].
+    + destruct (pcell_inner c0) as [inner_loc|] eqn:Hinner.
+      * destruct (@read_MC (PCell (E.t A)) inner_loc H)
+          as [[[H1 inner_cell] k1]|] eqn:Hri; [|discriminate].
+        unfold read_MC in Hri.
+        destruct (lookup H inner_loc) as [icell|] eqn:Hlki; [|discriminate].
+        inversion Hri; subst H1 inner_cell k1; clear Hri.
+        destruct (@OpsKT.prefix_concat A B0 (pcell_pre icell))
+          as [[pre_outer' pre_inner']|] eqn:Hpre; [|discriminate].
+        destruct (@OpsKT.suffix_concat A (pcell_suf icell) (pcell_suf c0))
+          as [[suf_inner' suf_outer']|] eqn:Hsuf; [|discriminate].
+        cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+  - destruct (pcell_tail c0) as [ltail|] eqn:Htail.
+    + destruct (exec_make_green_pop_pkt_C lroot H) as [[[H1 r1] k1]|] eqn:Hmg;
+        [|discriminate].
+      pose proof (@exec_make_green_pop_pkt_C_cost _ _ _ _ _ _ Hmg) as Hcost_mg.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT. lia.
+    + cbv [retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+Qed.
+
+Lemma exec_eject_pkt_full_repair_C_cost :
+  forall (A : Type) (lroot : Loc)
+         (H H' : HeapP (E.t A)) (r : option (Loc * E.t A)) (n : nat),
+    exec_eject_pkt_full_repair_C lroot H = Some (H', r, n) ->
+    n <= NF_POP_PKT_FULL.
+Proof.
+  intros A lroot H H' r n Hexec.
+  unfold exec_eject_pkt_full_repair_C, bindC in Hexec.
+  destruct (@read_MC (PCell (E.t A)) lroot H) as [[[H0 cell] k0]|] eqn:Hr;
+    [|discriminate].
+  unfold read_MC in Hr.
+  destruct (lookup H lroot) as [c0|] eqn:Hlk; [|discriminate].
+  inversion Hr; subst H0 cell k0; clear Hr.
+  destruct (pcell_tail c0) as [ltail|] eqn:Htail.
+  - destruct (buf5_eject_naive (pcell_suf c0)) as [[suf' xp]|] eqn:Hej.
+    + destruct suf' as [|a|a b|a b cc|a b cc d|a b cc d e].
+      * destruct (pcell_inner c0) as [inner_loc|] eqn:Hinner.
+        -- destruct (@read_MC (PCell (E.t A)) inner_loc H)
+             as [[[H1 inner_cell] k1]|] eqn:Hri; [|discriminate].
+           unfold read_MC in Hri.
+           destruct (lookup H inner_loc) as [icell|] eqn:Hlki; [|discriminate].
+           inversion Hri; subst H1 inner_cell k1; clear Hri.
+           destruct (@OpsKT.prefix_concat A (pcell_pre c0) (pcell_pre icell))
+             as [[pre_outer' pre_inner']|] eqn:Hpre; [|discriminate].
+           destruct (@OpsKT.suffix_concat A (pcell_suf icell) B0)
+             as [[suf_inner' suf_outer']|] eqn:Hsuf; [|discriminate].
+           cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+           inversion Hexec; subst H' r n; clear Hexec.
+           unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+        -- cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+           inversion Hexec; subst H' r n; clear Hexec.
+           unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+      * cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+        inversion Hexec; subst H' r n; clear Hexec.
+        unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + destruct (exec_make_green_eject_pkt_C lroot H) as [[[H1 r1] k1]|] eqn:Hmg;
+        [|discriminate].
+      pose proof (@exec_make_green_eject_pkt_C_cost _ _ _ _ _ _ Hmg) as Hcost_mg.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT. lia.
+  - destruct (buf5_eject_naive (pcell_pre c0)) as [[pre' xp]|] eqn:Hej.
+    + cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+    + cbv [retC] in Hexec.
+      inversion Hexec; subst H' r n; clear Hexec.
+      unfold NF_POP_PKT_FULL, NF_PUSH_PKT, NF_MAKE_GREEN_PKT; lia.
+Qed.
+
 (** ** Headline cost theorems for make_green / pop-eject-full. *)
 Theorem packet_pop_wc_O1 :
   forall (A : Type) (lroot : Loc)
@@ -1421,7 +1674,23 @@ Theorem packet_eject_wc_O1 :
     n <= NF_POP_PKT_FULL.
 Proof. exact (@exec_eject_pkt_full_C_cost). Qed.
 
+Theorem packet_pop_repair_wc_O1 :
+  forall (A : Type) (lroot : Loc)
+         (H H' : HeapP (E.t A)) (r : option (E.t A * Loc)) (n : nat),
+    exec_pop_pkt_full_repair_C lroot H = Some (H', r, n) ->
+    n <= NF_POP_PKT_FULL.
+Proof. exact (@exec_pop_pkt_full_repair_C_cost). Qed.
+
+Theorem packet_eject_repair_wc_O1 :
+  forall (A : Type) (lroot : Loc)
+         (H H' : HeapP (E.t A)) (r : option (Loc * E.t A)) (n : nat),
+    exec_eject_pkt_full_repair_C lroot H = Some (H', r, n) ->
+    n <= NF_POP_PKT_FULL.
+Proof. exact (@exec_eject_pkt_full_repair_C_cost). Qed.
+
 #[export] Hint Resolve exec_make_green_pop_pkt_C_cost
                        exec_make_green_eject_pkt_C_cost
                        exec_pop_pkt_full_C_cost
-                       exec_eject_pkt_full_C_cost : ktdeque.
+                       exec_eject_pkt_full_C_cost
+                       exec_pop_pkt_full_repair_C_cost
+                       exec_eject_pkt_full_repair_C_cost : ktdeque.

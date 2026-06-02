@@ -1,12 +1,13 @@
 # ktdeque — Kaplan-Tarjan persistent real-time deque, in C
 
-A purely-functional, persistent, double-ended queue with **worst-case
-O(1) per operation** — push, inject, pop, and eject all run in
-constant time, regardless of size or sharing pattern.
+A hand-written C port of the persistent real-time deque design. The code is
+structured so push, inject, pop, and eject should have bounded per-operation
+work regardless of size or sharing pattern; the current evidence is the C test,
+fuzz, differential, and allocation-bound suites, not a formal C refinement.
 
-This package is a hand-written C port of the algorithm proven correct
-in Rocq (Coq 9.1) under [`../rocq/`](../rocq/).  The C is *not*
-extracted; it mirrors the certified imperative DSL.  Behavioral
+This package is a hand-written C port of the algorithm developed and
+partly proved in Rocq (Coq 9.1) under [`../rocq/`](../rocq/). The C is *not*
+extracted; it mirrors the imperative DSL shape. Behavioral
 equivalence with the Coq-extracted OCaml implementation is checked by
 running both against the same fuzz workload and diffing the outputs
 (see `make check-diff*` below).
@@ -20,9 +21,10 @@ C already has plenty of double-ended-queue options (singly/doubly
 linked lists, ring buffers, your own ad-hoc structure).  Use this
 library specifically when one of these matches your situation:
 
-- **You need worst-case latency, not amortised.**  The library
-  guarantees a *bounded* number of arena allocations per operation
-  (≤ 8 across all the benchmarked sizes; see `wc_test`).  No
+- **You need worst-case latency, not amortised.**  The implementation is
+  shaped to use a bounded number of arena allocations per operation,
+  and `wc_test` currently observes a maximum of 8 across the benchmarked
+  sizes. No
   occasional spike from a "rebuild this index" step.  Important for
   audio buffers, control loops, hard-real-time kernels, or any code
   where a 99.99th-percentile pause is unacceptable.
@@ -40,8 +42,8 @@ library specifically when one of these matches your situation:
   traversal, no locks.  Pass a deque between threads via the
   explicit-region API (`kt_region_*`).
 
-- **You want the verified-correct algorithm without writing it
-  yourself.**  The C source mirrors a Rocq formalisation; the
+- **You want a cross-checked port of the Rocq-developed algorithm without
+  writing it yourself.** The C source mirrors the operation structure; the
   implementation has been bit-for-bit fuzzed against the
   Coq-extracted OCaml version on millions of random workloads.
 
@@ -63,8 +65,8 @@ When you'd NOT use this:
   ASan + UBSan + TSan, a 1000-seed fuzzer, AFL-style coverage-guided
   fuzzing, bit-for-bit C↔OCaml differential at n=400k under deep-cascade
   workloads, and 64-branch persistence stress.
-- **Worst-case O(1)** — verified empirically by `wc_test`: the per-op
-  allocation total is bounded by **≤ 8** across n ∈ {1k, 10k, 100k},
+- **Worst-case evidence** - `wc_test` empirically checks the per-op
+  allocation total and currently observes **<= 8** across n in {1k, 10k, 100k},
   with no growth in n.  (The total ticks up by one between 10k and
   100k due to one rare pair-block emission; it never exceeds 8.)
 - **Faster than Viennot OCaml on every workload** at n=1M with arena

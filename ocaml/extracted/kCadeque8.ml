@@ -75,6 +75,7 @@ and 'x stored8 =
 | StoredSmall8 of 'x kElem8 KCadequeShim.buf6
 | StoredBig8 of 'x kElem8 KCadequeShim.buf6 * 'x kCadeque8
    * 'x kElem8 KCadequeShim.buf6
+| StoredMiddle8 of 'x stored8 KCadequeShim.buf6
 and 'x kCadeque8 =
 | K8Empty
 | K8Simple of 'x kElem8 KCadequeShim.buf6
@@ -114,6 +115,11 @@ let kcad8_to_list =
          | [] -> []
          | e :: es -> app (kelem8_to_list e) (go es)
          in go (buf6_elems suf)))
+  | StoredMiddle8 sm ->
+    let rec go_sm = function
+    | [] -> []
+    | s' :: ss -> app (stored8_to_list s') (go_sm ss)
+    in go_sm (buf6_elems sm)
   and kcad8_to_list0 = function
   | K8Empty -> []
   | K8Simple b ->
@@ -160,6 +166,84 @@ let kcad8_inject k x =
 let unfold_stored = function
 | StoredSmall8 b -> ((b, K8Empty), (KCadequeShim.mkBuf6 []))
 | StoredBig8 (pre, c, suf) -> ((pre, c), suf)
+| StoredMiddle8 _ ->
+  (((KCadequeShim.mkBuf6 []), K8Empty), (KCadequeShim.mkBuf6 []))
+
+let k8_small_push b rest =
+  if buf6_is_empty b then rest else buf6_push (StoredSmall8 b) rest
+
+let k8_small_inject rest b =
+  if buf6_is_empty b then rest else buf6_inject rest (StoredSmall8 b)
+
+let k8_middle_push sm rest =
+  if buf6_is_empty sm then rest else buf6_push (StoredMiddle8 sm) rest
+
+let k8_middle_inject rest sm =
+  if buf6_is_empty sm then rest else buf6_inject rest (StoredMiddle8 sm)
+
+let rec k8_push_sub sub rest =
+  match sub with
+  | K8Empty -> rest
+  | K8Simple b -> k8_small_push b rest
+  | K8Triple (sh, sm, st) ->
+    k8_small_push sh (k8_middle_push sm (k8_small_push st rest))
+
+and k8_inject_sub rest sub =
+  match sub with
+  | K8Empty -> rest
+  | K8Simple b -> k8_small_inject rest b
+  | K8Triple (sh, sm, st) ->
+    k8_small_inject (k8_middle_inject (k8_small_inject rest sh) sm) st
+
+and k8_with_front h m t =
+  if not (buf6_is_empty h)
+  then
+    if buf6_is_empty t
+    then k8_with_back h m t
+    else K8Triple (h, m, t)
+  else
+    match buf6_pop m with
+    | Some p ->
+      let (cell, m_rest) = p in
+      (match cell with
+       | StoredSmall8 b -> k8_with_front b m_rest t
+       | StoredBig8 (pre, sub, suf) ->
+         let new_m = k8_push_sub sub (k8_small_push suf m_rest) in
+         k8_with_front pre new_m t
+       | StoredMiddle8 sm ->
+         (match buf6_pop sm with
+          | Some p_sm ->
+            let (front_cell, sm_rest) = p_sm in
+            let new_m = buf6_push front_cell (k8_middle_push sm_rest m_rest) in
+            k8_with_front (KCadequeShim.mkBuf6 []) new_m t
+          | None -> k8_with_front (KCadequeShim.mkBuf6 []) m_rest t))
+    | None ->
+      if buf6_is_empty t then K8Empty else K8Simple t
+
+and k8_with_back h m t =
+  if not (buf6_is_empty t)
+  then
+    if buf6_is_empty h
+    then k8_with_front h m t
+    else K8Triple (h, m, t)
+  else
+    match buf6_eject m with
+    | Some p ->
+      let (m_rest, cell) = p in
+      (match cell with
+       | StoredSmall8 b -> k8_with_back h m_rest b
+       | StoredBig8 (pre, sub, suf) ->
+         let new_m = k8_inject_sub (k8_small_inject m_rest pre) sub in
+         k8_with_back h new_m suf
+       | StoredMiddle8 sm ->
+         (match buf6_eject sm with
+          | Some p_sm ->
+            let (sm_rest, back_cell) = p_sm in
+            let new_m = buf6_inject (k8_middle_inject m_rest sm_rest) back_cell in
+            k8_with_back h new_m (KCadequeShim.mkBuf6 [])
+          | None -> k8_with_back h m_rest (KCadequeShim.mkBuf6 [])))
+    | None ->
+      if buf6_is_empty h then K8Empty else K8Simple h
 
 (** val reassemble_after_pop_unfold :
     'a1 kElem8 KCadequeShim.buf6 -> 'a1 kCadeque8 -> 'a1 kElem8
@@ -167,18 +251,7 @@ let unfold_stored = function
     KCadequeShim.buf6 -> 'a1 kCadeque8 **)
 
 let reassemble_after_pop_unfold pre sub suf m_rest t =
-  let m_with_suf =
-    if buf6_is_empty suf then m_rest else buf6_push (StoredSmall8 suf) m_rest
-  in
-  let m_final =
-    match sub with
-    | K8Empty -> m_with_suf
-    | K8Simple b -> buf6_push (StoredSmall8 b) m_with_suf
-    | K8Triple (sh, sm, st) ->
-      buf6_push (StoredBig8 (sh, (K8Triple ((KCadequeShim.mkBuf6 []), sm,
-        (KCadequeShim.mkBuf6 []))), st)) m_with_suf
-  in
-  K8Triple (pre, m_final, t)
+  k8_with_front pre (k8_push_sub sub (k8_small_push suf m_rest)) t
 
 (** val reassemble_after_eject_unfold :
     'a1 kElem8 KCadequeShim.buf6 -> 'a1 kElem8 KCadequeShim.buf6 -> 'a1
@@ -186,20 +259,7 @@ let reassemble_after_pop_unfold pre sub suf m_rest t =
     KCadequeShim.buf6 -> 'a1 kCadeque8 **)
 
 let reassemble_after_eject_unfold h pre sub suf m_rest =
-  let m_with_pre =
-    if buf6_is_empty pre
-    then m_rest
-    else buf6_inject m_rest (StoredSmall8 pre)
-  in
-  let m_final =
-    match sub with
-    | K8Empty -> m_with_pre
-    | K8Simple b -> buf6_inject m_with_pre (StoredSmall8 b)
-    | K8Triple (sh, sm, st) ->
-      buf6_inject m_with_pre (StoredBig8 (sh, (K8Triple ((KCadequeShim.mkBuf6
-        []), sm, (KCadequeShim.mkBuf6 []))), st))
-  in
-  K8Triple (h, m_final, suf)
+  k8_with_back h (k8_inject_sub (k8_small_inject m_rest pre) sub) suf
 
 (** val kcad8_from_list : 'a1 list -> 'a1 kCadeque8 **)
 
@@ -221,6 +281,7 @@ let stored_sub_left_safe = function
    | K8Empty -> true
    | K8Simple b -> negb (buf6_is_empty b)
    | K8Triple (sh, _, _) -> negb (buf6_is_empty sh))
+| StoredMiddle8 _ -> true
 
 (** val stored_sub_right_safe : 'a1 stored8 -> bool **)
 
@@ -232,21 +293,14 @@ let stored_sub_right_safe = function
    | K8Simple b -> (&&) (negb (buf6_is_empty b)) (negb (buf6_is_empty suf))
    | K8Triple (sh, _, _) ->
      (&&) (negb (buf6_is_empty sh)) (negb (buf6_is_empty suf)))
+| StoredMiddle8 _ -> true
 
 (** val rebalance_after_h_empty :
     'a1 stored8 KCadequeShim.buf6 -> 'a1 kElem8 KCadequeShim.buf6 -> 'a1
     kCadeque8 option **)
 
 let rebalance_after_h_empty m t =
-  match buf6_pop m with
-  | Some p ->
-    let (s, m_rest) = p in
-    if stored_sub_left_safe s
-    then let (p0, suf) = unfold_stored s in
-         let (pre, sub) = p0 in
-         Some (reassemble_after_pop_unfold pre sub suf m_rest t)
-    else None
-  | None -> Some (kcad8_simple_or_empty t)
+  Some (k8_with_front (KCadequeShim.mkBuf6 []) m t)
 
 (** val kcad8_pop_struct : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option **)
 
@@ -274,26 +328,24 @@ let kcad8_pop_struct = function
         else Some (x, (K8Triple (h', m, t)))
       | XStored8 _ -> None)
    | None ->
-     (match buf6_pop m with
-      | Some p ->
-        let (s, m_rest) = p in
-        let (p0, suf) = unfold_stored s in
-        let (pre, sub) = p0 in
-        (match buf6_pop pre with
+     (match k8_with_front (KCadequeShim.mkBuf6 []) m t with
+      | K8Empty -> None
+      | K8Simple b ->
+        (match buf6_pop b with
          | Some p1 ->
-           let (k0, pre') = p1 in
+           let (k0, b') = p1 in
            (match k0 with
             | XBase8 x ->
-              Some (x, (reassemble_after_pop_unfold pre' sub suf m_rest t))
+              Some (x, (if buf6_is_empty b' then K8Empty else K8Simple b'))
             | XStored8 _ -> None)
          | None -> None)
-      | None ->
-        (match buf6_pop t with
-         | Some p ->
-           let (k0, t') = p in
+      | K8Triple (h', m', t') ->
+        (match buf6_pop h' with
+         | Some p1 ->
+           let (k0, h'') = p1 in
            (match k0 with
             | XBase8 x ->
-              Some (x, (if buf6_is_empty t' then K8Empty else K8Simple t'))
+              Some (x, (k8_with_front h'' m' t'))
             | XStored8 _ -> None)
          | None -> None)))
 
@@ -302,17 +354,7 @@ let kcad8_pop_struct = function
     kCadeque8 option **)
 
 let rebalance_after_t_empty h m =
-  match buf6_eject m with
-  | Some p ->
-    let (m_rest, s) = p in
-    if stored_sub_right_safe s
-    then let (p0, suf) = unfold_stored s in
-         let (pre, sub) = p0 in
-         Some (reassemble_after_eject_unfold h pre sub suf m_rest)
-    else (match s with
-          | StoredSmall8 b -> Some (K8Triple (h, m_rest, b))
-          | StoredBig8 (_, _, _) -> None)
-  | None -> Some (kcad8_simple_or_empty h)
+  Some (k8_with_back h m (KCadequeShim.mkBuf6 []))
 
 (** val kcad8_eject_struct : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option **)
 
@@ -340,48 +382,36 @@ let kcad8_eject_struct = function
         else Some ((K8Triple (h, m, t')), x)
       | XStored8 _ -> None)
    | None ->
-     (match buf6_eject m with
-      | Some p ->
-        let (m_rest, s) = p in
-        let (p0, suf) = unfold_stored s in
-        let (pre, sub) = p0 in
-        (match buf6_eject suf with
+     (match k8_with_back h m (KCadequeShim.mkBuf6 []) with
+      | K8Empty -> None
+      | K8Simple b ->
+        (match buf6_eject b with
          | Some p1 ->
-           let (suf', k0) = p1 in
+           let (b', k0) = p1 in
            (match k0 with
             | XBase8 x ->
-              Some ((reassemble_after_eject_unfold h pre sub suf' m_rest), x)
+              Some ((if buf6_is_empty b' then K8Empty else K8Simple b'), x)
             | XStored8 _ -> None)
          | None -> None)
-      | None ->
-        (match buf6_eject h with
-         | Some p ->
-           let (h', k0) = p in
+      | K8Triple (h', m', t') ->
+        (match buf6_eject t' with
+         | Some p1 ->
+           let (t'', k0) = p1 in
            (match k0 with
             | XBase8 x ->
-              Some ((if buf6_is_empty h' then K8Empty else K8Simple h'), x)
+              Some ((k8_with_back h' m' t''), x)
             | XStored8 _ -> None)
          | None -> None)))
 
 (** val kcad8_pop : 'a1 kCadeque8 -> ('a1 * 'a1 kCadeque8) option **)
 
 let kcad8_pop k =
-  match kcad8_pop_struct k with
-  | Some r -> Some r
-  | None ->
-    (match kcad8_to_list k with
-     | [] -> None
-     | x :: xs -> Some (x, (kcad8_from_list xs)))
+  kcad8_pop_struct k
 
 (** val kcad8_eject : 'a1 kCadeque8 -> ('a1 kCadeque8 * 'a1) option **)
 
 let kcad8_eject k =
-  match kcad8_eject_struct k with
-  | Some r -> Some r
-  | None ->
-    (match rev (kcad8_to_list k) with
-     | [] -> None
-     | x :: xs -> Some ((kcad8_from_list (rev xs)), x))
+  kcad8_eject_struct k
 
 (** val kcad8_concat : 'a1 kCadeque8 -> 'a1 kCadeque8 -> 'a1 kCadeque8 **)
 
@@ -495,12 +525,9 @@ let kcad8_pop_struct_fast = function
 (** val kcad8_pop_fast : 'a1 kCadeque8 -> 'a1 pop_result8 **)
 
 let kcad8_pop_fast k =
-  match kcad8_pop_struct_fast k with
-  | PopFail8 ->
-    (match kcad8_to_list k with
-     | [] -> PopFail8
-     | x :: xs -> PopOk8 (x, (kcad8_from_list xs)))
-  | PopOk8 (x, k') -> PopOk8 (x, k')
+  match kcad8_pop k with
+  | Some (x, k') -> PopOk8 (x, k')
+  | None -> PopFail8
 
 (** val kcad8_eject_struct_fast : 'a1 kCadeque8 -> 'a1 eject_result8 **)
 
@@ -556,12 +583,9 @@ let kcad8_eject_struct_fast = function
 (** val kcad8_eject_fast : 'a1 kCadeque8 -> 'a1 eject_result8 **)
 
 let kcad8_eject_fast k =
-  match kcad8_eject_struct_fast k with
-  | EjectFail8 ->
-    (match rev (kcad8_to_list k) with
-     | [] -> EjectFail8
-     | x :: ys -> EjectOk8 ((kcad8_from_list (rev ys)), x))
-  | EjectOk8 (k', x) -> EjectOk8 (k', x)
+  match kcad8_eject k with
+  | Some (k', x) -> EjectOk8 (k', x)
+  | None -> EjectFail8
 
 (** val kcad8_concat_fast :
     'a1 kCadeque8 -> 'a1 kCadeque8 -> 'a1 kCadeque8 **)

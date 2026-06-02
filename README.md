@@ -7,8 +7,10 @@
 > the official opam-repository. See the [Status](#status) section
 > for what's actually proven and what's still being built.
 
-A **mechanically verified** persistent real-time deque, with faithful
-ports across multiple languages and a microbenchmark suite.
+A Rocq-developed persistent real-time deque, with extracted OCaml,
+hand-written ports, and a microbenchmark suite. The current proof bundle
+is explicit about what is closed and what remains open before an
+unqualified mechanically verified WC O(1) release claim.
 
 This is the data structure from
 [Kaplan & Tarjan, *Purely functional, real-time deques with catenation*
@@ -17,12 +19,19 @@ encoding of
 [Viennot, Wendling, Guéneau & Pottier, *Verified catenable deques*
 (PLDI 2024)](https://dl.acm.org/doi/10.1145/3656430).
 
-What makes it special: every operation — **`push`** (prepend),
+The algorithmic target is: every operation — **`push`** (prepend),
 **`pop`** (remove first), **`inject`** (append), **`eject`** (remove
 last) — runs in **worst-case O(1)**: not amortized, not "usually
-fast", not O(log n). And the whole thing is *purely functional*: you
-can fork the deque, mutate one branch, and the other stays intact,
-with no asymptotic penalty.
+fast", not O(log n). The public Rocq theorem bundle currently packages
+sequence correctness, regularity preservation, bounded chain-level
+`green_of_red_k` dispatch, and sufficient totality preconditions for the
+extracted operation family. A reusable totality-state predicate now implies
+those preconditions; a closed counterexample shows that predicate is not itself
+push-closed without level/future-repair closure. Strengthening the reachable
+state invariant and completing the pure-to-imperative cost refinement are
+tracked as release-gate obligations. The
+whole structure is *purely functional*: you can fork the deque, mutate one
+branch, and the other stays intact.
 
 If you have never seen the KT99 / Viennot algorithm before, read
 [`kb/spec/why-bounded-cascade.md`](kb/spec/why-bounded-cascade.md)
@@ -174,18 +183,18 @@ _build/default/ocaml/bench/compare.exe
 # Build and test the C port
 cd c && make && ./test
 
-# Or install the verified OCaml library locally (opam package
+# Or install the Rocq-extracted OCaml library locally (opam package
 # ktdeque; ships only the extracted code from rocq/).
 opam install .
 ```
 
 The full correctness suite runs across all three layers (Rocq proofs,
-QCheck on the verified extraction, and the C-side
+QCheck on the Rocq extraction, and the C-side
 sanitizer-and-fuzz-and-diff matrix):
 
 ```sh
 dune build           # Rocq + OCaml
-dune runtest         # QCheck on KTDeque (verified) and Deque4 (helper)
+dune runtest         # QCheck on KTDeque (extracted) and Deque4 (helper)
 make check-all       # full C matrix incl. C↔OCaml differential (~45 s)
 ```
 
@@ -193,7 +202,7 @@ The two top-level benchmarks live in [`bench/`](bench/):
 
 ```sh
 make bench-three-way   # C vs our OCaml vs Viennot OCaml at n=1M
-make bench-canonical   # verified ktdeque vs canonical alternatives
+make bench-canonical   # Rocq-extracted ktdeque vs canonical alternatives
                        # (Viennot, our handwritten, list reference)
 ```
 
@@ -211,10 +220,21 @@ See each tree's README for the full instructions and details.
   elements): proved end-to-end for all four operations and three
   optimization variants. Zero admits.
 - **Regularity invariant** (the colored-chain well-formedness that
-  guarantees worst-case O(1)): preservation theorems are present in
-  `rocq/KTDeque/DequePtr/OpsKTRegular.v`; the release gate now tracks the
-  remaining packaging work needed to expose one consolidated public theorem
-  bundle for the exact shipped operation family.
+  is needed for worst-case O(1)): preservation theorems for the exact
+  extracted operation family are packaged in
+  `rocq/KTDeque/DequePtr/PublicTheorems.v`.
+- **Open proof obligations for the release claim**: totality under a
+  strengthened reachable-state invariant and a chain-level constant-cost
+  theorem. The theorem bundle now proves bounded `green_of_red_k` dispatch and
+  sufficient per-operation totality preconditions, links the dispatch count to
+  the packet one-repair constants, and exposes a reusable `kt4_total_state`
+  predicate plus a level-aware public-state candidate for level-0 inputs. Closed
+  counterexamples show both candidates still need strengthening before they can
+  serve as the preserved reachable-state invariant. All three `green_of_red_k`
+  structural repair witnesses, including the bottom `make_small` case, are now
+  derived from shape + levels. The minimum release gate keeps the remaining
+  invariant-strengthening/preservation and pure-to-imperative refinement
+  obligations visible instead of treating them as completed.
 - **Performance**: the Rocq-extracted OCaml is roughly tied with
   Viennot's hand-written reference (within ~15% on every standard
   workload at n=1M), and the C port is **~1.5×–~2.9× faster than
@@ -225,20 +245,24 @@ See each tree's README for the full instructions and details.
 ### Section 6 (catenable, experimental/reference)
 
 The catenable modules remain in the tree for proof experiments,
-benchmarks, and historical comparison, but there is currently **no
-production catenable API with a valid strict WC O(1) claim**.
+benchmarks, and historical comparison, but they are not part of the
+installable public `ktdeque` library. There is currently **no production
+catenable API with a valid strict WC O(1) claim**.
 
 Current blockers:
 
-- `KCadeque8` still has a known `(T+T) eject` case where the public
-  operation can fall back through `kcad8_to_list` / `kcad8_from_list`.
-- `KCadeque9` removes that specific post-concat drain pathology, but
-  its extracted `buf6_size` and `buf6_concat` paths are linear.
-- Inline catenable variants are hand-written optimizations and are not
-  covered by the same invariant/cost theorem as the Rocq operations.
+- `KCadeque8` no longer uses the public list-rebuild fallback in OCaml; the
+  structural normalizer now handles the former `(T+T)` eject drain shape.
+- `KCadeque9` now carries concatenated middle buffers through constant-shape
+  stored cells and has flat operation-level concat timing smoke, but it remains
+  experimental until the catenable proof/refinement story is completed.
+- Inline catenable compatibility modules now delegate to the extracted
+  operations. The remaining catenable blocker is proof/refinement coverage for
+  the OCaml shim and constant-shape middle-cell changes.
 
-Use the catenable modules only as experimental/reference code until the
-release gate in [`kb/runbooks/minimum-release-gate.md`](kb/runbooks/minimum-release-gate.md)
+Workspace benches and proof experiments link those modules through the private
+`ktdeque_experimental` library until the release gate in
+[`kb/runbooks/minimum-release-gate.md`](kb/runbooks/minimum-release-gate.md)
 is closed. The current detailed audit is
 [`kb/reports/wc-o1-verification-audit-2026-05-24.md`](kb/reports/wc-o1-verification-audit-2026-05-24.md).
 

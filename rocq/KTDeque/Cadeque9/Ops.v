@@ -38,6 +38,14 @@ Definition kcad9_inject {X : Type} (k : KCadeque9 X) (x : X) : KCadeque9 X :=
   | K9Triple h m t => K9Triple h m (buf6_inject t (XBase9 x))
   end.
 
+Definition k9_middle_push {X : Type}
+  (sm rest : Buf6 (Stored9 X)) : Buf6 (Stored9 X) :=
+  if buf6_is_empty sm then rest else buf6_push (StoredMiddle9 sm) rest.
+
+Definition k9_middle_inject {X : Type}
+  (rest sm : Buf6 (Stored9 X)) : Buf6 (Stored9 X) :=
+  if buf6_is_empty sm then rest else buf6_inject rest (StoredMiddle9 sm).
+
 (* ========================================================================== *)
 (* Sequence preservation.                                                     *)
 (* ========================================================================== *)
@@ -198,6 +206,8 @@ Definition refill_h_K9Triple {X : Type}
           let m_carrying_suf := buf6_push (StoredSmall9 suf) m_rest in
           let new_m := buf6_concat sm m_carrying_suf in
           K9Triple new_h new_m t
+      | StoredMiddle9 sm =>
+          K9Triple h' (buf6_concat sm m_rest) t
       end
   end.
 
@@ -218,6 +228,8 @@ Definition refill_t_K9Triple {X : Type}
           let m_carrying_pre := buf6_inject m_rest (StoredSmall9 pre) in
           let new_m := buf6_concat m_carrying_pre sm in
           K9Triple h new_m new_t
+      | StoredMiddle9 sm =>
+          K9Triple h (buf6_concat m_rest sm) t'
       end
   end.
 
@@ -341,6 +353,42 @@ Lemma stored9_to_list_big :
       ++ kelem9_flat_list (buf6_elems suf).
 Proof. reflexivity. Qed.
 
+Lemma stored9_to_list_middle :
+  forall (X : Type) (sm : Buf6 (Stored9 X)),
+    stored9_to_list (StoredMiddle9 sm)
+    = stored9_flat_list (buf6_elems sm).
+Proof. reflexivity. Qed.
+
+Lemma k9_middle_push_seq :
+  forall (X : Type) (sm rest : Buf6 (Stored9 X)),
+    stored9_flat_list (buf6_elems (k9_middle_push sm rest))
+    = stored9_flat_list (buf6_elems sm)
+      ++ stored9_flat_list (buf6_elems rest).
+Proof.
+  intros X [xs] rest.
+  destruct xs as [|s ss].
+  - reflexivity.
+  - unfold k9_middle_push, buf6_is_empty, buf6_push, buf6_elems.
+    reflexivity.
+Qed.
+
+Lemma k9_middle_inject_seq :
+  forall (X : Type) (rest sm : Buf6 (Stored9 X)),
+    stored9_flat_list (buf6_elems (k9_middle_inject rest sm))
+    = stored9_flat_list (buf6_elems rest)
+      ++ stored9_flat_list (buf6_elems sm).
+Proof.
+  intros X [rs] [xs].
+  destruct xs as [|s ss].
+  - unfold k9_middle_inject, buf6_is_empty, buf6_elems.
+    cbn. rewrite app_nil_r. reflexivity.
+  - unfold k9_middle_inject, buf6_is_empty, buf6_inject, buf6_elems.
+    induction rs as [|r rs IH]; cbn.
+    + rewrite app_nil_r. reflexivity.
+    + unfold stored9_flat_list in IH. cbn in IH.
+      rewrite IH. rewrite app_assoc. reflexivity.
+Qed.
+
 (** Conversion: [buf6_pop_seq_some] applied to a Stored9-buffer. *)
 
 Lemma stored9_flat_list_pop_some :
@@ -438,7 +486,7 @@ Proof.
   destruct (buf6_pop m) as [[cell m_rest]|] eqn:Hpop.
   - assert (Hm := Hpop).
     apply stored9_flat_list_pop_some in Hm.
-    destruct cell as [b|pre sm suf].
+    destruct cell as [b|pre sm suf|sm].
     + (* StoredSmall9 b *)
       rewrite kcad9_to_list_triple.
       rewrite kelem9_flat_list_concat.
@@ -451,6 +499,11 @@ Proof.
       rewrite stored9_flat_list_push.
       rewrite stored9_to_list_small.
       rewrite Hm. rewrite stored9_to_list_big.
+      rewrite <- !app_assoc. reflexivity.
+    + (* StoredMiddle9 sm *)
+      rewrite kcad9_to_list_triple.
+      rewrite stored9_flat_list_concat.
+      rewrite Hm. rewrite stored9_to_list_middle.
       rewrite <- !app_assoc. reflexivity.
   - apply buf6_pop_seq_none in Hpop.
     unfold buf6_to_list in Hpop.
@@ -474,7 +527,7 @@ Proof.
   destruct (buf6_eject m) as [[m_rest cell]|] eqn:Heje.
   - assert (Hm := Heje).
     apply stored9_flat_list_eject_some in Hm.
-    destruct cell as [b|pre sm suf].
+    destruct cell as [b|pre sm suf|sm].
     + (* StoredSmall9 b *)
       rewrite kcad9_to_list_triple.
       rewrite kelem9_flat_list_concat.
@@ -487,6 +540,11 @@ Proof.
       rewrite stored9_flat_list_inject.
       rewrite stored9_to_list_small.
       rewrite Hm. rewrite stored9_to_list_big.
+      rewrite <- !app_assoc. reflexivity.
+    + (* StoredMiddle9 sm *)
+      rewrite kcad9_to_list_triple.
+      rewrite stored9_flat_list_concat.
+      rewrite Hm. rewrite stored9_to_list_middle.
       rewrite <- !app_assoc. reflexivity.
   - apply buf6_eject_seq_none in Heje.
     unfold buf6_to_list in Heje.
@@ -630,7 +688,7 @@ Proof.
   unfold refill_h_K9Triple.
   destruct (buf6_pop m) as [[cell m_rest]|] eqn:Hpop.
   - destruct (wf_middle9_pop _ _ _ _ Hm Hpop) as [Hcell Hm_rest].
-    destruct cell as [b|pre sm suf].
+    destruct cell as [b|pre sm suf|sm].
     + (* StoredSmall9 b: |b| ≥ 3 *)
       cbn in Hcell. cbn [wf_kcad9_strong].
       repeat split.
@@ -647,6 +705,7 @@ Proof.
         apply wf_middle9_push.
         -- cbn. exact Hsuf.
         -- exact Hm_rest.
+    + contradiction.
   - (* m empty: collapse to K9Simple (h' ++ t).  Need |h' ++ t| ≥ 1. *)
     cbn [wf_kcad9_strong].
     eapply buf6_size_ge_weaken with (n := 4).
@@ -666,7 +725,7 @@ Proof.
   unfold refill_t_K9Triple.
   destruct (buf6_eject m) as [[m_rest cell]|] eqn:Heje.
   - destruct (wf_middle9_eject _ _ _ _ Hm Heje) as [Hm_rest Hcell].
-    destruct cell as [b|pre sm suf].
+    destruct cell as [b|pre sm suf|sm].
     + cbn in Hcell. cbn [wf_kcad9_strong].
       repeat split.
       * exact Hh.
@@ -680,6 +739,7 @@ Proof.
       * apply wf_middle9_concat.
         -- apply wf_middle9_inject; [exact Hm_rest | cbn; exact Hpre].
         -- exact Hsm.
+    + contradiction.
   - cbn [wf_kcad9_strong].
     apply buf6_size_ge_concat_l. unfold buf6_size_ge in Hh |- *. lia.
 Qed.
@@ -721,23 +781,9 @@ Qed.
 (* Concat — trivially O(1) under the strong invariant.                        *)
 (* ========================================================================== *)
 
-(** The structural payoff: with [StoredBig9 pre sm suf] taking a flat
-    [sm : Buf6 (Stored9 X)] (not a nested KCadeque9), and the wf
-    invariant requiring boundary buffers to have size ≥ 5 (and
-    stored-cell pre/suf size ≥ 3), the (T+T) concat case is one
-    allocation:
-
-      K9Triple h1 m1 t1 |+| K9Triple h2 m2 t2 =
-        K9Triple h1 (buf6_inject m1 (StoredBig9 t1 m2 h2)) t2
-
-    where:
-      cell.pre = t1, size ≥ 5 ≥ 3 ✓
-      cell.sm  = m2 (the inner stored chain)
-      cell.suf = h2, size ≥ 5 ≥ 3 ✓
-
-    No empty-boundary cells, no edge cases, no need for the
-    (T+T)-eject-bug Option B borrow.  This is the SOLE point of
-    Cadeque9. *)
+(** This abstract operation keeps the old proof-friendly [buf6_concat]
+    cases.  The hand-edited OCaml constant-work shape, including the
+    scheduled T+T bridge, is modeled in [Normalize.v]. *)
 
 Definition kcad9_concat {X : Type} (a b : KCadeque9 X) : KCadeque9 X :=
   match a, b with

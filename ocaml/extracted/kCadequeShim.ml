@@ -11,9 +11,10 @@
     [buf6_elems] would traverse the whole buffer.
 
     Rare case: [pop_kt4] surfaces a level-[l > 0] element holding
-    [2^l] base values; we return one and stash the rest in a small
-    spill list — at most one such spill in flight per side under
-    the maintained invariant.
+    [2^l] base values; we return one and keep the rest as a small
+    forest of element subtrees.  Draining that spill peels one base
+    value at a time instead of flattening the whole surfaced element
+    in one operation.
 
     Every actual deque insertion still goes through [push_kt4] /
     [inject_kt4]; the spill lists never *hold* user state, only
@@ -41,11 +42,12 @@
 type 'a buf6 =
   | Plain   of int * 'a KTDeque.kChain
     (** the common case: no spill state *)
-  | Spilled of int * 'a KTDeque.kChain * 'a list * 'a list
+  | Spilled of int * 'a KTDeque.kChain * 'a KTDeque.Coq_E.t list
+       * 'a KTDeque.Coq_E.t list
     (** [Spilled (len, chain, front_spill, back_spill)]:
         [len] is the logical number of values represented by all parts.
-        front_spill drained left-first; back_spill drained
-        in reverse (newer-injected appears last). *)
+        front_spill is a front-to-back forest; back_spill is a
+        back-to-front forest. *)
 
 let empty_chain = KTDeque.empty_kchain
 
@@ -67,12 +69,79 @@ let mkBuf6 (xs : 'a list) : 'a buf6 =
        | KTDeque.PushFail  -> failwith "mkBuf6: kt4 invariant"
      ) empty_chain xs)
 
+let base_of_level0 = function
+  | KTDeque.ExistT (0, p) -> (Obj.magic p : 'a)
+  | _ -> failwith "KCadequeShim: expected level-0 element"
+
+let unpair_exn e =
+  match KTDeque.Coq_E.unpair e with
+  | Some (l, r) -> (l, r)
+  | None -> failwith "KCadequeShim: malformed positive-level element"
+
+let rec pop_front_tree e =
+  match e with
+  | KTDeque.ExistT (0, _) -> (base_of_level0 e, [])
+  | _ ->
+      let left, right = unpair_exn e in
+      let x, rest = pop_front_tree left in
+      (x, rest @ [right])
+
+let rec pop_back_tree e =
+  match e with
+  | KTDeque.ExistT (0, _) -> (base_of_level0 e, [])
+  | _ ->
+      let left, right = unpair_exn e in
+      let x, rest = pop_back_tree right in
+      (x, rest @ [left])
+
+let rec pop_front_forest = function
+  | [] -> None
+  | e :: es ->
+      let x, rest = pop_front_tree e in
+      Some (x, rest @ es)
+
+let rec pop_back_forest = function
+  | [] -> None
+  | e :: es ->
+      let x, rest = pop_back_tree e in
+      Some (x, rest @ es)
+
+let rec pop_front_from_back_forest = function
+  | [] -> None
+  | [e] ->
+      let x, rest = pop_front_tree e in
+      Some (x, rest)
+  | e :: es ->
+      (match pop_front_from_back_forest es with
+       | None -> None
+       | Some (x, rest) -> Some (x, e :: rest))
+
+let rec pop_back_from_front_forest = function
+  | [] -> None
+  | [e] ->
+      let x, rest = pop_back_tree e in
+      Some (x, rest)
+  | e :: es ->
+      (match pop_back_from_front_forest es with
+       | None -> None
+       | Some (x, rest) -> Some (x, e :: rest))
+
+let buf6_of_parts len c front back =
+  match front, back with
+  | [], [] -> Plain (len, c)
+  | _ -> Spilled (len, c, front, back)
+
+let rec forest_to_list = function
+  | [] -> []
+  | tree :: rest -> KTDeque.Coq_E.to_list tree @ forest_to_list rest
+
 (** Project to a list (the abstract semantic). *)
 let buf6_elems (b : 'a buf6) : 'a list =
   match b with
   | Plain (_, c)                     -> KTDeque.kchain_to_list c
   | Spilled (_, c, front, back)      ->
-      front @ KTDeque.kchain_to_list c @ List.rev back
+      forest_to_list front @ KTDeque.kchain_to_list c
+      @ List.rev (forest_to_list back)
 
 let buf6_to_list = buf6_elems
 let buf6_size = function
@@ -126,36 +195,26 @@ let buf6_pop (b : 'a buf6) : ('a * 'a buf6) option =
       (match KTDeque.pop_kt4 c with
        | KTDeque.PopOk (e, c') ->
            let len' = len - 1 in
-           (match KTDeque.Coq_E.to_list e with
-            | []       -> failwith "buf6_pop: empty element"
-            | [x]      -> Some (x, Plain (len', c'))   (* common case *)
-            | x :: rs  -> Some (x, Spilled (len', c', rs, [])))
+           let x, front = pop_front_tree e in
+           Some (x, buf6_of_parts len' c' front [])
        | KTDeque.PopFail -> None)
   | Spilled (len, c, front, back) ->
-      (match front with
-       | x :: rest ->
+      (match pop_front_forest front with
+       | Some (x, rest) ->
            let len' = len - 1 in
-           Some (x, (match rest, back with
-                     | [], []  -> Plain (len', c)
-                     | _, _    -> Spilled (len', c, rest, back)))
-       | [] ->
+           Some (x, buf6_of_parts len' c rest back)
+       | None ->
            (match KTDeque.pop_kt4 c with
             | KTDeque.PopOk (e, c') ->
                 let len' = len - 1 in
-                (match KTDeque.Coq_E.to_list e with
-                 | []       -> failwith "buf6_pop: empty element"
-                 | [x]      -> Some (x, (match back with
-                                         | [] -> Plain (len', c')
-                                         | _  -> Spilled (len', c', [], back)))
-                 | x :: rs  -> Some (x, Spilled (len', c', rs, back)))
+                let x, front' = pop_front_tree e in
+                Some (x, buf6_of_parts len' c' front' back)
             | KTDeque.PopFail ->
-                (match List.rev back with
-                 | []      -> None
-                 | x :: rs ->
+                (match pop_front_from_back_forest back with
+                 | None -> None
+                 | Some (x, front') ->
                      let len' = len - 1 in
-                     Some (x, (match rs with
-                               | [] -> Plain (0, empty_chain)
-                               | _  -> Spilled (len', empty_chain, rs, []))))))
+                     Some (x, buf6_of_parts len' empty_chain front' []))))
 
 let buf6_eject (b : 'a buf6) : ('a buf6 * 'a) option =
   match b with
@@ -163,33 +222,23 @@ let buf6_eject (b : 'a buf6) : ('a buf6 * 'a) option =
       (match KTDeque.eject_kt4 c with
        | KTDeque.PopOk (e, c') ->
            let len' = len - 1 in
-           (match List.rev (KTDeque.Coq_E.to_list e) with
-            | []       -> failwith "buf6_eject: empty element"
-            | [x]      -> Some (Plain (len', c'), x)
-            | x :: rs  -> Some (Spilled (len', c', [], rs), x))
+           let x, back = pop_back_tree e in
+           Some (buf6_of_parts len' c' [] back, x)
        | KTDeque.PopFail -> None)
   | Spilled (len, c, front, back) ->
-      (match back with
-       | x :: rest ->
+      (match pop_back_forest back with
+       | Some (x, rest) ->
            let len' = len - 1 in
-           Some ((match front, rest with
-                  | [], []  -> Plain (len', c)
-                  | _, _    -> Spilled (len', c, front, rest)), x)
-       | [] ->
+           Some (buf6_of_parts len' c front rest, x)
+       | None ->
            (match KTDeque.eject_kt4 c with
             | KTDeque.PopOk (e, c') ->
                 let len' = len - 1 in
-                (match List.rev (KTDeque.Coq_E.to_list e) with
-                 | []       -> failwith "buf6_eject: empty element"
-                 | [x]      -> Some ((match front with
-                                       | [] -> Plain (len', c')
-                                       | _  -> Spilled (len', c', front, [])), x)
-                 | x :: rs  -> Some (Spilled (len', c', front, rs), x))
+                let x, back' = pop_back_tree e in
+                Some (buf6_of_parts len' c' front back', x)
             | KTDeque.PopFail ->
-                (match List.rev front with
-                 | []      -> None
-                 | x :: rs ->
+                (match pop_back_from_front_forest front with
+                 | None -> None
+                 | Some (x, back') ->
                      let len' = len - 1 in
-                     Some ((match rs with
-                            | [] -> Plain (0, empty_chain)
-                            | _  -> Spilled (len', empty_chain, [], rs)), x))))
+                     Some (buf6_of_parts len' empty_chain [] back', x))))

@@ -7,8 +7,8 @@
  * For the algorithmic intuition (why catenation can be O(1) WC),
  * read [kb/spec/why-catenable.md] in the project monorepo.
  *
- * For the public OCaml surface, see the [KTCatenableDeque] module
- * docstring (file kTCatenableDeque.mli in the ktdeque opam package).
+ * This example links the private workspace library [ktdeque_experimental];
+ * catenable modules are not installed by the public ktdeque opam package.
  *
  * Build via dune:
  *

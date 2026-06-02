@@ -30,6 +30,7 @@ and 'x stored9 =
 | StoredSmall9 of 'x kElem9 KCadequeShim.buf6
 | StoredBig9 of 'x kElem9 KCadequeShim.buf6 * 'x stored9 KCadequeShim.buf6
    * 'x kElem9 KCadequeShim.buf6
+| StoredMiddle9 of 'x stored9 KCadequeShim.buf6
 
 type 'x kCadeque9 =
 | K9Empty
@@ -47,8 +48,7 @@ val stored9_to_list : 'a1 stored9 -> 'a1 list
 
 val kcad9_to_list : 'a1 kCadeque9 -> 'a1 list
 
-val buf6_concat :
-  'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6
+val stored9_middle : 'a1 stored9 KCadequeShim.buf6 -> 'a1 stored9
 
 val kcad9_push : 'a1 -> 'a1 kCadeque9 -> 'a1 kCadeque9
 

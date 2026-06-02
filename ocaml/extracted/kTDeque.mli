@@ -1,16 +1,26 @@
-(** {1 KTDeque — a verified persistent real-time deque}
+(** {1 KTDeque - Rocq-extracted persistent real-time deque}
 
-    A purely functional deque with worst-case O(1) per operation
-    [push], [pop], [inject], [eject].  Every value of type
-    {!kChain} is an immutable snapshot; an operation returns a new
-    snapshot sharing structure with the old one, with no asymptotic
-    penalty — you can fork the deque, mutate one branch, and the
+    A purely functional deque extracted from the Rocq development of the
+    Kaplan-Tarjan real-time design.  Every value of type {!kChain} is an
+    immutable snapshot; an operation returns a new snapshot sharing structure
+    with the old one, so you can fork the deque, mutate one branch, and the
     other branch is unaffected.
 
     This module is the OCaml extraction of the Rocq formalisation,
     hosted at {{:https://github.com/yurug/kaplan2}https://github.com/yurug/kaplan2}.
-    The sequence-preservation theorems live in
-    {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/OpsKTSeq.v}rocq/KTDeque/DequePtr/OpsKTSeq.v}.
+    The public theorem bundle for the extracted [kt4] operation family lives in
+    {{:https://github.com/yurug/kaplan2/blob/main/rocq/KTDeque/DequePtr/PublicTheorems.v}rocq/KTDeque/DequePtr/PublicTheorems.v}.
+    It packages sequence correctness, regularity preservation, bounded
+    [green_of_red_k] dispatch, sufficient no-Fail preconditions, and a numeric
+    bridge from the dispatch bound to the packet one-repair constants.  A
+    closed counterexample shows the reusable totality-state predicate is not
+    itself push-closed without level/future-repair closure; the theorem bundle
+    now also exposes a level-aware public-state candidate for level-0 inputs.
+    It also derives the Green-tail and nested red-packet repair witnesses from
+    shape + levels.  Preserving that candidate, deriving the remaining bottom
+    repair witnesses, and completing the pure-to-imperative cost refinement
+    remain release-gate obligations before making an unqualified mechanically
+    verified WC O(1) claim.
     For *why* the algorithm is correct and elegant — why "no two reds
     adjacent" delivers worst-case O(1), why packets aggregate yellow
     runs into a single allocation — read
@@ -56,7 +66,7 @@
 
     Element wrapping:
     - {!Coq_E.base} — wrap a base value into the level-tagged
-      element type {!Coq_E.t}.  Required because the verified deque
+      element type {!Coq_E.t}.  Required because the extracted deque
       stores level-l elements (sub-trees of paired-up base elements)
       rather than naked [\'a]; level-0 elements are exactly base
       values.
@@ -77,16 +87,17 @@
       production use.  See §5 of
       {{:https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md}why-bounded-cascade.md}.
     - [push_kt]: an early version with implicit colours.  Superseded.
-    - [push_kt2]: explicit-colour, non-recursive, WC O(1).  This is
-      the production code.
+    - [push_kt2]: explicit-colour, non-recursive bounded-cascade family.
+      This is the clarity-oriented public code path.
     - [push_kt3]: [push_kt2] with [yellow_wrap] inlined for the
       Yellow fast path; same semantics, smaller constant factor.
     - [push_kt4]: [push_kt3] with [option (X * Y)] return replaced
       by a flat 2-constructor sum type, saving one allocation per
       successful op.
 
-    Use [push_kt2] for clarity, [push_kt4] for performance.  The
-    other variants are not part of the supported public API.
+    Use [push_kt2] for clarity, [push_kt4] for performance. The public theorem
+    bundle currently targets the extracted [kt4] family. The other variants are
+    not part of the supported public API.
 
     {2 A note for re-extraction}
 
@@ -124,7 +135,7 @@ val xflat : int -> 'a1 xpow -> 'a1 list
 
 (** {1 Element abstraction}
 
-    The verified deque stores [\'a Coq_E.t] values, not naked [\'a].
+    The extracted deque stores [\'a Coq_E.t] values, not naked [\'a].
     A [\'a Coq_E.t] is a *level-l element*: at level 0 it is just an
     [\'a]; at level 1 it is a pair of two [\'a]s; at level [l] it is
     a balanced binary tree of [2^l] base values.  This is what makes
@@ -137,8 +148,8 @@ val xflat : int -> 'a1 xpow -> 'a1 list
       before calling [push_kt2 / inject_kt2 / push_kt4 / inject_kt4];
     - {!Coq_E.to_list} to extract the underlying [\'a] values from
       whatever the deque returns at the top of pop / eject;
-    - {!Coq_E.level} for diagnostics (the verified ops only ever
-      return level-0 elements at the public surface, so [Coq_E.level
+    - {!Coq_E.level} for diagnostics (the public ops are intended to return
+      level-0 elements at the public surface, so [Coq_E.level
       e = 0] is a reasonable assertion).
 
     [pair] and [unpair] are internal — the deque uses them when

@@ -1,11 +1,16 @@
 ; Public library: the OCaml extraction of the Rocq KTDeque/
-; formalization.  KTDeque is the production deque we ship; the
-; catenable modules below are exposed for reference/experimentation
-; and must not be advertised as strict WC O(1) release APIs yet.
+; formalization.  KTDeque is the production deque we ship.  The
+; catenable experiment modules are deliberately kept out of the
+; installable public library until Gate D is closed.
 ;
 ; Exposed modules:
-; - [KTDeque]            -- Section-4 non-catenable deque (WC O(1)
-;                           per op, packet/chain layout).
+; - [KTDeque]            -- Section-4 non-catenable deque extraction.
+;                           Sequence correctness and regularity
+;                           preservation are packaged in PublicTheorems;
+;                           totality and chain-level cost remain tracked
+;                           release obligations.
+;
+; Private workspace library:
 ; - [KTCatenableDeque]   -- Section-6 catenable spec (Cadeque6;
 ;                           pop/eject/concat are O(n) via
 ;                           cad_normalize at the spec level).
@@ -35,9 +40,16 @@
 (library
  (name ktdeque)
  (public_name ktdeque)
- (synopsis "Kaplan-Tarjan persistent real-time deque (Coq-extracted, worst-case O(1))")
+ (synopsis "Kaplan-Tarjan persistent real-time deque (Rocq-extracted)")
  (wrapped false)
- (modules kTDeque kTCatenableDeque kCadeque kCadequeShim kCadeque8 kCadeque8Inline kCadeque9 kCadeque9Inline))
+ (modules kTDeque))
+
+(library
+ (name ktdeque_experimental)
+ (synopsis "Private catenable deque experiments for the kaplan2 workspace")
+ (wrapped false)
+ (libraries ktdeque)
+ (modules kTCatenableDeque kCadeque kCadequeShim kCadeque8 kCadeque8Inline kCadeque9 kCadeque9Inline))
 
 (executable
  (name test_ktdeque)

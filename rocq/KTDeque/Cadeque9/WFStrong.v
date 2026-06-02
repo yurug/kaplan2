@@ -35,6 +35,8 @@ Fixpoint wf_stored9 {X : Type} (s : Stored9 X) {struct s} : Prop :=
          | []      => True
          | s' :: ss => wf_stored9 s' /\ go ss
          end) (buf6_elems sm)
+  | StoredMiddle9 _ =>
+      False
   end.
 
 (** Bridge to a [Forall]-based formulation for the spine of a

@@ -9,4 +9,4 @@
 (executable
  (name catenable_hello)
  (modules catenable_hello)
- (libraries ktdeque))
+ (libraries ktdeque ktdeque_experimental))

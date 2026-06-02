@@ -1,12 +1,14 @@
 /* ====================================================================== *
- * ktdeque.h - Kaplan-Tarjan persistent real-time deque, worst-case O(1).  *
+ * ktdeque.h - Kaplan-Tarjan persistent real-time deque, C port.           *
  * ====================================================================== *
  *
- * A purely functional deque with worst-case O(1) per operation push, pop,
- * inject, eject.  Every kt_deque value is an immutable snapshot; an
- * operation returns a new snapshot sharing structure with the old one,
- * with no asymptotic penalty.  You can fork a deque, mutate one branch,
- * and the other branch is unaffected.
+ * A hand-written C port of the Kaplan-Tarjan real-time deque design.
+ * The implementation is shaped for bounded per-operation work and is
+ * cross-checked by the C test/fuzz/differential/allocation-bound suite;
+ * it is not a formal C refinement of the Rocq model.  Every kt_deque
+ * value is an immutable snapshot; an operation returns a new snapshot
+ * sharing structure with the old one.  You can fork a deque, mutate one
+ * branch, and the other branch is unaffected.
  *
  * Algorithm: KT99 / Viennot-Wendling-Guéneau-Pottier "packets and chains".
  *
@@ -133,12 +135,13 @@ typedef void* kt_deque;
 kt_deque kt_empty(void);
 
 /** Prepend [x] to the front of [d]; return the resulting deque.
- *  Worst-case O(1).  See §4 of why-bounded-cascade.md
- *  (https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md) for why. */
+ *  Designed to follow the bounded-cascade operation shape from §4 of
+ *  why-bounded-cascade.md:
+ *  https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md */
 kt_deque kt_push   (kt_elem x, kt_deque d);
 
 /** Append [x] to the back of [d]; return the resulting deque.
- *  Mirror of kt_push.  Worst-case O(1). */
+ *  Mirror of kt_push. */
 kt_deque kt_inject (kt_deque d, kt_elem x);
 
 /** Remove and return the front element of [d].  On entry, [*out] and
@@ -149,11 +152,11 @@ kt_deque kt_inject (kt_deque d, kt_elem x);
  *  returned deque is empty.  Otherwise: [*out_was_nonempty = 1] and
  *  [*out] holds the popped element.
  *
- *  Worst-case O(1). */
+ *  Follows the same bounded-cascade operation shape as kt_push. */
 kt_deque kt_pop    (kt_deque d, kt_elem* out, int* out_was_nonempty);
 
 /** Remove and return the back element of [d].  Mirror of kt_pop.
- *  Worst-case O(1). */
+ *  Follows the same bounded-cascade operation shape as kt_pop. */
 kt_deque kt_eject  (kt_deque d, kt_elem* out, int* out_was_nonempty);
 
 /** Total number of elements in [d].  O(N): walks the whole structure.
@@ -213,7 +216,7 @@ int    kt_check_diff_invariant(kt_deque d);
 
 /** Iterate every base element in the deque, in front-to-back order,
  *  invoking [cb(e, ctx)] for each one.  O(N).  Provided for diagnostics
- *  and tests; the verified pop / eject ops are the right tool for
+ *  and tests; repeated pop / eject is the bounded-shape API for
  *  in-order consumption in production code. */
 typedef void (*kt_walk_cb)(kt_elem e, void* ctx);
 void kt_walk(kt_deque d, kt_walk_cb cb, void* ctx);

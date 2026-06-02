@@ -1199,6 +1199,12 @@ Definition pop_chain_full {A : Type} (c : Chain A)
           (* Top prefix drained: fire make_green from tail. *)
           make_green_pop_chain (ChainCons (PNode B0 Hole suf) c')
       end
+  | ChainCons (PNode pre (PNode pre' i' suf') suf) c' =>
+      match buf5_pop_naive pre with
+      | Some (x, pre_new) =>
+          Some (x, ChainCons (PNode pre_new (PNode pre' i' suf') suf) c')
+      | None => None
+      end
   | _ => None
   end.
 
@@ -1216,6 +1222,12 @@ Definition eject_chain_full {A : Type} (c : Chain A)
           Some (ChainCons (PNode pre Hole suf') c', x)
       | None =>
           make_green_eject_chain (ChainCons (PNode pre Hole B0) c')
+      end
+  | ChainCons (PNode pre (PNode pre' i' suf') suf) c' =>
+      match buf5_eject_naive suf with
+      | Some (suf_new, x) =>
+          Some (ChainCons (PNode pre (PNode pre' i' suf') suf_new) c', x)
+      | None => None
       end
   | _ => None
   end.
@@ -1235,25 +1247,25 @@ Proof.
     unfold chain_to_list. cbn. unfold buf_seq_E. exact Hs.
   - (* ChainCons p c0 *)
     destruct p as [|pre i suf]; [discriminate|].
-    destruct i as [|ipre ii isuf]; [|discriminate].
-    destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp.
-    + (* Naive succeeded *)
+    destruct i as [|ipre ii isuf].
+    + destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp.
+      * (* Naive succeeded *)
+        inversion Heq; subst xp c'; clear Heq.
+        pose proof (@buf5_pop_naive_seq (E.t A) A (E.to_list A) pre x pre' Hp) as Hs.
+        unfold chain_to_list. cbn. unfold buf_seq_E. rewrite Hs.
+        repeat rewrite <- app_assoc. reflexivity.
+      * (* Underflow: fire make_green *)
+        pose proof (@make_green_pop_chain_seq A
+                      (ChainCons (PNode B0 Hole suf) c0) x c' Heq) as Hmg.
+        unfold chain_to_list in *. cbn in Hmg. cbn.
+        unfold buf_seq_E in *. cbn in Hmg.
+        destruct pre as [|py|py pz|py pz pw|py pz pw pu|py pz pw pu pv]; try discriminate.
+        cbn. rewrite ?app_nil_l in Hmg. exact Hmg.
+    + destruct (buf5_pop_naive pre) as [[xp pre']|] eqn:Hp; [|discriminate].
       inversion Heq; subst xp c'; clear Heq.
       pose proof (@buf5_pop_naive_seq (E.t A) A (E.to_list A) pre x pre' Hp) as Hs.
       unfold chain_to_list. cbn. unfold buf_seq_E. rewrite Hs.
       repeat rewrite <- app_assoc. reflexivity.
-    + (* Underflow: fire make_green *)
-      pose proof (@make_green_pop_chain_seq A
-                    (ChainCons (PNode B0 Hole suf) c0) x c' Heq) as Hmg.
-      unfold chain_to_list in *. cbn in Hmg. cbn.
-      unfold buf_seq_E in *. cbn in Hmg.
-      (* We have: chain_seq (ChainCons (PNode B0 Hole suf) c0) =
-         [] ++ chain_seq c0 ++ buf5_seq E.to_list suf = E.to_list x ++ chain_seq c'.
-         Want: buf_seq_E pre ++ chain_seq c0 ++ buf_seq_E suf = E.to_list x ++ chain_seq c'.
-         But pre is non-empty (since buf5_pop_naive pre = None means pre = B0).
-         So pre = B0, buf_seq_E B0 = [], same as the make_green case. *)
-      destruct pre as [|py|py pz|py pz pw|py pz pw pu|py pz pw pu pv]; try discriminate.
-      cbn. rewrite ?app_nil_l in Hmg. exact Hmg.
 Qed.
 
 Lemma eject_chain_full_seq :
@@ -1269,16 +1281,21 @@ Proof.
     pose proof (@buf5_eject_naive_seq (E.t A) A (E.to_list A) b b' xp Hp) as Hs.
     unfold chain_to_list. cbn. unfold buf_seq_E. exact Hs.
   - destruct p as [|pre i suf]; [discriminate|].
-    destruct i as [|ipre ii isuf]; [|discriminate].
-    destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp.
-    + inversion Heq; subst c' xp; clear Heq.
+    destruct i as [|ipre ii isuf].
+    + destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp.
+      * inversion Heq; subst c' xp; clear Heq.
+        pose proof (@buf5_eject_naive_seq (E.t A) A (E.to_list A) suf suf' x Hp) as Hs.
+        unfold chain_to_list. cbn. unfold buf_seq_E. rewrite Hs.
+        repeat rewrite <- app_assoc. reflexivity.
+      * pose proof (@make_green_eject_chain_seq A
+                      (ChainCons (PNode pre Hole B0) c0) c' x Heq) as Hmg.
+        unfold chain_to_list in *. cbn in Hmg. cbn.
+        unfold buf_seq_E in *. cbn in Hmg.
+        destruct suf as [|sy|sy sz|sy sz sw|sy sz sw su|sy sz sw su sv]; try discriminate.
+        cbn. rewrite ?app_nil_r in Hmg |- *. exact Hmg.
+    + destruct (buf5_eject_naive suf) as [[suf' xp]|] eqn:Hp; [|discriminate].
+      inversion Heq; subst c' xp; clear Heq.
       pose proof (@buf5_eject_naive_seq (E.t A) A (E.to_list A) suf suf' x Hp) as Hs.
       unfold chain_to_list. cbn. unfold buf_seq_E. rewrite Hs.
       repeat rewrite <- app_assoc. reflexivity.
-    + pose proof (@make_green_eject_chain_seq A
-                    (ChainCons (PNode pre Hole B0) c0) c' x Heq) as Hmg.
-      unfold chain_to_list in *. cbn in Hmg. cbn.
-      unfold buf_seq_E in *. cbn in Hmg.
-      destruct suf as [|sy|sy sz|sy sz sw|sy sz sw su|sy sz sw su sv]; try discriminate.
-      cbn. rewrite ?app_nil_r in Hmg |- *. exact Hmg.
 Qed.

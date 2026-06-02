@@ -51,7 +51,9 @@ with Stored9 (X : Type) : Type :=
   | StoredBig9   : Buf6 (KElem9 X) ->            (* prefix      *)
                    Buf6 (Stored9 X) ->            (* sm = stored chain *)
                    Buf6 (KElem9 X) ->            (* suffix      *)
-                   Stored9 X.
+                   Stored9 X
+  | StoredMiddle9 : Buf6 (Stored9 X) ->           (* explicit middle chain *)
+                    Stored9 X.
 
 Inductive KCadeque9 (X : Type) : Type :=
   | K9Empty  : KCadeque9 X
@@ -65,6 +67,7 @@ Arguments XBase9        {X} _.
 Arguments XStored9      {X} _.
 Arguments StoredSmall9  {X} _.
 Arguments StoredBig9    {X} _ _ _.
+Arguments StoredMiddle9 {X} _.
 Arguments K9Empty       {X}.
 Arguments K9Simple      {X} _.
 Arguments K9Triple      {X} _ _ _.
@@ -75,6 +78,9 @@ Definition kcad9_empty {X : Type} : KCadeque9 X := K9Empty.
 
 Definition kcad9_singleton {X : Type} (x : X) : KCadeque9 X :=
   K9Simple (mkBuf6 [XBase9 x]).
+
+Definition stored9_middle {X : Type} (sm : Buf6 (Stored9 X)) : Stored9 X :=
+  StoredMiddle9 sm.
 
 (** ** Sequence semantics: flatten the structure to a [list X]. *)
 
@@ -118,6 +124,12 @@ Section to_list9.
               | []      => []
               | e :: es => kelem9_to_list e ++ go es
               end) (buf6_elems suf)
+    | StoredMiddle9 sm =>
+        (fix go_sm (l : list (Stored9 X)) : list X :=
+           match l with
+           | []      => []
+           | s' :: ss => stored9_to_list s' ++ go_sm ss
+           end) (buf6_elems sm)
     end.
 
   (** [kcad9_to_list]: NOT in the mutual recursion (since Stored9
@@ -180,6 +192,16 @@ Example storedbig9_flat :
     = [a; b; c; d].
 Proof. intros; reflexivity. Qed.
 
+Example storedmiddle9_flat :
+  forall (X : Type) (a b c : X),
+    stored9_to_list
+      (StoredMiddle9
+         (mkBuf6
+            [StoredSmall9 (mkBuf6 [XBase9 a; XBase9 b]);
+             StoredSmall9 (mkBuf6 [XBase9 c])]))
+    = [a; b; c].
+Proof. intros; reflexivity. Qed.
+
 (** A K9Triple flattens as h ++ (cells of m, each flattened) ++ t. *)
 Example k9triple_flat :
   forall (X : Type) (a b c d e f : X),
@@ -190,18 +212,10 @@ Example k9triple_flat :
     = [a; b; c; d; e; f].
 Proof. intros; reflexivity. Qed.
 
-(** ** Demonstrations of the structural advantage over Cadeque8.
+(** ** Demonstration of the structural advantage over Cadeque8.
 
-    The (T+T) concat case that breaks Cadeque8 can be encoded
-    here in O(1) without empty-boundary cells.  E.g.:
-
-      Given arg1 = K9Triple h1 m1 t1 and arg2 = K9Triple h2 m2 t2,
-      the concat result is
-        K9Triple h1 (buf6_inject m1 (StoredBig9 t1 m2 h2)) t2
-
-    Under the upcoming [wf_kcad9_strong] (|h|, |t| ≥ 5 and
-    |stored prefix/suffix| ≥ 3):
-      - cell.pre = t1, size ≥ 5 ≥ 3 ✓
-      - cell.sm  = m2 (a flat chain of stored cells)
-      - cell.suf = h2, size ≥ 5 ≥ 3 ✓
-      - All wf.  Single allocation.  O(1).  No empty-suf cell. *)
+    [StoredBig9] keeps the child middle as a flat [Buf6 (Stored9 X)]
+    rather than a nested catenable deque.  The abstract [Ops.v] concat
+    still uses [buf6_concat] for its simple proof surface; the
+    OCaml-shaped constant-work bridge is modeled separately in
+    [Normalize.v]. *)

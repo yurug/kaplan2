@@ -68,6 +68,7 @@ and 'x stored9 =
 | StoredSmall9 of 'x kElem9 KCadequeShim.buf6
 | StoredBig9 of 'x kElem9 KCadequeShim.buf6 * 'x stored9 KCadequeShim.buf6
    * 'x kElem9 KCadequeShim.buf6
+| StoredMiddle9 of 'x stored9 KCadequeShim.buf6
 
 type 'x kCadeque9 =
 | K9Empty
@@ -112,6 +113,11 @@ let kelem9_to_list =
          | [] -> []
          | e :: es -> app (kelem9_to_list0 e) (go es)
          in go (buf6_elems suf)))
+  | StoredMiddle9 sm ->
+    let rec go_sm = function
+    | [] -> []
+    | s' :: ss -> app (stored9_to_list0 s') (go_sm ss)
+    in go_sm (buf6_elems sm)
   in kelem9_to_list0
 
 (** val stored9_to_list : 'a1 stored9 -> 'a1 list **)
@@ -141,6 +147,11 @@ let stored9_to_list =
          | [] -> []
          | e :: es -> app (kelem9_to_list0 e) (go es)
          in go (buf6_elems suf)))
+  | StoredMiddle9 sm ->
+    let rec go_sm = function
+    | [] -> []
+    | s' :: ss -> app (stored9_to_list0 s') (go_sm ss)
+    in go_sm (buf6_elems sm)
   in stored9_to_list0
 
 (** val kcad9_to_list : 'a1 kCadeque9 -> 'a1 list **)
@@ -168,11 +179,83 @@ let kcad9_to_list = function
        | e :: es -> app (kelem9_to_list e) (go es)
        in go (buf6_elems t)))
 
-(** val buf6_concat :
-    'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6 -> 'a1 KCadequeShim.buf6 **)
+(** val stored9_middle :
+    'a1 stored9 KCadequeShim.buf6 -> 'a1 stored9 **)
 
-let buf6_concat a b =
-  KCadequeShim.mkBuf6 (app (buf6_elems a) (buf6_elems b))
+let stored9_middle sm =
+  StoredMiddle9 sm
+
+let k9_middle_push sm rest =
+  if buf6_is_empty sm then rest else buf6_push (StoredMiddle9 sm) rest
+
+let k9_middle_inject rest sm =
+  if buf6_is_empty sm then rest else buf6_inject rest (StoredMiddle9 sm)
+
+let k9_inject_stored_cells rest cells =
+  List.fold_left buf6_inject rest (buf6_elems cells)
+
+let k9_prepend_kelem_cells prefix suffix =
+  List.fold_right buf6_push (buf6_elems prefix) suffix
+
+let rec k9_with_front h m t =
+  if not (buf6_is_empty h)
+  then
+    if buf6_is_empty t
+    then k9_with_back h m t
+    else K9Triple (h, m, t)
+  else
+    match buf6_pop m with
+    | Some p ->
+      let (cell, m_rest) = p in
+      (match cell with
+       | StoredSmall9 b ->
+         if buf6_is_empty b
+         then k9_with_front buf6_empty m_rest t
+         else K9Triple (b, m_rest, t)
+       | StoredBig9 (pre, sm, suf) ->
+         let new_m = k9_middle_push sm (buf6_push (StoredSmall9 suf) m_rest) in
+         if buf6_is_empty pre
+         then k9_with_front buf6_empty new_m t
+         else K9Triple (pre, new_m, t)
+       | StoredMiddle9 sm ->
+         (match buf6_pop sm with
+          | Some p_sm ->
+            let (front_cell, sm_rest) = p_sm in
+            let new_m = buf6_push front_cell (k9_middle_push sm_rest m_rest) in
+            k9_with_front buf6_empty new_m t
+          | None -> k9_with_front buf6_empty m_rest t))
+    | None ->
+      if buf6_is_empty t then K9Empty else K9Simple t
+
+and k9_with_back h m t =
+  if not (buf6_is_empty t)
+  then
+    if buf6_is_empty h
+    then k9_with_front h m t
+    else K9Triple (h, m, t)
+  else
+    match buf6_eject m with
+    | Some p ->
+      let (m_rest, cell) = p in
+      (match cell with
+       | StoredSmall9 b ->
+         if buf6_is_empty b
+         then k9_with_back h m_rest buf6_empty
+         else K9Triple (h, m_rest, b)
+       | StoredBig9 (pre, sm, suf) ->
+         let new_m = k9_middle_inject (buf6_inject m_rest (StoredSmall9 pre)) sm in
+         if buf6_is_empty suf
+         then k9_with_back h new_m buf6_empty
+         else K9Triple (h, new_m, suf)
+       | StoredMiddle9 sm ->
+         (match buf6_eject sm with
+          | Some p_sm ->
+            let (sm_rest, back_cell) = p_sm in
+            let new_m = buf6_inject (k9_middle_inject m_rest sm_rest) back_cell in
+            k9_with_back h new_m buf6_empty
+          | None -> k9_with_back h m_rest buf6_empty))
+    | None ->
+      if buf6_is_empty h then K9Empty else K9Simple h
 
 (** val kcad9_push : 'a1 -> 'a1 kCadeque9 -> 'a1 kCadeque9 **)
 
@@ -198,12 +281,18 @@ let refill_h_K9Triple h' m t =
   | Some p ->
     let (cell, m_rest) = p in
     (match cell with
-     | StoredSmall9 b -> K9Triple ((buf6_concat h' b), m_rest, t)
+     | StoredSmall9 b ->
+       k9_with_front h' (buf6_push (StoredSmall9 b) m_rest) t
      | StoredBig9 (pre, sm, suf) ->
-       let new_h = buf6_concat h' pre in
-       let m_carrying_suf = buf6_push (StoredSmall9 suf) m_rest in
-       let new_m = buf6_concat sm m_carrying_suf in K9Triple (new_h, new_m, t))
-  | None -> K9Simple (buf6_concat h' t)
+       let new_m =
+         buf6_push (StoredSmall9 pre)
+           (k9_middle_push sm
+             (buf6_push (StoredSmall9 suf) m_rest))
+       in
+       k9_with_front h' new_m t
+     | StoredMiddle9 sm ->
+       k9_with_front h' (k9_middle_push sm m_rest) t)
+  | None -> k9_with_front h' buf6_empty t
 
 (** val refill_t_K9Triple :
     'a1 kElem9 KCadequeShim.buf6 -> 'a1 stored9 KCadequeShim.buf6 -> 'a1
@@ -214,12 +303,20 @@ let refill_t_K9Triple h m t' =
   | Some p ->
     let (m_rest, cell) = p in
     (match cell with
-     | StoredSmall9 b -> K9Triple (h, m_rest, (buf6_concat b t'))
+     | StoredSmall9 b ->
+       k9_with_back h (buf6_inject m_rest (StoredSmall9 b)) t'
      | StoredBig9 (pre, sm, suf) ->
-       let new_t = buf6_concat suf t' in
-       let m_carrying_pre = buf6_inject m_rest (StoredSmall9 pre) in
-       let new_m = buf6_concat m_carrying_pre sm in K9Triple (h, new_m, new_t))
-  | None -> K9Simple (buf6_concat h t')
+       let new_m =
+         buf6_inject
+           (k9_middle_inject
+             (buf6_inject m_rest (StoredSmall9 pre))
+             sm)
+           (StoredSmall9 suf)
+       in
+       k9_with_back h new_m t'
+     | StoredMiddle9 sm ->
+       k9_with_back h (k9_middle_inject m_rest sm) t')
+  | None -> k9_with_back h buf6_empty t'
 
 (** val kcad9_pop : 'a1 kCadeque9 -> ('a1 * 'a1 kCadeque9) option **)
 
@@ -279,22 +376,84 @@ let kcad9_eject = function
 
 (** val kcad9_concat : 'a1 kCadeque9 -> 'a1 kCadeque9 -> 'a1 kCadeque9 **)
 
+let kcad9_concat_full_split_open_back_base m1 t1 h2 m2_rest t2 = function
+| StoredSmall9 b ->
+  let cell = StoredBig9 (t1, (buf6_push (StoredSmall9 h2) m2_rest), b) in
+  (buf6_inject m1 cell, t2)
+| StoredBig9 (pre, sm, suf) ->
+  let bridge =
+    StoredBig9 (t1, (buf6_push (StoredSmall9 h2) m2_rest), buf6_empty)
+  in
+  let m_new =
+    k9_inject_stored_cells
+      (buf6_inject (buf6_inject m1 bridge) (StoredSmall9 pre))
+      sm
+  in
+  (m_new, (k9_prepend_kelem_cells suf t2))
+| StoredMiddle9 sm ->
+  let cell =
+    StoredBig9 (t1, (buf6_push (StoredSmall9 h2) m2_rest), buf6_empty)
+  in
+  (buf6_inject (buf6_inject m1 cell) (StoredMiddle9 sm), t2)
+
+let kcad9_concat_full_split_open_back_middle_one m1 t1 h2 m2_rest t2 =
+  function
+  | StoredMiddle9 sm ->
+    (match buf6_eject sm with
+     | Some p ->
+       let (sm_rest, inner_back) = p in
+       kcad9_concat_full_split_open_back_base
+         m1 t1 h2 (k9_middle_inject m2_rest sm_rest) t2 inner_back
+     | None ->
+       let cell =
+         StoredBig9 (t1, (buf6_push (StoredSmall9 h2) m2_rest), buf6_empty)
+       in
+       (buf6_inject m1 cell, t2))
+  | back_cell ->
+    kcad9_concat_full_split_open_back_base m1 t1 h2 m2_rest t2 back_cell
+
+let kcad9_concat_full_split_open_back_middle_two m1 t1 h2 m2_rest t2 =
+  function
+  | StoredMiddle9 sm ->
+    (match buf6_eject sm with
+     | Some p ->
+       let (sm_rest, inner_back) = p in
+       kcad9_concat_full_split_open_back_middle_one
+         m1 t1 h2 (k9_middle_inject m2_rest sm_rest) t2 inner_back
+     | None ->
+       let cell =
+         StoredBig9 (t1, (buf6_push (StoredSmall9 h2) m2_rest), buf6_empty)
+       in
+       (buf6_inject m1 cell, t2))
+  | back_cell ->
+    kcad9_concat_full_split_open_back_base m1 t1 h2 m2_rest t2 back_cell
+
 let kcad9_concat a b =
   match a with
   | K9Empty -> b
   | K9Simple ba ->
     (match b with
      | K9Empty -> a
-     | K9Simple bb -> K9Simple (buf6_concat ba bb)
-     | K9Triple (h2, m2, t2) -> K9Triple ((buf6_concat ba h2), m2, t2))
+     | K9Simple bb -> K9Triple (ba, buf6_empty, bb)
+     | K9Triple (h2, m2, t2) ->
+       K9Triple (ba, (buf6_push (StoredSmall9 h2) m2), t2))
   | K9Triple (h1, m1, t1) ->
     (match b with
      | K9Empty -> a
-     | K9Simple bb -> K9Triple (h1, m1, (buf6_concat t1 bb))
+     | K9Simple bb ->
+       K9Triple (h1, (buf6_inject m1 (StoredSmall9 t1)), bb)
      | K9Triple (h2, m2, t2) ->
-       let cell = StoredSmall9 (buf6_concat t1 h2) in
-       let m_new = buf6_concat (buf6_inject m1 cell) m2 in
-       K9Triple (h1, m_new, t2))
+       let (m_new, t_new) =
+         match buf6_eject m2 with
+         | Some p ->
+           let (m2_rest, back_cell) = p in
+           kcad9_concat_full_split_open_back_middle_two
+             m1 t1 h2 m2_rest t2 back_cell
+         | None ->
+           let cell = StoredBig9 (t1, buf6_empty, h2) in
+           (buf6_inject m1 cell, t2)
+       in
+       K9Triple (h1, m_new, t_new))
 
 type 'x pop_result9 =
 | PopFail9

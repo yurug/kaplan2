@@ -1,7 +1,7 @@
 ---
 id: index
 domain: meta
-last-updated: 2026-05-24
+last-updated: 2026-05-25
 ---
 
 # Knowledge base — index
@@ -84,6 +84,6 @@ kb/
 | **Touch the C side** | `architecture/decisions/adr-0012-packet-aggregation.md`, `adr-0013-diff-link-encoding.md`, `adr-0014-pair-tree-flattening.md`, `../c/README.md` |
 | **Add tests** | `conventions/testing-strategy.md`, `properties/functional.md`, `properties/edge-cases.md`, `spec/error-taxonomy.md` |
 | **Run the bench** | `../ocaml/README.md`, `properties/non-functional.md` |
-| **Prepare a release** | `runbooks/minimum-release-gate.md` |
-| **Review current WC O(1) status** | `reports/wc-o1-verification-audit-2026-05-24.md` |
+| **Prepare a release** | `runbooks/minimum-release-gate.md`, `runbooks/gate-d-top-down-plan.md`, `reports/minimum-release-gate-2026-05-25.md` |
+| **Review current WC O(1) status** | `reports/wc-o1-verification-audit-2026-05-24.md`, `reports/minimum-release-gate-2026-05-25.md` |
 | **Avoid known pitfalls** | `lessons.md` |

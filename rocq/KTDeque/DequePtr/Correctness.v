@@ -58,6 +58,7 @@
 From KTDeque.Common Require Import Prelude FinMapHeap HeapExt Monad
                                     Element CostMonad Buf5 Buf5Ops.
 From KTDeque.DequePtr Require Import Model OpsAbstract Footprint.
+From KTDeque.DequePtr Require OpsKT.
 
 (** ** Sequence preservation for the abstract chain ops. *)
 Theorem push_pkt_seq :
@@ -3504,6 +3505,266 @@ Proof.
            eapply chain_repr_at_persists_strong; [|exact HRtl]. exact HpsHH2.
 Qed.
 
+(** Repaired nested singleton-underflow pop.
+
+    This is the heap-representation counterpart of the bounded
+    [exec_pop_pkt_full_repair_C] branch that fires after popping [B1 a] from a
+    nested top packet.  The theorem deliberately takes the concat result levels
+    as hypotheses; PublicTheorems.v already owns the shape/level facts for
+    [prefix_concat] and [suffix_concat]. *)
+Lemma exec_pop_pkt_full_repair_C_refines_nested_underflow :
+  forall (A : Type) (lover inner_loc ltail : Loc)
+         (a : E.t A)
+         (pre2 suf2 suf1 pre1' pre2' suf2' suf1' : Buf5 (E.t A))
+         (child : Packet A) (c1 : Chain A)
+         (H H' : HeapP (E.t A)) (lroot' : Loc) (n : nat),
+    lookup H lover = Some (mkPCell (B1 a) suf1 (Some inner_loc) (Some ltail)) ->
+    packet_repr_at H (Some inner_loc) (PNode pre2 child suf2) 1 ->
+    chain_repr_at H ltail c1 (2 + packet_depth child) ->
+    well_formed_heap H ->
+    buf_all_at_level 0 pre1' ->
+    buf_all_at_level 0 suf1' ->
+    buf_all_at_level 1 pre2' ->
+    buf_all_at_level 1 suf2' ->
+    @OpsKT.prefix_concat A B0 pre2 = Some (pre1', pre2') ->
+    @OpsKT.suffix_concat A suf2 suf1 = Some (suf2', suf1') ->
+    @exec_pop_pkt_full_repair_C A lover H = Some (H', Some (a, lroot'), n) ->
+    chain_repr H' lroot'
+      (ChainCons (PNode pre1' Hole suf1')
+        (ChainCons (PNode pre2' child suf2') c1)).
+Proof.
+  intros A lover inner_loc ltail a pre2 suf2 suf1
+         pre1' pre2' suf2' suf1' child c1 H H' lroot' n
+         Hlk_top HRpkt HRtl Hwf Hpre1' Hsuf1' Hpre2' Hsuf2'
+         Hpre_concat Hsuf_concat Hexec.
+  pose proof (@packet_repr_at_pnode_inv A H inner_loc pre2 suf2 child 1 HRpkt)
+    as [inner_cell [Hlk_inner [Hf_inner [Hpre_in [Hsuf_in
+         [Htail_in [Hwfp2 [Hwfs2 HRchild]]]]]]]].
+  unfold exec_pop_pkt_full_repair_C, bindC in Hexec.
+  destruct (@read_MC (PCell (E.t A)) lover H) as [[[H0 top_cell] k0]|] eqn:Hr;
+    [|discriminate].
+  unfold read_MC in Hr.
+  rewrite Hlk_top in Hr.
+  inversion Hr; subst H0 top_cell k0; clear Hr.
+  cbn [buf5_pop_naive pcell_pre pcell_inner pcell_suf pcell_tail] in Hexec.
+  destruct (@read_MC (PCell (E.t A)) inner_loc H)
+    as [[[H1 inner_cell_read] k1]|] eqn:Hri; [|discriminate].
+  unfold read_MC in Hri.
+  rewrite Hlk_inner in Hri.
+  inversion Hri; subst H1 inner_cell_read k1; clear Hri.
+  destruct (@OpsKT.prefix_concat A B0 (pcell_pre inner_cell))
+    as [[pre_outer_exec pre_inner_exec]|] eqn:Hpre_exec; [|discriminate].
+  rewrite Hpre_in in Hpre_exec.
+  rewrite Hpre_concat in Hpre_exec.
+  inversion Hpre_exec; subst pre_outer_exec pre_inner_exec; clear Hpre_exec.
+  destruct (@OpsKT.suffix_concat A (pcell_suf inner_cell) suf1)
+    as [[suf_inner_exec suf_outer_exec]|] eqn:Hsuf_exec; [|discriminate].
+  rewrite Hsuf_in in Hsuf_exec.
+  rewrite Hsuf_concat in Hsuf_exec.
+  inversion Hsuf_exec; subst suf_inner_exec suf_outer_exec; clear Hsuf_exec.
+  cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+  inversion Hexec; subst H' lroot' n; clear Hexec.
+  set (cell_link := mkPCell pre2' suf2' (pcell_inner inner_cell)
+                            (Some ltail)).
+  set (H1 := freeze (next_loc H) (snd (alloc cell_link H))).
+  set (cell_top := mkPCell pre1' suf1' (None : option Loc)
+                           (Some (next_loc H))).
+  set (H2 := freeze (next_loc H1) (snd (alloc cell_top H1))).
+  assert (Hne : next_loc H <> next_loc H1).
+  { unfold H1. rewrite next_loc_alloc_freeze. apply Pos.succ_discr. }
+  assert (Hlk_topnew : lookup H2 (next_loc H1) = Some cell_top).
+  { unfold H2. apply lookup_alloc_freeze_self. }
+  assert (Hlk_linknew : lookup H2 (next_loc H) = Some cell_link).
+  { unfold H2. rewrite lookup_alloc_freeze_other by exact Hne.
+    unfold H1. apply lookup_alloc_freeze_self. }
+  assert (Hf_topnew : is_frozen H2 (next_loc H1) = true).
+  { unfold H2. apply is_frozen_alloc_freeze_self. }
+  assert (Hf_linknew : is_frozen H2 (next_loc H) = true).
+  { unfold H2. apply is_frozen_alloc_freeze_preserves.
+    unfold H1. apply is_frozen_alloc_freeze_self. }
+  assert (HpsHH2 : persists_strong H H2).
+  { unfold H2. eapply persists_strong_trans.
+    { unfold H1. eapply persists_strong_trans.
+      { eapply alloc_persists_strong. exact Hwf. }
+      apply freeze_persists_strong. }
+    eapply persists_strong_trans.
+    { eapply alloc_persists_strong.
+      unfold H1. apply freeze_well_formed.
+      apply alloc_well_formed. exact Hwf. }
+    apply freeze_persists_strong. }
+  unfold chain_repr.
+  eapply chain_repr_cons_at with (ltail := next_loc H).
+  - exact Hlk_topnew.
+  - exact Hf_topnew.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - exact Hpre1'.
+  - exact Hsuf1'.
+  - destruct child as [|child_pre child_inner child_suf].
+    + assert (Hpci_none : pcell_inner inner_cell = None)
+        by (inversion HRchild; reflexivity).
+      eapply chain_repr_cons_at with (ltail := ltail).
+      * exact Hlk_linknew.
+      * exact Hf_linknew.
+      * reflexivity.
+      * reflexivity.
+      * unfold cell_link. cbn. exact Hpci_none.
+      * reflexivity.
+      * exact Hpre2'.
+      * exact Hsuf2'.
+      * eapply chain_repr_at_persists_strong; [|exact HRtl].
+        exact HpsHH2.
+    + remember (pcell_inner inner_cell) as ic_inner eqn:Heq_ic.
+      destruct ic_inner as [inner2_loc|].
+      2:{ exfalso. inversion HRchild. }
+      eapply chain_repr_nested_cons_at
+        with (ltail := ltail) (inner_loc := inner2_loc).
+      * exact Hlk_linknew.
+      * exact Hf_linknew.
+      * reflexivity.
+      * reflexivity.
+      * unfold cell_link. cbn. reflexivity.
+      * reflexivity.
+      * exact Hpre2'.
+      * exact Hsuf2'.
+      * eapply packet_repr_at_persists_strong; [exact HpsHH2|].
+        exact HRchild.
+      * replace (S (S 1) + packet_depth child_inner)
+          with (2 + packet_depth (PNode child_pre child_inner child_suf))
+          by (cbn; lia).
+        eapply chain_repr_at_persists_strong; [|exact HRtl].
+        exact HpsHH2.
+Qed.
+
+(** Repaired nested singleton-underflow eject, symmetric to the pop bridge. *)
+Lemma exec_eject_pkt_full_repair_C_refines_nested_underflow :
+  forall (A : Type) (lover inner_loc ltail : Loc)
+         (a : E.t A)
+         (pre1 pre2 suf2 pre1' pre2' suf2' suf1' : Buf5 (E.t A))
+         (child : Packet A) (c1 : Chain A)
+         (H H' : HeapP (E.t A)) (lroot' : Loc) (n : nat),
+    lookup H lover = Some (mkPCell pre1 (B1 a) (Some inner_loc) (Some ltail)) ->
+    packet_repr_at H (Some inner_loc) (PNode pre2 child suf2) 1 ->
+    chain_repr_at H ltail c1 (2 + packet_depth child) ->
+    well_formed_heap H ->
+    buf_all_at_level 0 pre1' ->
+    buf_all_at_level 0 suf1' ->
+    buf_all_at_level 1 pre2' ->
+    buf_all_at_level 1 suf2' ->
+    @OpsKT.prefix_concat A pre1 pre2 = Some (pre1', pre2') ->
+    @OpsKT.suffix_concat A suf2 B0 = Some (suf2', suf1') ->
+    @exec_eject_pkt_full_repair_C A lover H = Some (H', Some (lroot', a), n) ->
+    chain_repr H' lroot'
+      (ChainCons (PNode pre1' Hole suf1')
+        (ChainCons (PNode pre2' child suf2') c1)).
+Proof.
+  intros A lover inner_loc ltail a pre1 pre2 suf2
+         pre1' pre2' suf2' suf1' child c1 H H' lroot' n
+         Hlk_top HRpkt HRtl Hwf Hpre1' Hsuf1' Hpre2' Hsuf2'
+         Hpre_concat Hsuf_concat Hexec.
+  pose proof (@packet_repr_at_pnode_inv A H inner_loc pre2 suf2 child 1 HRpkt)
+    as [inner_cell [Hlk_inner [Hf_inner [Hpre_in [Hsuf_in
+         [Htail_in [Hwfp2 [Hwfs2 HRchild]]]]]]]].
+  unfold exec_eject_pkt_full_repair_C, bindC in Hexec.
+  destruct (@read_MC (PCell (E.t A)) lover H) as [[[H0 top_cell] k0]|] eqn:Hr;
+    [|discriminate].
+  unfold read_MC in Hr.
+  rewrite Hlk_top in Hr.
+  inversion Hr; subst H0 top_cell k0; clear Hr.
+  cbn [buf5_eject_naive pcell_pre pcell_inner pcell_suf pcell_tail] in Hexec.
+  destruct (@read_MC (PCell (E.t A)) inner_loc H)
+    as [[[H1 inner_cell_read] k1]|] eqn:Hri; [|discriminate].
+  unfold read_MC in Hri.
+  rewrite Hlk_inner in Hri.
+  inversion Hri; subst H1 inner_cell_read k1; clear Hri.
+  destruct (@OpsKT.prefix_concat A pre1 (pcell_pre inner_cell))
+    as [[pre_outer_exec pre_inner_exec]|] eqn:Hpre_exec; [|discriminate].
+  rewrite Hpre_in in Hpre_exec.
+  rewrite Hpre_concat in Hpre_exec.
+  inversion Hpre_exec; subst pre_outer_exec pre_inner_exec; clear Hpre_exec.
+  destruct (@OpsKT.suffix_concat A (pcell_suf inner_cell) B0)
+    as [[suf_inner_exec suf_outer_exec]|] eqn:Hsuf_exec; [|discriminate].
+  rewrite Hsuf_in in Hsuf_exec.
+  rewrite Hsuf_concat in Hsuf_exec.
+  inversion Hsuf_exec; subst suf_inner_exec suf_outer_exec; clear Hsuf_exec.
+  cbv [alloc_freeze_MC bindC alloc_MC freeze_MC retC] in Hexec.
+  inversion Hexec; subst H' lroot' n; clear Hexec.
+  set (cell_link := mkPCell pre2' suf2' (pcell_inner inner_cell)
+                            (Some ltail)).
+  set (H1 := freeze (next_loc H) (snd (alloc cell_link H))).
+  set (cell_top := mkPCell pre1' suf1' (None : option Loc)
+                           (Some (next_loc H))).
+  set (H2 := freeze (next_loc H1) (snd (alloc cell_top H1))).
+  assert (Hne : next_loc H <> next_loc H1).
+  { unfold H1. rewrite next_loc_alloc_freeze. apply Pos.succ_discr. }
+  assert (Hlk_topnew : lookup H2 (next_loc H1) = Some cell_top).
+  { unfold H2. apply lookup_alloc_freeze_self. }
+  assert (Hlk_linknew : lookup H2 (next_loc H) = Some cell_link).
+  { unfold H2. rewrite lookup_alloc_freeze_other by exact Hne.
+    unfold H1. apply lookup_alloc_freeze_self. }
+  assert (Hf_topnew : is_frozen H2 (next_loc H1) = true).
+  { unfold H2. apply is_frozen_alloc_freeze_self. }
+  assert (Hf_linknew : is_frozen H2 (next_loc H) = true).
+  { unfold H2. apply is_frozen_alloc_freeze_preserves.
+    unfold H1. apply is_frozen_alloc_freeze_self. }
+  assert (HpsHH2 : persists_strong H H2).
+  { unfold H2. eapply persists_strong_trans.
+    { unfold H1. eapply persists_strong_trans.
+      { eapply alloc_persists_strong. exact Hwf. }
+      apply freeze_persists_strong. }
+    eapply persists_strong_trans.
+    { eapply alloc_persists_strong.
+      unfold H1. apply freeze_well_formed.
+      apply alloc_well_formed. exact Hwf. }
+    apply freeze_persists_strong. }
+  unfold chain_repr.
+  eapply chain_repr_cons_at with (ltail := next_loc H).
+  - exact Hlk_topnew.
+  - exact Hf_topnew.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - reflexivity.
+  - exact Hpre1'.
+  - exact Hsuf1'.
+  - destruct child as [|child_pre child_inner child_suf].
+    + assert (Hpci_none : pcell_inner inner_cell = None)
+        by (inversion HRchild; reflexivity).
+      eapply chain_repr_cons_at with (ltail := ltail).
+      * exact Hlk_linknew.
+      * exact Hf_linknew.
+      * reflexivity.
+      * reflexivity.
+      * unfold cell_link. cbn. exact Hpci_none.
+      * reflexivity.
+      * exact Hpre2'.
+      * exact Hsuf2'.
+      * eapply chain_repr_at_persists_strong; [|exact HRtl].
+        exact HpsHH2.
+    + remember (pcell_inner inner_cell) as ic_inner eqn:Heq_ic.
+      destruct ic_inner as [inner2_loc|].
+      2:{ exfalso. inversion HRchild. }
+      eapply chain_repr_nested_cons_at
+        with (ltail := ltail) (inner_loc := inner2_loc).
+      * exact Hlk_linknew.
+      * exact Hf_linknew.
+      * reflexivity.
+      * reflexivity.
+      * unfold cell_link. cbn. reflexivity.
+      * reflexivity.
+      * exact Hpre2'.
+      * exact Hsuf2'.
+      * eapply packet_repr_at_persists_strong; [exact HpsHH2|].
+        exact HRchild.
+      * replace (S (S 1) + packet_depth child_inner)
+          with (2 + packet_depth (PNode child_pre child_inner child_suf))
+          by (cbn; lia).
+        eapply chain_repr_at_persists_strong; [|exact HRtl].
+        exact HpsHH2.
+Qed.
+
 (** *** Phase S'''' — make_green refinement lemmas (P3-residual closure).
 
     Dual of the four make_red refinement lemmas above.  The imperative
@@ -4621,10 +4882,9 @@ Proof.
         cbn in Habs. rewrite Hpop in Habs.
         cbn. rewrite Hpop. exact Habs.
       - destruct p as [|pre i suf]; [cbn in Habs; discriminate|].
-        destruct i as [|ipre ii isuf]; [|cbn in Habs; discriminate].
         cbn in Hcell_pre. rewrite Hcell_pre in Hpop.
         cbn in Habs. rewrite Hpop in Habs.
-        cbn. rewrite Hpop. exact Habs. }
+        destruct i as [|ipre ii isuf]; cbn in Habs |- *; rewrite Hpop; exact Habs. }
     (* Now reduce to Goal A. *)
     eapply exec_pop_pkt_C_refines_pop_chain; [exact HR | exact Hwf | | exact Hpop_chain].
     unfold exec_pop_pkt_C, bindC.
@@ -4644,8 +4904,9 @@ Proof.
         subst b.
         cbn in Habs. discriminate.
       * destruct p as [|pre i suf]; [cbn in Habs; discriminate|].
-        destruct i as [|ipre ii isuf]; [|cbn in Habs; discriminate].
         cbn in Hcell_pre. rewrite Hpcp_b0 in Hcell_pre. subst pre.
+        destruct i as [|ipre ii isuf].
+        2: { cbn in Habs. discriminate. }
         assert (Habs_mg : make_green_pop_chain
                             (ChainCons (PNode B0 Hole suf) c0) = Some (x, c')).
         { cbn in Habs. exact Habs. }
@@ -4719,9 +4980,9 @@ Proof.
           rewrite Hlk_e in Hlk_top. inversion Hlk_top; subst cell_e.
           rewrite Htail_e in Htail. discriminate.
         - destruct p as [|pre i suf]; [cbn in Habs; discriminate|].
-          destruct i as [|ipre ii isuf]; [|cbn in Habs; discriminate].
           cbn in Hcell_suf. rewrite Hcell_suf in Hej.
-          cbn in Habs. rewrite Hej in Habs. cbn. rewrite Hej. exact Habs. }
+          cbn in Habs. rewrite Hej in Habs.
+          destruct i as [|ipre ii isuf]; cbn in Habs |- *; rewrite Hej; exact Habs. }
       eapply exec_eject_pkt_C_refines_eject_chain;
         [exact HR | exact Hwf | | exact Heject_chain].
       unfold exec_eject_pkt_C, bindC.
@@ -4739,8 +5000,9 @@ Proof.
         rewrite Hlk_e in Hlk_top. inversion Hlk_top; subst cell_e.
         rewrite Htail_e in Htail. discriminate.
       * destruct p as [|pre i suf]; [cbn in Habs; discriminate|].
-        destruct i as [|ipre ii isuf]; [|cbn in Habs; discriminate].
         cbn in Hcell_suf. rewrite Hsuf_b0 in Hcell_suf. subst suf.
+        destruct i as [|ipre ii isuf].
+        2: { cbn in Habs. discriminate. }
         (* Habs becomes: eject_chain_full (ChainCons (PNode pre Hole B0) c0)
            = Some (c', x), which (since buf5_eject_naive B0 = None) is
            make_green_eject_chain (ChainCons (PNode pre Hole B0) c0)
@@ -4807,11 +5069,15 @@ Proof.
           cbn in Habs. rewrite Hej in Habs. cbn. rewrite Hej. exact Habs.
         - (* ChainCons: but pcell_tail = None ⇒ contradicts cons cell having tail. *)
           destruct p as [|pre i suf]; [cbn in Habs; discriminate|].
-          destruct i as [|ipre ii isuf]; [|cbn in Habs; discriminate].
-          apply chain_repr_cons_inv in HR.
-          destruct HR as [cell_c [ltail_c [Hlk_c [_ [_ [_ [Htail_c [_ [_ _]]]]]]]]].
-          rewrite Hlk_c in Hlk_top. inversion Hlk_top; subst cell_c.
-          rewrite Htail_c in Htail. discriminate. }
+          destruct i as [|ipre ii isuf].
+          + apply chain_repr_cons_inv in HR.
+            destruct HR as [cell_c [ltail_c [Hlk_c [_ [_ [_ [Htail_c [_ [_ _]]]]]]]]].
+            rewrite Hlk_c in Hlk_top. inversion Hlk_top; subst cell_c.
+            rewrite Htail_c in Htail. discriminate.
+          + apply chain_repr_cons_inv_nested in HR.
+            destruct HR as [cell_c [ltail_c [inner_loc [Hlk_c [_ [_ [_ [Htail_c _]]]]]]]].
+            rewrite Hlk_c in Hlk_top. inversion Hlk_top; subst cell_c.
+            rewrite Htail_c in Htail. discriminate. }
       eapply exec_eject_pkt_C_refines_eject_chain;
         [exact HR | exact Hwf | | exact Heject_chain].
       unfold exec_eject_pkt_C, bindC.
