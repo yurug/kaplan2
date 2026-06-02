@@ -1,11 +1,22 @@
 ---
 id: minimum-release-gate
 domain: verification
-status: active
-last-updated: 2026-05-29
+status: superseded
+superseded-by: honest-audit-2026-06-02
+last-updated: 2026-06-02
 ---
 
 # Minimum Release Gate
+
+> **SUPERSEDED (2026-06-02).** This runbook became an append-only history log of
+> the WC O(1) invariant search, and its "closed/partial" labels read stronger
+> than the formal statements: the Gate-B per-operation cost theorem is
+> *conditional* on an unproven reachable-state invariant, and the Gate-D cost
+> theorem is *restricted* to `concat(catenable, simple)`. For the authoritative
+> status read [`../reports/honest-audit-2026-06-02.md`](../reports/honest-audit-2026-06-02.md);
+> for the way forward read [`rebuild-plan-2026-06-02.md`](rebuild-plan-2026-06-02.md).
+> The text below is retained as historical context only — do not treat its gate
+> labels as current.
 
 This runbook turns the WC O(1) audit into a concrete release plan. It is stricter
 than "tests pass": a release candidate must have a mechanically inspectable path
