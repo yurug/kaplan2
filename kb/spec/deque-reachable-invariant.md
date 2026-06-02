@@ -142,12 +142,15 @@ ingredients**, all abstract-chain predicates:
    push on a `Green` link needs prefix `∈ {B2,B3}`; on a `Yellow` link needs
    prefix `∈ {B1..B4}`.
 3. **`well_leveled c`** — at chain-depth `k`, every element in the level-`k`
-   buffers has `E.level = k`. *This is the ingredient my first hypothesis
-   missed.* The repair's buffer-concat ops (`green_prefix_concat` etc.,
-   `OpsKT.v:408`) re-pair the overflow via `E.pair`, which requires
-   `E.level c = E.level d` (`OpsKT.v:423`) and `E.unpair` to succeed — pure
-   level conditions, exactly what the old `kt4_*_packet_view_ready` predicates
-   (`PublicTheorems.v:679`) were grasping at.
+   buffers has `E.level = k`, **and if `k > 0` it is unpairable**
+   (`∃ x y, E.unpair e = Some (x,y)`). *This is the ingredient my first
+   hypothesis missed.* The repair's buffer-concat ops (`green_prefix_concat`
+   etc., `OpsKT.v:408`) re-pair the overflow via `E.pair` — needing
+   `E.level c = E.level d` (`OpsKT.v:423`), from the level clause — and in the
+   underflow arm `E.unpair` the popped deep element, needing the unpairability
+   clause. (Reuses Model.v's existing `buf_all_at_level`/`packet_levels`/
+   `chain_levels` for the level part, lifted to `KChain`.) This is what the old
+   `kt4_*_packet_view_ready` predicates (`PublicTheorems.v:679`) were grasping at.
 
 `I_kt c ≜ regular_kt c ∧ colors_consistent c ∧ well_leveled c`.
 
@@ -187,25 +190,24 @@ just the top), and `well_leveled` gives the second. Hence:
 5. `deque_wc_o1`, then a `Print Assumptions` audit; the new gate checks
    `deque_wc_o1` itself.
 
-### Element-interface check (resolved 2026-06-02)
+### Element-interface check (resolved 2026-06-02 — corrected)
 Ingredient 3 (`well_leveled`) interacts with `Common/Element.v`. Status after
-reading the `ELEMENT` module type:
-- **Overflow direction — covered.** `green_of_red_k`'s overflow arms need
-  `E.level c = E.level d` for the ejected pair (`OpsKT.v:423`). From
-  `well_leveled` (both elements at the same level `k`) this is immediate, and
-  `level_pair` gives the re-paired element level `k+1`. The existing
-  `unpair_level` (`Element.v:247`) handles the reverse relation.
-- **Underflow direction — needs ONE new law.** The underflow arms `green_pop`
-  then `E.unpair` the popped element (`OpsKT.v:413–417`); they need a
-  *positive-level element to actually unpair*. The `ELEMENT` module type has
-  `unpair_base` (level 0 → `None`) and `unpair_pair` (a `pair` → `Some`) but
-  **no** `level e = S l → ∃ x y, unpair e = Some (x,y) ∧ level x = l`. Both
-  instances satisfy it (`ElementTree`: `existT (S l') _` always unpairs;
-  `ElementFlat`: `XF1/XF2`, and `XFP` under matching levels which `well_leveled`
-  guarantees), so it is a sound interface strengthening.
+reading the `ELEMENT` module type **and both instances**:
+- **Overflow direction — covered by the existing interface.** The overflow arms
+  need `E.level c = E.level d` for the ejected pair (`OpsKT.v:423`); the level
+  clause of `well_leveled` gives it, and `level_pair` gives the re-paired
+  element level `k+1`. `unpair_level` (`Element.v:247`) handles the reverse.
+- **Underflow direction — do NOT add an `ELEMENT` axiom.** First instinct was to
+  add `level e = S l → ∃ x y, unpair e = Some …` to the module type. **That is
+  false for `ElementFlat`:** an `XFP l r` with `level l ≠ level r` has positive
+  `level` but `unpair = None` (the `Nat.eq_dec` guard, `Element.v:343–347`). So
+  it is not a theorem of every instance and must not be an axiom.
 
-**Action:** add `Axiom unpair_total_of_pos_level` to the `ELEMENT` module type and
-discharge it in both instances. This is a deliberate, minimal interface addition
-(not an unproven assumption) — flag it explicitly in the Gate-B audit so the
-axiom count stays honest. With it, the buffer-op totality lemmas go through and
-`I_kt` is push-closed.
+**Resolution:** put unpairability **in the invariant**, not the interface.
+`well_leveled` requires depth-`k` (`k>0`) buffer elements to be unpairable
+(clause 3 above). This is sound because every deep element the algorithm ever
+stores is produced by `E.pair`, which `unpair_pair` makes unpairable — so the
+property is *preserved* by the ops and need not be assumed of arbitrary elements.
+**No `ELEMENT` change; no new axiom.** (Catching this required checking the
+instances, not just the module type — exactly the value of validating before
+proving.)
