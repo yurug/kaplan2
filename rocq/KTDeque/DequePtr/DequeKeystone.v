@@ -195,16 +195,6 @@ Qed.
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
-(** The single abstract obligation all four totality facts reduce to.
-    [colors_consistent] supplies [kt4_total_state]'s top-level colour-shape
-    clauses; [well_leveled] + the existing
-    [green_of_red_k_total_under_ready_levels] supply the B4/B1 repair-success
-    clauses.  The hard residue is the Case-2 green-readiness of the tail below a
-    Hole-inner link (the condition the prior [*_ready_state] work circled). *)
-Lemma I_kt_implies_kt4_total_state :
-  forall A (c : KChain A), I_kt c -> kt4_total_state c.
-Proof. Admitted.
-
 Lemma push_kt4_total :
   forall A (x : E.t A) (c : KChain A),
     I_kt c -> E.level A x = 0 -> exists c', push_kt4 x c = PushOk c'.
@@ -291,10 +281,35 @@ Lemma pop_kt4_total :
     I_kt c -> kt4_nonempty_state c -> exists x c', pop_kt4 c = PopOk x c'.
 Proof.
   intros A c HI Hne.
-  apply pop_kt4_total_under_pre.
-  apply kt4_total_state_pop_pre.
-  - apply I_kt_implies_kt4_total_state. exact HI.
-  - exact Hne.
+  destruct HI as [Hreg [Hcc Hwl]].
+  destruct c as [b | col [|pre i suf] tail].
+  - destruct b; cbn in Hne; try contradiction;
+      cbn -[yellow_wrap_pr green_of_red_k]; repeat eexists; reflexivity.
+  - cbn in Hcc; contradiction.
+  - destruct col.
+    + (* Green: pre B2/B3 *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [_Hpkt Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole Htail]]].
+      destruct pre; destruct Hshape as [Hp _Hs]; cbn in Hp; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k];
+        (edestruct yellow_wrap_pr_total as [crep Hrep];
+         [ eapply yellow_wrap_pr_total_pre_of_consistent; [exact Htail | exact Hwltail]
+         | rewrite Hrep; repeat eexists; reflexivity ]).
+    + (* Yellow: B2/B3/B4 direct; B1 fires one bounded repair *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole _Htail]]].
+      destruct pre; destruct Hshape as [Hp _Hs]; cbn in Hp; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k].
+      * edestruct yellow_pop_red_repair_witness_from_ready as [crep Hrep].
+        -- exact Hpkt.
+        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- rewrite Hrep. repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+    + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
 Lemma pop_kt4_preserves_I_kt :
@@ -307,10 +322,35 @@ Lemma eject_kt4_total :
     I_kt c -> kt4_nonempty_state c -> exists x c', eject_kt4 c = PopOk x c'.
 Proof.
   intros A c HI Hne.
-  apply eject_kt4_total_under_pre.
-  apply kt4_total_state_eject_pre.
-  - apply I_kt_implies_kt4_total_state. exact HI.
-  - exact Hne.
+  destruct HI as [Hreg [Hcc Hwl]].
+  destruct c as [b | col [|pre i suf] tail].
+  - destruct b; cbn in Hne; try contradiction;
+      cbn -[yellow_wrap_pr green_of_red_k]; repeat eexists; reflexivity.
+  - cbn in Hcc; contradiction.
+  - destruct col.
+    + (* Green: suf B2/B3 *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [_Hpkt Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole Htail]]].
+      destruct suf; destruct Hshape as [_Hp Hs]; cbn in Hs; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k];
+        (edestruct yellow_wrap_pr_total as [crep Hrep];
+         [ eapply yellow_wrap_pr_total_pre_of_consistent; [exact Htail | exact Hwltail]
+         | rewrite Hrep; repeat eexists; reflexivity ]).
+    + (* Yellow: suf B2/B3/B4 direct; B1 fires one bounded repair *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole _Htail]]].
+      destruct suf; destruct Hshape as [_Hp Hs]; cbn in Hs; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k].
+      * edestruct yellow_eject_red_repair_witness_from_ready as [crep Hrep].
+        -- exact Hpkt.
+        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- rewrite Hrep. repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+      * repeat eexists; reflexivity.
+    + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
 Lemma eject_kt4_preserves_I_kt :
