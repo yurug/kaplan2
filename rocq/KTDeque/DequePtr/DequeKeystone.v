@@ -147,13 +147,13 @@ Qed.
 
 (** Lift context-readiness to [green_of_red_k_ready_at] for any prefix buffer. *)
 Lemma ready_at_of_consistent :
-  forall A k col (pre pre' : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
-         (tail : KChain A),
+  forall A k col (pre pre' : Buf5 (E.t A)) (i : Packet A)
+         (suf suf' : Buf5 (E.t A)) (tail : KChain A),
     colors_consistent (KCons col (PNode pre i suf) tail) ->
     well_leveled_at k (KCons col (PNode pre i suf) tail) ->
-    green_of_red_k_ready_at k (PNode pre' i suf) tail.
+    green_of_red_k_ready_at k (PNode pre' i suf') tail.
 Proof.
-  intros A k col pre pre' i suf tail Hcc Hwl.
+  intros A k col pre pre' i suf suf' tail Hcc Hwl.
   apply green_of_red_k_ready_at_from_context.
   eapply context_ready_of_consistent; eassumption.
 Qed.
@@ -248,12 +248,37 @@ Proof. Admitted.
 
 Lemma inject_kt4_total :
   forall A (c : KChain A) (x : E.t A),
-    I_kt c -> exists c', inject_kt4 c x = PushOk c'.
+    I_kt c -> E.level A x = 0 -> exists c', inject_kt4 c x = PushOk c'.
 Proof.
-  intros A c x HI.
-  apply inject_kt4_total_under_pre.
-  apply kt4_total_state_inject_pre.
-  apply I_kt_implies_kt4_total_state. exact HI.
+  intros A c x HI Hx.
+  destruct HI as [Hreg [Hcc Hwl]].
+  destruct c as [b | col [|pre i suf] tail].
+  - destruct b; cbn -[yellow_wrap_pr green_of_red_k]; eexists; reflexivity.
+  - cbn in Hcc; contradiction.
+  - destruct col.
+    + (* Green: suf is B2/B3 *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [_Hpkt Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole Htail]]].
+      destruct suf; destruct Hshape as [_Hp Hs]; cbn in Hs; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k];
+        (eapply yellow_wrap_pr_total;
+         eapply yellow_wrap_pr_total_pre_of_consistent; [exact Htail | exact Hwltail]).
+    + (* Yellow: suf B1/B2/B3 direct; B4 fires one bounded repair *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole _Htail]]].
+      destruct suf; destruct Hshape as [_Hp Hs]; cbn in Hs; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k].
+      * eexists; reflexivity.
+      * eexists; reflexivity.
+      * eexists; reflexivity.
+      * edestruct yellow_inject_red_repair_witness_from_ready as [crep Hrep].
+        -- exact Hx.
+        -- exact Hpkt.
+        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- rewrite Hrep. eexists; reflexivity.
+    + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
 Lemma inject_kt4_preserves_I_kt :
@@ -313,12 +338,12 @@ Qed.
 
 Theorem deque_wc_o1_inject :
   forall A (c : KChain A) (x : E.t A),
-    I_kt c ->
+    I_kt c -> E.level A x = 0 ->
     exists c',
       inject_kt4 c x = PushOk c' /\ I_kt c' /\ inject_kt4_green_calls c x <= 1.
 Proof.
-  intros A c x HI.
-  destruct (@inject_kt4_total A c x HI) as [c' Hc'].
+  intros A c x HI Hx.
+  destruct (@inject_kt4_total A c x HI Hx) as [c' Hc'].
   exists c'. split; [exact Hc'|]. split.
   - exact (@inject_kt4_preserves_I_kt A c c' x HI Hc').
   - apply inject_kt4_green_calls_le_1.
