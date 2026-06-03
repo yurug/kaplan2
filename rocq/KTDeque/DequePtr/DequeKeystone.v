@@ -177,6 +177,20 @@ Proof.
     + eapply ready_at_of_consistent; eassumption.
 Qed.
 
+(** The Green-link push precondition: a consistent well-levelled tail is
+    [yellow_wrap_pr]-ready (repairable if Red-topped). *)
+Lemma yellow_wrap_pr_total_pre_of_consistent :
+  forall A k (tail : KChain A),
+    colors_consistent tail ->
+    well_leveled_at k tail ->
+    yellow_wrap_pr_total_pre tail.
+Proof.
+  intros A k tail Hcc Hwl.
+  destruct tail as [b | col p tail']; cbn -[green_of_red_k]; [exact I|].
+  destruct col; cbn -[green_of_red_k]; [exact I | exact I |].
+  eapply green_of_red_k_some_of_consistent; [exact Hcc | exact Hwl | reflexivity].
+Qed.
+
 (* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
