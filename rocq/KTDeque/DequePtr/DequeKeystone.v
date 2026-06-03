@@ -228,8 +228,43 @@ Proof.
   intros A k p1 mid s1 Hp1 Hmid Hs1.
   destruct p1 as [a1|]; destruct mid as [[a2 b2]|]; destruct s1 as [a3|];
     cbn in Hp1, Hmid, Hs1 |- *;
-    try (destruct Hmid as [Hmid1 Hmid2]);
+    try (destruct Hmid);
     constructor; cbn; repeat split; auto.
+Qed.
+
+Lemma buffer_push_chain_levels :
+  forall A k (x : E.t A) (b : Buf5 (E.t A)),
+    E.level A x = k -> buf_all_at_level k b ->
+    chain_levels k (buffer_push_chain x b).
+Proof.
+  intros A k x b Hx Hb.
+  destruct b; cbn in Hb |- *;
+    repeat match goal with H : _ /\ _ |- _ => destruct H end;
+    repeat constructor; cbn in *; auto.
+Qed.
+
+Lemma buffer_inject_chain_levels :
+  forall A k (x : E.t A) (b : Buf5 (E.t A)),
+    E.level A x = k -> buf_all_at_level k b ->
+    chain_levels k (buffer_inject_chain b x).
+Proof.
+  intros A k x b Hx Hb.
+  destruct b; cbn in Hb |- *;
+    repeat match goal with H : _ /\ _ |- _ => destruct H end;
+    repeat constructor; cbn in *; auto.
+Qed.
+
+Lemma buffer_unsandwich_levels :
+  forall A k (b : Buf5 (E.t A)),
+    buf_all_at_level k b ->
+    match buffer_unsandwich b with
+    | BS_alone None => True
+    | BS_alone (Some x) => E.level A x = k
+    | BS_sandwich a rest c =>
+        E.level A a = k /\ buf_all_at_level k rest /\ E.level A c = k
+    end.
+Proof.
+  intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
 Qed.
 
 (* ========================================================================== *)
