@@ -207,12 +207,38 @@ Proof. Admitted.
 
 Lemma push_kt4_total :
   forall A (x : E.t A) (c : KChain A),
-    I_kt c -> exists c', push_kt4 x c = PushOk c'.
+    I_kt c -> E.level A x = 0 -> exists c', push_kt4 x c = PushOk c'.
 Proof.
-  intros A x c HI.
-  apply push_kt4_total_under_pre.
-  apply kt4_total_state_push_pre.
-  apply I_kt_implies_kt4_total_state. exact HI.
+  intros A x c HI Hx.
+  destruct HI as [Hreg [Hcc Hwl]].
+  destruct c as [b | col [|pre i suf] tail].
+  - destruct b; cbn -[yellow_wrap_pr green_of_red_k]; eexists; reflexivity.
+  - cbn in Hcc; contradiction.
+  - destruct col.
+    + (* Green: pre is B2/B3; push goes through yellow_wrap_pr *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [_Hpkt Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole Htail]]].
+      destruct pre; destruct Hshape as [Hp _Hs]; cbn in Hp; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k];
+        (eapply yellow_wrap_pr_total;
+         eapply yellow_wrap_pr_total_pre_of_consistent; [exact Htail | exact Hwltail]).
+    + (* Yellow: B1/B2/B3 direct; B4 fires one bounded repair *)
+      pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _Hwltail].
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [Hshape [_Hyr [_Hihole _Htail]]].
+      destruct pre; destruct Hshape as [Hp _Hs]; cbn in Hp; try contradiction;
+        cbn -[yellow_wrap_pr green_of_red_k].
+      * eexists; reflexivity.
+      * eexists; reflexivity.
+      * eexists; reflexivity.
+      * edestruct yellow_push_red_repair_witness_from_ready as [crep Hrep].
+        -- exact Hx.
+        -- exact Hpkt.
+        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- rewrite Hrep. eexists; reflexivity.
+    + (* Red top contradicts regular_kt_top *)
+      destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
 Lemma push_kt4_preserves_I_kt :
@@ -274,12 +300,12 @@ Proof. Admitted.
 
 Theorem deque_wc_o1_push :
   forall A (x : E.t A) (c : KChain A),
-    I_kt c ->
+    I_kt c -> E.level A x = 0 ->
     exists c',
       push_kt4 x c = PushOk c' /\ I_kt c' /\ push_kt4_green_calls x c <= 1.
 Proof.
-  intros A x c HI.
-  destruct (@push_kt4_total A x c HI) as [c' Hc'].
+  intros A x c HI Hx.
+  destruct (@push_kt4_total A x c HI Hx) as [c' Hc'].
   exists c'. split; [exact Hc'|]. split.
   - exact (@push_kt4_preserves_I_kt A x c c' HI Hc').
   - apply push_kt4_green_calls_le_1.
