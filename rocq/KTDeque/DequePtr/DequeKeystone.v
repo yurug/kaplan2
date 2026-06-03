@@ -95,10 +95,25 @@ Qed.
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
+(** The single abstract obligation all four totality facts reduce to.
+    [colors_consistent] supplies [kt4_total_state]'s top-level colour-shape
+    clauses; [well_leveled] + the existing
+    [green_of_red_k_total_under_ready_levels] supply the B4/B1 repair-success
+    clauses.  The hard residue is the Case-2 green-readiness of the tail below a
+    Hole-inner link (the condition the prior [*_ready_state] work circled). *)
+Lemma I_kt_implies_kt4_total_state :
+  forall A (c : KChain A), I_kt c -> kt4_total_state c.
+Proof. Admitted.
+
 Lemma push_kt4_total :
   forall A (x : E.t A) (c : KChain A),
     I_kt c -> exists c', push_kt4 x c = PushOk c'.
-Proof. Admitted.
+Proof.
+  intros A x c HI.
+  apply push_kt4_total_under_pre.
+  apply kt4_total_state_push_pre.
+  apply I_kt_implies_kt4_total_state. exact HI.
+Qed.
 
 Lemma push_kt4_preserves_I_kt :
   forall A (x : E.t A) (c c' : KChain A),
@@ -108,7 +123,12 @@ Proof. Admitted.
 Lemma inject_kt4_total :
   forall A (c : KChain A) (x : E.t A),
     I_kt c -> exists c', inject_kt4 c x = PushOk c'.
-Proof. Admitted.
+Proof.
+  intros A c x HI.
+  apply inject_kt4_total_under_pre.
+  apply kt4_total_state_inject_pre.
+  apply I_kt_implies_kt4_total_state. exact HI.
+Qed.
 
 Lemma inject_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
@@ -118,7 +138,13 @@ Proof. Admitted.
 Lemma pop_kt4_total :
   forall A (c : KChain A),
     I_kt c -> kt4_nonempty_state c -> exists x c', pop_kt4 c = PopOk x c'.
-Proof. Admitted.
+Proof.
+  intros A c HI Hne.
+  apply pop_kt4_total_under_pre.
+  apply kt4_total_state_pop_pre.
+  - apply I_kt_implies_kt4_total_state. exact HI.
+  - exact Hne.
+Qed.
 
 Lemma pop_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
@@ -128,7 +154,13 @@ Proof. Admitted.
 Lemma eject_kt4_total :
   forall A (c : KChain A),
     I_kt c -> kt4_nonempty_state c -> exists x c', eject_kt4 c = PopOk x c'.
-Proof. Admitted.
+Proof.
+  intros A c HI Hne.
+  apply eject_kt4_total_under_pre.
+  apply kt4_total_state_eject_pre.
+  - apply I_kt_implies_kt4_total_state. exact HI.
+  - exact Hne.
+Qed.
 
 Lemma eject_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
