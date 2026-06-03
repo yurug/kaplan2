@@ -267,6 +267,30 @@ Proof.
   intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
 Qed.
 
+Lemma suffix_rot_preserves_levels :
+  forall A k (b b' : Buf5 (E.t A)) (x a : E.t A),
+    buf_all_at_level k b -> E.level A x = k ->
+    suffix_rot b x = (a, b') ->
+    E.level A a = k /\ buf_all_at_level k b'.
+Proof.
+  intros A k b b' x a Hb Hx Heq.
+  destruct b; cbn in Hb, Heq |- *;
+    repeat match goal with H : _ /\ _ |- _ => destruct H end;
+    inversion Heq; subst; cbn; repeat split; auto.
+Qed.
+
+Lemma prefix_rot_preserves_levels :
+  forall A k (x : E.t A) (b b' : Buf5 (E.t A)) (last : E.t A),
+    E.level A x = k -> buf_all_at_level k b ->
+    prefix_rot x b = (b', last) ->
+    buf_all_at_level k b' /\ E.level A last = k.
+Proof.
+  intros A k x b b' last Hx Hb Heq.
+  destruct b; cbn in Hb, Heq |- *;
+    repeat match goal with H : _ /\ _ |- _ => destruct H end;
+    inversion Heq; subst; cbn; repeat split; auto.
+Qed.
+
 (* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
