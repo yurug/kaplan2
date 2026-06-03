@@ -54,6 +54,16 @@ Target: `make_small b1 b2 b3 = Some c -> buf_all_at_level k b1 -> buf_all_at_lev
 - `make_small_chain_to_kchain_g_context_ready` (7452) — shows the output-shape reasoning per case (mirror its case structure).
 Need NEW trivial level lemmas: `prefix23` (OpsKT.v:273), `suffix23` (280), `suffix12` (288), `mk_ending_from_options` (594), `buffer_unsandwich` (349), `buffer_push_chain`/`buffer_inject_chain` level-preservation, `buf5_push_naive`/`buf5_inject_naive`/`buf5_pop_naive`/`buf5_eject_naive` (have `buf5_*_preserves_levels` in OpsAbstract.v 211-243). Most simple cases close by cbn + the E.unpair_level/E.level_pair facts (pattern as in `prefix_concat_preserves_outer_green_levels` proof, PT:6512).
 
+## make_small_preserves_levels — ATTEMPT NOTE (2026-06-03)
+A uniform automation that ALSO destructs b2 into 6 => 216 cases x heavy tactics (repeat constructor + lia + E.level_pair rewrites) ran >5 min without finishing — too slow, reverted. DO NOT destruct b2. Instead: `unfold make_small in Hmake`, destruct b1+b3 (36 cases), and in each case handle b2's ONE operation via its helper lemma WITHOUT destructing b2:
+  - (underflow,underflow): `buffer_unsandwich b2` -> `buffer_unsandwich_levels`.
+  - (underflow,ok)/(ok,underflow): `buf5_pop_naive`/`buf5_eject_naive b2` -> `buf5_pop/eject_preserves_levels` (OpsAbstract); `buf5_push/inject_naive` -> `buf5_push/inject_preserves_levels`.
+  - (underflow,overflow)/(overflow,underflow): `suffix_rot`/`prefix_rot` -> `suffix_rot/prefix_rot_preserves_levels`, then `E.unpair` -> `element_unpair_at_s_levels`.
+  - (ok,ok): output `ChainCons (PNode p1' Hole s1') (Ending b2)` directly; p1'/s1' are b1/b3 (level k), b2 level (S k).
+  - (ok,overflow)/(overflow,ok): `buffer_inject_chain`/`buffer_push_chain b2 (E.pair ..)` -> `buffer_*_chain_levels` (the pair is level S k).
+  - (overflow,overflow): `buffer_halve` + `pair_each_buf` -> `pair_each_buf_after_halve_preserves_levels`; `suffix12` -> `suffix12_levels`.
+  Each case: get the component levels from the helper, then prove chain_levels via constructors + `prefix23_levels`/`suffix23_levels`/`mk_ending_from_options_levels`. Keep buffer ops folded with `cbn -[E.pair E.unpair buffer_unsandwich buf5_pop_naive buf5_eject_naive suffix_rot prefix_rot buffer_halve pair_each_buf buffer_push_chain buffer_inject_chain]`. This is ~9 distinct case bodies, fast.
+
 ## make_small_preserves_levels — FOUNDATION COMPLETE (2026-06-03)
 All 10 helper level lemmas proven (Qed) in DequeKeystone.v: `prefix23_levels`, `suffix23_levels`, `suffix12_levels`, `mk_ending_from_options_levels`, `buffer_push_chain_levels`, `buffer_inject_chain_levels`, `buffer_unsandwich_levels`, `suffix_rot_preserves_levels`, `prefix_rot_preserves_levels`, `element_unpair_at_s_levels`. Plus existing reuse: `pair_each_buf_after_halve_preserves_levels` (PT:12127), `buf5_{push,inject,pop,eject}_preserves_levels` (OpsAbstract:211-243), `E.unpair_level`/`E.level_pair`.
 ASSEMBLY RECIPE for `make_small_preserves_levels` (forall k b1 b2 b3 c, level k b1 -> level (S k) b2 -> level k b3 -> make_small b1 b2 b3 = Some c -> chain_levels k c):
