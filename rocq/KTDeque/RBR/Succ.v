@@ -77,17 +77,19 @@ Proof. reflexivity. Qed.
 Example succ_rec_three : succ_rec [Yellow3; Yellow3] = [Green3; Green3; Yellow3].
 Proof. reflexivity. Qed.
 
-Example succ_rec_five : succ_rec [Yellow3; Red3; Green3] = [Green3; Green3; Yellow3].
-Proof.
-  (* val 5 = 1 + 4 + 0 = 5; succ should give 6 = 0 + 2 + 4 = [Green3; Yellow3; Yellow3].
-     But our example computes step by step: succ_rec [Yellow3; Red3; Green3]
-     = Green3 :: succ_rec [Red3; Green3]
-     = Green3 :: Red3 :: Green3   -- !! Red3 is unreachable on regular, but our
-                                      function is total so it does the no-op.
-     This is intentional; the correctness proof uses [regular] to rule out
-     this case.  The example here is a sanity check on the function's
-     totality, not its correctness on irregular inputs. *)
-Abort.
+(** Totality sanity check on an IRREGULAR input.  [Red3] is unreachable on a
+    regular number, but [succ_rec] is total and treats a leading [Red3] as a
+    no-op, so the result is NOT the "+1" value:
+      succ_rec [Yellow3; Red3; Green3]
+        = Green3 :: succ_rec [Red3; Green3]
+        = Green3 :: [Red3; Green3]            (* Red3 branch is a no-op *)
+        = [Green3; Red3; Green3].
+    This documents totality on irregular inputs; correctness of [succ] on
+    *regular* inputs (value = val n + 1) is established by the lemmas below and
+    in [Proofs.v]. *)
+Example succ_rec_five_irregular :
+  succ_rec [Yellow3; Red3; Green3] = [Green3; Red3; Green3].
+Proof. reflexivity. Qed.
 
 (** ** Value of succ on regular inputs is val n + 1.
 
