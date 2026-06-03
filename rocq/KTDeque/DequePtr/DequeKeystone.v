@@ -192,6 +192,47 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* make_small helper level lemmas (toward make_small_preserves_levels, which   *)
+(* is needed for green_of_red_k Case 1 in well_leveled preservation).          *)
+(* ========================================================================== *)
+
+Lemma prefix23_levels :
+  forall A k (opt : option (E.t A)) (b c : E.t A),
+    match opt with None => True | Some a => E.level A a = k end ->
+    E.level A b = k -> E.level A c = k ->
+    buf_all_at_level k (prefix23 opt (b, c)).
+Proof. intros A k opt b c Hopt Hb Hc. destruct opt; cbn; auto. Qed.
+
+Lemma suffix23_levels :
+  forall A k (opt : option (E.t A)) (b c : E.t A),
+    E.level A b = k -> E.level A c = k ->
+    match opt with None => True | Some a => E.level A a = k end ->
+    buf_all_at_level k (suffix23 (b, c) opt).
+Proof. intros A k opt b c Hb Hc Hopt. destruct opt; cbn; auto. Qed.
+
+Lemma suffix12_levels :
+  forall A k (x : E.t A) (opt : option (E.t A)),
+    E.level A x = k ->
+    match opt with None => True | Some a => E.level A a = k end ->
+    buf_all_at_level k (suffix12 x opt).
+Proof. intros A k x opt Hx Hopt. destruct opt; cbn; auto. Qed.
+
+Lemma mk_ending_from_options_levels :
+  forall A k (p1 : option (E.t A)) (mid : option (E.t A * E.t A))
+         (s1 : option (E.t A)),
+    match p1 with None => True | Some a => E.level A a = k end ->
+    match mid with None => True | Some (a, b) => E.level A a = k /\ E.level A b = k end ->
+    match s1 with None => True | Some a => E.level A a = k end ->
+    chain_levels k (mk_ending_from_options p1 mid s1).
+Proof.
+  intros A k p1 mid s1 Hp1 Hmid Hs1.
+  destruct p1 as [a1|]; destruct mid as [[a2 b2]|]; destruct s1 as [a3|];
+    cbn in Hp1, Hmid, Hs1 |- *;
+    try (destruct Hmid as [Hmid1 Hmid2]);
+    constructor; cbn; repeat split; auto.
+Qed.
+
+(* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
