@@ -231,10 +231,24 @@ Proof.
       destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
+(** Preservation of the new (colour + level) clauses — the genuine residue.
+    The regular_kt_top clause is discharged below by reusing the proven
+    [*_preserves_regular_top]. *)
+Lemma push_kt4_preserves_colors_leveled :
+  forall A (x : E.t A) (c c' : KChain A),
+    I_kt c -> push_kt4 x c = PushOk c' -> colors_consistent c' /\ well_leveled c'.
+Proof. Admitted.
+
 Lemma push_kt4_preserves_I_kt :
   forall A (x : E.t A) (c c' : KChain A),
     I_kt c -> push_kt4 x c = PushOk c' -> I_kt c'.
-Proof. Admitted.
+Proof.
+  intros A x c c' HI Hp.
+  destruct (@push_kt4_preserves_colors_leveled A x c c' HI Hp) as [Hcc' Hwl'].
+  destruct HI as [Hreg _].
+  split; [ eapply push_kt4_preserves_regular_top; [exact Hreg | exact Hp]
+         | split; [exact Hcc' | exact Hwl'] ].
+Qed.
 
 Lemma inject_kt4_total :
   forall A (c : KChain A) (x : E.t A),
@@ -271,10 +285,21 @@ Proof.
     + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
+Lemma inject_kt4_preserves_colors_leveled :
+  forall A (c c' : KChain A) (x : E.t A),
+    I_kt c -> inject_kt4 c x = PushOk c' -> colors_consistent c' /\ well_leveled c'.
+Proof. Admitted.
+
 Lemma inject_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
     I_kt c -> inject_kt4 c x = PushOk c' -> I_kt c'.
-Proof. Admitted.
+Proof.
+  intros A c c' x HI Hp.
+  destruct (@inject_kt4_preserves_colors_leveled A c c' x HI Hp) as [Hcc' Hwl'].
+  destruct HI as [Hreg _].
+  split; [ eapply inject_kt4_preserves_regular_top; [exact Hreg | exact Hp]
+         | split; [exact Hcc' | exact Hwl'] ].
+Qed.
 
 Lemma pop_kt4_total :
   forall A (c : KChain A),
@@ -312,10 +337,21 @@ Proof.
     + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
+Lemma pop_kt4_preserves_colors_leveled :
+  forall A (c c' : KChain A) (x : E.t A),
+    I_kt c -> pop_kt4 c = PopOk x c' -> colors_consistent c' /\ well_leveled c'.
+Proof. Admitted.
+
 Lemma pop_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
     I_kt c -> pop_kt4 c = PopOk x c' -> I_kt c'.
-Proof. Admitted.
+Proof.
+  intros A c c' x HI Hp.
+  destruct (@pop_kt4_preserves_colors_leveled A c c' x HI Hp) as [Hcc' Hwl'].
+  destruct HI as [Hreg _].
+  split; [ eapply pop_kt4_preserves_regular_top; [exact Hreg | exact Hp]
+         | split; [exact Hcc' | exact Hwl'] ].
+Qed.
 
 Lemma eject_kt4_total :
   forall A (c : KChain A),
@@ -353,10 +389,21 @@ Proof.
     + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
 
+Lemma eject_kt4_preserves_colors_leveled :
+  forall A (c c' : KChain A) (x : E.t A),
+    I_kt c -> eject_kt4 c = PopOk x c' -> colors_consistent c' /\ well_leveled c'.
+Proof. Admitted.
+
 Lemma eject_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
     I_kt c -> eject_kt4 c = PopOk x c' -> I_kt c'.
-Proof. Admitted.
+Proof.
+  intros A c c' x HI Hp.
+  destruct (@eject_kt4_preserves_colors_leveled A c c' x HI Hp) as [Hcc' Hwl'].
+  destruct HI as [Hreg _].
+  split; [ eapply eject_kt4_preserves_regular_top; [exact Hreg | exact Hp]
+         | split; [exact Hcc' | exact Hwl'] ].
+Qed.
 
 (* ========================================================================== *)
 (* The keystone: unconditional WC O(1) per operation on I_kt states.           *)
