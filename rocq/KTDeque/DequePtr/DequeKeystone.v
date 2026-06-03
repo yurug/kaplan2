@@ -48,17 +48,38 @@ Fixpoint cc_yellow_run {A : Type} (p : Packet A) : Prop :=
     (B2/B3) buffers, a Yellow link has not-red (B1..B4) buffers; the inner
     yellow run is not-red throughout.  (The Red-link buffer condition is left
     permissive here and will be tightened while discharging the obligations.) *)
+(** A link's buffers match its colour tag: Green => green-shaped (B2/B3);
+    Yellow => not-red (B1..B4); Red is permissive (transient, top excluded by
+    [regular_kt_top]). *)
+Definition cc_color_shape {X : Type} (col : color) (pre suf : Buf5 X) : Prop :=
+  match col with
+  | Green  => buf5_is_green_shape pre /\ buf5_is_green_shape suf
+  | Yellow => buf5_is_not_red_shape pre /\ buf5_is_not_red_shape suf
+  | Red    => True
+  end.
+
+(** Green-readiness of the level directly below a single (Hole-inner) link:
+    that tail must be an [Ending], or a [KCons] whose packet has green-shaped
+    outer buffers.  This is KT99's "the first non-yellow below is green"
+    localised: it is exactly what [green_of_red_k]'s Case-2 repair needs
+    ([green_of_red_k_ready_at]), and is the recursive clause the prior
+    [*_ready_state] accretion never closed. *)
+Definition tail_green_ready {A : Type} (tail : KChain A) : Prop :=
+  match tail with
+  | KEnding _ => True
+  | KCons _ (PNode pre2 _ suf2) _ =>
+      buf5_is_green_shape pre2 /\ buf5_is_green_shape suf2
+  | KCons _ Hole _ => False
+  end.
+
 Fixpoint colors_consistent {A : Type} (c : KChain A) : Prop :=
   match c with
   | KEnding _ => True
-  | KCons Green (PNode pre i suf) tail =>
-      buf5_is_green_shape pre /\ buf5_is_green_shape suf
-      /\ cc_yellow_run i /\ colors_consistent tail
-  | KCons Yellow (PNode pre i suf) tail =>
-      buf5_is_not_red_shape pre /\ buf5_is_not_red_shape suf
-      /\ cc_yellow_run i /\ colors_consistent tail
-  | KCons Red (PNode _ i suf) tail =>
-      cc_yellow_run i /\ colors_consistent tail
+  | KCons col (PNode pre i suf) tail =>
+      cc_color_shape col pre suf /\
+      cc_yellow_run i /\
+      (match i with Hole => tail_green_ready tail | _ => True end) /\
+      colors_consistent tail
   | KCons _ Hole _ => False
   end.
 
