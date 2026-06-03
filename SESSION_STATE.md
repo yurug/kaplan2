@@ -56,6 +56,19 @@ The residue is **recursive green-readiness / repairability** (the KT cascade bou
 - All 4 `*_total` lemmas proven DIRECTLY (push/inject carry `E.level x = 0`; threaded through `deque_wc_o1_push`/`_inject`). `I_kt_implies_kt4_total_state` DELETED. `deque_wc_o1_*` each depend only on their `*_preserves_I_kt`.
 - Helpers (Qed, reusable): `context_ready_of_consistent`, `ready_at_of_consistent` (free pre'/suf'), `green_of_red_k_some_of_consistent`, `yellow_wrap_pr_total_pre_of_consistent`.
 
+## STATUS 2026-06-03 (4 admits — colour+level preservation only)
+DequeKeystone.v green with exactly 4 admits: `push/inject/pop/eject_kt4_preserves_colors_leveled`
+(`I_kt c -> op = result -> colors_consistent c' /\ well_leveled c'`). Everything else closed:
+totality (direct), cost (`*_green_calls_le_1`), regular_kt_top preservation (reused), and the
+`*_preserves_I_kt` wrappers (Qed). `deque_wc_o1_*` depend only on these 4.
+
+### How to attack `*_preserves_colors_leveled` (the wall)
+No pre-built level/colour preservation for the ops — bespoke. Plan:
+1. **well_leveled** half first (more mechanical): prove `green_of_red_k c = Some c' -> well_leveled_at k c -> well_leveled_at k c'` and `yellow_wrap_pr pre i suf c = PushOk c' -> (levels of pre,suf,c at k) -> well_leveled_at k c'`. These need the buffer ops (`green_prefix_concat`/`make_small`/`prefix_concat`) to preserve `buf_all_at_level` — prove those small lemmas (they pair/unpair at adjacent levels; reuse `E.unpair_level`/`E.level_pair`). Then op-level well_leveled preservation by case analysis mirroring the `*_total` proofs.
+2. **colors_consistent** half (harder): `green_of_red_k` Case 1/2 outputs are green-headed (`chain_to_kchain_g`, see `kchain_top_color_chain_to_kchain_g_not_red`, `make_small_chain_to_kchain_g_context_ready`); Case 3 outputs `KCons Green (PNode .. Hole ..) (KCons Red ..)` — must show the fresh Red inner is still colours-consistent and the new green head satisfies `tail_green_ready`/`cc_yellow_run`. yellow_wrap_pr turns green->yellow at same depth keeping the tail. Build `green_of_red_k_preserves_colors_consistent` then op-level.
+   - WATCH: this is exactly where the prior accretion failed. If after several honest attempts colors_consistent isn't preserved, the `tail_green_ready` clause may be slightly wrong (too strong/weak) — adjust the ONE definition in place, re-check `*_total` still build (they only use it via helpers), and record findings here. Do NOT spawn candidate predicates.
+3. If colours preservation stalls: ensure all green+committed, then switch to mission item 2 (RBR/Succ.v) so the night stays productive.
+
 ## REMAINING: preservation (the hard residue)
 `*_preserves_I_kt : I_kt c -> op = result -> I_kt c'`. Split each into:
 - regular_kt_top c': REUSE existing `push/inject/pop/eject_kt4_preserves_regular_top` (proven).
