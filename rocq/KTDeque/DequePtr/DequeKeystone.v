@@ -267,6 +267,20 @@ Proof.
   intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
 Qed.
 
+(** A positive-level element unpairs into two elements one level down. *)
+Lemma element_unpair_at_s_levels :
+  forall A k (e : E.t A),
+    E.level A e = S k ->
+    exists x y, E.unpair A e = Some (x, y) /\ E.level A x = k /\ E.level A y = k.
+Proof.
+  intros A k e He.
+  destruct (@element_unpair_succeeds_at_s A k e He) as [x [y Hup]].
+  pose proof (@E.unpair_level A e x y Hup) as [Hlvl Hxy].
+  rewrite He in Hlvl. injection Hlvl as Hlvl.
+  exists x, y. split; [exact Hup|].
+  split; [symmetry; exact Hlvl | rewrite <- Hxy; symmetry; exact Hlvl].
+Qed.
+
 Lemma suffix_rot_preserves_levels :
   forall A k (b b' : Buf5 (E.t A)) (x a : E.t A),
     buf_all_at_level k b -> E.level A x = k ->
