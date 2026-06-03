@@ -113,6 +113,71 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* Reusable machinery: connect I_kt to the existing green_of_red_k readiness.  *)
+(* ========================================================================== *)
+
+(** [colors_consistent] + [well_leveled_at] at a link give the prior work's
+    [green_of_red_k_context_ready_at] for that link's (inner, tail). *)
+Lemma context_ready_of_consistent :
+  forall A k col (pre : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
+         (tail : KChain A),
+    colors_consistent (KCons col (PNode pre i suf) tail) ->
+    well_leveled_at k (KCons col (PNode pre i suf) tail) ->
+    green_of_red_k_context_ready_at k i tail.
+Proof.
+  intros A k col pre i suf tail Hcc Hwl.
+  cbn in Hcc. destruct Hcc as [_Hshape [Hyr [Hihole _Htail]]].
+  cbn in Hwl. destruct Hwl as [Hpkt Hwltail].
+  destruct i as [|ipre ichild isuf].
+  - (* i = Hole *)
+    unfold green_of_red_k_context_ready_at.
+    destruct tail as [b | col2 [|tpre tchild tsuf] tail2].
+    + (* KEnding b *) cbn in Hwltail |- *. exact Hwltail.
+    + (* KCons col2 Hole tail2 *) cbn in Hihole. contradiction.
+    + (* KCons col2 (PNode tpre tchild tsuf) tail2 *)
+      cbn in Hihole, Hwltail |- *.
+      destruct Hihole as [Hp2 Hs2]. destruct Hwltail as [Hpkt2 _].
+      repeat split; assumption.
+  - (* i = PNode *)
+    unfold green_of_red_k_context_ready_at.
+    cbn in Hyr. destruct Hyr as [Hp2 [Hs2 _]].
+    inversion Hpkt as [|? ? ? ? _ Hinner _]; subst.
+    repeat split; assumption.
+Qed.
+
+(** Lift context-readiness to [green_of_red_k_ready_at] for any prefix buffer. *)
+Lemma ready_at_of_consistent :
+  forall A k col (pre pre' : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
+         (tail : KChain A),
+    colors_consistent (KCons col (PNode pre i suf) tail) ->
+    well_leveled_at k (KCons col (PNode pre i suf) tail) ->
+    green_of_red_k_ready_at k (PNode pre' i suf) tail.
+Proof.
+  intros A k col pre pre' i suf tail Hcc Hwl.
+  apply green_of_red_k_ready_at_from_context.
+  eapply context_ready_of_consistent; eassumption.
+Qed.
+
+(** A consistent, well-levelled, Red-topped chain is repairable. *)
+Lemma green_of_red_k_some_of_consistent :
+  forall A k (c : KChain A),
+    colors_consistent c ->
+    well_leveled_at k c ->
+    kchain_top_color c = Red ->
+    exists c', green_of_red_k c = Some c'.
+Proof.
+  intros A k c Hcc Hwl Htop.
+  destruct c as [b | col [|pre i suf] tail].
+  - cbn in Htop. discriminate.
+  - cbn in Hcc. contradiction.
+  - cbn in Htop. subst col.
+    pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _].
+    eapply green_of_red_k_total_under_ready_levels.
+    + exact Hpkt.
+    + eapply ready_at_of_consistent; eassumption.
+Qed.
+
+(* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
