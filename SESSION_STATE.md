@@ -45,6 +45,15 @@ The residue is **recursive green-readiness / repairability** (the KT cascade bou
 - Update this SESSION_STATE.md after each meaningful step (admit count, what changed, next step) so progress survives context resets.
 - If genuinely stuck on the green-readiness invariant after several honest attempts, do NOT churn: record the precise obstruction in `kb/spec/deque-reachable-invariant.md` + here, make sure everything is committed green, and move to mission item 2 (RBR) so the night is still productive.
 
+## make_small_preserves_levels roadmap (mapped 2026-06-03)
+Target: `make_small b1 b2 b3 = Some c -> buf_all_at_level k b1 -> buf_all_at_level (S k) b2 -> buf_all_at_level k b3 -> chain_levels k c`. (Then `green_of_red_k` Case 1 = `chain_to_kchain_g`, which preserves levels — needs a trivial `chain_to_kchain_g` level lemma since it only adds Green tags; well_leveled_at k c <-> chain_levels k (kchain_to_chain c), and kchain_to_chain (chain_to_kchain_g c) = c.)
+9 cases (prefix_decompose b1 x suffix_decompose b3). Reuse EXISTING (do not reprove):
+- `pair_each_buf_after_halve_preserves_levels` (PublicTheorems.v:12127) + `..._total_under_levels` (7241) — Overflow/Overflow case.
+- `suffix_rot_unpair_total_under_levels` (7279), `prefix_rot_unpair_total_under_levels` (7305) — Underflow/Overflow + Overflow/Underflow.
+- `make_small_total_under_levels` (7331) — existence (pattern to mirror).
+- `make_small_chain_to_kchain_g_context_ready` (7452) — shows the output-shape reasoning per case (mirror its case structure).
+Need NEW trivial level lemmas: `prefix23` (OpsKT.v:273), `suffix23` (280), `suffix12` (288), `mk_ending_from_options` (594), `buffer_unsandwich` (349), `buffer_push_chain`/`buffer_inject_chain` level-preservation, `buf5_push_naive`/`buf5_inject_naive`/`buf5_pop_naive`/`buf5_eject_naive` (have `buf5_*_preserves_levels` in OpsAbstract.v 211-243). Most simple cases close by cbn + the E.unpair_level/E.level_pair facts (pattern as in `prefix_concat_preserves_outer_green_levels` proof, PT:6512).
+
 ## Progress log (newest first)
 - 2026-06-03 iter (RBR + frontier map): closed RBR/Succ.v Abort (was a wrong-valued example on irregular input; replaced with correct `succ_rec_five_irregular` reflexivity). RBR now zero Abort/admit (mission item 2 DONE). Confirmed deque preservation reuse: `prefix_concat_preserves_outer_green_levels` (PublicTheorems 6503) and `suffix_concat_preserves_outer_green_levels` (6534) give green-shape + level-k/(S k) of concat outputs — directly usable for `green_of_red_k_preserves_well_leveled` Cases 2/3. GAP: Case 1 uses `make_small` (9 sub-cases) and has NO ready output-level lemma — need a new `make_small_preserves_levels` (assemble from buffer-op level facts like the concat ones; pattern as in `prefix_concat_preserves_outer_green_levels`'s proof: destruct all buffer shapes, use `E.unpair_level`/`E.level_pair`). So well_leveled half = {Case2/3 ready, Case1 needs make_small level lemma}; colours half still the harder wall. NEXT deque iteration: write `make_small_preserves_levels`, then `green_of_red_k_preserves_well_leveled`, then op-level well_leveled preservation, then colours.
 
