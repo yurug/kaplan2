@@ -340,3 +340,55 @@ Proof.
   intros X b i y z H. apply buf_eject2_inv in H. subst b.
   rewrite length_app. cbn. lia.
 Qed.
+
+(* ========================================================================== *)
+(* The per-shape colour-facts bundle a root's child supplies (keyed on the     *)
+(* root's colour) — what the Case-1 builders need for the inner inject/push   *)
+(* and the rebuilt node's tree_of dispatch.                                    *)
+(* ========================================================================== *)
+
+Definition child_color_facts {A : Type} (g : gyor) (d1 : cchain A) : Prop :=
+  match g with
+  | CG => True
+  | CY => cont_green CY d1
+  | CO => cont_green CO d1 /\
+          match d1 with CPair l _ => chain_ends_green l | _ => True end
+  | CR => False
+  end.
+
+(** Any green-ended single tree supplies the bundle at its root's colour. *)
+Lemma root_child_facts :
+  forall A (k : kind) (p : cpacket A) (rest : cchain A),
+    chain_wf k (CSingle p rest) ->
+    chain_ends_green (CSingle p rest) ->
+    child_color_facts
+      (node_color (chain_has_node (snd (root_and_child p rest)))
+         (fst (root_and_child p rest)))
+      (snd (root_and_child p rest)).
+Proof.
+  intros A k [b n] rest Hwf Hgreen.
+  destruct b as [|hn b'|hn b' rc|hn lc b'];
+    cbn [chain_wf cbody_wf body_out_kind is_single] in Hwf;
+    cbn [chain_ends_green] in Hgreen;
+    cbn [root_and_child fst snd].
+  - (* BHole: terminal root, green by ends_green *)
+    unfold child_color_facts.
+    destruct rest as [|rp rrest|rl rr]; cbn [chain_has_node] in Hgreen |- *.
+    + rewrite node_color_no_child. exact I.
+    + rewrite Hgreen. exact I.
+    + rewrite Hgreen. exact I.
+  - (* BSingle head: CY or CO; child is the single path chain *)
+    destruct Hwf as [[_ [_ [_ [Hcol _]]]] _].
+    unfold child_color_facts. cbn [chain_has_node].
+    destruct Hcol as [Hy | Ho]; [rewrite Hy | rewrite Ho].
+    + exact Hgreen.
+    + split; [exact Hgreen | exact I].
+  - (* BPairY head: CY; cont = the left (path) side, green by ends_green *)
+    destruct Hwf as [[_ [_ [_ [Hcol _]]]] _].
+    unfold child_color_facts. cbn [chain_has_node].
+    rewrite Hcol. exact Hgreen.
+  - (* BPairO head: CO; cont = the right (path) side; parked left green *)
+    destruct Hwf as [[_ [_ [_ [Hcol [_ [_ [Hlg _]]]]]]] _].
+    unfold child_color_facts. cbn [chain_has_node].
+    rewrite Hcol. split; [exact Hgreen | exact Hlg].
+Qed.
