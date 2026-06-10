@@ -1,6 +1,34 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+PROGRESS-7 (this iteration): PIECE (B-pop) DONE. New file
+rocq/KTDeque/Catenable/PopLemmas.v, all PROVEN (no admits): gyor_of_inv,
+root_not_red, rebuild_childless_facts, pop_rebundle_total (the with-child
+core: new root drops <= 1 rank; CO's parked-left from old-CY cont / old-CO
+parked; CR's full child green from old-CO cont+parked; impossible pairs by
+measure lia), pop_raw_only_total (KOnly single: total, wf level-k cell,
+SEMIREGULAR leveled remainder, exact seq), pop_raw_left_total (KLeft
+single: childless remainder shape-explicit with |ls|=2, |lp|>=4 for the
+parent keep/collapse dispatch; with-child remainder = chain_wf KLeft + a
+computable non-collapse-pattern guard).
+NEXT (in order): (B-pop-pair) pop_raw on CPair at top: use
+pop_raw_left_total; |lp|>=5 keep-branch needs chain_wf KLeft of the kept
+childless single (sizes from the disjunct, childless green); |lp|=4
+collapse-branch: re-crowned tree_of (Node KOnly (lp++ls++p2) s2) d2 over
+the peeled right-root — root_child_facts of r (J gives ends_green r) keys
+EXACTLY at gyor_of |s2| when rooted (min(8,|s2|): |s2|>=6 via root colour
+G/Y/O — reuse only_push_rebuild-style dispatch, or note tree_of root facts
+directly: new colour = gyor_of |s2| via gyor_of_min_big 8<=|lp++ls++p2|);
+d2=CEmpty: childless green, sizes (8, >=5) two-sided ✓. THEN (B-eject)
+mirrors: node_eject pops rev s — eject_rebundle_total mirror keyed by
+suffix measure (KOnly/KRight), rebuild_childless reused, eject_raw_only/
+right_total + pair. THEN (A) SR-concat per the PROGRESS-6 table. THEN (C)
+repair lemmas. THEN (D) assembly. PROOF-TOOL NOTES new: (e) lia atom
+alignment — never cbn just one side of a kd-generic node_measure; convert
+via exact-typed asserts; (f) apply's unifier reduces concrete scrutinees:
+pin instances at concrete-child call sites; (g) for
+CSingle (Pkt BHole n) CEmpty sequences use
+cbn [cchain_seq cpacket_seq cbody_seq] before cnode_seq_eq.
 PROGRESS-6 (this iteration): J v2 LANDED, CONCAT RE-CLOSED, 2 ADMITS LEFT
 (cad_pop/eject_total_J_seq). Done: Color.v grew body_depth + the mutual
 stored/cnode/cbody/chain_leveled family; J = chain_wf /\ chain_ends_green
