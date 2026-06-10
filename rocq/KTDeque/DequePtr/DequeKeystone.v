@@ -1558,7 +1558,105 @@ Qed.
 Lemma eject_kt4_preserves_colors_leveled :
   forall A (c c' : KChain A) (x : E.t A),
     I_kt c -> eject_kt4 c = PopOk x c' -> colors_consistent c' /\ well_leveled c'.
-Proof. Admitted.
+Proof.
+  intros A c c' x HI.
+  destruct HI as [Hreg [Hcc Hwl]].
+  unfold well_leveled in *.
+  unfold eject_kt4.
+  destruct c as [b | col [|pre i suf] tail].
+  - (* KEnding *)
+    cbn in Hwl.
+    destruct b; intros Hp; try discriminate;
+      injection Hp as Hp1 Hp2; subst;
+      cbn in Hwl;
+      repeat match goal with H : _ /\ _ |- _ => destruct H end;
+      (split; [cbn; exact I | cbn; repeat split; auto]).
+  - cbn in Hcc. contradiction.
+  - pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt Hwltail].
+    inversion Hpkt as [|? ? ? ? Hpre Hinner Hsuf]; subst.
+    destruct col.
+    + (* Green: eject then wrap (suffix side) *)
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [[Hgp Hgs] [Hyr [Htc Htail]]].
+      destruct suf as [|a|a b1|a b1 c1|a b1 c1 d|];
+        cbn in Hgs; try contradiction;
+        cbn -[yellow_wrap_pr]; intros Hp;
+        cbn in Hsuf;
+        repeat match goal with H : _ /\ _ |- _ => destruct H end.
+      * (* B2 -> wrap with B1 *)
+        destruct (yellow_wrap_pr pre i (B1 a) tail) as [|c''] eqn:Hw;
+          [discriminate |].
+        injection Hp as Hp1 Hp2; subst.
+        eapply yellow_wrap_pr_preserves_colors_leveled
+          with (k := 0) (suf := B1 a);
+         [ apply buf5_green_shape_not_red; exact Hgp
+         | cbn; exact I
+         | exact Hyr
+         | exact Htc
+         | exact Htail
+         | constructor; [exact Hpre | exact Hinner | cbn; repeat split; auto]
+         | exact Hwltail
+         | exact Hw ].
+      * (* B3 -> wrap with B2 *)
+        destruct (yellow_wrap_pr pre i (B2 a b1) tail) as [|c''] eqn:Hw;
+          [discriminate |].
+        injection Hp as Hp1 Hp2; subst.
+        eapply yellow_wrap_pr_preserves_colors_leveled
+          with (k := 0) (suf := B2 a b1);
+         [ apply buf5_green_shape_not_red; exact Hgp
+         | cbn; exact I
+         | exact Hyr
+         | exact Htc
+         | exact Htail
+         | constructor; [exact Hpre | exact Hinner | cbn; repeat split; auto]
+         | exact Hwltail
+         | exact Hw ].
+    + (* Yellow *)
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [[Hnp Hns] [Hyr [Htc Htail]]].
+      destruct suf as [|a|a b1|a b1 c1|a b1 c1 d|];
+        cbn in Hns; try contradiction;
+        cbn -[green_of_red_k]; intros Hp; cbn in Hsuf;
+        repeat match goal with H : _ /\ _ |- _ => destruct H end.
+      * (* B1: underflow repair *)
+        destruct (green_of_red_k (KCons Red (PNode pre i B0) tail))
+          as [c''|] eqn:Hrep; [| discriminate].
+        injection Hp as Hp1 Hp2; subst.
+        assert (Hccred :
+            colors_consistent (KCons Red (PNode pre i B0) tail))
+          by (cbn; repeat split; assumption).
+        assert (Hwlred :
+            well_leveled_at 0 (KCons Red (PNode pre i B0) tail)).
+        { cbn. split; [| exact Hwltail].
+          constructor; [exact Hpre | exact Hinner | cbn; exact I]. }
+        split.
+        -- eapply green_of_red_k_preserves_colors_consistent;
+             [exact Hccred | exact Hrep].
+        -- eapply green_of_red_k_preserves_well_leveled;
+             [exact Hccred | exact Hwlred | exact Hrep].
+      * (* B2 -> B1 *)
+        injection Hp as Hp1 Hp2; subst.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [exact Hpre | exact Hinner | cbn; repeat split; auto]
+             | exact Hwltail ].
+      * (* B3 -> B2 *)
+        injection Hp as Hp1 Hp2; subst.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [exact Hpre | exact Hinner | cbn; repeat split; auto]
+             | exact Hwltail ].
+      * (* B4 -> B3 *)
+        injection Hp as Hp1 Hp2; subst.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [exact Hpre | exact Hinner | cbn; repeat split; auto]
+             | exact Hwltail ].
+    + intros Hp; discriminate.
+Qed.
 
 Lemma eject_kt4_preserves_I_kt :
   forall A (c c' : KChain A) (x : E.t A),
