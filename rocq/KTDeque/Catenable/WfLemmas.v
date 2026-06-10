@@ -689,3 +689,177 @@ Proof.
       * split; [exact Hl | exact Hwf'].
     + cbn [chain_ends_green]. split; [exact Hgl | exact Hg'].
 Qed.
+
+(* ========================================================================== *)
+(* Inner-chain (wf-only) preservation: no ends_green premise.                  *)
+(* Needed by concat/repair, which push/inject into CHILD deques whose top      *)
+(* paths need not be green.  The previously-excluded R->O merge arm is now     *)
+(* reachable — and the red clause's own ends_green-of-child supplies exactly   *)
+(* the facts the merge needs (regularity clause 1 doing its job).              *)
+(* ========================================================================== *)
+
+Lemma pkt_update_preserves_wf :
+  forall A (upd : cnode A -> cnode A) (k : kind)
+         (p : cpacket A) (rest : cchain A),
+    (forall n0, node_kind (upd n0) = node_kind n0) ->
+    (forall hc pp ss,
+        node_sizes hc (Node k pp ss) -> node_sizes hc (upd (Node k pp ss))) ->
+    (forall n0, cnode_wf n0 -> cnode_wf (upd n0)) ->
+    (forall n0,
+        gyor_rank (node_color true n0)
+        <= gyor_rank (node_color true (upd n0))) ->
+    chain_wf k (CSingle p rest) ->
+    chain_wf k (pkt_update upd p rest).
+Proof.
+  intros A upd k p rest Hupk Hupsz Hupwf Hupmono Hwf.
+  pose proof (root_and_child_facts Hwf) as [Hk [Hsz [Hn [Hchild Hcf]]]].
+  unfold pkt_update.
+  destruct p as [b n0].
+  destruct b as [|hn b'|hn b' rc|hn lc b'];
+    cbn [root_and_child fst snd] in Hk, Hsz, Hn, Hchild, Hcf |- *;
+    cbn [chain_wf cbody_wf body_out_kind is_single] in Hwf.
+  - (* BHole terminal: old colour CG or CR (from chain_wf) *)
+    destruct Hwf as [_ [_ [_ [_ [Hcol _]]]]].
+    destruct n0 as [k0 pp ss]. cbn [node_kind] in Hk. subst k0.
+    apply tree_of_wf;
+      [rewrite Hupk; reflexivity
+      | apply Hupsz; exact Hsz
+      | apply Hupwf; exact Hn
+      | exact Hchild |].
+    unfold root_color_facts in Hcf |- *.
+    destruct Hcol as [Hg | [Hr Hgrest]].
+    + (* old CG: new is CG by monotonicity *)
+      destruct rest as [|rp rrest|rl rr];
+        cbn [chain_has_node] in Hg |- *.
+      * rewrite node_color_no_child. exact I.
+      * destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+          [exact I | | |];
+          pose proof (Hupmono (Node k pp ss)) as Hm;
+          rewrite Hg, Hnew in Hm; cbn in Hm; lia.
+      * destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+          [exact I | | |];
+          pose proof (Hupmono (Node k pp ss)) as Hm;
+          rewrite Hg, Hnew in Hm; cbn in Hm; lia.
+    + (* old CR: the red clause's ends_green covers every new colour *)
+      destruct rest as [|rp rrest|rl rr];
+        cbn [chain_has_node] in Hr |- *.
+      * rewrite node_color_no_child. exact I.
+      * destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+          [exact I | exact I | exact I | exact Hgrest].
+      * destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+          [exact I | exact I | | exact Hgrest].
+        cbn [chain_ends_green] in Hgrest. destruct Hgrest as [Hgl _].
+        exact Hgl.
+  - (* BSingle head: old CY/CO; new CR mono-killed *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS Hb']]]] _].
+    destruct n0 as [k1 pp1 ss1] eqn:Hn0.
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    apply tree_of_wf;
+      [rewrite Hupk; reflexivity
+      | apply Hupsz; exact Hsz
+      | apply Hupwf; exact Hn
+      | exact Hchild |].
+    unfold root_color_facts. cbn [chain_has_node].
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+      [exact I | exact I | exact I |].
+    pose proof (Hupmono (Node k pp ss)) as Hm.
+    destruct HcolS as [Hc | Hc]; rewrite Hc, Hnew in Hm; cbn in Hm; lia.
+  - (* BPairY head: old CY; new CO/CR mono-killed *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS [Hrs [Hrc Hb']]]]]] _].
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    apply tree_of_wf;
+      [rewrite Hupk; reflexivity
+      | apply Hupsz; exact Hsz
+      | apply Hupwf; exact Hn
+      | exact Hchild |].
+    unfold root_color_facts. cbn [chain_has_node].
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+      [exact I | exact I | |];
+      pose proof (Hupmono (Node k pp ss)) as Hm;
+      rewrite HcolS, Hnew in Hm; cbn in Hm; lia.
+  - (* BPairO head: old CO; parked-left green carries; new CR mono-killed *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS [Hls [Hlc [Hlg Hb']]]]]]] _].
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    apply tree_of_wf;
+      [rewrite Hupk; reflexivity
+      | apply Hupsz; exact Hsz
+      | apply Hupwf; exact Hn
+      | exact Hchild |].
+    unfold root_color_facts. cbn [chain_has_node].
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew;
+      [exact I | exact I | exact Hlg |].
+    pose proof (Hupmono (Node k pp ss)) as Hm.
+    rewrite HcolS, Hnew in Hm. cbn in Hm. lia.
+Qed.
+
+Lemma push_chain_preserves_wf :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    k <> KRight ->
+    (c = CEmpty -> k = KOnly) ->
+    stored_wf s ->
+    chain_wf k c ->
+    chain_wf k (push_chain s c).
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l IHl r _]; intros k Hk Hke Hs Hwf.
+  - rewrite (Hke eq_refl). cbn [push_chain].
+    split; [exact I|]. split; [reflexivity|].
+    split.
+    + right. split; [reflexivity|]. right.
+      split; [reflexivity | cbn; lia].
+    + split; [cbn; tauto|]. split; [left; reflexivity | exact I].
+  - cbn [push_chain].
+    apply pkt_update_preserves_wf; try assumption.
+    + intros n0. apply node_push_kind.
+    + intros hc pp ss. apply node_push_sizes. exact Hk.
+    + intros n0. apply node_push_cnode_wf. exact Hs.
+    + intros n0. apply node_push_color_mono.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [push_chain]. cbn [chain_wf].
+    split.
+    + destruct l as [|lp lrest|? ?]; cbn in Hls; try congruence.
+      cbn [push_chain]. apply pkt_update_is_single.
+    + split; [exact Hrs|]. split; [| exact Hr].
+      apply IHl;
+        [congruence
+        | intros Heq; subst l; cbn in Hls; congruence
+        | exact Hs | exact Hl].
+Qed.
+
+Lemma inject_chain_preserves_wf :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    k <> KLeft ->
+    (c = CEmpty -> k = KOnly) ->
+    stored_wf s ->
+    chain_wf k c ->
+    chain_wf k (inject_chain c s).
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l _ r IHr]; intros k Hk Hke Hs Hwf.
+  - rewrite (Hke eq_refl). cbn [inject_chain].
+    split; [exact I|]. split; [reflexivity|].
+    split.
+    + right. split; [reflexivity|]. left.
+      split; [reflexivity | cbn; lia].
+    + split; [cbn; tauto|]. split; [left; reflexivity | exact I].
+  - cbn [inject_chain].
+    apply pkt_update_preserves_wf; try assumption.
+    + intros n0. apply node_inject_kind.
+    + intros hc pp ss Hszs. apply node_inject_sizes; [exact Hk | exact Hszs].
+    + intros n0. apply node_inject_cnode_wf. exact Hs.
+    + intros n0. apply node_inject_color_mono.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [inject_chain]. cbn [chain_wf].
+    split; [exact Hls|].
+    split.
+    + destruct r as [|rp rrest|? ?]; cbn in Hrs; try congruence.
+      cbn [inject_chain]. apply pkt_update_is_single.
+    + split; [exact Hl |].
+      apply IHr;
+        [congruence
+        | intros Heq; subst r; cbn in Hrs; congruence
+        | exact Hs | exact Hr].
+Qed.
