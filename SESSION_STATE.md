@@ -1,6 +1,75 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+PROGRESS-6 (this iteration): J v2 LANDED, CONCAT RE-CLOSED, 2 ADMITS LEFT
+(cad_pop/eject_total_J_seq). Done: Color.v grew body_depth + the mutual
+stored/cnode/cbody/chain_leveled family; J = chain_wf /\ chain_ends_green
+/\ chain_leveled 0. WfLemmas: node_push/inject_leveled,
+root_and_child_leveled, tree_of_leveled, push/inject_chain_leveled.
+ConcatLemmas: cad_concat_total de-J'd (explicit wf/green conjuncts) + the
+full colour-blind leveled companion chain (fold_push/inject, degenerate,
+make_*_only, make_*, concat_small_*, cad_concat_leveled — all PROVEN, no
+admits). Print Assumptions: empty/push/inject/concat closed under J v2.
+
+★ POP/EJECT CAMPAIGN MAP v2 (decided this iteration — READ THIS) ★
+DECISION: deep-green ("every inner terminal green") is NOT an invariant —
+KT99 p.594 leaves paths from children of GREEN triples and nonpreferred
+children of YELLOW triples unconstrained, and repair_front's SSmall path
+legitimately leaves a red-topped child under the new green root v; a later
+concat 1a wraps that red-top chain into an SBig. Hence stored children can
+be red-topped and REPAIR'S CONCATS NEED A SEMIREGULAR CONCAT (Lemma 6.2's
+weak half): SR-concat = chain_wf+leveled in, chain_wf+leveled+seq out, NO
+ends_green anywhere. THE KEY FEASIBILITY INSIGHT (colour-mono saves it):
+result-root colour rank >= old-root colour rank in every builder, and
+chain_wf only demands greenness at (i) BPairO's parked lc, (ii) the BHole
+root clause CG-or-CR-with-green-child. So per-old-colour SR bundles:
+  - old CR (BHole red root, now allowed): red clause supplies FULL
+    ends_green child — covers every obligation; result can be CR (only
+    case) and its red clause re-discharges from the old one.
+  - old CO: BPairO clause supplies parked-lc ends_green; result CO via
+    BPairO re-parks an already-green lc; result CO via BSingle needs
+    NOTHING (body clauses have no ends conditions).
+  - old CY / old CG: result is CY/CG-ish (mono) -> body/root clauses
+    need NOTHING green (CY/CO BSingle, BPairY have no ends clauses).
+  - old CG WITH child has measures >= 8 -> result green outright; old
+    CG childless goes through the op-fix eject2-lift branch whose
+    singleton child self-supplies its greenness.
+SR campaign pieces (A): make_left_only_sr, make_right_only_sr,
+make_left_sr, make_right_sr, concat_small_{left,right}_sr (incl. big),
+cad_concat_sr — mirror the proven J-versions, replacing root_child_facts
+bundles with the per-colour table above; conclusions drop ends_green.
+(B) pop_raw_total (and eject mirror), statement:
+  J-style hyps (chain_wf + chain_ends_green + chain_leveled k) + c<>CEmpty
+  -> exists x c', pop_raw c = Some (x,c') /\ stored_leveled k x /\
+  chain_wf KOnly c' /\ chain_leveled k c' /\ seq c = seq x ++ seq c'.
+  NO red-disjunct predicate needed: chain_wf c' itself forces the new
+  terminal CG-or-(CR with green child) — repair dispatches on the
+  computed colour. Facts that make it work: (a) red result root only
+  from an ORANGE old root, whose BPairO/BSingle clauses + input top
+  ends_green supply ends_green of the re-bundled child (tree_of CR case
+  root_color_facts ✓); (b) post-pop sizes survive: rooted measures are
+  >=6 pre-pop (G>=8/Y7/O6 — terminal green by input J, body heads Y/O)
+  so >=5 after; childless violations are exactly the op's
+  rebuild_childless (only) and Viennot collapse (pair, lp<5 fold-push,
+  use fold_push_preserves + fold_push_leveled) branches; (c) at k=0 the
+  popped cell is stored_leveled 0 = SGround (cad_pop's match ✓); at
+  child levels k+1 it is SSmall/SBig (repair's match ✓).
+(C) repair lemmas: repair_front/back/both/packet/pop_side/eject_side.
+  repair_front (red u=(p1,d1,s1), k-level, ends_green d1 from u's red
+  clause => full J of d1 at level S k): pop_raw_total on d1 gives the
+  cell; SSmall b: |b|>=3 => |p1++b|>=8 GREEN v, child d1' only needs
+  chain_wf (green root clause) — fine red-topped ✓ no concat. SBig p2
+  d2 s2: v green (|p1++p2|>=8); d3 := cad_concat_sr d2 (push_chain
+  (SSmall s2) d1') — both args SR+leveled ✓ (push_chain_preserves_wf +
+  push_chain_leveled). NO repair_both reorder needed: SR-concat
+  tolerates red tops on both sides (drop the earlier reorder note).
+  Result terminal v is GREEN => ends_green restored => J. levels: cell
+  contents at k splice into u's k-buffers ✓ d2/s2 at S k ✓.
+(D) assemble cad_pop_total_J_seq: pop_raw_total at k=0 (SGround ✓) then
+  repair_pop_side: CEmpty trivial; CSingle repair_packet; CPair: repair
+  left packet (right untouched keeps its J half). Mirror eject.
+Recommended order: B first (self-contained, moderate), then A (the big
+one), then C, then D. Keep every piece green+committed.
 PROGRESS-5 (this iteration): CONCAT KEYSTONE CLOSED. Print Assumptions now:
 cat_keystone_{empty,push,inject,concat} = "Closed under the global context".
 ConcatLemmas.v = ZERO admits. Proven this round: make_left_total,
