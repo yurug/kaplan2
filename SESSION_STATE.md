@@ -1,6 +1,37 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+PROGRESS-9: SRLemmas.v STARTED — sr_facts/root_color_facts_sr/
+sr_facts_mono/is_single_has_node + left_rebuild_sr + right_rebuild_sr
+PROVEN (each ~70 lines, ONE colour dispatch, no shape triplication: CO
+uses the bundle's pair-left through the strong preserve on the push
+side; CR threads full ends through the strong whole-chain preserve).
+REMAINING SR LEMMAS (mirror their J-twins in ConcatLemmas, conclusions
+Some t /\ chain_wf /\ seq only, bundles = sr_facts keyed at the measure
+via root_and_child_facts' 5th component + root_color_facts_sr +
+sr_facts_mono/gyor_of_mono; reuse gyor_of_min_big{,_r} for >=8 keys):
+only_push_rebuild_sr, only_inject_rebuild_sr (KOnly roots, key the
+surviving buffer; CO-pair/CR same recipe); make_left_only_sr (1d
+childless branches identical to J-twin minus ends; 1c via
+left_rebuild_sr with mono-converted key min->|p1|... CAREFUL: 1c key is
+gyor_of |p1| but old root colour keys gyor_of(min |p1| |s1|) — mono via
+Nat.le_min_l); make_right_only_sr mirror; make_left_sr/make_right_sr
+(CSingle delegate two-sided via root_two_sided needs degenerate_buf =
+None — SAME hyps as J-twin minus ends; CPair 1a keys EXACTLY at the
+old left/right root colour; 1b key via gyor_of_min_big{,_r});
+concat_small_{left,right}_sr (<8 fold-push: weak push/inject
+preserves_wf suffice — NO greenness needed since conclusions drop ends;
+>=8: only_*_rebuild_sr + childless op-fix branch where the CY result is
+FINE without ends... wait the op-fix branch built CY/CG results needing
+nothing for wf — check tree_of_wf facts: CY root facts True ✓);
+cad_concat_sr (dispatch; case 4 trivial childless green).
+THEN (C) repair: repair_front/back use pop/eject_raw_only_total at
+level S k (red u's child is FULL J by the red clause + leveled) +
+cad_concat_sr + push_chain_preserves_wf; v green by |p1++p2| >= 8;
+the identity path of repair_packet (terminal not red) is trivial.
+THEN (D): cad_pop = pop_raw(_pair)_total at k=0 (SGround) then
+repair_pop_side; ends_green of final = green terminal v / untouched
+sibling halves.
 ★ SR-CONCAT SIMPLIFICATION (decided, supersedes the PROGRESS-6 table) ★
 The SR builders need colour facts ONLY where tree_of_wf's
 root_color_facts demands them: new-CO-pair (ends of the pair's left) and
