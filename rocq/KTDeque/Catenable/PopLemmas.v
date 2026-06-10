@@ -1251,3 +1251,47 @@ Proof.
        end;
        seq_normalize).
 Qed.
+
+(* ========================================================================== *)
+(* Shape-agnostic wrappers: pop/eject a full-J chain at any level.             *)
+(* ========================================================================== *)
+
+Lemma pop_raw_J_total :
+  forall A (k : nat) (c : cchain A),
+    chain_wf KOnly c -> chain_ends_green c -> chain_leveled k c ->
+    c <> CEmpty ->
+    exists x c',
+      pop_raw c = Some (x, c') /\
+      stored_wf x /\ stored_leveled k x /\
+      chain_wf KOnly c' /\
+      chain_leveled k c' /\
+      cchain_seq c = stored_seq x ++ cchain_seq c'.
+Proof.
+  intros A k c Hwf Hg Hl Hne.
+  destruct c as [|p r|l r]; [congruence | |].
+  - exact (pop_raw_only_total Hwf Hg Hl).
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    exact (pop_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr).
+Qed.
+
+Lemma eject_raw_J_total :
+  forall A (k : nat) (c : cchain A),
+    chain_wf KOnly c -> chain_ends_green c -> chain_leveled k c ->
+    c <> CEmpty ->
+    exists c' x,
+      eject_raw c = Some (c', x) /\
+      stored_wf x /\ stored_leveled k x /\
+      chain_wf KOnly c' /\
+      chain_leveled k c' /\
+      cchain_seq c = cchain_seq c' ++ stored_seq x.
+Proof.
+  intros A k c Hwf Hg Hl Hne.
+  destruct c as [|p r|l r]; [congruence | |].
+  - exact (eject_raw_only_total Hwf Hg Hl).
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    exact (eject_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr).
+Qed.
