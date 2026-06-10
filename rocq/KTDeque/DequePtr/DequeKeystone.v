@@ -1104,15 +1104,116 @@ Qed.
     [*_preserves_regular_top]. *)
 Lemma push_kt4_preserves_colors_leveled :
   forall A (x : E.t A) (c c' : KChain A),
-    I_kt c -> push_kt4 x c = PushOk c' -> colors_consistent c' /\ well_leveled c'.
-Proof. Admitted.
+    I_kt c -> E.level A x = 0 ->
+    push_kt4 x c = PushOk c' -> colors_consistent c' /\ well_leveled c'.
+Proof.
+  intros A x c c' HI Hx.
+  destruct HI as [Hreg [Hcc Hwl]].
+  unfold well_leveled in *.
+  unfold push_kt4.
+  destruct c as [b | col [|pre i suf] tail].
+  - (* KEnding *)
+    cbn in Hwl.
+    destruct b; intros Hp; injection Hp as Hp; subst c';
+      cbn in Hwl;
+      repeat match goal with H : _ /\ _ |- _ => destruct H end;
+      (split; [cbn; repeat split | cbn; repeat split; auto]).
+    (* B5 split leaves the packet_levels goal *)
+    constructor; [cbn; repeat split; auto | apply pl_hole
+                 | cbn; repeat split; auto].
+  - cbn in Hcc. contradiction.
+  - pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt Hwltail].
+    inversion Hpkt as [|? ? ? ? Hpre Hinner Hsuf]; subst.
+    destruct col.
+    + (* Green: wrap *)
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [[Hgp Hgs] [Hyr [Htc Htail]]].
+      destruct pre as [|a|a b1|a b1 c1|a b1 c1 d|];
+        cbn in Hgp; try contradiction;
+        cbn -[yellow_wrap_pr]; intros Hp;
+        cbn in Hpre;
+        repeat match goal with H : _ /\ _ |- _ => destruct H end.
+      * (* B2 -> wrap with B3 *)
+        eapply yellow_wrap_pr_preserves_colors_leveled
+          with (k := 0) (pre := B3 x a b1);
+         [ cbn; exact I
+         | apply buf5_green_shape_not_red; exact Hgs
+         | exact Hyr
+         | exact Htc
+         | exact Htail
+         | constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]
+         | exact Hwltail
+         | exact Hp ].
+      * (* B3 -> wrap with B4 *)
+        eapply yellow_wrap_pr_preserves_colors_leveled
+          with (k := 0) (pre := B4 x a b1 c1);
+         [ cbn; exact I
+         | apply buf5_green_shape_not_red; exact Hgs
+         | exact Hyr
+         | exact Htc
+         | exact Htail
+         | constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]
+         | exact Hwltail
+         | exact Hp ].
+    + (* Yellow *)
+      pose proof Hcc as Hcc0. cbn in Hcc0.
+      destruct Hcc0 as [[Hnp Hns] [Hyr [Htc Htail]]].
+      destruct pre as [|a|a b1|a b1 c1|a b1 c1 d|];
+        cbn in Hnp; try contradiction;
+        cbn -[green_of_red_k]; intros Hp; cbn in Hpre;
+        repeat match goal with H : _ /\ _ |- _ => destruct H end.
+      * (* B1 -> B2 *)
+        injection Hp as Hp; subst c'.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]
+             | exact Hwltail ].
+      * (* B2 -> B3 *)
+        injection Hp as Hp; subst c'.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]
+             | exact Hwltail ].
+      * (* B3 -> B4 *)
+        injection Hp as Hp; subst c'.
+        split.
+        -- cbn. repeat split; assumption.
+        -- cbn. split;
+             [ constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]
+             | exact Hwltail ].
+      * (* B4: overflow repair *)
+        destruct (green_of_red_k
+                    (KCons Red (PNode (B5 x a b1 c1 d) i suf) tail))
+          as [c''|] eqn:Hrep; [| discriminate].
+        injection Hp as Hp; subst c'.
+        assert (Hccred :
+            colors_consistent
+              (KCons Red (PNode (B5 x a b1 c1 d) i suf) tail))
+          by (cbn; repeat split; assumption).
+        assert (Hwlred :
+            well_leveled_at 0
+              (KCons Red (PNode (B5 x a b1 c1 d) i suf) tail)).
+        { cbn. split; [| exact Hwltail].
+          eapply packet_levels_push_overflow_pre; [exact Hx |].
+          constructor; [cbn; repeat split; auto | exact Hinner | exact Hsuf]. }
+        split.
+        -- eapply green_of_red_k_preserves_colors_consistent;
+             [exact Hccred | exact Hrep].
+        -- eapply green_of_red_k_preserves_well_leveled;
+             [exact Hccred | exact Hwlred | exact Hrep].
+    + (* Red top: PushFail *)
+      intros Hp; discriminate.
+Qed.
 
 Lemma push_kt4_preserves_I_kt :
   forall A (x : E.t A) (c c' : KChain A),
-    I_kt c -> push_kt4 x c = PushOk c' -> I_kt c'.
+    I_kt c -> E.level A x = 0 -> push_kt4 x c = PushOk c' -> I_kt c'.
 Proof.
-  intros A x c c' HI Hp.
-  destruct (@push_kt4_preserves_colors_leveled A x c c' HI Hp) as [Hcc' Hwl'].
+  intros A x c c' HI Hx Hp.
+  destruct (@push_kt4_preserves_colors_leveled A x c c' HI Hx Hp)
+    as [Hcc' Hwl'].
   destruct HI as [Hreg _].
   split; [ eapply push_kt4_preserves_regular_top; [exact Hreg | exact Hp]
          | split; [exact Hcc' | exact Hwl'] ].
@@ -1290,7 +1391,7 @@ Proof.
   intros A x c HI Hx.
   destruct (@push_kt4_total A x c HI Hx) as [c' Hc'].
   exists c'. split; [exact Hc'|]. split.
-  - exact (@push_kt4_preserves_I_kt A x c c' HI Hc').
+  - exact (@push_kt4_preserves_I_kt A x c c' HI Hx Hc').
   - apply push_kt4_green_calls_le_1.
 Qed.
 
