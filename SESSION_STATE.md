@@ -1,6 +1,16 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+PROGRESS: admits 5 -> 3. PUSH AND INJECT FULLY CLOSED (cat_keystone_push/inject on
+zero admits): WfLemmas now has gyor mono + receiver lemmas + pkt_update_preserves
+(generic central assembly) + push/inject_chain_preserves. NEXT = obligation 2:
+cad_concat_total_J_seq (case bash over cad_concat: degenerate_buf cases 2/3/4 +
+make_left/make_right incl. only-variants; totality from J floors via buf_eject2/
+pop2 on >=5 buffers; J of outputs via tree_of_wf — note tree_of here gets NEW
+nodes (KLeft/KRight with fresh buffers) whose colour may be anything GREEN
+(sizes >=8 outer per §6) — and sequence via SeqLemmas + buf_stored_seq_app +
+stored_seq unfoldings of SBig/SSmall). Then obligation 3 (pop/eject; J grows
+level clause).
 Discharge the remaining Admitted obligations in rocq/KTDeque/Catenable/CatKeystone.v
 down to ZERO admits with clean Print Assumptions (all 6 cat_keystone_* report
 "Closed under the global context"). Order: (1) cad_push/inject_preserves_J — the
