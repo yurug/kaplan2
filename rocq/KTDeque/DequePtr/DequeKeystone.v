@@ -1007,6 +1007,58 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* The Green-link wrap step preserves the invariant payload.                   *)
+(* ========================================================================== *)
+
+Lemma yellow_wrap_pr_preserves_colors_leveled :
+  forall A k (pre : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
+         (tail : KChain A) (c' : KChain A),
+    buf5_is_not_red_shape pre ->
+    buf5_is_not_red_shape suf ->
+    cc_yellow_run i ->
+    cc_tail_color Green tail ->
+    colors_consistent tail ->
+    packet_levels k (PNode pre i suf) ->
+    well_leveled_at (packet_depth (PNode pre i suf) + k) tail ->
+    yellow_wrap_pr pre i suf tail = PushOk c' ->
+    colors_consistent c' /\ well_leveled_at k c'.
+Proof.
+  intros A k pre i suf tail c' Hpre Hsuf Hyr Htc Hcc Hpkt Hwl Hwrap.
+  unfold yellow_wrap_pr in Hwrap.
+  destruct tail as [b | tc p t2].
+  - (* KEnding: no repair *)
+    injection Hwrap as Hc; subst c'.
+    split.
+    + cbn. repeat split; assumption.
+    + cbn. split; [exact Hpkt | exact Hwl].
+  - destruct tc.
+    + (* Green tail: no repair *)
+      injection Hwrap as Hc; subst c'.
+      split.
+      * cbn. repeat split; try assumption.
+      * cbn. split; [exact Hpkt | exact Hwl].
+    + (* Yellow tail: excluded by the tail-colour discipline *)
+      cbn in Htc. congruence.
+    + (* Red tail: repaired, then wrapped *)
+      destruct (green_of_red_k (KCons Red p t2)) as [crep|] eqn:Hrep;
+        [| discriminate].
+      injection Hwrap as Hc; subst c'.
+      pose proof (@green_of_red_k_top_green A (KCons Red p t2) crep Hrep)
+        as Htop.
+      pose proof (@green_of_red_k_preserves_colors_consistent
+                    A (KCons Red p t2) crep Hcc Hrep) as Hcc'.
+      pose proof (@green_of_red_k_preserves_well_leveled
+                    A (packet_depth (PNode pre i suf) + k)
+                    (KCons Red p t2) crep Hcc Hwl Hrep) as Hwl'.
+      split.
+      * cbn. repeat split; try assumption.
+        (* cc_tail_color Yellow crep: top is Green *)
+        destruct crep as [|tc2 p2 t3]; cbn; [exact I |].
+        cbn in Htop. exact Htop.
+      * cbn. split; [exact Hpkt | exact Hwl'].
+Qed.
+
+(* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
