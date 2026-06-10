@@ -3,7 +3,23 @@
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
 PROGRESS: admits 5 -> 3. PUSH AND INJECT FULLY CLOSED (cat_keystone_push/inject on
 zero admits): WfLemmas now has gyor mono + receiver lemmas + pkt_update_preserves
-(generic central assembly) + push/inject_chain_preserves. NEXT = obligation 2:
+(generic central assembly) + push/inject_chain_preserves. PROGRESS-2: concat ASSEMBLED — cat_keystone_concat discharged at keystone level;
+keystone admits = 2 (pop, eject); concat sub-admits = 4 in ConcatLemmas.v:
+concat_small_left_big / concat_small_right_big (Case 2/3 >=8: store the receiving
+prefix/suffix as SSmall, push/inject into the root child via *_chain_preserves_wf
+— NOTE the new outer node colour equals the old root colour by the §6 argument:
+min(>=8, other-side) = other-side-determined; old root not red (terminal green by
+ends_green / body-heads Y,O) so tree_of cases CG/CY/CO with cont_green from the
+old terminal/parked facts — mirror pkt_update_preserves' case analysis) and
+make_left_total / make_right_total (Case 1: subcases 1a-1d; sizes from J floors
+make buf_eject2/pop2 succeed; built stored cells SSmall (>=3 from s1>=5 minus 2) /
+SBig wf; inner inject via inject_chain_preserves_wf (k=KOnly fine); the result
+node colour: new left node coloured by |p1| = OLD root colour (not red) — same
+tree_of dispatch; ends_green of result via cont_green from old facts; SEQUENCE:
+SBig/SSmall stored_seq unfold + buf_stored_seq_app + eject2/pop2 decompositions
+(buf_eject2 b = Some (i,y,z) -> b = i++[y;z] -> buf seq splits) — add small
+buf_eject2_seq/buf_pop2_seq lemmas first).
+WAS: NEXT = obligation 2:
 cad_concat_total_J_seq (case bash over cad_concat: degenerate_buf cases 2/3/4 +
 make_left/make_right incl. only-variants; totality from J floors via buf_eject2/
 pop2 on >=5 buffers; J of outputs via tree_of_wf — note tree_of here gets NEW
