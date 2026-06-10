@@ -211,3 +211,207 @@ Proof.
       * cbn in Hrs. congruence.
     + contradiction.
 Qed.
+
+(* ========================================================================== *)
+(* Receiver fact preservation + colour monotonicity (push/inject assembly).    *)
+(* ========================================================================== *)
+
+Definition gyor_rank (g : gyor) : nat :=
+  match g with CR => 0 | CO => 1 | CY => 2 | CG => 3 end.
+
+(** The §6.1 colour ladder as a function of the measure. *)
+Definition gyor_of (m : nat) : gyor :=
+  if 8 <=? m then CG else if m =? 7 then CY else if m =? 6 then CO else CR.
+
+Lemma gyor_of_mono :
+  forall a b, a <= b -> gyor_rank (gyor_of a) <= gyor_rank (gyor_of b).
+Proof.
+  intros a b Hab. unfold gyor_of.
+  destruct (8 <=? b) eqn:Hb8.
+  - destruct (8 <=? a); [cbn; lia|].
+    destruct (a =? 7); [cbn; lia|]. destruct (a =? 6); cbn; lia.
+  - apply Nat.leb_gt in Hb8.
+    destruct (8 <=? a) eqn:Ha8;
+      [apply Nat.leb_le in Ha8; lia |].
+    destruct (b =? 7) eqn:Hb7.
+    + destruct (a =? 7); [cbn; lia|]. destruct (a =? 6); cbn; lia.
+    + apply Nat.eqb_neq in Hb7.
+      destruct (a =? 7) eqn:Ha7.
+      * apply Nat.eqb_eq in Ha7.
+        destruct (b =? 6) eqn:Hb6;
+          [cbn; apply Nat.eqb_eq in Hb6; lia | apply Nat.eqb_neq in Hb6; lia].
+      * destruct (a =? 6) eqn:Ha6.
+        -- apply Nat.eqb_eq in Ha6.
+           destruct (b =? 6) eqn:Hb6; [cbn; lia |].
+           apply Nat.eqb_neq in Hb6. lia.
+        -- destruct (b =? 6); cbn; lia.
+Qed.
+
+Definition node_measure {A : Type} (n : cnode A) : nat :=
+  match n with
+  | Node KOnly p s => Nat.min (length p) (length s)
+  | Node KLeft p _ => length p
+  | Node KRight _ s => length s
+  end.
+
+Lemma node_color_measure :
+  forall A (n : cnode A),
+    node_color true n = gyor_of (node_measure n).
+Proof. intros A [k p s]; destruct k; reflexivity. Qed.
+
+Lemma node_push_measure :
+  forall A (s : stored A) (n : cnode A),
+    node_measure n <= node_measure (node_push s n).
+Proof.
+  intros A s [k p suf]; destruct k; destruct p;
+    cbn [node_push node_measure length]; lia.
+Qed.
+
+Lemma node_inject_measure :
+  forall A (s : stored A) (n : cnode A),
+    node_measure n <= node_measure (node_inject n s).
+Proof.
+  intros A s [k p suf]; destruct k; destruct suf;
+    cbn [node_inject node_measure];
+    rewrite ?length_app; cbn [length]; lia.
+Qed.
+
+Lemma node_push_color_mono :
+  forall A (s : stored A) (n : cnode A),
+    gyor_rank (node_color true n)
+    <= gyor_rank (node_color true (node_push s n)).
+Proof.
+  intros A s n. rewrite !node_color_measure.
+  apply gyor_of_mono, node_push_measure.
+Qed.
+
+Lemma node_inject_color_mono :
+  forall A (s : stored A) (n : cnode A),
+    gyor_rank (node_color true n)
+    <= gyor_rank (node_color true (node_inject n s)).
+Proof.
+  intros A s n. rewrite !node_color_measure.
+  apply gyor_of_mono, node_inject_measure.
+Qed.
+
+Lemma node_push_kind :
+  forall A (s : stored A) (n : cnode A),
+    node_kind (node_push s n) = node_kind n.
+Proof. intros A s [k p suf]; destruct p; reflexivity. Qed.
+
+Lemma node_inject_kind :
+  forall A (s : stored A) (n : cnode A),
+    node_kind (node_inject n s) = node_kind n.
+Proof. intros A s [k p suf]; destruct suf; reflexivity. Qed.
+
+Lemma node_push_sizes :
+  forall A (s : stored A) (hc : bool) (k : kind)
+         (p suf : buffer (stored A)),
+    k <> KRight ->
+    node_sizes hc (Node k p suf) ->
+    node_sizes hc (node_push s (Node k p suf)).
+Proof.
+  intros A s hc k p suf Hk Hsz.
+  destruct k; [| | congruence]; destruct p as [|a p']; cbn in Hsz |- *.
+  - (* KOnly, empty prefix: childless one-sided suffix *)
+    destruct Hsz as [[Hp _] | [Hc Hone]]; [cbn in Hp; lia |].
+    right. split; [exact Hc|].
+    destruct Hone as [[_ Hs] | [Hs _]];
+      [left; split; [reflexivity | cbn; lia] | left; split; [reflexivity |]].
+    subst suf. cbn. lia.
+  - (* KOnly, nonempty prefix *)
+    destruct Hsz as [[Hp Hs] | [Hc Hone]].
+    + left. split; [cbn in Hp |- *; lia | exact Hs].
+    + destruct Hone as [[Hp _] | [Hs Hp]]; [congruence |].
+      right. split; [exact Hc|]. right. split; [exact Hs | cbn in Hp |- *; lia].
+  - (* KLeft, empty prefix: sizes impossible *)
+    destruct Hsz as [Hp _]. cbn in Hp. lia.
+  - (* KLeft, nonempty prefix *)
+    destruct Hsz as [Hp Hs2]. split; [cbn in Hp |- *; lia | exact Hs2].
+Qed.
+
+Lemma node_inject_sizes :
+  forall A (s : stored A) (hc : bool) (k : kind)
+         (p suf : buffer (stored A)),
+    k <> KLeft ->
+    node_sizes hc (Node k p suf) ->
+    node_sizes hc (node_inject (Node k p suf) s).
+Proof.
+  intros A s hc k p suf Hk Hsz.
+  destruct k; [| congruence |]; destruct suf as [|a suf']; cbn in Hsz |- *.
+  - (* KOnly, empty suffix: childless one-sided prefix *)
+    destruct Hsz as [[_ Hs] | [Hc Hone]]; [cbn in Hs; lia |].
+    right. split; [exact Hc|].
+    destruct Hone as [[_ Hs1] | [_ Hp]]; [cbn in Hs1; lia |].
+    right. split; [reflexivity | rewrite length_app; cbn; lia].
+  - (* KOnly, nonempty suffix *)
+    destruct Hsz as [[Hp Hs] | [Hc Hone]].
+    + left. split; [exact Hp | cbn in Hs |- *; rewrite length_app; cbn; lia].
+    + destruct Hone as [[Hp Hs] | [Hs _]]; [| congruence].
+      right. split; [exact Hc|]. left.
+      split; [exact Hp | cbn in Hs |- *; rewrite length_app; cbn; lia].
+  - (* KRight, empty suffix: sizes impossible *)
+    destruct Hsz as [_ Hs]. cbn in Hs. lia.
+  - (* KRight, nonempty suffix *)
+    destruct Hsz as [Hp2 Hs]. split;
+      [exact Hp2 | cbn in Hs |- *; rewrite length_app; cbn; lia].
+Qed.
+
+(** Stored-wf of buffers, for the receiver cnode_wf preservation. *)
+Lemma node_push_cnode_wf :
+  forall A (s : stored A) (n : cnode A),
+    stored_wf s -> cnode_wf n -> cnode_wf (node_push s n).
+Proof.
+  intros A s [k p suf] Hs Hn.
+  destruct p; cbn in Hn |- *;
+    repeat match goal with H : _ /\ _ |- _ => destruct H end;
+    repeat split; assumption.
+Qed.
+
+Lemma buf_all_stored_wf_app :
+  forall A (a b : buffer (stored A)),
+    (fix all (l : list (stored A)) : Prop :=
+       match l with [] => True | x :: r => stored_wf x /\ all r end) a ->
+    (fix all (l : list (stored A)) : Prop :=
+       match l with [] => True | x :: r => stored_wf x /\ all r end) b ->
+    (fix all (l : list (stored A)) : Prop :=
+       match l with [] => True | x :: r => stored_wf x /\ all r end) (a ++ b).
+Proof.
+  intros A a b Ha Hb. induction a as [|x r IH]; cbn in *.
+  - exact Hb.
+  - destruct Ha as [Hx Hr]. split; [exact Hx | exact (IH Hr)].
+Qed.
+
+Lemma node_inject_cnode_wf :
+  forall A (s : stored A) (n : cnode A),
+    stored_wf s -> cnode_wf n -> cnode_wf (node_inject n s).
+Proof.
+  intros A s [k p suf] Hs Hn.
+  destruct Hn as [Hp Hsf].
+  destruct suf as [|a suf'].
+  - split.
+    + apply buf_all_stored_wf_app; [exact Hp | cbn; tauto].
+    + exact I.
+  - split; [exact Hp |].
+    apply buf_all_stored_wf_app; [exact Hsf | cbn; tauto].
+Qed.
+
+(** tree_of always yields a single-packet chain (needed for CPair shapes). *)
+Lemma tree_of_is_single :
+  forall A (n : cnode A) (child : cchain A),
+    is_single (tree_of n child) = true.
+Proof.
+  intros A n child. unfold tree_of.
+  destruct (node_color (chain_has_node child) n);
+    destruct child as [|[cb cn] crest|l r]; cbn; try reflexivity.
+  - destruct l as [|[lb ln] lrest|? ?]; reflexivity.
+  - destruct r as [|[rb rn] rrest|? ?]; reflexivity.
+Qed.
+
+Lemma pkt_update_is_single :
+  forall A (upd : cnode A -> cnode A) (p : cpacket A) (rest : cchain A),
+    is_single (pkt_update upd p rest) = true.
+Proof.
+  intros A upd p rest. unfold pkt_update.
+  destruct (root_and_child p rest) as [n child]. apply tree_of_is_single.
+Qed.
