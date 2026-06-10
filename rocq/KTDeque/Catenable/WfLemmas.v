@@ -601,3 +601,91 @@ Proof.
     + pose proof (Hupmono (Node k pp ss)) as Hm.
       rewrite HcolS, Hnew in Hm. cbn in Hm. lia.
 Qed.
+
+(* ========================================================================== *)
+(* Chain-level preservation and the public push/inject J facts.                *)
+(* ========================================================================== *)
+
+Lemma push_chain_preserves :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    k <> KRight ->
+    (c = CEmpty -> k = KOnly) ->
+    stored_wf s ->
+    chain_wf k c ->
+    chain_ends_green c ->
+    chain_wf k (push_chain s c) /\ chain_ends_green (push_chain s c).
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l IHl r _]; intros k Hk Hke Hs Hwf Hg.
+  - (* CEmpty: the singleton *)
+    rewrite (Hke eq_refl). cbn [push_chain].
+    split.
+    + split; [exact I|]. split; [reflexivity|].
+      split.
+      * right. split; [reflexivity|]. right.
+        split; [reflexivity | cbn; lia].
+      * split; [cbn; tauto|]. split; [left; reflexivity | exact I].
+    + reflexivity.
+  - (* CSingle: the packet update *)
+    cbn [push_chain].
+    apply pkt_update_preserves; try assumption.
+    + intros n0. apply node_push_kind.
+    + intros hc pp ss. apply node_push_sizes. exact Hk.
+    + intros n0. apply node_push_cnode_wf. exact Hs.
+    + intros n0. apply node_push_color_mono.
+  - (* CPair: descend left *)
+    cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    destruct (IHl KLeft) as [Hwf' Hg'];
+      [congruence
+      | intros Heq; subst l; cbn in Hls; congruence
+      | exact Hs | exact Hl | exact Hgl |].
+    cbn [push_chain]. split.
+    + cbn [chain_wf].
+      split.
+      * destruct l as [|lp lrest|? ?]; cbn in Hls; try congruence.
+        cbn [push_chain]. apply pkt_update_is_single.
+      * split; [exact Hrs|]. split; [exact Hwf' | exact Hr].
+    + cbn [chain_ends_green]. split; [exact Hg' | exact Hgr].
+Qed.
+
+Lemma inject_chain_preserves :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    k <> KLeft ->
+    (c = CEmpty -> k = KOnly) ->
+    stored_wf s ->
+    chain_wf k c ->
+    chain_ends_green c ->
+    chain_wf k (inject_chain c s) /\ chain_ends_green (inject_chain c s).
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l _ r IHr]; intros k Hk Hke Hs Hwf Hg.
+  - rewrite (Hke eq_refl). cbn [inject_chain].
+    split.
+    + split; [exact I|]. split; [reflexivity|].
+      split.
+      * right. split; [reflexivity|]. left.
+        split; [reflexivity | cbn; lia].
+      * split; [cbn; tauto|]. split; [left; reflexivity | exact I].
+    + reflexivity.
+  - cbn [inject_chain].
+    apply pkt_update_preserves; try assumption.
+    + intros n0. apply node_inject_kind.
+    + intros hc pp ss Hszs. apply node_inject_sizes; [exact Hk | exact Hszs].
+    + intros n0. apply node_inject_cnode_wf. exact Hs.
+    + intros n0. apply node_inject_color_mono.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    destruct (IHr KRight) as [Hwf' Hg'];
+      [congruence
+      | intros Heq; subst r; cbn in Hrs; congruence
+      | exact Hs | exact Hr | exact Hgr |].
+    cbn [inject_chain]. split.
+    + cbn [chain_wf].
+      split; [exact Hls|].
+      split.
+      * destruct r as [|rp rrest|? ?]; cbn in Hrs; try congruence.
+        cbn [inject_chain]. apply pkt_update_is_single.
+      * split; [exact Hl | exact Hwf'].
+    + cbn [chain_ends_green]. split; [exact Hgl | exact Hg'].
+Qed.
