@@ -545,6 +545,107 @@ Proof.
     + exact Hrest.
 Qed.
 
+(** Index rewriting for [well_leveled_at] (the depth bookkeeping across a
+    repair moves [S]s between the packet depth and the chain index). *)
+Lemma well_leveled_at_eq :
+  forall A i j (c : KChain A),
+    i = j -> well_leveled_at i c -> well_leveled_at j c.
+Proof. intros A i j c Hij H; subst; exact H. Qed.
+
+(** Lifting [make_small]'s output levels through the Green tagging. *)
+Lemma chain_to_kchain_g_well_leveled :
+  forall A (c : Chain A) (k : nat),
+    chain_levels_d k c ->
+    well_leveled_at k (chain_to_kchain_g c).
+Proof.
+  intros A c. induction c as [b | p c' IH]; intros k Hc.
+  - exact Hc.
+  - cbn in Hc |- *. destruct Hc as [Hp Hc'].
+    split; [exact Hp | apply IH; exact Hc'].
+Qed.
+
+(** Reduce while keeping the repair's building blocks folded. *)
+Local Ltac gor_reduce :=
+  cbn -[E.level E.pair E.unpair make_small green_prefix_concat
+        green_suffix_concat prefix_concat suffix_concat chain_to_kchain_g].
+
+(** The repair preserves depth-aware well-levelledness.  Needs
+    [colors_consistent] for the Case-3 not-red shapes consumed by the
+    yellow-variant concat level lemmas. *)
+Lemma green_of_red_k_preserves_well_leveled :
+  forall A k (c c' : KChain A),
+    colors_consistent c ->
+    well_leveled_at k c ->
+    green_of_red_k c = Some c' ->
+    well_leveled_at k c'.
+Proof.
+  intros A k c c' Hcc Hwl.
+  unfold green_of_red_k.
+  destruct c as [b | col [|pre1 i1 suf1] tail].
+  - intros Hg; discriminate.
+  - destruct col; intros Hg; discriminate.
+  - destruct col; [intros Hg; discriminate | intros Hg; discriminate |].
+    (* col = Red *)
+    cbn in Hcc. destruct Hcc as [_ [Hyr [Hihole _Htailcc]]].
+    cbn in Hwl. destruct Hwl as [Hpkt Hwltail].
+    destruct i1 as [|pre2 child suf2]; gor_reduce.
+    + (* Hole inner *)
+      destruct tail as [b | col2 [|pre2 child suf2] c2]; gor_reduce.
+      * (* Case 1: Ending tail *)
+        destruct (make_small pre1 b suf1) as [cm|] eqn:Hms; gor_reduce;
+          [| intros Hg; discriminate].
+        intros Hg; injection Hg as Hg; subst c'.
+        inversion Hpkt as [|? ? ? ? Hpre1 _ Hsuf1]; subst.
+        cbn in Hwltail.
+        apply chain_to_kchain_g_well_leveled.
+        eapply make_small_preserves_levels;
+          [exact Hpre1 | exact Hwltail | exact Hsuf1 | exact Hms].
+      * (* Hole-packet tail: unreachable *)
+        intros Hg; discriminate.
+      * (* Case 2: ChainCons tail *)
+        destruct (green_prefix_concat pre1 pre2) as [[pre1' pre2']|] eqn:Hgp;
+          gor_reduce; [| intros Hg; discriminate].
+        destruct (green_suffix_concat suf2 suf1) as [[suf2' suf1']|] eqn:Hgs;
+          gor_reduce; [| intros Hg; discriminate].
+        intros Hg; injection Hg as Hg; subst c'.
+        inversion Hpkt as [|? ? ? ? Hpre1 _ Hsuf1]; subst.
+        cbn in Hwltail. destruct Hwltail as [Hpkt2 Hwlc2].
+        inversion Hpkt2 as [|? ? ? ? Hpre2 Hchild Hsuf2]; subst.
+        pose proof (@green_prefix_concat_success_preserves_green_outer_levels
+                      A k pre1 pre2 pre1' pre2' Hpre1 Hpre2 Hgp)
+          as [_ [Hpre1' Hpre2']].
+        pose proof (@green_suffix_concat_success_preserves_green_outer_levels
+                      A k suf2 suf1 suf2' suf1' Hsuf2 Hsuf1 Hgs)
+          as [Hsuf2' [_ Hsuf1']].
+        gor_reduce. split.
+        -- constructor;
+             [ exact Hpre1'
+             | constructor; [exact Hpre2' | exact Hchild | exact Hsuf2']
+             | exact Hsuf1' ].
+        -- eapply well_leveled_at_eq; [| exact Hwlc2]. lia.
+    + (* Case 3: PNode inner *)
+      cbn in Hyr. destruct Hyr as [Hpre2shape [Hsuf2shape _]].
+      destruct (prefix_concat pre1 pre2) as [[pre1' pre2']|] eqn:Hpc;
+        gor_reduce; [| intros Hg; discriminate].
+      destruct (suffix_concat suf2 suf1) as [[suf2' suf1']|] eqn:Hsc;
+        gor_reduce; [| intros Hg; discriminate].
+      intros Hg; injection Hg as Hg; subst c'.
+      inversion Hpkt as [|? ? ? ? Hpre1 Hinner Hsuf1]; subst.
+      inversion Hinner as [|? ? ? ? Hpre2 Hchild Hsuf2]; subst.
+      cbn in Hwltail.
+      pose proof (@prefix_concat_preserves_outer_green_levels
+                    A k pre1 pre2 pre1' pre2' Hpre1 Hpre2 Hpre2shape Hpc)
+        as [_ [Hpre1' Hpre2']].
+      pose proof (@suffix_concat_preserves_outer_green_levels
+                    A k suf2 suf1 suf2' suf1' Hsuf2 Hsuf1 Hsuf2shape Hsc)
+        as [Hsuf2' [_ Hsuf1']].
+      gor_reduce. split.
+      * constructor; [exact Hpre1' | apply pl_hole | exact Hsuf1'].
+      * split.
+        -- constructor; [exact Hpre2' | exact Hchild | exact Hsuf2'].
+        -- eapply well_leveled_at_eq; [| exact Hwltail]. lia.
+Qed.
+
 (* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
