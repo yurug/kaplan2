@@ -26,8 +26,9 @@
     (green_of_red_k total + I_kt-preserving on regular, colour-consistent,
     well-levelled red chains) into the buffer-op lemmas. *)
 
-From KTDeque.Common Require Import Prelude Color Buf5 Element.
-From KTDeque.DequePtr Require Import Model OpsKT OpsKTRegular PublicTheorems.
+From KTDeque.Common Require Import Prelude Color Buf5 Buf5Ops Element.
+From KTDeque.DequePtr Require Import Model OpsKT OpsKTRegular OpsAbstract
+  PublicTheorems.
 
 Module E := OpsKT.E.
 
@@ -351,6 +352,197 @@ Lemma suffix_decompose_levels :
     end.
 Proof.
   intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
+Qed.
+
+(** make_small produces a depth-aware well-levelled chain
+    (green_of_red_k Case 1).  Structured: destruct the two decompose results
+    (9 cases) and handle b2's single operation per case via its helper lemma,
+    WITHOUT destructing b2. *)
+(** Reduce the goal while keeping the make_small building blocks folded, so
+    each scrutinee stays syntactically visible for [destruct]. *)
+Local Ltac ms_reduce :=
+  cbn -[E.level E.pair E.unpair prefix23 suffix23 suffix12
+        mk_ending_from_options buffer_unsandwich buf5_pop_naive
+        buf5_eject_naive buf5_push_naive buf5_inject_naive suffix_rot
+        prefix_rot buffer_halve pair_each_buf buffer_push_chain
+        buffer_inject_chain Nat.eq_dec].
+
+Lemma make_small_preserves_levels :
+  forall A k (b1 b2 b3 : Buf5 (E.t A)) (c : Chain A),
+    buf_all_at_level k b1 ->
+    buf_all_at_level (S k) b2 ->
+    buf_all_at_level k b3 ->
+    make_small b1 b2 b3 = Some c ->
+    chain_levels_d k c.
+Proof.
+  intros A k b1 b2 b3 c Hb1 Hb2 Hb3.
+  unfold make_small.
+  pose proof (@prefix_decompose_levels A k b1 Hb1) as Hpd.
+  pose proof (@suffix_decompose_levels A k b3 Hb3) as Hsd.
+  revert Hpd Hsd.
+  destruct (prefix_decompose b1) as [p1opt|p1'|p1' c0 d0];
+    destruct (suffix_decompose b3) as [s1opt|s1'|s1' a0 e0];
+    intros Hpd Hsd; cbn in Hpd, Hsd; ms_reduce.
+  - (* underflow / underflow *)
+    destruct (buffer_unsandwich b2) as [midopt|ab rest cd] eqn:Hus; ms_reduce;
+      pose proof (@buffer_unsandwich_levels A (S k) b2 Hb2) as Hbu;
+      rewrite Hus in Hbu; cbn -[E.level] in Hbu.
+    + destruct midopt as [elem|].
+      * destruct (E.unpair A elem) as [[x y]|] eqn:Hu; ms_reduce;
+          [| intros Hbad; discriminate].
+        pose proof (@E.unpair_level A elem x y Hu) as [Hlv Hxy].
+        rewrite Hbu in Hlv; injection Hlv as Hlv.
+        intros Hmake; injection Hmake as Hc; subst c.
+        apply mk_ending_from_options_levels;
+          [exact Hpd | split; congruence | exact Hsd].
+      * intros Hmake; injection Hmake as Hc; subst c.
+        apply mk_ending_from_options_levels;
+          [exact Hpd | exact I | exact Hsd].
+    + destruct Hbu as [Hab [Hrest Hcd]].
+      destruct (E.unpair A ab) as [[xa ya]|] eqn:Hua; ms_reduce;
+        [| intros Hbad; discriminate].
+      destruct (E.unpair A cd) as [[xc yc]|] eqn:Huc; ms_reduce;
+        [| intros Hbad; discriminate].
+      pose proof (@E.unpair_level A ab xa ya Hua) as [Hla Hxya].
+      pose proof (@E.unpair_level A cd xc yc Huc) as [Hlc Hxyc].
+      rewrite Hab in Hla; injection Hla as Hla.
+      rewrite Hcd in Hlc; injection Hlc as Hlc.
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce. split.
+      * constructor;
+          [ apply prefix23_levels; [exact Hpd|congruence|congruence]
+          | apply pl_hole
+          | apply suffix23_levels; [congruence|congruence|exact Hsd] ].
+      * exact Hrest.
+  - (* underflow / ok *)
+    destruct (buf5_pop_naive b2) as [[cd rest]|] eqn:Hpop; ms_reduce.
+    + pose proof (@buf5_pop_preserves_levels A (S k) b2 cd rest Hb2 Hpop)
+        as [Hcd Hrest].
+      destruct (E.unpair A cd) as [[x y]|] eqn:Hu; ms_reduce;
+        [| intros Hbad; discriminate].
+      pose proof (@E.unpair_level A cd x y Hu) as [Hlv Hxy].
+      rewrite Hcd in Hlv; injection Hlv as Hlv.
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce. split.
+      * constructor;
+          [ apply prefix23_levels; [exact Hpd|congruence|congruence]
+          | apply pl_hole
+          | exact Hsd ].
+      * exact Hrest.
+    + destruct p1opt as [x|].
+      * destruct (buf5_push_naive x s1') as [s1''|] eqn:Hpush; ms_reduce;
+          [| intros Hbad; discriminate].
+        intros Hmake; injection Hmake as Hc; subst c.
+        ms_reduce. eapply buf5_push_preserves_levels; eauto.
+      * intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact Hsd.
+  - (* underflow / overflow *)
+    destruct Hsd as [Hs1' [Ha0 He0]].
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [e|ne];
+      ms_reduce; [|congruence].
+    assert (Hpl : E.level A (E.pair A a0 e0 e) = S k)
+      by (rewrite E.level_pair; congruence).
+    destruct (suffix_rot b2 (E.pair A a0 e0 e)) as [cd_paired center] eqn:Hrot;
+      ms_reduce.
+    pose proof (@suffix_rot_preserves_levels A (S k) b2 center
+                  (E.pair A a0 e0 e) cd_paired Hb2 Hpl Hrot) as [Hcdp Hcen].
+    destruct (E.unpair A cd_paired) as [[x y]|] eqn:Hu; ms_reduce;
+      [| intros Hbad; discriminate].
+    pose proof (@E.unpair_level A cd_paired x y Hu) as [Hlv Hxy].
+    rewrite Hcdp in Hlv; injection Hlv as Hlv.
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor;
+        [ apply prefix23_levels; [exact Hpd|congruence|congruence]
+        | apply pl_hole
+        | exact Hs1' ].
+    + exact Hcen.
+  - (* ok / underflow *)
+    destruct (buf5_eject_naive b2) as [[rest ab]|] eqn:Hej; ms_reduce.
+    + pose proof (@buf5_eject_preserves_levels A (S k) b2 ab rest Hb2 Hej)
+        as [Hab Hrest].
+      destruct (E.unpair A ab) as [[x y]|] eqn:Hu; ms_reduce;
+        [| intros Hbad; discriminate].
+      pose proof (@E.unpair_level A ab x y Hu) as [Hlv Hxy].
+      rewrite Hab in Hlv; injection Hlv as Hlv.
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce. split.
+      * constructor;
+          [ exact Hpd
+          | apply pl_hole
+          | apply suffix23_levels; [congruence|congruence|exact Hsd] ].
+      * exact Hrest.
+    + destruct s1opt as [x|].
+      * destruct (buf5_inject_naive p1' x) as [p1''|] eqn:Hinj; ms_reduce;
+          [| intros Hbad; discriminate].
+        intros Hmake; injection Hmake as Hc; subst c.
+        ms_reduce. eapply buf5_inject_preserves_levels; eauto.
+      * intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact Hpd.
+  - (* ok / ok *)
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor; [exact Hpd | apply pl_hole | exact Hsd].
+    + exact Hb2.
+  - (* ok / overflow *)
+    destruct Hsd as [Hs1' [Ha0 He0]].
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [e|ne];
+      ms_reduce; [|congruence].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor; [exact Hpd | apply pl_hole | exact Hs1'].
+    + apply buffer_inject_chain_levels;
+        [rewrite E.level_pair; congruence | exact Hb2].
+  - (* overflow / underflow *)
+    destruct Hpd as [Hp1' [Hc0 Hd0]].
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [e|ne];
+      ms_reduce; [|congruence].
+    assert (Hpl : E.level A (E.pair A c0 d0 e) = S k)
+      by (rewrite E.level_pair; congruence).
+    destruct (prefix_rot (E.pair A c0 d0 e) b2) as [center ab_paired] eqn:Hrot;
+      ms_reduce.
+    pose proof (@prefix_rot_preserves_levels A (S k) (E.pair A c0 d0 e) b2
+                  center ab_paired Hpl Hb2 Hrot) as [Hcen Hab].
+    destruct (E.unpair A ab_paired) as [[x y]|] eqn:Hu; ms_reduce;
+      [| intros Hbad; discriminate].
+    pose proof (@E.unpair_level A ab_paired x y Hu) as [Hlv Hxy].
+    rewrite Hab in Hlv; injection Hlv as Hlv.
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor;
+        [ exact Hp1'
+        | apply pl_hole
+        | apply suffix23_levels; [congruence|congruence|exact Hsd] ].
+    + exact Hcen.
+  - (* overflow / ok *)
+    destruct Hpd as [Hp1' [Hc0 Hd0]].
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [e|ne];
+      ms_reduce; [|congruence].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor; [exact Hp1' | apply pl_hole | exact Hsd].
+    + apply buffer_push_chain_levels;
+        [rewrite E.level_pair; congruence | exact Hb2].
+  - (* overflow / overflow *)
+    destruct Hpd as [Hp1' [Hc0 Hd0]].
+    destruct Hsd as [Hs1' [Ha0 He0]].
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [ecd|n1];
+      ms_reduce; [|congruence].
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [eab|n2];
+      ms_reduce; [|congruence].
+    destruct (buffer_halve b2) as [midopt rest_pairs] eqn:Hh; ms_reduce.
+    destruct (pair_each_buf rest_pairs) as [rest|] eqn:Hpe; ms_reduce;
+      [| intros Hbad; discriminate].
+    pose proof (@pair_each_buf_after_halve_preserves_levels A k b2 midopt
+                  rest_pairs rest Hb2 Hh Hpe) as [Hmid Hrest].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. split.
+    + constructor.
+      * exact Hp1'.
+      * constructor.
+        -- apply suffix12_levels; [rewrite E.level_pair; congruence | exact Hmid].
+        -- apply pl_hole.
+        -- cbn -[E.level E.pair]. rewrite E.level_pair. congruence.
+      * exact Hs1'.
+    + exact Hrest.
 Qed.
 
 (* ========================================================================== *)
