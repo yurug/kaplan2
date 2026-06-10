@@ -29,7 +29,7 @@
 From Stdlib Require Import List Arith.
 Import ListNotations.
 From KTDeque.Common Require Import Prelude.
-From KTDeque.Catenable Require Import Model Color Ops SeqLemmas.
+From KTDeque.Catenable Require Import Model Color Ops SeqLemmas WfLemmas.
 
 Set Implicit Arguments.
 
@@ -40,7 +40,12 @@ Set Implicit Arguments.
 Lemma cad_push_preserves_J :
   forall A (x : A) (d : cadeque A),
     J d -> J (cad_push x d).
-Proof. Admitted.
+Proof.
+  intros A x d [Hwf Hg].
+  unfold cad_push.
+  apply (@push_chain_preserves A (SGround x) d KOnly);
+    [congruence | intros _; reflexivity | exact I | exact Hwf | exact Hg].
+Qed.
 
 Lemma cad_push_seq :
   forall A (x : A) (d : cadeque A),
@@ -55,7 +60,12 @@ Qed.
 Lemma cad_inject_preserves_J :
   forall A (d : cadeque A) (x : A),
     J d -> J (cad_inject d x).
-Proof. Admitted.
+Proof.
+  intros A d x [Hwf Hg].
+  unfold cad_inject.
+  apply (@inject_chain_preserves A (SGround x) d KOnly);
+    [congruence | intros _; reflexivity | exact I | exact Hwf | exact Hg].
+Qed.
 
 Lemma cad_inject_seq :
   forall A (d : cadeque A) (x : A),
