@@ -11,7 +11,15 @@ an obligation demands it).
 DONE also: Catenable/Ops.v with push/inject (colour-driven surgery via root_and_child/tree_of;
 pkt_update = compose) AND concat (Cases 1-4 + 1a-1d, sequence-verified by vm_compute incl.
 Case 1 CPair path). DONE also: pop/eject + §6 repair (Cases 1/2a-2c; pair-collapse via Viennot vector path;
-drain-verified by vm_compute). REMAINING for 4b: CatKeystone.v (cat_wc_o1 from admitted
+drain-verified by vm_compute). DONE also: CatKeystone.v skeleton — cat_keystone_{empty,push,inject,concat,pop,eject}
+proven from 7 Admitted obligations (functional keystone; empty already closed).
+REMAINING for 4b: (a) DISCHARGE the 7 obligations (expected: J grows the level/
+stratification clause at pop-totality — SGround-ness is level-0; push/inject seq
+needs J sizes for the empty-prefix suffix-push case; tree_of/root_and_child seq
+lemmas are the workhorses — prove cchain_seq (tree_of n c) = cnode_seq n (cchain_seq c)
+and the root_and_child inverse first); (b) then the COST layer: primitive-count
+counters mirroring the frozen op code + constant bounds => cat_wc_o1; (c) gate:
+point the catenable gate profile at cat_wc_o1. Old note: CatKeystone.v (cat_wc_o1 from admitted
 obligations: J-preservation for all 5 ops, totality of the option-returning concat/pop/eject
 under J, sequence correctness, primitive-count bound).
 
