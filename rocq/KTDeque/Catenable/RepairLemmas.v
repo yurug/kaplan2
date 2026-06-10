@@ -374,3 +374,197 @@ Proof.
   - apply tree_of_leveled; [split; [exact Hpl | exact Hsl] | exact Hcl].
   - rewrite tree_of_seq, cnode_seq_eq. reflexivity.
 Qed.
+
+(* ========================================================================== *)
+(* Dead-side recrowns: a drained pair component below its floor merges over   *)
+(* the live sibling's peeled root.  The live root needs only chain_wf — its   *)
+(* sr_facts key exactly the recrown colour (same one-sided measure).           *)
+(* ========================================================================== *)
+
+Lemma recrown_left_dead :
+  forall A (k : nat) (lp ls : buffer (stored A)) (pr' : cpacket A)
+         (rr' : cchain A),
+    buf_stored_all_wf lp -> buf_stored_all_wf ls ->
+    buf_all_leveled k lp -> buf_all_leveled k ls ->
+    length ls = 2 -> length lp = 4 ->
+    chain_wf KRight (CSingle pr' rr') ->
+    chain_leveled k (CSingle pr' rr') ->
+    exists t,
+      match root_and_child pr' rr' with
+      | (Node _ p2 s2, d2) =>
+          Some (tree_of (Node KOnly (lp ++ ls ++ p2) s2) d2)
+      end = Some t /\
+      chain_wf KOnly t /\ chain_leveled k t /\
+      cchain_seq t
+      = buf_stored_seq lp ++ buf_stored_seq ls
+        ++ cchain_seq (CSingle pr' rr').
+Proof.
+  intros A k lp ls pr' rr' Hlpw Hlsw Hlpl Hlsl Hls2 Hlp4 Hwf Hl.
+  destruct (root_and_child pr' rr') as [[k2 p2 s2] d2] eqn:Hrc.
+  pose proof (root_and_child_facts Hwf) as Hf.
+  rewrite Hrc in Hf. cbn [fst snd] in Hf.
+  destruct Hf as [Hk [Hsz [Hnw [Hcw Hrcf]]]].
+  cbn [node_kind] in Hk. subst k2.
+  cbn [node_sizes] in Hsz. destruct Hsz as [Hp22 Hs25].
+  cbn [cnode_wf] in Hnw. destruct Hnw as [Hp2w Hs2w].
+  pose proof (root_and_child_leveled Hl) as Hlf.
+  rewrite Hrc in Hlf. cbn [fst snd] in Hlf.
+  destruct Hlf as [Hnl Hdl].
+  cbn [cnode_leveled] in Hnl. destruct Hnl as [Hp2l Hs2l].
+  apply root_color_facts_sr in Hrcf.
+  assert (Hnpw : buf_stored_all_wf (lp ++ ls ++ p2)).
+  { apply buf_all_wf_app; [exact Hlpw |].
+    apply buf_all_wf_app; [exact Hlsw | exact Hp2w]. }
+  assert (Hnpl : buf_all_leveled k (lp ++ ls ++ p2)).
+  { apply buf_all_leveled_app; [exact Hlpl |].
+    apply buf_all_leveled_app; [exact Hlsl | exact Hp2l]. }
+  assert (Hlen8 : length (lp ++ ls ++ p2) = 8)
+    by (rewrite !length_app; lia).
+  assert (Hseq0 : cchain_seq (CSingle pr' rr')
+                  = buf_stored_seq p2 ++ cchain_seq d2
+                    ++ buf_stored_seq s2).
+  { rewrite (root_and_child_seq pr' rr'), Hrc. cbn [fst snd].
+    rewrite cnode_seq_eq. reflexivity. }
+  destruct d2 as [|d2p d2r|d2l d2rr].
+  - (* childless live root *)
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [lia | exact Hs25]
+        | split; [exact Hnpw | exact Hs2w]
+        | exact I
+        | exact I].
+    + apply tree_of_leveled; [split; [exact Hnpl | exact Hs2l] | exact I].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+  - (* rooted: sr-dispatch keyed at the live root's own colour *)
+    assert (Hnewc : node_color (chain_has_node (CSingle d2p d2r))
+              (Node KOnly (lp ++ ls ++ p2) s2) = gyor_of (length s2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big. lia. }
+    cbn [chain_has_node] in Hrcf.
+    rewrite node_color_measure in Hrcf. cbn [node_measure] in Hrcf.
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [lia | exact Hs25]
+        | split; [exact Hnpw | exact Hs2w]
+        | exact Hcw
+        | unfold root_color_facts; rewrite Hnewc;
+          destruct (gyor_of (length s2)) eqn:Hg;
+          [exact I | exact I | exact Hrcf | exact Hrcf]].
+    + apply tree_of_leveled; [split; [exact Hnpl | exact Hs2l] | exact Hdl].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+  - assert (Hnewc : node_color (chain_has_node (CPair d2l d2rr))
+              (Node KOnly (lp ++ ls ++ p2) s2) = gyor_of (length s2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big. lia. }
+    cbn [chain_has_node] in Hrcf.
+    rewrite node_color_measure in Hrcf. cbn [node_measure] in Hrcf.
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [lia | exact Hs25]
+        | split; [exact Hnpw | exact Hs2w]
+        | exact Hcw
+        | unfold root_color_facts; rewrite Hnewc;
+          destruct (gyor_of (length s2)) eqn:Hg;
+          [exact I | exact I | exact Hrcf | exact Hrcf]].
+    + apply tree_of_leveled; [split; [exact Hnpl | exact Hs2l] | exact Hdl].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+Qed.
+
+Lemma recrown_right_dead :
+  forall A (k : nat) (rp rs : buffer (stored A)) (pl' : cpacket A)
+         (rl' : cchain A),
+    buf_stored_all_wf rp -> buf_stored_all_wf rs ->
+    buf_all_leveled k rp -> buf_all_leveled k rs ->
+    length rp = 2 -> length rs = 4 ->
+    chain_wf KLeft (CSingle pl' rl') ->
+    chain_leveled k (CSingle pl' rl') ->
+    exists t,
+      match root_and_child pl' rl' with
+      | (Node _ p2 s2, d2) =>
+          Some (tree_of (Node KOnly p2 (s2 ++ rp ++ rs)) d2)
+      end = Some t /\
+      chain_wf KOnly t /\ chain_leveled k t /\
+      cchain_seq t
+      = cchain_seq (CSingle pl' rl') ++ buf_stored_seq rp
+        ++ buf_stored_seq rs.
+Proof.
+  intros A k rp rs pl' rl' Hrpw Hrsw Hrpl Hrsl Hrp2 Hrs4 Hwf Hl.
+  destruct (root_and_child pl' rl') as [[k1 p2 s2] d2] eqn:Hrc.
+  pose proof (root_and_child_facts Hwf) as Hf.
+  rewrite Hrc in Hf. cbn [fst snd] in Hf.
+  destruct Hf as [Hk [Hsz [Hnw [Hcw Hrcf]]]].
+  cbn [node_kind] in Hk. subst k1.
+  cbn [node_sizes] in Hsz. destruct Hsz as [Hp25 Hs22].
+  cbn [cnode_wf] in Hnw. destruct Hnw as [Hp2w Hs2w].
+  pose proof (root_and_child_leveled Hl) as Hlf.
+  rewrite Hrc in Hlf. cbn [fst snd] in Hlf.
+  destruct Hlf as [Hnl Hdl].
+  cbn [cnode_leveled] in Hnl. destruct Hnl as [Hp2l Hs2l].
+  apply root_color_facts_sr in Hrcf.
+  assert (Hnsw : buf_stored_all_wf (s2 ++ rp ++ rs)).
+  { apply buf_all_wf_app; [exact Hs2w |].
+    apply buf_all_wf_app; [exact Hrpw | exact Hrsw]. }
+  assert (Hnsl : buf_all_leveled k (s2 ++ rp ++ rs)).
+  { apply buf_all_leveled_app; [exact Hs2l |].
+    apply buf_all_leveled_app; [exact Hrpl | exact Hrsl]. }
+  assert (Hlen8 : length (s2 ++ rp ++ rs) = 8)
+    by (rewrite !length_app; lia).
+  assert (Hseq0 : cchain_seq (CSingle pl' rl')
+                  = buf_stored_seq p2 ++ cchain_seq d2
+                    ++ buf_stored_seq s2).
+  { rewrite (root_and_child_seq pl' rl'), Hrc. cbn [fst snd].
+    rewrite cnode_seq_eq. reflexivity. }
+  destruct d2 as [|d2p d2r|d2l d2rr].
+  - eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [exact Hp25 | lia]
+        | split; [exact Hp2w | exact Hnsw]
+        | exact I
+        | exact I].
+    + apply tree_of_leveled; [split; [exact Hp2l | exact Hnsl] | exact I].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+  - assert (Hnewc : node_color (chain_has_node (CSingle d2p d2r))
+              (Node KOnly p2 (s2 ++ rp ++ rs)) = gyor_of (length p2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big_r. lia. }
+    cbn [chain_has_node] in Hrcf.
+    rewrite node_color_measure in Hrcf. cbn [node_measure] in Hrcf.
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [exact Hp25 | lia]
+        | split; [exact Hp2w | exact Hnsw]
+        | exact Hcw
+        | unfold root_color_facts; rewrite Hnewc;
+          destruct (gyor_of (length p2)) eqn:Hg;
+          [exact I | exact I | exact Hrcf | exact Hrcf]].
+    + apply tree_of_leveled; [split; [exact Hp2l | exact Hnsl] | exact Hdl].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+  - assert (Hnewc : node_color (chain_has_node (CPair d2l d2rr))
+              (Node KOnly p2 (s2 ++ rp ++ rs)) = gyor_of (length p2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big_r. lia. }
+    cbn [chain_has_node] in Hrcf.
+    rewrite node_color_measure in Hrcf. cbn [node_measure] in Hrcf.
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + apply tree_of_wf;
+        [reflexivity
+        | cbn [chain_has_node node_sizes]; left; split; [exact Hp25 | lia]
+        | split; [exact Hp2w | exact Hnsw]
+        | exact Hcw
+        | unfold root_color_facts; rewrite Hnewc;
+          destruct (gyor_of (length p2)) eqn:Hg;
+          [exact I | exact I | exact Hrcf | exact Hrcf]].
+    + apply tree_of_leveled; [split; [exact Hp2l | exact Hnsl] | exact Hdl].
+    + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
+Qed.
