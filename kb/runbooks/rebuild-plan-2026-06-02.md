@@ -13,9 +13,16 @@ last-updated: 2026-06-02
 `rocq/KTDeque/DequePtr/DequeKeystone.v` proves the unconditional
 `deque_wc_o1_{push,inject,pop,eject}` with zero admits, all four
 `Print Assumptions` *Closed under the global context*; gated by
-`make deque-keystone-gate` (4/4). RBR `Succ.v` Abort also closed. Remaining:
-Phase 2 (re-curate, destructive — awaits explicit go-ahead) and Phase 4b
-(catenable, fresh §6/Viennot build — awaits user review of the keystone).
+`make deque-keystone-gate` (4/4). RBR `Succ.v` Abort also closed. **Phase 2 (re-curation) DONE 2026-06-03**: Cadeque6/7/8/9, Buffer6, Public,
+the experimental OCaml library/benches/tests, and the catenable gate plumbing
+removed from `rebuild` (preserved on the pushed archive branch); whole tree
+verified green (rocq + ocaml + runtest + C suite + all 4 gate profiles +
+keystone gate 4/4); `release-gate` now anchors `deque-keystone-gate` first.
+Remaining: **Phase 4b** — the fresh catenable build from KT99 §6/Viennot GYOR.
+Its first design task: the Rocq encoding of §6's non-uniform recursion
+(triples whose middle deque holds stored triples) plus the preferred-path /
+compressed-forest structure that gives O(1) access to the topmost red triple
+— design first in kb/spec, then top-down skeleton as in Phase 4a.
 
 ## Why we are doing this
 

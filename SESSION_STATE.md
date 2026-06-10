@@ -2,6 +2,21 @@
 
 Running unattended (user asleep) to progress the rebuild plan. Read this first.
 
+## PHASE 2 (re-curation) DONE 2026-06-03
+Non-canonical variants removed from rebuild (preserved on archive, pushed): rocq
+Cadeque6/7/8/9 + Buffer6 + Public + catenable extractions; OCaml experimental lib
++ 24 catenable benches + viennot_cad + catenable tests/examples; Makefile/gate-script
+catenable targets (catenable profile now SKIPs with archive pointer). All green:
+rocq, ocaml, runtest, C check, 4 gate profiles, keystone gate 4/4. release-gate
+anchors deque-keystone-gate.
+NEXT = Phase 4b (catenable, fresh KT99 §6/Viennot build). First design task (do in
+a FRESH focused session, paper-first like 4a): the Rocq type encoding of §6's
+non-uniform recursion (triple = prefix/middle/suffix where the middle deque's
+elements are STORED TRIPLES) + GYOR colours + preferred paths + the compressed
+forest (adoptive pointers) for O(1) topmost-red access. Then J + cat_wc_o1 stated
+top-down from admitted obligations (methodology rule 6). Mine
+external-refs/VerifiedCatenableDeque (Color/GYOR.v, Cadeque/) for design only.
+
 ## ★★★ PHASE 4a CLOSED (2026-06-03) ★★★
 `rocq/KTDeque/DequePtr/DequeKeystone.v`: **ZERO admits**; `deque_wc_o1_{push,inject,pop,eject}`
 all report **Closed under the global context**. The unconditional WC-O(1) deque keystone is
