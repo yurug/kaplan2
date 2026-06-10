@@ -241,35 +241,37 @@ Lemma mk_ending_from_options_levels :
     match p1 with None => True | Some a => E.level A a = k end ->
     match mid with None => True | Some (a, b) => E.level A a = k /\ E.level A b = k end ->
     match s1 with None => True | Some a => E.level A a = k end ->
-    chain_levels k (mk_ending_from_options p1 mid s1).
+    chain_levels_d k (mk_ending_from_options p1 mid s1).
 Proof.
   intros A k p1 mid s1 Hp1 Hmid Hs1.
   destruct p1 as [a1|]; destruct mid as [[a2 b2]|]; destruct s1 as [a3|];
     cbn in Hp1, Hmid, Hs1 |- *;
     try (destruct Hmid);
-    constructor; cbn; repeat split; auto.
+    repeat split; auto.
 Qed.
 
 Lemma buffer_push_chain_levels :
   forall A k (x : E.t A) (b : Buf5 (E.t A)),
     E.level A x = k -> buf_all_at_level k b ->
-    chain_levels k (buffer_push_chain x b).
+    chain_levels_d k (buffer_push_chain x b).
 Proof.
   intros A k x b Hx Hb.
   destruct b; cbn in Hb |- *;
     repeat match goal with H : _ /\ _ |- _ => destruct H end;
-    repeat constructor; cbn in *; auto.
+    repeat split; auto;
+    constructor; cbn; repeat split; auto using pl_hole.
 Qed.
 
 Lemma buffer_inject_chain_levels :
   forall A k (x : E.t A) (b : Buf5 (E.t A)),
     E.level A x = k -> buf_all_at_level k b ->
-    chain_levels k (buffer_inject_chain b x).
+    chain_levels_d k (buffer_inject_chain b x).
 Proof.
   intros A k x b Hx Hb.
   destruct b; cbn in Hb |- *;
     repeat match goal with H : _ /\ _ |- _ => destruct H end;
-    repeat constructor; cbn in *; auto.
+    repeat split; auto;
+    constructor; cbn; repeat split; auto using pl_hole.
 Qed.
 
 Lemma buffer_unsandwich_levels :
@@ -321,6 +323,34 @@ Proof.
   destruct b; cbn in Hb, Heq |- *;
     repeat match goal with H : _ /\ _ |- _ => destruct H end;
     inversion Heq; subst; cbn; repeat split; auto.
+Qed.
+
+Lemma prefix_decompose_levels :
+  forall A k (b : Buf5 (E.t A)),
+    buf_all_at_level k b ->
+    match prefix_decompose b with
+    | BD_pre_underflow None => True
+    | BD_pre_underflow (Some x) => E.level A x = k
+    | BD_pre_ok b' => buf_all_at_level k b'
+    | BD_pre_overflow b' c d =>
+        buf_all_at_level k b' /\ E.level A c = k /\ E.level A d = k
+    end.
+Proof.
+  intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
+Qed.
+
+Lemma suffix_decompose_levels :
+  forall A k (b : Buf5 (E.t A)),
+    buf_all_at_level k b ->
+    match suffix_decompose b with
+    | BD_suf_underflow None => True
+    | BD_suf_underflow (Some x) => E.level A x = k
+    | BD_suf_ok b' => buf_all_at_level k b'
+    | BD_suf_overflow b' a c =>
+        buf_all_at_level k b' /\ E.level A a = k /\ E.level A c = k
+    end.
+Proof.
+  intros A k b Hb. destruct b; cbn in Hb |- *; intuition.
 Qed.
 
 (* ========================================================================== *)
