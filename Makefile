@@ -1,6 +1,7 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
         release-gate wc-o1-gate strict-wc-o1-gate catenable-wc-o1-gate \
         ports-wc-o1-gate wc-o1-kt4-assumptions wc-o1-kcad9-assumptions \
+        deque-keystone-gate \
         catenable-refinement-check catenable-adversarial-benches \
         bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
 
@@ -45,6 +46,29 @@ catenable-wc-o1-gate:
 
 ports-wc-o1-gate:
 	tools/check_wc_o1_release_gate.sh ports
+
+# Deque keystone gate (rebuild): the UNCONDITIONAL WC O(1) theorems
+# deque_wc_o1_{push,inject,pop,eject} in DequePtr/DequeKeystone.v.
+# This gate checks the summit, not the frontier: it passes iff the keystone
+# file builds and every Print Assumptions in it reports
+# "Closed under the global context".
+deque-keystone-gate:
+	@dune clean --root . 2>/dev/null; true
+	@echo "== Deque keystone: Print Assumptions for deque_wc_o1_* =="
+	@output=$$(dune build rocq/KTDeque/DequePtr/DequeKeystone.vo --display=quiet --no-buffer 2>&1); \
+	  status=$$?; \
+	  if [ $$status -ne 0 ]; then \
+	    printf '%s\n' "$$output"; \
+	    exit $$status; \
+	  fi; \
+	  printf '%s\n' "$$output" | grep -c "Closed under the global context" \
+	    | { read n; \
+	        if [ "$$n" -eq 4 ]; then \
+	          echo "OK: 4/4 keystone theorems closed under the global context"; \
+	        else \
+	          echo "FAIL: expected 4 closed keystone theorems, saw $$n"; \
+	          exit 1; \
+	        fi; }
 
 # Gate B audit: print the axiom dependencies for each public kt4 theorem in
 # rocq/KTDeque/DequePtr/PublicTheorems.v.  Expected: every theorem reports
