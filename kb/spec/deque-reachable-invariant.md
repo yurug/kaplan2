@@ -1,8 +1,8 @@
 ---
 id: deque-reachable-invariant
 domain: spec
-status: decided
-last-updated: 2026-06-02
+status: CLOSED — keystone proven (rocq/KTDeque/DequePtr/DequeKeystone.v, zero admits)
+last-updated: 2026-06-03
 ---
 
 # Deque reachable-state invariant (Gate-B keystone) — paper-spec draft
@@ -12,6 +12,33 @@ non-catenable deque keystone theorem needs, derived from KT99 §3+§4
 ([`section3-recursive-slowdown.md`](section3-recursive-slowdown.md),
 [`section4-representation.md`](section4-representation.md)). No Rocq is written
 against it until you sign off.
+
+## CLOSURE (2026-06-03)
+
+**The keystone is proven.** `rocq/KTDeque/DequePtr/DequeKeystone.v` states and
+proves `deque_wc_o1_{push,inject,pop,eject}` with **zero admits** and
+`Print Assumptions` reporting *Closed under the global context* for all four.
+The final invariant (refined twice during the proof — both refinements recorded
+below and in the file):
+
+> `I_kt c ≜ regular_kt_top c ∧ colors_consistent c ∧ well_leveled c` where
+> - `colors_consistent` = colour-tag/shape match per link + not-red yellow runs
+>   + the **tail-colour discipline** (Yellow/Red links sit over Green-or-Ending;
+>   Green links over non-Yellow — so Green-over-fresh-Red repair outputs are
+>   legal, which is exactly where the prior accretion's `*_not_push_closed`
+>   counterexamples lived);
+> - `well_leveled` = depth-aware levels: a link's tail sits
+>   `packet_depth p + k` deep (the naive `S k`-per-link indexing — also present
+>   in Model.v's `chain_levels` — is false for nested packets).
+
+Theorem shape: for every `I_kt` state (push/inject additionally take
+`E.level x = 0`, faithful to the public API), the operation **succeeds**,
+**preserves `I_kt`**, and **dispatches `green_of_red_k` at most once** (so its
+cost is bounded by the already-proven packet budgets). `empty_kchain ⊨ I_kt`.
+
+Follow-ups (not blockers): point the release gate at `deque_wc_o1_*` +
+`empty_I_kt`; connect the green-calls bound to `NF_PUSH_PKT_FULL` explicitly in
+the audit file.
 
 ## The unconditional theorem we want
 

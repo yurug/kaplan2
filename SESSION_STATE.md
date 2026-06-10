@@ -2,6 +2,17 @@
 
 Running unattended (user asleep) to progress the rebuild plan. Read this first.
 
+## ★★★ PHASE 4a CLOSED (2026-06-03) ★★★
+`rocq/KTDeque/DequePtr/DequeKeystone.v`: **ZERO admits**; `deque_wc_o1_{push,inject,pop,eject}`
+all report **Closed under the global context**. The unconditional WC-O(1) deque keystone is
+proven (totality + I_kt preservation + one-repair cost bound; empty ⊨ I_kt; push/inject take
+E.level x = 0). Whole rocq/KTDeque theory builds green. Mission item 1 DONE; item 2 (RBR) DONE.
+NEXT (mission item 3, only if continuing): catenable Phase-4 per kb/spec/catenable-concat-invariant.md
+— this is a LARGE fresh build (KT99 §6/Viennot GYOR structure); prefer to leave for the user's
+review of the keystone unless instructed otherwise. Remaining small follow-ups instead:
+(a) point a minimal gate at deque_wc_o1_* (+ keep frontier greps out), (b) consider linking
+green-calls bound to NF_PUSH_PKT_FULL in DequeKeystone's Print Assumptions block.
+
 ## Branch / build
 - Work ONLY on branch `rebuild`. Do NOT push (push needs human approval).
 - Build: `eval $(opam env --switch=default 2>/dev/null); dune build rocq/KTDeque/DequePtr/DequeKeystone.vo` (and `dune build rocq/KTDeque` for the whole theory).
