@@ -29,7 +29,7 @@
 From Stdlib Require Import List Arith.
 Import ListNotations.
 From KTDeque.Common Require Import Prelude.
-From KTDeque.Catenable Require Import Model Color Ops.
+From KTDeque.Catenable Require Import Model Color Ops SeqLemmas.
 
 Set Implicit Arguments.
 
@@ -45,7 +45,12 @@ Proof. Admitted.
 Lemma cad_push_seq :
   forall A (x : A) (d : cadeque A),
     J d -> cad_to_list (cad_push x d) = x :: cad_to_list d.
-Proof. Admitted.
+Proof.
+  intros A x d [Hwf _].
+  unfold cad_push, cad_to_list.
+  rewrite (push_chain_seq (SGround x) Hwf).
+  reflexivity.
+Qed.
 
 Lemma cad_inject_preserves_J :
   forall A (d : cadeque A) (x : A),
@@ -55,7 +60,12 @@ Proof. Admitted.
 Lemma cad_inject_seq :
   forall A (d : cadeque A) (x : A),
     J d -> cad_to_list (cad_inject d x) = cad_to_list d ++ [x].
-Proof. Admitted.
+Proof.
+  intros A d x [Hwf _].
+  unfold cad_inject, cad_to_list.
+  rewrite (inject_chain_seq (SGround x) Hwf).
+  reflexivity.
+Qed.
 
 Lemma cad_concat_total_J_seq :
   forall A (d e : cadeque A),

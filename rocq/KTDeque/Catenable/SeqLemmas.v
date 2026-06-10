@@ -110,3 +110,151 @@ Proof.
     rewrite !cnode_seq_eq, buf_stored_seq_app.
     cbn [buf_stored_seq]. rewrite !app_nil_r. rewrite !app_assoc. reflexivity.
 Qed.
+
+(* ========================================================================== *)
+(* Op-level sequence lemmas (under [chain_wf]).                                *)
+(* ========================================================================== *)
+
+Definition node_prefix {A : Type} (n : cnode A) : buffer (stored A) :=
+  match n with Node _ p _ => p end.
+
+Definition node_suffix {A : Type} (n : cnode A) : buffer (stored A) :=
+  match n with Node _ _ s => s end.
+
+Lemma nonnil_of_length :
+  forall (X : Type) (n : nat) (l : list X), S n <= length l -> l <> [].
+Proof. intros X n [|x r] H; [cbn in H; lia | congruence]. Qed.
+
+(** [chain_wf] guarantees the push side condition at the root: the receiving
+    prefix is nonempty, or the root is the childless one-sided-suffix only
+    node (whose child — and hence middle content — is empty). *)
+Lemma chain_wf_root_prefix :
+  forall A (k : kind) (p : cpacket A) (rest : cchain A),
+    chain_wf k (CSingle p rest) ->
+    node_prefix (fst (root_and_child p rest)) <> [] \/
+    snd (root_and_child p rest) = CEmpty.
+Proof.
+  intros A k [b n] rest Hwf.
+  destruct b as [|hn b'|hn b' rc|hn lc b']; cbn in Hwf |- *.
+  - (* BHole: root = terminal node *)
+    destruct Hwf as [_ [_ [Hsz _]]].
+    destruct n as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[Hp _] | [Hchild Hone]].
+      * left. cbn. eapply nonnil_of_length; eauto.
+      * destruct Hone as [[Hp _] | [_ Hp]].
+        -- right. destruct rest; cbn in Hchild; congruence.
+        -- left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn.
+      destruct pp; [cbn in Hp; congruence | congruence].
+  - (* BSingle *)
+    destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[Hp _] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn.
+      destruct pp; [cbn in Hp; congruence | congruence].
+  - (* BPairY *)
+    destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[Hp _] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn.
+      destruct pp; [cbn in Hp; congruence | congruence].
+  - (* BPairO *)
+    destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[Hp _] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [Hp _]. left. cbn.
+      destruct pp; [cbn in Hp; congruence | congruence].
+Qed.
+
+(** Mirror: the inject side condition at the root. *)
+Lemma chain_wf_root_suffix :
+  forall A (k : kind) (p : cpacket A) (rest : cchain A),
+    chain_wf k (CSingle p rest) ->
+    node_suffix (fst (root_and_child p rest)) <> [] \/
+    snd (root_and_child p rest) = CEmpty.
+Proof.
+  intros A k [b n] rest Hwf.
+  destruct b as [|hn b'|hn b' rc|hn lc b']; cbn in Hwf |- *.
+  - destruct Hwf as [_ [_ [Hsz _]]].
+    destruct n as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[_ Hs] | [Hchild Hone]].
+      * left. cbn. eapply nonnil_of_length; eauto.
+      * destruct Hone as [[_ Hs] | [Hs _]].
+        -- left. cbn. eapply nonnil_of_length; eauto.
+        -- right. destruct rest; cbn in Hchild; congruence.
+    + destruct Hsz as [_ Hs]. left. cbn.
+      destruct ss; [cbn in Hs; congruence | congruence].
+    + destruct Hsz as [_ Hs]. left. cbn. eapply nonnil_of_length; eauto.
+  - destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[_ Hs] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [_ Hs]. left. cbn.
+      destruct ss; [cbn in Hs; congruence | congruence].
+    + destruct Hsz as [_ Hs]. left. cbn. eapply nonnil_of_length; eauto.
+  - destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[_ Hs] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [_ Hs]. left. cbn.
+      destruct ss; [cbn in Hs; congruence | congruence].
+    + destruct Hsz as [_ Hs]. left. cbn. eapply nonnil_of_length; eauto.
+  - destruct Hwf as [[_ [Hsz _]] _].
+    destruct hn as [k0 pp ss]; destruct k0; cbn in Hsz.
+    + destruct Hsz as [[_ Hs] | [Hfalse _]]; [| congruence].
+      left. cbn. eapply nonnil_of_length; eauto.
+    + destruct Hsz as [_ Hs]. left. cbn.
+      destruct ss; [cbn in Hs; congruence | congruence].
+    + destruct Hsz as [_ Hs]. left. cbn. eapply nonnil_of_length; eauto.
+Qed.
+
+Lemma push_chain_seq :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    chain_wf k c ->
+    cchain_seq (push_chain s c) = stored_seq s ++ cchain_seq c.
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l IHl r _]; intros k Hwf.
+  - cbn. rewrite !app_nil_r. reflexivity.
+  - cbn [push_chain].
+    rewrite pkt_update_seq.
+    rewrite (root_and_child_seq p rest).
+    pose proof (@chain_wf_root_prefix A k p rest Hwf) as Hside.
+    destruct (root_and_child p rest) as [n child]; cbn in Hside |- *.
+    destruct n as [k0 pp ss].
+    apply node_push_seq.
+    destruct Hside as [Hp | Hc]; [left; exact Hp | right; subst child].
+    reflexivity.
+  - cbn in Hwf. destruct Hwf as [_ [_ [Hl _]]].
+    cbn [push_chain]. cbn [cchain_seq].
+    rewrite (IHl KLeft Hl). rewrite <- app_assoc. reflexivity.
+Qed.
+
+Lemma inject_chain_seq :
+  forall A (s : stored A) (c : cchain A) (k : kind),
+    chain_wf k c ->
+    cchain_seq (inject_chain c s) = cchain_seq c ++ stored_seq s.
+Proof.
+  intros A s c.
+  induction c as [| p rest _ | l _ r IHr]; intros k Hwf.
+  - cbn. rewrite !app_nil_r. reflexivity.
+  - cbn [inject_chain].
+    rewrite pkt_update_seq.
+    rewrite (root_and_child_seq p rest).
+    pose proof (@chain_wf_root_suffix A k p rest Hwf) as Hside.
+    destruct (root_and_child p rest) as [n child]; cbn in Hside |- *.
+    destruct n as [k0 pp ss].
+    apply node_inject_seq.
+    destruct Hside as [Hs | Hc]; [left; exact Hs | right; subst child].
+    reflexivity.
+  - cbn in Hwf. destruct Hwf as [_ [_ [_ Hr]]].
+    cbn [inject_chain]. cbn [cchain_seq].
+    rewrite (IHr KRight Hr). rewrite app_assoc. reflexivity.
+Qed.
