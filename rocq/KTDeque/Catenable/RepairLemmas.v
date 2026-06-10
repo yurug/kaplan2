@@ -286,3 +286,91 @@ Proof.
       rewrite (inject_chain_seq (SSmall p2) Hwd1').
       cbn [stored_seq]. seq_normalize.
 Qed.
+
+(* ========================================================================== *)
+(* The double-shrink rebundle: both root buffers lose one cell in one step,   *)
+(* so the colour drops exactly one rank and the J child facts apply as in     *)
+(* the single-shrink case.                                                     *)
+(* ========================================================================== *)
+
+Lemma popej_rebundle_total :
+  forall A (k : nat) (pp' ss'' : buffer (stored A)) (a x : stored A)
+         (child : cchain A),
+    node_sizes true (Node KOnly (a :: pp') (ss'' ++ [x])) ->
+    node_color (chain_has_node child)
+      (Node KOnly (a :: pp') (ss'' ++ [x])) <> CR ->
+    buf_stored_all_wf pp' -> buf_stored_all_wf ss'' ->
+    buf_all_leveled k pp' -> buf_all_leveled k ss'' ->
+    chain_wf KOnly child -> child <> CEmpty ->
+    chain_leveled (S k) child ->
+    child_color_facts
+      (node_color (chain_has_node child)
+         (Node KOnly (a :: pp') (ss'' ++ [x]))) child ->
+    chain_wf KOnly (tree_of (Node KOnly pp' ss'') child) /\
+    chain_leveled k (tree_of (Node KOnly pp' ss'') child) /\
+    cchain_seq (tree_of (Node KOnly pp' ss'') child)
+    = buf_stored_seq pp' ++ cchain_seq child ++ buf_stored_seq ss''.
+Proof.
+  intros A k pp' ss'' a x child Hsz Hnr Hpw Hsw Hpl Hsl Hcw Hne Hcl
+    Hccf.
+  assert (Hhc : chain_has_node child = true)
+    by (destruct child; [congruence | reflexivity | reflexivity]).
+  rewrite Hhc in Hnr, Hccf.
+  rewrite node_color_measure in Hnr, Hccf.
+  assert (Hm6 : 6 <= node_measure (Node KOnly (a :: pp') (ss'' ++ [x]))).
+  { destruct (gyor_of (node_measure (Node KOnly (a :: pp') (ss'' ++ [x]))))
+      eqn:Hold.
+    - assert (H8 : 8 <= node_measure (Node KOnly (a :: pp') (ss'' ++ [x])))
+        by exact (gyor_of_inv Hold). lia.
+    - assert (H7 : node_measure (Node KOnly (a :: pp') (ss'' ++ [x])) = 7)
+        by exact (gyor_of_inv Hold). lia.
+    - assert (H6 : node_measure (Node KOnly (a :: pp') (ss'' ++ [x])) = 6)
+        by exact (gyor_of_inv Hold). lia.
+    - exfalso. apply Hnr. reflexivity. }
+  assert (Hsz' : node_sizes true (Node KOnly pp' ss'')).
+  { cbn [node_sizes] in Hsz |- *.
+    destruct Hsz as [[H1 H2] | [Hcontra _]]; [| discriminate].
+    left. cbn [node_measure] in Hm6.
+    rewrite length_app in Hm6, H2. cbn [length] in Hm6, H2.
+    split; lia. }
+  assert (Hrcf' : root_color_facts (Node KOnly pp' ss'') child).
+  { unfold root_color_facts. rewrite Hhc, node_color_measure.
+    destruct (gyor_of (node_measure (Node KOnly pp' ss''))) eqn:Hnew.
+    - exact I.
+    - exact I.
+    - apply gyor_of_inv in Hnew. cbn [node_measure] in Hnew.
+      destruct child as [|? ?|l r2]; [congruence | exact I |].
+      destruct (gyor_of (node_measure (Node KOnly (a :: pp') (ss'' ++ [x]))))
+        eqn:Hold.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso.
+        rewrite !length_app in Hold; cbn [length] in Hold, Hnew; lia.
+      + cbn [child_color_facts cont_green] in Hccf. exact Hccf.
+      + cbn [child_color_facts cont_green] in Hccf.
+        destruct Hccf as [_ Hpk]. exact Hpk.
+      + exfalso. apply Hnr. reflexivity.
+    - apply gyor_of_inv in Hnew. cbn [node_measure] in Hnew.
+      destruct (gyor_of (node_measure (Node KOnly (a :: pp') (ss'' ++ [x]))))
+        eqn:Hold.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso.
+        rewrite !length_app in Hold; cbn [length] in Hold, Hnew; lia.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso.
+        rewrite !length_app in Hold; cbn [length] in Hold, Hnew; lia.
+      + cbn [child_color_facts cont_green] in Hccf.
+        destruct child as [|? ?|l r2]; [congruence | |].
+        * destruct Hccf as [Hge _]. exact Hge.
+        * destruct Hccf as [HgR HgL].
+          split; [exact HgL | exact HgR].
+      + exfalso. apply Hnr. reflexivity. }
+  split; [| split].
+  - apply tree_of_wf;
+      [reflexivity
+      | rewrite Hhc; exact Hsz'
+      | split; [exact Hpw | exact Hsw]
+      | exact Hcw
+      | exact Hrcf'].
+  - apply tree_of_leveled; [split; [exact Hpl | exact Hsl] | exact Hcl].
+  - rewrite tree_of_seq, cnode_seq_eq. reflexivity.
+Qed.
