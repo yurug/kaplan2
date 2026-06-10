@@ -1,6 +1,47 @@
-# SESSION_STATE — rebuild (Phase 4b in progress)
+# SESSION_STATE — rebuild (Phase 4b: functional keystone CLOSED)
 
-## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+## ★★★ MISSION ACCOMPLISHED (2026-06-11) ★★★
+THE CATENABLE KEYSTONE IS CLOSED: zero admits across rocq/; all six
+cat_keystone_{empty,push,inject,concat,pop,eject} report "Closed under
+the global context".  KT99 §6 Theorem 6.1's functional content is
+mechanized end to end under J = chain_wf /\ chain_ends_green /\
+chain_leveled 0 (grown in place in Color.v per methodology).
+File map of the discharge:
+- Color.v: GYOR colours, J v2 with the level stratification family.
+- ConcatLemmas.v: regular concat (cad_concat_total) + all colour-blind
+  leveled companions (cad_concat_leveled, level-generic).
+- SRLemmas.v: semiregular concat (cad_concat_sr = Lemma 6.2's weak
+  half; sr_facts = root_color_facts' body, available from chain_wf).
+- PopLemmas.v: raw removals (pop/eject_rebundle, only/left/right/pair,
+  J wrappers; SGround at level 0, untouched-sibling greenness).
+- RepairLemmas.v: §6 repair (front/back/both via drain_both,
+  popej_rebundle double-shrink, dead-side recrowns, repair_packet,
+  repair_pop/eject_side).
+- CatKeystone.v: the six theorems + Print Assumptions, all clean.
+Op fixes made during discharge (all sequence-preserving, all O(1)):
+concat_small_* childless-root eject2/pop2-lift; pop/eject_raw collapse
+re-crown (no fold-push into KRight); repair_both via drain_both (no
+eject-after-pop double degradation; one-cell path kept).
+
+## NEXT (the remaining Phase 4b items, in order)
+1. COST LAYER (cat_wc_o1): per the keystone header and the design memo
+   Decision 4 — buffer-primitive counters mirroring the now-FROZEN op
+   code + constant bounds.  The structural argument is on record: every
+   element movement in Ops.v is constant-bounded (the drains/repairs
+   move <= 2 cells + O(1) buffer splices; concat does <= 2 builder
+   passes); buffers instantiate to the proven kt4 deque (deque_wc_o1).
+   Mirror the deque keystone's MC-monad cost story (CostMonad.v).
+2. Point the release-gate script's catenable profile at the keystone
+   (Makefile target like deque-keystone-gate; grep-assert the six
+   "Closed under the global context" lines).
+3. Update kb/: new report superseding
+   kb/reports/wc-o1-verification-audit-2026-05-24.md's catenable rows;
+   note the op fixes in the §6 spec's deviation log
+   (kb/spec/section6-catenable-deques.md / catenable-type-design.md).
+4. RBR/Succ.v (the original fallback task) remains untouched.
+5. Promotion rebuild -> main + push: NEEDS THE USER (never push).
+
+## ★ OVERNIGHT MISSION (2026-06-03, second night — COMPLETE) ★
 PROGRESS-12: (C) ~90%% DONE. drain_both op restructured (no
 eject-after-pop: single rest double-shrinks its root via
 popej_rebundle_total — exactly one rank drop, J facts apply; pair rest
