@@ -1,6 +1,25 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+★ SR-CONCAT SIMPLIFICATION (decided, supersedes the PROGRESS-6 table) ★
+The SR builders need colour facts ONLY where tree_of_wf's
+root_color_facts demands them: new-CO-pair (ends of the pair's left) and
+new-CR (ends of the child).  By builder colour-mono (buffers only grow),
+new CO <= old in {CO,CR} and new CR <= old = CR.  And the OLD root's
+facts in exactly that shape ARE root_color_facts (fst rc) (snd rc) — the
+5th component of root_and_child_facts, PROVEN FROM chain_wf ALONE.  So:
+NO new bundle definition, NO root_child_facts (which needed ends_green);
+the SR twins use root_and_child_facts' 5th component + the strong
+push/inject preserves in old-CO/CR cases (old-CO pair: parked/untouched
+left; old-CR: full ends child threads through strong preserve).  Old
+CG-with-child has measures >= 8 => new CG/CY => True.  CONCLUSIONS:
+Some t /\ chain_wf /\ seq only — the leveled companions
+(make_*_leveled, concat_small_*_leveled, cad_concat_leveled) are
+colour-blind and already cover SR inputs UNCHANGED.  Estimated ~60%% of
+the J-twin text each.  File: SRLemmas.v (imports ConcatLemmas,
+PopLemmas for gyor_of_inv).  Order: left/right_rebuild_sr,
+only_push/inject_rebuild_sr, make_*_only_sr, make_*_sr,
+concat_small_*_sr, cad_concat_sr.
 PROGRESS-8: PIECE (B) FULLY DONE — PopLemmas.v proven end to end (zero
 admits): pop_rebundle_total / eject_rebundle_total (colour-mono cores),
 pop_raw_only/left/pair_total, eject_raw_only/right/pair_total, plus
