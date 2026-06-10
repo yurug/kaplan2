@@ -3,7 +3,22 @@
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
 PROGRESS: admits 5 -> 3. PUSH AND INJECT FULLY CLOSED (cat_keystone_push/inject on
 zero admits): WfLemmas now has gyor mono + receiver lemmas + pkt_update_preserves
-(generic central assembly) + push/inject_chain_preserves. PROGRESS-3: buffer toolkit + child_color_facts/root_child_facts PROVEN. NEXT =
+(generic central assembly) + push/inject_chain_preserves. PROGRESS-4: make_left_only_total PROVEN (the 1c/1d builder). NEXT = make_left_total
+(dispatch: CSingle root via root_two_sided-from-nondegenerate + root_child_facts
+keyed at gyor_of(min)=node_color of root (node_color_measure); CPair: roots via
+root_and_child_facts on both sides (kinds KLeft/KRight; sizes |p1|>=5,|s1|=2 /
+|p2|=2,|s2|>=5); 1b (d1=CEmpty): make_left_only (p1++s1++p2) d2 s2 with bundle
+keyed gyor_of(min(|p1++s1++p2|,|s2|)) — derive from t2's (right root's) colour:
+min(>=9,|s2|)-colour = gyor_of |s2| = right-root colour ✓ root_child_facts of the
+right tree (KRight root coloured by |s2| ✓ same measure!); sizes >=5 ✓ all-wf app;
+seq: seq d = seq lt ++ seq rt with lt childless = bufp1++bufs1 (single_node_seq)
+and rt = bufp2 ++ seq d2 ++ bufs2 (root_and_child_seq+node eq) — target
+buf(p1++s1++p2) ++ seq d2 ++ bufs2 ✓ assoc. 1a (d1<>CEmpty): eject2 s2 (>=5);
+SBig (s1++p2) d2 s2' wf (>=3/>=3 + chain_wf d2 + bufs wf); inject into d1 — SAME
+colour-dispatch pattern as 1c but key = LEFT-root colour = gyor_of |p1| EXACTLY
+(KLeft measure) so new node colour IDENTICAL to old (no mono needed); bundle from
+root_child_facts of the left tree. THEN make_right_total mirror, THEN small-big
+2/3. OLD: PROGRESS-3: buffer toolkit + child_color_facts/root_child_facts PROVEN. NEXT =
 make_left_only_total (1c/1d on an only-triple's pieces (p1,d1,s1), both >=5,
 bundle keyed on gyor_of(min |p1| |s1|) given only when d1<>CEmpty):
 - 1d (d1=CEmpty): <=8: eject2 s1, node KLeft (p1++s1') [y;z] childless green;
