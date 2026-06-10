@@ -1,6 +1,38 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+PROGRESS-5 (this iteration): CONCAT KEYSTONE CLOSED. Print Assumptions now:
+cat_keystone_{empty,push,inject,concat} = "Closed under the global context".
+ConcatLemmas.v = ZERO admits. Proven this round: make_left_total,
+make_right_total (full right-side mirror stack: child_color_facts_mono /
+right_rebuild_total / make_right_only_total / make_right_pair_core),
+concat_small_left_big, concat_small_right_big (with only_push_rebuild_total /
+only_inject_rebuild_total). OP FIX in Ops.v (concat_small_left/right, CSingle
+branch, d2=CEmpty): childless only root carries no colour constraint so |s2|
+could be 5 and the rebuilt min-coloured top was RED (J-violating; old admitted
+statement UNPROVABLE). Fix: eject2 from p2 into the suffix (mirror: pop2 from
+s1 into prefix) lifting the small side to >=7 => root CY/CG, absorbable.
+Sequence-preserving, O(1), examples unchanged.
+REMAINING = 2 admits, both CatKeystone: cad_pop_total_J_seq,
+cad_eject_total_J_seq. Battle plan for pop: cad_pop requires popped element
+SGround — a LEVEL-0 fact; J v1 has no stratification clause, so per the
+mission grow J in place in Color.v (well-leveled clause mirroring the deque
+keystone: top buffers hold SGround? No — top-level buffers hold stored at
+level 0 = SGround; child chains hold level k+1). After growing J: re-check
+empty_J, singleton_J, and ALL prior discharges (push/inject preserve levels;
+concat preserves levels; the builders move whole cells between same-level
+buffers so leveling should thread through; SSmall/SBig cells parked into a
+child raise level by 1 — define stored_level/chain_level predicates
+accordingly). Then pop_raw/eject_raw totality + repair_* preservation.
+PROOF-TOOL NOTES added this round: (a) cbn [allowlist] may refuse to
+delta-unfold an op whose body starts with a stuck if — use
+`unfold op. rewrite Hcond. cbn [fst snd].` (any allowlist cbn still does
+iota, exposing match arms after destruct-eqn substitution); (b) destruct-eqn
+substitutes in hypotheses too, so pose facts AFTER destruct then rewrite Hrc
+in them; (c) `rewrite lemma` hits the LEFTMOST instance — pin with explicit
+args (cchain_seq_pair (CSingle pl rl) ...); (d) child_color_facts is
+DOWNWARD-monotone in gyor_rank (child_color_facts_mono) — the universal
+bundle-key converter.
 PROGRESS: admits 5 -> 3. PUSH AND INJECT FULLY CLOSED (cat_keystone_push/inject on
 zero admits): WfLemmas now has gyor mono + receiver lemmas + pkt_update_preserves
 (generic central assembly) + push/inject_chain_preserves. PROGRESS-4: make_left_only_total PROVEN (the 1c/1d builder). NEXT = make_left_total
