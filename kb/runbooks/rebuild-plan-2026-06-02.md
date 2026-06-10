@@ -9,9 +9,13 @@ last-updated: 2026-06-02
 
 **Status: decisions resolved 2026-06-02 (see below). Work happens on the
 `rebuild` branch.** Phases 0–1 (preserve + honest baseline) done. **Phase 3
-(paper specs) DONE and the keystone targets decided** (deque = abstract bound,
-no jump4; catenable = faithful §6/Viennot GYOR). Phase 2 (re-curate, destructive)
-and Phase 4 (prove) still await explicit go-ahead.
+(paper specs) DONE.** **Phase 4a (deque keystone) CLOSED 2026-06-03**:
+`rocq/KTDeque/DequePtr/DequeKeystone.v` proves the unconditional
+`deque_wc_o1_{push,inject,pop,eject}` with zero admits, all four
+`Print Assumptions` *Closed under the global context*; gated by
+`make deque-keystone-gate` (4/4). RBR `Succ.v` Abort also closed. Remaining:
+Phase 2 (re-curate, destructive — awaits explicit go-ahead) and Phase 4b
+(catenable, fresh §6/Viennot build — awaits user review of the keystone).
 
 ## Why we are doing this
 
@@ -53,6 +57,15 @@ first**. Re-audit done.
    with: (a) written spec/invariant; (b) admit-free proof; (c) clean
    `Print Assumptions`; (d) the unconditional theorem stated, even if marked
    OPEN with the precise remaining obligation.
+6. **Top-down construction with tracked admits (relaxation, 2026-06-02).** During
+   construction on `rebuild`, `Admitted` obligation lemmas are allowed as
+   scaffolding: state the top-level theorem, prove it from admitted lemmas first
+   (validating the architecture), then discharge the admits one by one. Use
+   `Admitted` (not `admit.`) so every open obligation appears in
+   `Print Assumptions` — the admit list IS the to-do list. **Closure still
+   requires zero admits + clean `Print Assumptions`** (rule 5b/5c); admits never
+   reach a promoted/`main` state. This relaxes `CLAUDE.md`'s blanket zero-admit
+   rule *only during in-progress work on `rebuild`*.
 
 ## Phases
 
