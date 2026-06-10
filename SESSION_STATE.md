@@ -10,8 +10,8 @@ an obligation demands it).
 
 DONE also: Catenable/Ops.v with push/inject (colour-driven surgery via root_and_child/tree_of;
 pkt_update = compose) AND concat (Cases 1-4 + 1a-1d, sequence-verified by vm_compute incl.
-Case 1 CPair path). REMAINING for 4b: pop/eject + the §6 repair (Cases 1, 2a-2c — NOTE repair
-Case 1a calls cad_concat on child deques), then CatKeystone.v (cat_wc_o1 from admitted
+Case 1 CPair path). DONE also: pop/eject + §6 repair (Cases 1/2a-2c; pair-collapse via Viennot vector path;
+drain-verified by vm_compute). REMAINING for 4b: CatKeystone.v (cat_wc_o1 from admitted
 obligations: J-preservation for all 5 ops, totality of the option-returning concat/pop/eject
 under J, sequence correctness, primitive-count bound).
 
