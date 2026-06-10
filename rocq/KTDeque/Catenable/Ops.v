@@ -532,7 +532,20 @@ Fixpoint pop_raw {A : Type} (c : cchain A)
           | CEmpty => Some (x, r)
           | CSingle (Pkt BHole (Node _ lp ls)) CEmpty =>
               if length lp <? 5
-              then Some (x, fold_right push_chain r (lp ++ ls))
+              then
+                (* Viennot collapse, re-crowned: pushing into the KRight
+                   sibling would break its |p|=2 discipline, so peel its
+                   root and rebuild ONE only-rooted tree.  The new prefix
+                   has 4+2+2 = 8 elements, so the min colour equals the
+                   old right-root colour key. *)
+                match r with
+                | CSingle pr rr =>
+                    match root_and_child pr rr with
+                    | (Node _ p2 s2, d2) =>
+                        Some (x, tree_of (Node KOnly (lp ++ ls ++ p2) s2) d2)
+                    end
+                | _ => None
+                end
               else Some (x, CPair l' r)
           | _ => Some (x, CPair l' r)
           end
@@ -561,7 +574,17 @@ Fixpoint eject_raw {A : Type} (c : cchain A)
           | CEmpty => Some (l, x)
           | CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
               if length rs <? 5
-              then Some (fold_left inject_chain (rp ++ rs) l, x)
+              then
+                (* Mirror of the pop collapse: re-crown over the KLeft
+                   sibling's peeled root. *)
+                match l with
+                | CSingle pl rl =>
+                    match root_and_child pl rl with
+                    | (Node _ p1 s1, d1) =>
+                        Some (tree_of (Node KOnly p1 (s1 ++ rp ++ rs)) d1, x)
+                    end
+                | _ => None
+                end
               else Some (CPair l r', x)
           | _ => Some (CPair l r', x)
           end
