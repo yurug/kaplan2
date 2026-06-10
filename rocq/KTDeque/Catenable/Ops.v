@@ -628,7 +628,7 @@ Definition repair_back {A : Type} (k : kind) (body : cbody A)
     its two components INDEPENDENTLY (each still regular), merging or
     re-crowning when a side dies.  Sequence-identical to pop-then-eject. *)
 Definition drain_both {A : Type} (rest : cchain A)
-    : option (stored A * stored A * cchain A) :=
+    : option (stored A * option (stored A) * cchain A) :=
   match rest with
   | CEmpty => None
   | CSingle p r =>
@@ -638,10 +638,15 @@ Definition drain_both {A : Type} (rest : cchain A)
           match node_eject n1 with
           | Some (n2, cellB) =>
               match dd with
-              | CEmpty => Some (cellF, cellB, rebuild_childless n2)
-              | _ => Some (cellF, cellB, tree_of n2 dd)
+              | CEmpty => Some (cellF, Some cellB, rebuild_childless n2)
+              | _ => Some (cellF, Some cellB, tree_of n2 dd)
               end
-          | None => None
+          | None =>
+              (* the root held a single cell: childless one-sided rest *)
+              match dd with
+              | CEmpty => Some (cellF, None, CEmpty)
+              | _ => None
+              end
           end
       | None => None
       end
@@ -652,29 +657,29 @@ Definition drain_both {A : Type} (rest : cchain A)
           | CSingle (Pkt BHole (Node _ lp ls)) CEmpty,
             CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
               if (length lp <? 5) || (length rs <? 5)
-              then Some (cellF, cellB,
+              then Some (cellF, Some cellB,
                      CSingle (Pkt BHole
                        (Node KOnly (lp ++ ls) (rp ++ rs))) CEmpty)
-              else Some (cellF, cellB, CPair l' r')
+              else Some (cellF, Some cellB, CPair l' r')
           | CSingle (Pkt BHole (Node _ lp ls)) CEmpty, CSingle pr' rr' =>
               if length lp <? 5
               then
                 match root_and_child pr' rr' with
                 | (Node _ p2 s2, d2) =>
-                    Some (cellF, cellB,
+                    Some (cellF, Some cellB,
                       tree_of (Node KOnly (lp ++ ls ++ p2) s2) d2)
                 end
-              else Some (cellF, cellB, CPair l' r')
+              else Some (cellF, Some cellB, CPair l' r')
           | CSingle pl' rl', CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
               if length rs <? 5
               then
                 match root_and_child pl' rl' with
                 | (Node _ p2 s2, d2) =>
-                    Some (cellF, cellB,
+                    Some (cellF, Some cellB,
                       tree_of (Node KOnly p2 (s2 ++ rp ++ rs)) d2)
                 end
-              else Some (cellF, cellB, CPair l' r')
-          | _, _ => Some (cellF, cellB, CPair l' r')
+              else Some (cellF, Some cellB, CPair l' r')
+          | _, _ => Some (cellF, Some cellB, CPair l' r')
           end
       | _, _ => None
       end
@@ -683,7 +688,16 @@ Definition drain_both {A : Type} (rest : cchain A)
 Definition repair_both {A : Type} (body : cbody A)
     (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
   match drain_both rest with
-  | Some (cellF, cellB, mid) =>
+  | Some (cellF, None, _) =>
+      (* one-cell rest: both refills come from the same cell *)
+      match cellF with
+      | SBig p2 d2 s2 =>
+          Some (CSingle (Pkt body (Node KOnly (p1 ++ p2) (s2 ++ s1))) d2)
+      | SSmall b =>
+          Some (CSingle (Pkt body (Node KOnly (p1 ++ b) s1)) CEmpty)
+      | SGround _ => None
+      end
+  | Some (cellF, Some cellB, mid) =>
       let front :=
         match cellF with
         | SBig p2 d2 s2 =>
