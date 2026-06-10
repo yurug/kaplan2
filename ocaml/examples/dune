@@ -6,7 +6,3 @@
  (modules hello)
  (libraries ktdeque))
 
-(executable
- (name catenable_hello)
- (modules catenable_hello)
- (libraries ktdeque ktdeque_experimental))

@@ -1,8 +1,6 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
-        release-gate wc-o1-gate strict-wc-o1-gate catenable-wc-o1-gate \
-        ports-wc-o1-gate wc-o1-kt4-assumptions wc-o1-kcad9-assumptions \
+        release-gate wc-o1-gate strict-wc-o1-gate        ports-wc-o1-gate wc-o1-kt4-assumptions \
         deque-keystone-gate \
-        catenable-refinement-check catenable-adversarial-benches \
         bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
 
 all: rocq
@@ -40,9 +38,6 @@ wc-o1-gate:
 
 strict-wc-o1-gate:
 	tools/check_wc_o1_release_gate.sh strict
-
-catenable-wc-o1-gate:
-	tools/check_wc_o1_release_gate.sh catenable
 
 ports-wc-o1-gate:
 	tools/check_wc_o1_release_gate.sh ports
@@ -87,52 +82,8 @@ wc-o1-kt4-assumptions:
 	    || true
 	@echo "(Each line above is the output of one Print Assumptions.)"
 
-# Gate D audit slice: print the axiom dependencies for the Rocq Cadeque9 fast
-# theorem bundle.  This is intentionally smaller than Gate B:
-# it covers sequence preservation, the public boundary-element invariant,
-# invariant preservation, non-empty pop/eject totality under that invariant,
-# the OCaml-shape StoredMiddle9 normalizer/refill/pop/eject/concat sequence
-# slice, exact OCaml pop/eject totality and weak-boundary preservation from
-# the public invariant, the depth-indexed OCaml-ready and empty-or-ready
-# surfaces with exact pop/eject totality, weak-boundary preservation, and
-# push/inject/concat preservation for the empty-or-ready surface, exact
-# pop/eject totality and weak-boundary preservation from that surface, the
-# deep XBase-only invariant preserved by push/inject/concat, fuelled
-# normalizers, refills, and pop/eject wrappers, the combined reachable-depth
-# package built from the ready-or-empty and deep-XBase halves, and the first
-# non-empty-boundary / exposed-ready constant-fuel normalization slices plus
-# depth-indexed nested-middle, refill-wrapper exposure, and the T+T concat
-# scheduled right-middle split / arbitrary-depth lower-bound facts, the
-# bridge-middle T+T concat shape, the empty-right-middle no-wrapper case, a
-# checked same-depth empty-or-ready example for the current concat shape, and a
-# checked counterexample to the tempting direct-StoreBig shape.
-wc-o1-kcad9-assumptions:
-	@dune clean --root . 2>/dev/null; true
-	@echo "== Print Assumptions for the Cadeque9 public theorem bundle =="
-	@output=$$(dune build rocq/KTDeque/Cadeque9/PublicTheoremsAudit.vo --display=quiet --no-buffer 2>&1); \
-	  status=$$?; \
-	  if [ $$status -ne 0 ]; then \
-	    printf '%s\n' "$$output"; \
-	    exit $$status; \
-	  fi; \
-	  printf '%s\n' "$$output" \
-	    | grep -E "^(Closed under|Axioms:|Assumptions:|Parameters:|Sections:|Module:|Variables:)" \
-	    || true
-	@echo "(Each line above is the output of one Print Assumptions.)"
-
-catenable-refinement-check:
-	$(MAKE) wc-o1-kcad9-assumptions
-	dune exec ocaml/bench/kshim_qcheck.exe
-	dune exec ocaml/bench/k9_qcheck.exe
-	dune exec ocaml/bench/k9_depth_probe.exe
-	$(MAKE) catenable-adversarial-benches
-	$(MAKE) catenable-wc-o1-gate
-
-catenable-adversarial-benches:
-	dune exec --profile=release ocaml/bench/k9_concat_cost.exe
-	dune exec --profile=release ocaml/bench/k9_tt_concat_stress.exe
-
 release-gate:
+	$(MAKE) deque-keystone-gate
 	$(MAKE) wc-o1-kt4-assumptions
 	dune build rocq/KTDeque ocaml
 	dune runtest
