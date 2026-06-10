@@ -1,7 +1,37 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
-PROGRESS-9: SRLemmas.v STARTED — sr_facts/root_color_facts_sr/
+PROGRESS-10: PIECE (A) COMPLETE — SRLemmas.v fully proven (cad_concat_sr
+= Lemma 6.2's weak half: chain_wf x chain_wf -> Some f, chain_wf f, seq;
+levels via the colour-blind twins). NEXT = (C) repair lemmas in a new
+RepairLemmas.v (or PopLemmas): repair_front k body p1 s1 rest — red
+u = Node k p1 s1 terminal of packet (Pkt body u) over rest, chain_wf's
+red clause gives ends_green rest => rest is FULL J at level S k (need
+chain_leveled (S k) rest from the packet's leveled clause: terminal at
+k+body_depth... CAREFUL with the level bookkeeping: repair_packet acts
+on (Pkt body n) rest where n at level k0+body_depth body and rest at
+S(that) — state repair lemmas at the TERMINAL's level j with rest at
+S j and re-assemble the packet's leveled clause afterwards). pop at
+level S j via pop_raw_only_total/pop_raw_pair_total?? rest is KOnly:
+pop_raw rest — rest may be CEmpty?! RED u with d1=CEmpty?: red colour
+requires has_child=true => rest <> CEmpty ✓. rest CSingle -> only_total;
+rest CPair -> pair_total ✓ both give SGround-free level-(S j) cells =
+SSmall/SBig (stored_leveled (S j) kills SGround). SSmall b: v = Node k
+(p1++b) s1 green (|p1|=5 red + |b|>=3 => >=8) over d1' (chain_wf only —
+green root clause ✓) — rebuild the packet CSingle (Pkt body v) d1':
+cbody_wf body unchanged ✓ node_kind v = terminal kind ✓ colour clause:
+left CG ✓ ends_green: the packet terminal v green ✓ leveled: re-thread
+body clauses with v's bufs at j and d1' at S j. SBig p2 d2 s2:
+d3 := cad_concat_sr d2 (push_chain (SSmall s2) d1') + cad_concat_leveled
++ push_chain_leveled; v = Node k (p1++p2) s1 green over d3.
+Mirror repair_back (eject side, inject (SSmall p2)... check op text).
+repair_both (KOnly red, both <=7): pop+eject from rest then two
+SR-concats per the op. THEN repair_packet (dispatch on terminal colour;
+identity path: ends_green follows since terminal not CR and chain_wf
+forces CG-or-CR => CG ✓). THEN repair_pop_side/eject_side. THEN (D).
+KEY for (D): cad_pop = pop_raw at k=0 gives SGround x + semiregular c';
+repair_pop_side c' restores top ends_green => J; seq threads.
+PROGRESS-9 (superseded): SRLemmas.v STARTED — sr_facts/root_color_facts_sr/
 sr_facts_mono/is_single_has_node + left_rebuild_sr + right_rebuild_sr
 PROVEN (each ~70 lines, ONE colour dispatch, no shape triplication: CO
 uses the bundle's pair-left through the strong preserve on the push
