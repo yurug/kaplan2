@@ -76,7 +76,8 @@ Lemma rebuild_childless_facts :
     chain_wf KOnly (rebuild_childless n) /\
     chain_ends_green (rebuild_childless n) /\
     chain_leveled k (rebuild_childless n) /\
-    cchain_seq (rebuild_childless n) = cnode_seq n [].
+    cchain_seq (rebuild_childless n) = cnode_seq n [] /\
+    match rebuild_childless n with CPair _ _ => False | _ => True end.
 Proof.
   intros A k [kd p s] Hk Hw Hl.
   cbn [node_kind] in Hk. subst kd.
@@ -86,7 +87,7 @@ Proof.
   destruct p as [|a p'].
   - destruct s as [|b s'].
     + (* both empty: CEmpty *)
-      repeat split; reflexivity.
+      repeat split; first [exact I | reflexivity].
     + (* one-sided, suffix only *)
       split; [| split; [| split]].
       * split; [exact I |].
@@ -103,7 +104,8 @@ Proof.
         split; [exact I |].
         split; [| exact I].
         cbn [cnode_leveled]. split; [exact I | exact Hsl].
-      * cbn [cchain_seq cpacket_seq cbody_seq]. reflexivity.
+      * split; [cbn [cchain_seq cpacket_seq cbody_seq]; reflexivity
+                | exact I].
   - destruct s as [|b s'].
     + (* one-sided, prefix only *)
       split; [| split; [| split]].
@@ -121,7 +123,8 @@ Proof.
         split; [exact I |].
         split; [| exact I].
         cbn [cnode_leveled]. split; [exact Hpl | exact I].
-      * cbn [cchain_seq cpacket_seq cbody_seq]. reflexivity.
+      * split; [cbn [cchain_seq cpacket_seq cbody_seq]; reflexivity
+                | exact I].
     + (* two-sided: merge if a floor broke, else keep *)
       destruct ((length (a :: p') <? 5) || (length (b :: s') <? 5))
         eqn:Hcond.
@@ -143,7 +146,8 @@ Proof.
            split; [| exact I].
            cbn [cnode_leveled].
            split; [exact (buf_all_leveled_app (a:=a::p') (b:=b::s') Hpl Hsl) | exact I].
-        -- rewrite single_node_seq.
+        -- split; [| exact I].
+           rewrite single_node_seq.
            rewrite cnode_seq_eq. seq_normalize.
       * (* kept two-sided: the if-condition gives both floors *)
         split; [| split; [| split]].
@@ -162,7 +166,8 @@ Proof.
            split; [exact I |].
            split; [| exact I].
            cbn [cnode_leveled]. split; [exact Hpl | exact Hsl].
-        -- rewrite single_node_seq.
+        -- split; [| exact I].
+           rewrite single_node_seq.
            rewrite cnode_seq_eq. seq_normalize.
 Qed.
 
@@ -256,6 +261,14 @@ Qed.
 (* remainder, exact sequence.                                                  *)
 (* ========================================================================== *)
 
+Lemma is_single_not_pair :
+  forall A (c : cchain A),
+    is_single c = true ->
+    match c with CPair _ _ => False | _ => True end.
+Proof.
+  intros A [|? ?|? ?] H; cbn in *; [exact I | exact I | discriminate].
+Qed.
+
 Lemma pop_raw_only_total :
   forall A (k : nat) (p : cpacket A) (rest : cchain A),
     chain_wf KOnly (CSingle p rest) ->
@@ -266,7 +279,8 @@ Lemma pop_raw_only_total :
       stored_wf x /\ stored_leveled k x /\
       chain_wf KOnly c' /\
       chain_leveled k c' /\
-      cchain_seq (CSingle p rest) = stored_seq x ++ cchain_seq c'.
+      cchain_seq (CSingle p rest) = stored_seq x ++ cchain_seq c' /\
+      match c' with CPair _ _ => False | _ => True end.
 Proof.
   intros A k p r Hwf Hg Hl.
   cbn [pop_raw].
@@ -306,11 +320,12 @@ Proof.
                   ltac:(reflexivity)
                   ltac:(split; [exact I | exact Hss'w])
                   ltac:(split; [exact I | exact Hss'l]))
-        as [Hw' [Hg' [Hl' Hs']]].
+        as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
       eexists. eexists.
       split; [reflexivity |].
       split; [exact Hbw |]. split; [exact Hbl |].
       split; [exact Hw' |]. split; [exact Hl' |].
+      split; [| exact Hnp'].
       rewrite Hseq0, Hs'.
       rewrite cnode_seq_eq. seq_normalize.
     + (* two-sided or prefix-only: pop the prefix head *)
@@ -320,11 +335,12 @@ Proof.
                   ltac:(reflexivity)
                   ltac:(split; [exact Hpp'w | exact Hssw])
                   ltac:(split; [exact Hpp'l | exact Hssl]))
-        as [Hw' [Hg' [Hl' Hs']]].
+        as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
       eexists. eexists.
       split; [reflexivity |].
       split; [exact Haw |]. split; [exact Hal |].
       split; [exact Hw' |]. split; [exact Hl' |].
+      split; [| exact Hnp'].
       rewrite Hseq0, Hs'.
       rewrite cnode_seq_eq. seq_normalize.
   - (* with child: single *)
@@ -343,7 +359,8 @@ Proof.
     split; [reflexivity |].
     split; [exact Haw |]. split; [exact Hal |].
     split; [exact Hw' |]. split; [exact Hl' |].
-    rewrite Hseq0, Hs'. seq_normalize.
+    split; [rewrite Hseq0, Hs'; seq_normalize |].
+    apply is_single_not_pair, tree_of_is_single.
   - (* with child: pair *)
     cbn [node_sizes] in Hsz.
     destruct Hsz as [[H1 H2] | [Hcontra _]]; [| discriminate].
@@ -360,7 +377,8 @@ Proof.
     split; [reflexivity |].
     split; [exact Haw |]. split; [exact Hal |].
     split; [exact Hw' |]. split; [exact Hl' |].
-    rewrite Hseq0, Hs'. seq_normalize.
+    split; [rewrite Hseq0, Hs'; seq_normalize |].
+    apply is_single_not_pair, tree_of_is_single.
 Qed.
 
 (* ========================================================================== *)
@@ -832,7 +850,8 @@ Lemma eject_raw_only_total :
       stored_wf x /\ stored_leveled k x /\
       chain_wf KOnly c' /\
       chain_leveled k c' /\
-      cchain_seq (CSingle p rest) = cchain_seq c' ++ stored_seq x.
+      cchain_seq (CSingle p rest) = cchain_seq c' ++ stored_seq x /\
+      match c' with CPair _ _ => False | _ => True end.
 Proof.
   intros A k p r Hwf Hg Hl.
   cbn [eject_raw].
@@ -882,11 +901,12 @@ Proof.
                   ltac:(reflexivity)
                   ltac:(split; [exact Hpp''w | exact I])
                   ltac:(split; [exact Hpp''l | exact I]))
-        as [Hw' [Hg' [Hl' Hs']]].
+        as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
       eexists. eexists.
       split; [reflexivity |].
       split; [exact Hyw |]. split; [exact Hyl |].
       split; [exact Hw' |]. split; [exact Hl' |].
+      split; [| exact Hnp'].
       rewrite Hseq0, Hs', Hb.
       rewrite cnode_seq_eq. seq_normalize.
     + cbn [node_sizes] in Hsz.
@@ -914,11 +934,12 @@ Proof.
                   ltac:(reflexivity)
                   ltac:(split; [exact Hppw | exact Hss''w])
                   ltac:(split; [exact Hppl | exact Hss''l]))
-        as [Hw' [Hg' [Hl' Hs']]].
+        as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
       eexists. eexists.
       split; [reflexivity |].
       split; [exact Hxw |]. split; [exact Hxl |].
       split; [exact Hw' |]. split; [exact Hl' |].
+      split; [| exact Hnp'].
       rewrite Hseq0, Hs'.
       rewrite cnode_seq_eq. seq_normalize.
     + (* with child: single *)
@@ -931,7 +952,8 @@ Proof.
       split; [reflexivity |].
       split; [exact Hxw |]. split; [exact Hxl |].
       split; [exact Hw' |]. split; [exact Hl' |].
-      rewrite Hseq0, Hs'. seq_normalize.
+      split; [rewrite Hseq0, Hs'; seq_normalize |].
+      apply is_single_not_pair, tree_of_is_single.
     + (* with child: pair *)
       destruct (@eject_rebundle_total A k KOnly pp (rev ss'') x
                   (CPair cl cr2)
@@ -942,7 +964,8 @@ Proof.
       split; [reflexivity |].
       split; [exact Hxw |]. split; [exact Hxl |].
       split; [exact Hw' |]. split; [exact Hl' |].
-      rewrite Hseq0, Hs'. seq_normalize.
+      split; [rewrite Hseq0, Hs'; seq_normalize |].
+      apply is_single_not_pair, tree_of_is_single.
 Qed.
 
 Lemma eject_raw_right_total :
@@ -1325,7 +1348,9 @@ Lemma pop_raw_J_total :
 Proof.
   intros A k c Hwf Hg Hl Hne.
   destruct c as [|p r|l r]; [congruence | |].
-  - exact (pop_raw_only_total Hwf Hg Hl).
+  - destruct (pop_raw_only_total Hwf Hg Hl)
+      as [x [c' [H1 [H2 [H3 [H4 [H5 [H6 _]]]]]]]].
+    exists x, c'. tauto.
   - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
     cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
     cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
@@ -1347,7 +1372,9 @@ Lemma eject_raw_J_total :
 Proof.
   intros A k c Hwf Hg Hl Hne.
   destruct c as [|p r|l r]; [congruence | |].
-  - exact (eject_raw_only_total Hwf Hg Hl).
+  - destruct (eject_raw_only_total Hwf Hg Hl)
+      as [c' [x [H1 [H2 [H3 [H4 [H5 [H6 _]]]]]]]].
+    exists c', x. tauto.
   - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
     cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
     cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].

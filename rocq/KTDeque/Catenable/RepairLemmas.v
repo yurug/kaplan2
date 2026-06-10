@@ -35,6 +35,7 @@ Lemma repair_front_total :
     (k = KLeft \/ (k = KOnly /\ 8 <= length s1)) ->
     exists f,
       repair_front k body p1 s1 rest = Some f /\
+      is_single f = true /\
       chain_wf kd0 f /\ chain_ends_green f /\ chain_leveled k0 f /\
       cchain_seq f = cchain_seq (CSingle (Pkt body (Node k p1 s1)) rest).
 Proof.
@@ -71,6 +72,7 @@ Proof.
           apply Nat.min_glb; lia.
       - apply node_color_no_child. }
     eexists. split; [reflexivity |].
+    split; [reflexivity |].
     split; [| split; [| split]].
     + cbn [chain_wf].
       split; [exact Hbw |].
@@ -124,6 +126,7 @@ Proof.
           apply Nat.min_glb; lia.
       - apply node_color_no_child. }
     eexists. split; [reflexivity |].
+    split; [reflexivity |].
     split; [| split; [| split]].
     + cbn [chain_wf].
       split; [exact Hbw |].
@@ -171,6 +174,7 @@ Lemma repair_back_total :
     (k = KRight \/ (k = KOnly /\ 8 <= length p1)) ->
     exists f,
       repair_back k body p1 s1 rest = Some f /\
+      is_single f = true /\
       chain_wf kd0 f /\ chain_ends_green f /\ chain_leveled k0 f /\
       cchain_seq f = cchain_seq (CSingle (Pkt body (Node k p1 s1)) rest).
 Proof.
@@ -207,6 +211,7 @@ Proof.
           apply Nat.min_glb; lia.
       - apply node_color_no_child. }
     eexists. split; [reflexivity |].
+    split; [reflexivity |].
     split; [| split; [| split]].
     + cbn [chain_wf].
       split; [exact Hbw |].
@@ -260,6 +265,7 @@ Proof.
           apply Nat.min_glb; lia.
       - apply node_color_no_child. }
     eexists. split; [reflexivity |].
+    split; [reflexivity |].
     split; [| split; [| split]].
     + cbn [chain_wf].
       split; [exact Hbw |].
@@ -649,7 +655,7 @@ Proof.
                     ltac:(reflexivity)
                     ltac:(split; [exact I | exact Hss''w])
                     ltac:(split; [exact I | exact Hss''l]))
-          as [Hw' [Hg' [Hl' Hs']]].
+          as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
         eexists. eexists. eexists.
         split; [reflexivity |].
         split; [exact Hbw |]. split; [exact Hbl |].
@@ -688,7 +694,7 @@ Proof.
                       ltac:(reflexivity)
                       ltac:(split; [exact Hpp''w | exact I])
                       ltac:(split; [exact Hpp''l | exact I]))
-            as [Hw' [Hg' [Hl' Hs']]].
+            as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
           eexists. eexists. eexists.
           split; [reflexivity |].
           split; [exact Haw |]. split; [exact Hal |].
@@ -713,7 +719,7 @@ Proof.
                     ltac:(reflexivity)
                     ltac:(split; [exact Hpp'w | exact Hss''w])
                     ltac:(split; [exact Hpp'l | exact Hss''l]))
-          as [Hw' [Hg' [Hl' Hs']]].
+          as [Hw' [Hg' [Hl' [Hs' Hnp']]]].
         eexists. eexists. eexists.
         split; [reflexivity |].
         split; [exact Haw |]. split; [exact Hal |].
@@ -1016,6 +1022,7 @@ Lemma repair_both_total :
     chain_leveled (S (k0 + body_depth body)) rest ->
     exists f,
       repair_both body p1 s1 rest = Some f /\
+      is_single f = true /\
       chain_wf kd0 f /\ chain_ends_green f /\ chain_leveled k0 f /\
       cchain_seq f = cchain_seq (CSingle (Pkt body (Node KOnly p1 s1)) rest).
 Proof.
@@ -1058,6 +1065,7 @@ Proof.
             apply Nat.min_glb; lia.
           - apply node_color_no_child. }
         eexists. split; [reflexivity |].
+        split; [reflexivity |].
         split; [| split; [| split]].
         -- cbn [chain_wf].
            split; [exact Hbw |]. split; [exact Hbk |].
@@ -1107,6 +1115,7 @@ Proof.
             apply Nat.min_glb; lia.
           - apply node_color_no_child. }
         eexists. split; [reflexivity |].
+        split; [reflexivity |].
         split; [| split; [| split]].
         -- cbn [chain_wf].
            split; [exact Hbw |]. split; [exact Hbk |].
@@ -1167,6 +1176,7 @@ Proof.
             apply Nat.min_glb; lia.
           - apply node_color_no_child. }
         eexists. split; [reflexivity |].
+        split; [reflexivity |].
         split; [| split; [| split]].
         -- cbn [chain_wf].
            split; [exact Hbw |]. split; [exact Hbk |].
@@ -1215,6 +1225,7 @@ Proof.
             apply Nat.min_glb; lia.
           - apply node_color_no_child. }
         eexists. split; [reflexivity |].
+        split; [reflexivity |].
         split; [| split; [| split]].
         -- cbn [chain_wf].
            split; [exact Hbw |]. split; [exact Hbk |].
@@ -1246,6 +1257,7 @@ Proof.
     + cbn [stored_wf] in HFw. destruct HFw as [Hb3 Hbw'].
       cbn [stored_leveled] in HFl.
       eexists. split; [reflexivity |].
+      split; [reflexivity |].
       split; [| split; [| split]].
       * cbn [chain_wf].
         split; [exact Hbw |]. split; [exact Hbk |].
@@ -1277,6 +1289,7 @@ Proof.
           apply Nat.min_glb; lia.
         - apply node_color_no_child. }
       eexists. split; [reflexivity |].
+      split; [reflexivity |].
       split; [| split; [| split]].
       * cbn [chain_wf].
         split; [exact Hbw |]. split; [exact Hbk |].
