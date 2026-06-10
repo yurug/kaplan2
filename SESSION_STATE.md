@@ -17,9 +17,26 @@ STATUS: 5 admits remain (cad_push/inject_seq DISCHARGED via SeqLemmas:
 push_chain_seq/inject_chain_seq under chain_wf + chain_wf_root_prefix/suffix side
 conditions + tree_of_seq/root_and_child_seq sequence-neutrality).
 REMAINING obligations, in suggested order:
-1. cad_push/inject_preserves_J — the surgery J-preservation (4a-style): prove
-   tree_of preserves chain_wf/ends_green given node sizes+colour facts; node_push
-   keeps sizes (only grows); receiver side conditions as in the seq lemmas.
+1. cad_push/inject_preserves_J — TOOLKIT NOW PROVEN (WfLemmas.v:
+   root_and_child_facts / tree_of_wf / cont_green / tree_of_ends_green).
+   Remaining assembly: (a) node_push/node_inject preserve node_sizes+cnode_wf
+   (sizes only grow; stored_wf of the pushed element needed for cnode_wf —
+   SGround trivially wf); (b) new-colour classification under old facts: old
+   head CY/CO (body) or CG (terminal, from ends_green) => new colour in
+   {CG,CY,CO} and new-CO only from old-CO (so the parked-left-green side fact
+   carries over from root_color_facts); new-CR impossible; also new colour CO/CY
+   => cont_green side facts from old cbody/ends_green (flip case: orange parked
+   left WAS green; stuck cases: same terminal). (c) push_chain_preserves by
+   induction (CEmpty k=KOnly hyp; CPair-left via ends_green of both sides; CSingle
+   via the toolkit). Note k <> KRight for push (KLeft for inject) — receiving
+   node sizes would break otherwise; call sites only use KOnly/KLeft (resp
+   KOnly/KRight).
+   PROOF-STYLE NOTES (hard-won): never full-cbn hyps containing node_color (form
+   desync); use cbn allowlists ([chain_wf cbody_wf body_out_kind is_single],
+   [chain_has_node], [node_color negb]); Rocq-9 destruct-eqn substitutes in
+   HYPOTHESES too (no rewrite-in-hyp needed after destruct); close clauses with
+   conversion-driven exact; explicit bullets per sub-branch (chained
+   try-congruence can close bullets early).
 2. cad_concat_total_J_seq — totality: every option arm Some under J (buf_eject2/
    pop2 sizes from J floors; make_left/right case-by-case); J of outputs (tree_of
    J-rebundling + the new node sizes per case — 1a/1c stored >=3 etc.); sequence
