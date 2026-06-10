@@ -621,52 +621,96 @@ Definition repair_back {A : Type} (k : kind) (body : cbody A)
   | _ => None
   end.
 
-(** Case 2c: both of u's buffers <= 7 — drain one stored triple from each
-    end of d1 and splice both. *)
-Definition repair_both {A : Type} (body : cbody A)
-    (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
-  match pop_raw rest with
-  | Some (stp, d1') =>
-      match d1' with
-      | CEmpty =>
-          match stp with
-          | SBig p2 d2 s2 =>
-              Some (CSingle (Pkt body (Node KOnly (p1 ++ p2) (s2 ++ s1))) d2)
-          | SSmall b =>
-              Some (CSingle (Pkt body (Node KOnly (p1 ++ b) s1)) CEmpty)
-          | SGround _ => None
-          end
-      | _ =>
-          match eject_raw d1' with
-          | Some (d1'', ste) =>
-              let front :=
-                match stp with
-                | SBig p2 d2 s2 =>
-                    match cad_concat d2 (push_chain (SSmall s2) d1'') with
-                    | Some d4 => Some (p1 ++ p2, d4)
-                    | None => None
-                    end
-                | SSmall b => Some (p1 ++ b, d1'')
-                | SGround _ => None
-                end
-              in
-              match front with
-              | Some (p4, d4) =>
-                  match ste with
-                  | SBig p3 d3 s3 =>
-                      match cad_concat (inject_chain d4 (SSmall p3)) d3 with
-                      | Some d5 =>
-                          Some (CSingle (Pkt body (Node KOnly p4 (s3 ++ s1))) d5)
-                      | None => None
-                      end
-                  | SSmall b =>
-                      Some (CSingle (Pkt body (Node KOnly p4 (b ++ s1))) d4)
-                  | SGround _ => None
-                  end
-              | None => None
+(** Case 2c front+back drain.  Chaining eject after pop on the SAME chain
+    degrades it twice and breaks the re-park discipline at depth, so the
+    drain takes both cells in ONE step: a single rest double-shrinks its
+    root (one rebundle, exact one-rank colour drop); a pair rest drains
+    its two components INDEPENDENTLY (each still regular), merging or
+    re-crowning when a side dies.  Sequence-identical to pop-then-eject. *)
+Definition drain_both {A : Type} (rest : cchain A)
+    : option (stored A * stored A * cchain A) :=
+  match rest with
+  | CEmpty => None
+  | CSingle p r =>
+      let '(n, dd) := root_and_child p r in
+      match node_pop n with
+      | Some (cellF, n1) =>
+          match node_eject n1 with
+          | Some (n2, cellB) =>
+              match dd with
+              | CEmpty => Some (cellF, cellB, rebuild_childless n2)
+              | _ => Some (cellF, cellB, tree_of n2 dd)
               end
           | None => None
           end
+      | None => None
+      end
+  | CPair l r =>
+      match pop_raw l, eject_raw r with
+      | Some (cellF, l'), Some (r', cellB) =>
+          match l', r' with
+          | CSingle (Pkt BHole (Node _ lp ls)) CEmpty,
+            CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
+              if (length lp <? 5) || (length rs <? 5)
+              then Some (cellF, cellB,
+                     CSingle (Pkt BHole
+                       (Node KOnly (lp ++ ls) (rp ++ rs))) CEmpty)
+              else Some (cellF, cellB, CPair l' r')
+          | CSingle (Pkt BHole (Node _ lp ls)) CEmpty, CSingle pr' rr' =>
+              if length lp <? 5
+              then
+                match root_and_child pr' rr' with
+                | (Node _ p2 s2, d2) =>
+                    Some (cellF, cellB,
+                      tree_of (Node KOnly (lp ++ ls ++ p2) s2) d2)
+                end
+              else Some (cellF, cellB, CPair l' r')
+          | CSingle pl' rl', CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
+              if length rs <? 5
+              then
+                match root_and_child pl' rl' with
+                | (Node _ p2 s2, d2) =>
+                    Some (cellF, cellB,
+                      tree_of (Node KOnly p2 (s2 ++ rp ++ rs)) d2)
+                end
+              else Some (cellF, cellB, CPair l' r')
+          | _, _ => Some (cellF, cellB, CPair l' r')
+          end
+      | _, _ => None
+      end
+  end.
+
+Definition repair_both {A : Type} (body : cbody A)
+    (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
+  match drain_both rest with
+  | Some (cellF, cellB, mid) =>
+      let front :=
+        match cellF with
+        | SBig p2 d2 s2 =>
+            match cad_concat d2 (push_chain (SSmall s2) mid) with
+            | Some d4 => Some (p2, d4)
+            | None => None
+            end
+        | SSmall b => Some (b, mid)
+        | SGround _ => None
+        end
+      in
+      match front with
+      | Some (pf, d4) =>
+          match cellB with
+          | SBig p3 d3 s3 =>
+              match cad_concat (inject_chain d4 (SSmall p3)) d3 with
+              | Some d5 =>
+                  Some (CSingle
+                    (Pkt body (Node KOnly (p1 ++ pf) (s3 ++ s1))) d5)
+              | None => None
+              end
+          | SSmall b =>
+              Some (CSingle
+                (Pkt body (Node KOnly (p1 ++ pf) (b ++ s1))) d4)
+          | SGround _ => None
+          end
+      | None => None
       end
   | None => None
   end.
