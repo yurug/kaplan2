@@ -1,5 +1,38 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
+## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
+Discharge the remaining Admitted obligations in rocq/KTDeque/Catenable/CatKeystone.v
+down to ZERO admits with clean Print Assumptions (all 6 cat_keystone_* report
+"Closed under the global context"). Order: (1) cad_push/inject_preserves_J — the
+assembly mapped below under "REMAINING obligations" item 1 (toolkit already proven
+in WfLemmas.v); (2) cad_concat_total_J_seq — case bash over cad_concat/make_left/
+make_right (item 2); (3) cad_pop/eject_total_J_seq — EXPECT to grow J with the
+level/stratification clause in Color.v IN PLACE (item 3; re-check empty_J,
+singleton_J, and all prior discharges after the change; keep ONE invariant).
+If 5 admits reach 0: add the cost layer (primitive-count counters mirroring the
+frozen op code + constant bounds per op = cat_wc_o1), then point the gate script's
+catenable profile at it. If stuck on an obligation after several honest attempts:
+record the precise obstruction here + in kb/spec/catenable-concat-invariant.md,
+ensure everything is committed green, and move to the NEXT obligation (or the cost
+layer for already-discharged ops).
+
+GUARDRAILS (same as the first night — do not violate):
+- Branch `rebuild` only. NEVER push. Never leave the build broken: only commit
+  when `eval $(opam env --switch=default 2>/dev/null); dune build rocq/KTDeque
+  --display=quiet` exits 0 (per-file builds for iteration speed are fine).
+- Use Admitted (never admit.) for any new scaffolding; net admits must not
+  increase across a commit unless splitting one into strictly smaller precise ones.
+- Refine J/chain_wf IN PLACE in Color.v — no candidate-predicate accretion.
+- No destructive file operations. Additive proof work + in-place refinement only.
+- Commit frequently; end every commit message with:
+  Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+- Update this file after each meaningful step (admit count, findings, next step).
+- READ the "PROOF-STYLE NOTES (hard-won)" below before writing any tactic.
+- Long builds: run dune in background (Bash run_in_background), never sleep-poll.
+- If a heavy automation proof runs >5 min, kill it, revert to green, and use the
+  structured/explicit style instead (216-case lesson from night one).
+
+
 ## PHASE 4b STATUS (2026-06-03)
 DONE, committed green: kb/spec/catenable-type-design.md (design memo);
 Catenable/Model.v (types: stored/cnode/cbody/cpacket/cchain + mutual sequence
