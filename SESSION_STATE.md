@@ -1,4 +1,43 @@
-# SESSION_STATE — autonomous loop (started 2026-06-03)
+# SESSION_STATE — rebuild (Phase 4b in progress)
+
+## PHASE 4b STATUS (2026-06-03)
+DONE, committed green: kb/spec/catenable-type-design.md (design memo);
+Catenable/Model.v (types: stored/cnode/cbody/cpacket/cchain + mutual sequence
+semantics + examples); Catenable/Color.v (computed GYOR node_color, node_sizes
+floors, the invariant J = chain_wf + chain_ends_green; empty_J, singleton_J).
+J v1 deliberately omits level-stratification (recorded in-file; add in place if
+an obligation demands it).
+
+NEXT: Catenable/Ops.v. Design note for push/inject (KT99 Lemma 6.1 made
+structural — the path surgery):
+- push onto CEmpty => singleton only-triple.
+- push onto CSingle (Pkt body n) rest: the receiving node = head of body (or n
+  if body=BHole); push onto its prefix (suffix if prefix empty). Colour
+  transitions change the PATH DECOMPOSITION (KT99: "adds t to or deletes t from
+  the front of a preferred path"):
+  * Y->G (head body node becomes green): SPLIT the packet — head becomes its
+    own green packet: CSingle (Pkt BHole t') (CSingle (Pkt body_rest n) rest).
+  * O->Y (head was BPairO t lc b'): preference flips right->left. New preferred
+    continuation = INLINE the parked green-left chain lc = CSingle (Pkt lb ln)
+    lrest: new packet = Pkt (BPairY t' lb) ln over lrest; the OLD continuation
+    becomes the parked RIGHT chain = CSingle (Pkt b' n) rest. (Yellow's
+    nonpreferred child needs no green condition — checked, clause 2 is
+    orange-only.)
+  * G stays G / Y stays Y / O stays O: in-place buffer push, no surgery.
+  * Top node green that becomes... push on a GREEN top only adds elements =>
+    >=8 stays >=8?? push INCREASES sizes: G stays G; Y(7)->G(8); O(6)->Y(7);
+    R(5)->O(6) (red top can't occur under J's chain_ends_green at top).
+  So push transitions are colour-INCREASING (toward green) — the easy
+  direction; pop/eject decrease and trigger the red repair.
+- Helpers to write first: node_push/node_inject (buffer-level), packet head
+  access, the Y->G split and O->Y flip as named functions; then push/inject;
+  Lemma 6.1 analogue = push preserves J (semiregular/regular split per KT99).
+- THEN concat (Cases 1-4; constant element moves), THEN pop/eject repair
+  (Cases 1, 2a-2c — uses concat recursively at the child level per KT99 Case
+  1a! NOTE: KT99 pop-repair Case 1a calls CATENATE on child deques (d2 and
+  d1''): the repair is NOT concat-free. cost story still constant: one level,
+  constant catenations).
+- Keystone: CatKeystone.v cat_wc_o1 from admitted obligations (rule 6).
 
 Running unattended (user asleep) to progress the rebuild plan. Read this first.
 
