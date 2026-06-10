@@ -1,7 +1,20 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
-PROGRESS-7 (this iteration): PIECE (B-pop) DONE. New file
+PROGRESS-8: PIECE (B) FULLY DONE — PopLemmas.v proven end to end (zero
+admits): pop_rebundle_total / eject_rebundle_total (colour-mono cores),
+pop_raw_only/left/pair_total, eject_raw_only/right/pair_total, plus
+pop_raw_pair_eq / eject_raw_pair_eq (reflexivity one-step unfoldings so
+recursive calls rewrite propositionally), rev_cons_inv/rev_nil_inv,
+rebuild_childless_facts, root_not_red, gyor_of_inv. NEXT = (A) SR-concat
+per the PROGRESS-6 per-colour table, then (C) repair, then (D) assembly.
+PROOF-TOOL NOTES additions: (h) never subst a stuck rev-append into a
+match scrutinee — keep the rev equation and let destruct-eqn substitute
+the exposed match (cbn [node_eject] first); (i) compiled nested patterns
+also destructure the node — destruct it upfront before chaining shape
+combos; (j) rewrite length_app on BOTH sides before lia when an app
+length appears in only one.
+PROGRESS-7 (superseded): PIECE (B-pop) DONE. New file
 rocq/KTDeque/Catenable/PopLemmas.v, all PROVEN (no admits): gyor_of_inv,
 root_not_red, rebuild_childless_facts, pop_rebundle_total (the with-child
 core: new root drops <= 1 rank; CO's parked-left from old-CY cont / old-CO
