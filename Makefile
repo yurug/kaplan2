@@ -120,3 +120,21 @@ bench-all: bench-three-way bench-canonical bench-adversarial
 clean:
 	dune clean
 	$(MAKE) -C c clean
+
+cat-keystone-gate:
+	@dune clean --root . 2>/dev/null; true
+	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* =="
+	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo --display=quiet --no-buffer 2>&1); \
+	  status=$$?; \
+	  if [ $$status -ne 0 ]; then \
+	    printf '%s\n' "$$output"; \
+	    exit $$status; \
+	  fi; \
+	  printf '%s\n' "$$output" | grep -c "Closed under the global context" \
+	    | { read n; \
+	        if [ "$$n" -eq 6 ]; then \
+	          echo "OK: 6/6 keystone theorems closed under the global context"; \
+	        else \
+	          echo "FAIL: expected 6 closed keystone theorems, saw $$n"; \
+	          exit 1; \
+	        fi; }
