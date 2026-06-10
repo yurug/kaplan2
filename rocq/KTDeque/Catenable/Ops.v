@@ -317,7 +317,22 @@ Definition concat_small_left {A : Type}
     | CSingle p r =>
         match root_and_child p r with
         | (Node _ p2 s2, d2) =>
-            Some (tree_of (Node KOnly p3 s2) (push_chain (SSmall p2) d2))
+            match d2 with
+            | CEmpty =>
+                (* Childless only root: s2 may be as small as 5, which would
+                   make the rebuilt min-coloured root RED at the top.  Two
+                   extra buffer moves lift the suffix to >= 7, so the new
+                   root is yellow or green and absorbable (still O(1)). *)
+                match buf_eject2 p2 with
+                | Some (p2', y, z) =>
+                    Some (tree_of (Node KOnly p3 (y :: z :: s2))
+                            (push_chain (SSmall p2') CEmpty))
+                | None => None
+                end
+            | _ =>
+                Some (tree_of (Node KOnly p3 s2)
+                        (push_chain (SSmall p2) d2))
+            end
         end
     | CPair (CSingle pl rl) rt =>
         match root_and_child pl rl with
@@ -337,7 +352,19 @@ Definition concat_small_right {A : Type}
     | CSingle p r =>
         match root_and_child p r with
         | (Node _ p1 s1, d1) =>
-            Some (tree_of (Node KOnly p1 s3) (inject_chain d1 (SSmall s1)))
+            match d1 with
+            | CEmpty =>
+                (* Mirror of the left fix: lift the prefix to >= 7. *)
+                match buf_pop2 s1 with
+                | Some (x, y, s1') =>
+                    Some (tree_of (Node KOnly (p1 ++ [x; y]) s3)
+                            (push_chain (SSmall s1') CEmpty))
+                | None => None
+                end
+            | _ =>
+                Some (tree_of (Node KOnly p1 s3)
+                        (inject_chain d1 (SSmall s1)))
+            end
         end
     | CPair lt (CSingle pr rr) =>
         match root_and_child pr rr with

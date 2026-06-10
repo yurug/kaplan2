@@ -633,7 +633,7 @@ Qed.
 (* ========================================================================== *)
 
 Lemma gyor_of_min_big :
-  forall a b, 9 <= a -> gyor_of (Nat.min a b) = gyor_of b.
+  forall a b, 8 <= a -> gyor_of (Nat.min a b) = gyor_of b.
 Proof.
   intros a b Ha. unfold gyor_of.
   destruct (8 <=? b) eqn:Hb.
@@ -910,7 +910,7 @@ Proof.
 Qed.
 
 Lemma gyor_of_min_big_r :
-  forall a b, 9 <= b -> gyor_of (Nat.min a b) = gyor_of a.
+  forall a b, 8 <= b -> gyor_of (Nat.min a b) = gyor_of a.
 Proof.
   intros a b Hb. rewrite Nat.min_comm. apply gyor_of_min_big. exact Hb.
 Qed.
@@ -1249,6 +1249,306 @@ Proof.
   rewrite Hseqt, Hb, stored_seq_SBig. seq_normalize.
 Qed.
 
+Lemma gyor_of_ge7 : forall m, 7 <= m -> gyor_of m = CG \/ gyor_of m = CY.
+Proof.
+  intros m H. unfold gyor_of.
+  destruct (8 <=? m) eqn:H8; [left; reflexivity |].
+  apply Nat.leb_gt in H8.
+  assert (He : (m =? 7) = true) by (apply Nat.eqb_eq; lia).
+  rewrite He. right. reflexivity.
+Qed.
+
+(** A generic stored cell pushed onto the empty chain is a green singleton
+    (the childless one-sided escape in [node_sizes]). *)
+Lemma push_singleton_wf :
+  forall A (cell : stored A),
+    stored_wf cell ->
+    chain_wf KOnly (push_chain cell CEmpty) /\
+    chain_ends_green (push_chain cell CEmpty) /\
+    cchain_seq (push_chain cell CEmpty) = stored_seq cell.
+Proof.
+  intros A cell Hw. cbn [push_chain].
+  split; [| split].
+  - cbn [chain_wf cbody_wf body_out_kind chain_has_node].
+    repeat split.
+    + right. split; [reflexivity |]. right.
+      split; [reflexivity | cbn [length]; lia].
+    + exact Hw.
+    + left. reflexivity.
+  - cbn [chain_ends_green chain_has_node].
+    apply node_color_no_child.
+  - cbn. rewrite !app_nil_r. reflexivity.
+Qed.
+
+(** Case 2's big-side rebuild for an ONLY tree: push a stored cell into the
+    nonempty child of e's only root and re-crown with the >=8 prefix p3.
+    The new root's colour is gyor_of |s2| (the >=8 prefix can't be the min
+    in any colour-relevant way), so the bundle is keyed exactly there. *)
+Lemma only_push_rebuild_total :
+  forall A (p3 s2 : buffer (stored A)) (cell : stored A) (d2 : cchain A),
+    8 <= length p3 -> 5 <= length s2 ->
+    buf_stored_all_wf p3 -> buf_stored_all_wf s2 ->
+    stored_wf cell ->
+    chain_wf KOnly d2 -> d2 <> CEmpty ->
+    child_color_facts (gyor_of (length s2)) d2 ->
+    chain_wf KOnly
+      (tree_of (Node KOnly p3 s2) (push_chain cell d2)) /\
+    chain_ends_green
+      (tree_of (Node KOnly p3 s2) (push_chain cell d2)) /\
+    cchain_seq (tree_of (Node KOnly p3 s2) (push_chain cell d2))
+    = buf_stored_seq p3 ++ stored_seq cell
+      ++ cchain_seq d2 ++ buf_stored_seq s2.
+Proof.
+  intros A p3 s2 cell d2 Hp8 Hs5 Hpw Hsw Hcw Hd2 Hne Hbundle.
+  assert (Hwf' : chain_wf KOnly (push_chain cell d2)).
+  { apply (@push_chain_preserves_wf A cell d2 KOnly);
+      [congruence
+      | intros Heq; exfalso; apply Hne; exact Heq
+      | exact Hcw | exact Hd2]. }
+  assert (Hseq' : cchain_seq (push_chain cell d2)
+                  = stored_seq cell ++ cchain_seq d2)
+    by (rewrite (push_chain_seq cell Hd2); reflexivity).
+  destruct d2 as [|d2p d2rest|d2l d2r]; [congruence | |].
+  - (* single child *)
+    cbn [push_chain] in Hwf', Hseq' |- *.
+    assert (Hsing : is_single
+              (pkt_update (node_push cell) d2p d2rest) = true)
+      by apply pkt_update_is_single.
+    destruct (pkt_update (node_push cell) d2p d2rest)
+      as [|ip irest|? ?] eqn:Hpu; cbn in Hsing; try congruence.
+    assert (Hnewc : node_color (chain_has_node (CSingle ip irest))
+                      (Node KOnly p3 s2) = gyor_of (length s2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big. lia. }
+    destruct (gyor_of (length s2)) eqn:Hg.
+    + split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle.
+      destruct (@push_chain_preserves A cell (CSingle d2p d2rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hcw Hd2 Hbundle)
+        as [_ Hge'].
+      cbn [push_chain] in Hge'. rewrite Hpu in Hge'.
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hge'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle. destruct Hbundle as [Hge HparkT].
+      destruct (@push_chain_preserves A cell (CSingle d2p d2rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hcw Hd2 Hge)
+        as [_ Hge'].
+      cbn [push_chain] in Hge'. rewrite Hpu in Hge'.
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hge'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + contradiction.
+  - (* pair child: the push goes LEFT — the preferred side *)
+    cbn [push_chain] in Hwf', Hseq' |- *.
+    pose proof Hd2 as Hd2'. cbn [chain_wf] in Hd2'.
+    destruct Hd2' as [Hls [Hrs [Hl Hr]]].
+    assert (Hlne : d2l <> CEmpty)
+      by (destruct d2l; cbn in Hls; congruence).
+    assert (Hnewc : node_color
+                      (chain_has_node (CPair (push_chain cell d2l) d2r))
+                      (Node KOnly p3 s2) = gyor_of (length s2)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big. lia. }
+    destruct (gyor_of (length s2)) eqn:Hg.
+    + split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle.
+      destruct (@push_chain_preserves A cell d2l KLeft
+                  ltac:(congruence)
+                  ltac:(intros Heq; exfalso; apply Hlne; exact Heq)
+                  Hcw Hl Hbundle) as [_ Hgl'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hgl'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle. destruct Hbundle as [HgR HgL].
+      destruct (@push_chain_preserves A cell d2l KLeft
+                  ltac:(congruence)
+                  ltac:(intros Heq; exfalso; apply Hlne; exact Heq)
+                  Hcw Hl HgL) as [_ Hgl'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact Hgl'].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact HgR.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + contradiction.
+Qed.
+
+(** Mirror: inject a stored cell into the child of d's only root and
+    re-crown with the >=8 suffix s3.  Inject descends RIGHT (the orange
+    side), so this mirrors [left_rebuild_total]'s case logic. *)
+Lemma only_inject_rebuild_total :
+  forall A (p1 s3 : buffer (stored A)) (cell : stored A) (d1 : cchain A),
+    5 <= length p1 -> 8 <= length s3 ->
+    buf_stored_all_wf p1 -> buf_stored_all_wf s3 ->
+    stored_wf cell ->
+    chain_wf KOnly d1 -> d1 <> CEmpty ->
+    child_color_facts (gyor_of (length p1)) d1 ->
+    chain_wf KOnly
+      (tree_of (Node KOnly p1 s3) (inject_chain d1 cell)) /\
+    chain_ends_green
+      (tree_of (Node KOnly p1 s3) (inject_chain d1 cell)) /\
+    cchain_seq (tree_of (Node KOnly p1 s3) (inject_chain d1 cell))
+    = buf_stored_seq p1 ++ cchain_seq d1 ++ stored_seq cell
+      ++ buf_stored_seq s3.
+Proof.
+  intros A p1 s3 cell d1 Hp5 Hs8 Hpw Hsw Hcw Hd1 Hne Hbundle.
+  assert (Hwf' : chain_wf KOnly (inject_chain d1 cell)).
+  { apply (@inject_chain_preserves_wf A cell d1 KOnly);
+      [congruence
+      | intros Heq; exfalso; apply Hne; exact Heq
+      | exact Hcw | exact Hd1]. }
+  assert (Hseq' : cchain_seq (inject_chain d1 cell)
+                  = cchain_seq d1 ++ stored_seq cell)
+    by (rewrite (inject_chain_seq cell Hd1); reflexivity).
+  destruct d1 as [|d1p d1rest|d1l d1r]; [congruence | |].
+  - (* single child *)
+    cbn [inject_chain] in Hwf', Hseq' |- *.
+    assert (Hsing : is_single
+              (pkt_update (fun n => node_inject n cell) d1p d1rest) = true)
+      by apply pkt_update_is_single.
+    destruct (pkt_update (fun n => node_inject n cell) d1p d1rest)
+      as [|ip irest|? ?] eqn:Hpu; cbn in Hsing; try congruence.
+    assert (Hnewc : node_color (chain_has_node (CSingle ip irest))
+                      (Node KOnly p1 s3) = gyor_of (length p1)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big_r. lia. }
+    destruct (gyor_of (length p1)) eqn:Hg.
+    + split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle.
+      destruct (@inject_chain_preserves A cell (CSingle d1p d1rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hcw Hd1 Hbundle)
+        as [_ Hge'].
+      cbn [inject_chain] in Hge'. rewrite Hpu in Hge'.
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hge'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle. destruct Hbundle as [Hge HparkT].
+      destruct (@inject_chain_preserves A cell (CSingle d1p d1rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hcw Hd1 Hge)
+        as [_ Hge'].
+      cbn [inject_chain] in Hge'. rewrite Hpu in Hge'.
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hge'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + contradiction.
+  - (* pair child: the inject goes RIGHT; the left continuation is intact *)
+    cbn [inject_chain] in Hwf', Hseq' |- *.
+    pose proof Hd1 as Hd1'. cbn [chain_wf] in Hd1'.
+    destruct Hd1' as [Hls [Hrs [Hl Hr]]].
+    assert (Hnewc : node_color
+                      (chain_has_node (CPair d1l (inject_chain d1r cell)))
+                      (Node KOnly p1 s3) = gyor_of (length p1)).
+    { cbn [chain_has_node]. rewrite node_color_measure.
+      cbn [node_measure]. apply gyor_of_min_big_r. lia. }
+    destruct (gyor_of (length p1)) eqn:Hg.
+    + split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle.
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact Hbundle.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + cbn [cont_green] in Hbundle. destruct Hbundle as [HgR HgL].
+      assert (Hrne : d1r <> CEmpty)
+        by (destruct d1r; cbn in Hrs; congruence).
+      destruct (@inject_chain_preserves A cell d1r KRight
+                  ltac:(congruence)
+                  ltac:(intros Heq; exfalso; apply Hrne; exact Heq)
+                  Hcw Hr HgR) as [_ HgR'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; left; split; lia
+          | split; [exact Hpw | exact Hsw]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnewc; exact HgL].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnewc. cbn [cont_green]. exact HgR'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseq'. seq_normalize.
+    + contradiction.
+Qed.
+
 (* ========================================================================== *)
 (* Cases 2/3, big side (>=8): Admitted sub-obligations.                        *)
 (* ========================================================================== *)
@@ -1262,7 +1562,161 @@ Lemma concat_small_left_big :
       concat_small_left p3 e = Some f /\
       chain_wf KOnly f /\ chain_ends_green f /\
       cchain_seq f = buf_stored_seq p3 ++ cchain_seq e.
-Proof. Admitted.
+Proof.
+  intros A p3 e H8 Hp3w Hwf Hg Hne Hdeg.
+  assert (Hlt : (length p3 <? 8) = false) by (apply Nat.ltb_ge; lia).
+  destruct e as [|p r|el er]; [congruence | |].
+  - (* CSingle *)
+    unfold concat_small_left. rewrite Hlt. cbn [fst snd].
+    destruct (root_and_child p r) as [[k0 p2 s2] d2] eqn:Hrc.
+    cbn [fst snd].
+    pose proof (root_and_child_facts Hwf) as Hfacts.
+    rewrite Hrc in Hfacts. cbn [fst snd] in Hfacts.
+    destruct Hfacts as [Hk [_ [Hnw [Hcw _]]]].
+    cbn [node_kind] in Hk. subst k0.
+    destruct (root_two_sided Hrc Hwf Hdeg) as [Hp2 Hs2].
+    cbn [cnode_wf] in Hnw. destruct Hnw as [Hp2w Hs2w].
+    pose proof (root_child_facts Hwf Hg) as Hbundle.
+    rewrite Hrc in Hbundle. cbn [fst snd] in Hbundle.
+    destruct d2 as [|d2p d2r|d2l d2rr].
+    + (* childless root: the repaired branch — lift the suffix to >= 7 *)
+      destruct (@buf_eject2_total (stored A) p2 ltac:(lia))
+        as [p2' [y [z He]]].
+      rewrite He.
+      pose proof (buf_eject2_inv He) as Hb.
+      pose proof (buf_eject2_length He) as Hlen.
+      assert (Hp2w' : buf_stored_all_wf (p2' ++ [y; z]))
+        by (rewrite <- Hb; exact Hp2w).
+      apply buf_all_wf_app_inv in Hp2w'. destruct Hp2w' as [Hp2'w Hyz].
+      cbn in Hyz. destruct Hyz as [Hyw [Hzw _]].
+      assert (Hp2'len : 3 <= length p2') by lia.
+      destruct (small_singleton_wf Hp2'len Hp2'w) as [Hcwf [Hcg Hcseq]].
+      assert (Hsw' : buf_stored_all_wf (y :: z :: s2))
+        by (cbn; repeat split; assumption).
+      assert (Hmin7 : 7 <= Nat.min (length p3) (length (y :: z :: s2)))
+        by (cbn [length]; apply Nat.min_glb; lia).
+      assert (Hnewc : node_color
+                (chain_has_node (push_chain (SSmall p2') (@CEmpty A)))
+                (Node KOnly p3 (y :: z :: s2))
+              = gyor_of (Nat.min (length p3) (length (y :: z :: s2)))).
+      { cbn [push_chain chain_has_node].
+        rewrite node_color_measure. cbn [node_measure]. reflexivity. }
+      destruct (gyor_of_ge7 Hmin7) as [Hcol | Hcol]; rewrite Hcol in Hnewc.
+      * eexists. split; [reflexivity |].
+        split; [| split].
+        -- apply tree_of_wf;
+             [reflexivity
+             | cbn [push_chain chain_has_node node_sizes]; left;
+               split; [lia | cbn [length]; lia]
+             | split; [exact Hp3w | exact Hsw']
+             | exact Hcwf
+             | unfold root_color_facts; rewrite Hnewc; exact I].
+        -- apply tree_of_ends_green; [exact Hcwf |].
+           rewrite Hnewc. exact I.
+        -- rewrite tree_of_seq, cnode_seq_eq, Hcseq.
+           rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+           rewrite cnode_seq_eq, Hb. seq_normalize.
+      * eexists. split; [reflexivity |].
+        split; [| split].
+        -- apply tree_of_wf;
+             [reflexivity
+             | cbn [push_chain chain_has_node node_sizes]; left;
+               split; [lia | cbn [length]; lia]
+             | split; [exact Hp3w | exact Hsw']
+             | exact Hcwf
+             | unfold root_color_facts; rewrite Hnewc; exact I].
+        -- apply tree_of_ends_green; [exact Hcwf |].
+           rewrite Hnewc. exact Hcg.
+        -- rewrite tree_of_seq, cnode_seq_eq, Hcseq.
+           rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+           rewrite cnode_seq_eq, Hb. seq_normalize.
+    + (* single child *)
+      assert (Hcellw : stored_wf (SSmall p2))
+        by (cbn [stored_wf]; split; [lia | exact Hp2w]).
+      assert (Hbk : child_color_facts (gyor_of (length s2))
+                      (CSingle d2p d2r)).
+      { apply (@child_color_facts_mono A
+                 (gyor_of (Nat.min (length p2) (length s2))));
+          [apply gyor_of_mono; apply Nat.le_min_r |].
+        cbn [chain_has_node] in Hbundle.
+        rewrite node_color_measure in Hbundle.
+        cbn [node_measure] in Hbundle. exact Hbundle. }
+      destruct (only_push_rebuild_total H8 Hs2 Hp3w Hs2w Hcellw Hcw
+                  ltac:(discriminate) Hbk) as [Hwt [Hgt Hseqt]].
+      eexists. split; [reflexivity |].
+      split; [exact Hwt |]. split; [exact Hgt |].
+      rewrite Hseqt, stored_seq_SSmall.
+      rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+    + (* pair child *)
+      assert (Hcellw : stored_wf (SSmall p2))
+        by (cbn [stored_wf]; split; [lia | exact Hp2w]).
+      assert (Hbk : child_color_facts (gyor_of (length s2))
+                      (CPair d2l d2rr)).
+      { apply (@child_color_facts_mono A
+                 (gyor_of (Nat.min (length p2) (length s2))));
+          [apply gyor_of_mono; apply Nat.le_min_r |].
+        cbn [chain_has_node] in Hbundle.
+        rewrite node_color_measure in Hbundle.
+        cbn [node_measure] in Hbundle. exact Hbundle. }
+      destruct (only_push_rebuild_total H8 Hs2 Hp3w Hs2w Hcellw Hcw
+                  ltac:(discriminate) Hbk) as [Hwt [Hgt Hseqt]].
+      eexists. split; [reflexivity |].
+      split; [exact Hwt |]. split; [exact Hgt |].
+      rewrite Hseqt, stored_seq_SSmall.
+      rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+  - (* CPair: rebuild the left component, keep the right *)
+    cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    destruct el as [|pl rl|? ?]; cbn [is_single] in Hls; try discriminate.
+    unfold concat_small_left. rewrite Hlt. cbn [fst snd].
+    destruct (root_and_child pl rl) as [[k1 p2 s2] d2] eqn:Hrc1.
+    cbn [fst snd].
+    pose proof (root_and_child_facts Hl) as Hf1.
+    rewrite Hrc1 in Hf1. cbn [fst snd] in Hf1.
+    destruct Hf1 as [Hk1 [Hsz1 [Hnw1 [Hcw1 _]]]].
+    cbn [node_kind] in Hk1. subst k1.
+    cbn [node_sizes] in Hsz1. destruct Hsz1 as [Hp2 Hs2].
+    cbn [cnode_wf] in Hnw1. destruct Hnw1 as [Hp2w Hs2w].
+    assert (Hcellw : stored_wf (SSmall p2))
+      by (cbn [stored_wf]; split; [lia | exact Hp2w]).
+    assert (Hwf2 : chain_wf KOnly (push_chain (SSmall p2) d2)).
+    { apply (@push_chain_preserves_wf A (SSmall p2) d2 KOnly);
+        [congruence | intros _; reflexivity | exact Hcellw | exact Hcw1]. }
+    assert (Hseq2 : cchain_seq (push_chain (SSmall p2) d2)
+                    = buf_stored_seq p2 ++ cchain_seq d2)
+      by (rewrite (push_chain_seq (SSmall p2) Hcw1); reflexivity).
+    assert (Hnewc : node_color
+              (chain_has_node (push_chain (SSmall p2) d2))
+              (Node KLeft p3 s2) = CG).
+    { destruct (chain_has_node (push_chain (SSmall p2) d2)).
+      - rewrite node_color_measure. cbn [node_measure].
+        apply gyor_of_big. lia.
+      - apply node_color_no_child. }
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + cbn [chain_wf].
+      split; [apply tree_of_is_single |].
+      split; [exact Hrs |].
+      split; [| exact Hr].
+      apply tree_of_wf;
+        [reflexivity
+        | cbn [node_sizes]; split; [lia | exact Hs2]
+        | split; [exact Hp3w | exact Hs2w]
+        | exact Hwf2
+        | unfold root_color_facts; rewrite Hnewc; exact I].
+    + cbn [chain_ends_green].
+      split; [| exact Hgr].
+      apply tree_of_ends_green; [exact Hwf2 |].
+      rewrite Hnewc. exact I.
+    + rewrite (cchain_seq_pair
+        (tree_of (Node KLeft p3 s2) (push_chain (SSmall p2) d2)) er).
+      rewrite (cchain_seq_pair (CSingle pl rl) er).
+      rewrite tree_of_seq, cnode_seq_eq, Hseq2.
+      rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+Qed.
 
 Lemma concat_small_right_big :
   forall A (d : cchain A) (s3 : buffer (stored A)),
@@ -1273,7 +1727,162 @@ Lemma concat_small_right_big :
       concat_small_right d s3 = Some f /\
       chain_wf KOnly f /\ chain_ends_green f /\
       cchain_seq f = cchain_seq d ++ buf_stored_seq s3.
-Proof. Admitted.
+Proof.
+  intros A d s3 H8 Hs3w Hwf Hg Hne Hdeg.
+  assert (Hlt : (length s3 <? 8) = false) by (apply Nat.ltb_ge; lia).
+  destruct d as [|p r|dl dr]; [congruence | |].
+  - (* CSingle *)
+    unfold concat_small_right. rewrite Hlt. cbn [fst snd].
+    destruct (root_and_child p r) as [[k0 p1 s1] d1] eqn:Hrc.
+    cbn [fst snd].
+    pose proof (root_and_child_facts Hwf) as Hfacts.
+    rewrite Hrc in Hfacts. cbn [fst snd] in Hfacts.
+    destruct Hfacts as [Hk [_ [Hnw [Hcw _]]]].
+    cbn [node_kind] in Hk. subst k0.
+    destruct (root_two_sided Hrc Hwf Hdeg) as [Hp1 Hs1].
+    cbn [cnode_wf] in Hnw. destruct Hnw as [Hp1w Hs1w].
+    pose proof (root_child_facts Hwf Hg) as Hbundle.
+    rewrite Hrc in Hbundle. cbn [fst snd] in Hbundle.
+    destruct d1 as [|d1p d1r|d1l d1rr].
+    + (* childless root: lift the prefix to >= 7 *)
+      destruct (@buf_pop2_total (stored A) s1 ltac:(lia))
+        as [x [y [s1' He]]].
+      rewrite He.
+      pose proof (buf_pop2_inv He) as Hb.
+      assert (Hlen : length s1 = S (S (length s1')))
+        by (rewrite Hb; reflexivity).
+      rewrite Hb in Hs1w. cbn in Hs1w. destruct Hs1w as [Hxw [Hyw Hs1'w]].
+      assert (Hs1'len : 3 <= length s1') by lia.
+      destruct (small_singleton_wf Hs1'len Hs1'w) as [Hcwf [Hcg Hcseq]].
+      assert (Hplen : length (p1 ++ [x; y]) = length p1 + 2)
+        by (rewrite length_app; reflexivity).
+      assert (Hpw' : buf_stored_all_wf (p1 ++ [x; y])).
+      { apply buf_all_wf_app;
+          [exact Hp1w | cbn; repeat split; assumption]. }
+      assert (Hmin7 : 7 <= Nat.min (length (p1 ++ [x; y])) (length s3))
+        by (rewrite Hplen; apply Nat.min_glb; lia).
+      assert (Hnewc : node_color
+                (chain_has_node (push_chain (SSmall s1') (@CEmpty A)))
+                (Node KOnly (p1 ++ [x; y]) s3)
+              = gyor_of (Nat.min (length (p1 ++ [x; y])) (length s3))).
+      { cbn [push_chain chain_has_node].
+        rewrite node_color_measure. cbn [node_measure]. reflexivity. }
+      destruct (gyor_of_ge7 Hmin7) as [Hcol | Hcol]; rewrite Hcol in Hnewc.
+      * eexists. split; [reflexivity |].
+        split; [| split].
+        -- apply tree_of_wf;
+             [reflexivity
+             | cbn [push_chain chain_has_node node_sizes]; left;
+               split; [rewrite Hplen; lia | lia]
+             | split; [exact Hpw' | exact Hs3w]
+             | exact Hcwf
+             | unfold root_color_facts; rewrite Hnewc; exact I].
+        -- apply tree_of_ends_green; [exact Hcwf |].
+           rewrite Hnewc. exact I.
+        -- rewrite tree_of_seq, cnode_seq_eq, Hcseq.
+           rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+           rewrite cnode_seq_eq, Hb. seq_normalize.
+      * eexists. split; [reflexivity |].
+        split; [| split].
+        -- apply tree_of_wf;
+             [reflexivity
+             | cbn [push_chain chain_has_node node_sizes]; left;
+               split; [rewrite Hplen; lia | lia]
+             | split; [exact Hpw' | exact Hs3w]
+             | exact Hcwf
+             | unfold root_color_facts; rewrite Hnewc; exact I].
+        -- apply tree_of_ends_green; [exact Hcwf |].
+           rewrite Hnewc. exact Hcg.
+        -- rewrite tree_of_seq, cnode_seq_eq, Hcseq.
+           rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+           rewrite cnode_seq_eq, Hb. seq_normalize.
+    + (* single child *)
+      assert (Hcellw : stored_wf (SSmall s1))
+        by (cbn [stored_wf]; split; [lia | exact Hs1w]).
+      assert (Hbk : child_color_facts (gyor_of (length p1))
+                      (CSingle d1p d1r)).
+      { apply (@child_color_facts_mono A
+                 (gyor_of (Nat.min (length p1) (length s1))));
+          [apply gyor_of_mono; apply Nat.le_min_l |].
+        cbn [chain_has_node] in Hbundle.
+        rewrite node_color_measure in Hbundle.
+        cbn [node_measure] in Hbundle. exact Hbundle. }
+      destruct (only_inject_rebuild_total Hp1 H8 Hp1w Hs3w Hcellw Hcw
+                  ltac:(discriminate) Hbk) as [Hwt [Hgt Hseqt]].
+      eexists. split; [reflexivity |].
+      split; [exact Hwt |]. split; [exact Hgt |].
+      rewrite Hseqt, stored_seq_SSmall.
+      rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+    + (* pair child *)
+      assert (Hcellw : stored_wf (SSmall s1))
+        by (cbn [stored_wf]; split; [lia | exact Hs1w]).
+      assert (Hbk : child_color_facts (gyor_of (length p1))
+                      (CPair d1l d1rr)).
+      { apply (@child_color_facts_mono A
+                 (gyor_of (Nat.min (length p1) (length s1))));
+          [apply gyor_of_mono; apply Nat.le_min_l |].
+        cbn [chain_has_node] in Hbundle.
+        rewrite node_color_measure in Hbundle.
+        cbn [node_measure] in Hbundle. exact Hbundle. }
+      destruct (only_inject_rebuild_total Hp1 H8 Hp1w Hs3w Hcellw Hcw
+                  ltac:(discriminate) Hbk) as [Hwt [Hgt Hseqt]].
+      eexists. split; [reflexivity |].
+      split; [exact Hwt |]. split; [exact Hgt |].
+      rewrite Hseqt, stored_seq_SSmall.
+      rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+  - (* CPair: rebuild the right component, keep the left *)
+    cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl Hr]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    destruct dr as [|pr rr|? ?]; cbn [is_single] in Hrs; try discriminate.
+    unfold concat_small_right. rewrite Hlt. cbn [fst snd].
+    destruct (root_and_child pr rr) as [[k2 p1 s1] d1] eqn:Hrc2.
+    cbn [fst snd].
+    pose proof (root_and_child_facts Hr) as Hf2.
+    rewrite Hrc2 in Hf2. cbn [fst snd] in Hf2.
+    destruct Hf2 as [Hk2 [Hsz2 [Hnw2 [Hcw2 _]]]].
+    cbn [node_kind] in Hk2. subst k2.
+    cbn [node_sizes] in Hsz2. destruct Hsz2 as [Hp1 Hs1].
+    cbn [cnode_wf] in Hnw2. destruct Hnw2 as [Hp1w Hs1w].
+    assert (Hcellw : stored_wf (SSmall s1))
+      by (cbn [stored_wf]; split; [lia | exact Hs1w]).
+    assert (Hwf2 : chain_wf KOnly (inject_chain d1 (SSmall s1))).
+    { apply (@inject_chain_preserves_wf A (SSmall s1) d1 KOnly);
+        [congruence | intros _; reflexivity | exact Hcellw | exact Hcw2]. }
+    assert (Hseq2 : cchain_seq (inject_chain d1 (SSmall s1))
+                    = cchain_seq d1 ++ buf_stored_seq s1)
+      by (rewrite (inject_chain_seq (SSmall s1) Hcw2); reflexivity).
+    assert (Hnewc : node_color
+              (chain_has_node (inject_chain d1 (SSmall s1)))
+              (Node KRight p1 s3) = CG).
+    { destruct (chain_has_node (inject_chain d1 (SSmall s1))).
+      - rewrite node_color_measure. cbn [node_measure].
+        apply gyor_of_big. lia.
+      - apply node_color_no_child. }
+    eexists. split; [reflexivity |].
+    split; [| split].
+    + cbn [chain_wf].
+      split; [exact Hls |].
+      split; [apply tree_of_is_single |].
+      split; [exact Hl |].
+      apply tree_of_wf;
+        [reflexivity
+        | cbn [node_sizes]; split; [exact Hp1 | lia]
+        | split; [exact Hp1w | exact Hs3w]
+        | exact Hwf2
+        | unfold root_color_facts; rewrite Hnewc; exact I].
+    + cbn [chain_ends_green].
+      split; [exact Hgl |].
+      apply tree_of_ends_green; [exact Hwf2 |].
+      rewrite Hnewc. exact I.
+    + rewrite (cchain_seq_pair dl
+        (tree_of (Node KRight p1 s3) (inject_chain d1 (SSmall s1)))).
+      rewrite (cchain_seq_pair dl (CSingle pr rr)).
+      rewrite tree_of_seq, cnode_seq_eq, Hseq2.
+      rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
+      rewrite cnode_seq_eq. seq_normalize.
+Qed.
 
 Lemma concat_small_left_total :
   forall A (p3 : buffer (stored A)) (e : cchain A),
