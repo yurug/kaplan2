@@ -56,50 +56,48 @@ Definition node_inject {A : Type} (n : cnode A) (s : stored A) : cnode A :=
 (* The shared top-of-packet update with colour-driven surgery.                 *)
 (* ========================================================================== *)
 
-Definition pkt_update {A : Type}
-    (upd : cnode A -> cnode A) (p : cpacket A) (rest : cchain A) : cchain A :=
+(** Decompose a packet over its following chain into (root triple's node,
+    root's child deque).  The body/packet bundling is exactly the path
+    decomposition, so this is O(1) constructor surgery. *)
+Definition root_and_child {A : Type}
+    (p : cpacket A) (rest : cchain A) : cnode A * cchain A :=
   match p with
-  | Pkt BHole n =>
-      let n' := upd n in
-      match node_color (chain_has_node rest) n' with
-      | CO =>
-          (* R -> O: merge the node into the head of its child packet. *)
-          match rest with
-          | CSingle (Pkt rb rn) rrest =>
-              CSingle (Pkt (BSingle n' rb) rn) rrest
-          | CPair l (CSingle (Pkt rb rn) rrest) =>
-              CSingle (Pkt (BPairO n' l rb) rn) rrest
-          | _ => CSingle (Pkt BHole n') rest   (* unreachable under J *)
-          end
-      | _ => CSingle (Pkt BHole n') rest        (* G stays G; R stays R *)
+  | Pkt BHole n => (n, rest)
+  | Pkt (BSingle hn b') n => (hn, CSingle (Pkt b' n) rest)
+  | Pkt (BPairY hn b' rc) n => (hn, CPair (CSingle (Pkt b' n) rest) rc)
+  | Pkt (BPairO hn lc b') n => (hn, CPair lc (CSingle (Pkt b' n) rest))
+  end.
+
+(** Rebuild a tree from a root node and its child deque, re-bundling the
+    preferred path per the root's (computed) colour: green/red roots head
+    their own packet; a yellow root prepends to its left/only child's
+    packet; an orange root to its right/only child's.  The catch-all arms
+    are unreachable under [J] (a coloured pair root always has the
+    single-tree children the colour demands). *)
+Definition tree_of {A : Type} (n : cnode A) (child : cchain A) : cchain A :=
+  match node_color (chain_has_node child) n with
+  | CG | CR => CSingle (Pkt BHole n) child
+  | CY =>
+      match child with
+      | CSingle (Pkt rb rn) rrest => CSingle (Pkt (BSingle n rb) rn) rrest
+      | CPair (CSingle (Pkt lb ln) lrest) r =>
+          CSingle (Pkt (BPairY n lb r) ln) lrest
+      | _ => CSingle (Pkt BHole n) child
       end
-  | Pkt (BSingle hn b') n =>
-      let hn' := upd hn in
-      match node_color true hn' with
-      | CG => CSingle (Pkt BHole hn') (CSingle (Pkt b' n) rest)
-      | _  => CSingle (Pkt (BSingle hn' b') n) rest
-      end
-  | Pkt (BPairY hn b' rc) n =>
-      let hn' := upd hn in
-      match node_color true hn' with
-      | CG => CSingle (Pkt BHole hn') (CPair (CSingle (Pkt b' n) rest) rc)
-      | _  => CSingle (Pkt (BPairY hn' b' rc) n) rest
-      end
-  | Pkt (BPairO hn lc b') n =>
-      let hn' := upd hn in
-      match node_color true hn' with
-      | CY =>
-          (* O -> Y: preference flips right -> left. *)
-          match lc with
-          | CSingle (Pkt lb ln) lrest =>
-              CSingle
-                (Pkt (BPairY hn' lb (CSingle (Pkt b' n) rest)) ln)
-                lrest
-          | _ => CSingle (Pkt (BPairO hn' lc b') n) rest  (* unreachable *)
-          end
-      | _ => CSingle (Pkt (BPairO hn' lc b') n) rest
+  | CO =>
+      match child with
+      | CSingle (Pkt rb rn) rrest => CSingle (Pkt (BSingle n rb) rn) rrest
+      | CPair l (CSingle (Pkt rb rn) rrest) =>
+          CSingle (Pkt (BPairO n l rb) rn) rrest
+      | _ => CSingle (Pkt BHole n) child
       end
   end.
+
+(** Updating the root triple = unpack, update, re-bundle. *)
+Definition pkt_update {A : Type}
+    (upd : cnode A -> cnode A) (p : cpacket A) (rest : cchain A) : cchain A :=
+  let '(n, child) := root_and_child p rest in
+  tree_of (upd n) child.
 
 (* ========================================================================== *)
 (* push / inject.                                                              *)
