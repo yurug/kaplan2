@@ -427,3 +427,320 @@ Example pkt_update_split_seq :
                 (CSingle (Pkt (BSingle n7 BHole) nend) CEmpty))
   = 0 :: cchain_seq (CSingle (Pkt (BSingle n7 BHole) nend) CEmpty).
 Proof. reflexivity. Qed.
+
+(* ========================================================================== *)
+(* Pop / eject with the §6 repair (Cases 1, 2a–2c).                            *)
+(*                                                                            *)
+(* Pop part 1 ([pop_raw]) removes the first element of the left/only triple   *)
+(* and re-bundles via [tree_of] — whose colour-driven reroute is exactly      *)
+(* KT99's "the preferred path containing t' may be red": a G->Y or Y->O       *)
+(* root change splices the (unconstrained) preferred-child path in, so the    *)
+(* new packet terminal may be red.  Part 2 ([repair_packet]) replaces a red   *)
+(* terminal u = (p1,d1,s1) per §6: pop/eject a stored triple from d1          *)
+(* WITHOUT repair, splice its buffers into u's, and re-attach its child by    *)
+(* one child-level [cad_concat].  The repair is non-recursive.                *)
+(*                                                                            *)
+(* Where the paper is silent: a childless left/right triple of a pair can     *)
+(* shrink below its |p|>=5 floor with no red ever arising (childless =        *)
+(* green).  We adopt Viennot's vector path: collapse the pair by pushing the  *)
+(* <=6 remaining elements onto the sibling (constant work).  Similarly a      *)
+(* childless only triple whose pop breaks the two-sided floor merges to the   *)
+(* legal one-sided form (<=4 conses).                                         *)
+(* ========================================================================== *)
+
+Definition node_pop {A : Type} (n : cnode A) : option (stored A * cnode A) :=
+  match n with
+  | Node k (x :: p) s => Some (x, Node k p s)
+  | Node k [] (x :: s) => Some (x, Node k [] s)
+  | _ => None
+  end.
+
+Definition node_eject {A : Type} (n : cnode A) : option (cnode A * stored A) :=
+  match n with
+  | Node k p s =>
+      match rev s with
+      | x :: s' => Some (Node k p (rev s'), x)
+      | [] =>
+          match rev p with
+          | x :: p' => Some (Node k (rev p') [], x)
+          | [] => None
+          end
+      end
+  end.
+
+(** Keep a childless node legal after a removal: empty => [CEmpty]; an only
+    node whose two-sided floor broke merges to the one-sided form. *)
+Definition rebuild_childless {A : Type} (n : cnode A) : cchain A :=
+  match n with
+  | Node _ [] [] => CEmpty
+  | Node KOnly p s =>
+      match p, s with
+      | [], _ | _, [] => CSingle (Pkt BHole n) CEmpty
+      | _, _ =>
+          if (length p <? 5) || (length s <? 5)
+          then CSingle (Pkt BHole (Node KOnly (p ++ s) [])) CEmpty
+          else CSingle (Pkt BHole n) CEmpty
+      end
+  | _ => CSingle (Pkt BHole n) CEmpty
+  end.
+
+Fixpoint pop_raw {A : Type} (c : cchain A)
+    : option (stored A * cchain A) :=
+  match c with
+  | CEmpty => None
+  | CSingle p rest =>
+      let '(n, child) := root_and_child p rest in
+      match node_pop n with
+      | Some (x, n') =>
+          match child with
+          | CEmpty => Some (x, rebuild_childless n')
+          | _ => Some (x, tree_of n' child)
+          end
+      | None => None
+      end
+  | CPair l r =>
+      match pop_raw l with
+      | Some (x, l') =>
+          match l' with
+          | CEmpty => Some (x, r)
+          | CSingle (Pkt BHole (Node _ lp ls)) CEmpty =>
+              if length lp <? 5
+              then Some (x, fold_right push_chain r (lp ++ ls))
+              else Some (x, CPair l' r)
+          | _ => Some (x, CPair l' r)
+          end
+      | None => None
+      end
+  end.
+
+Fixpoint eject_raw {A : Type} (c : cchain A)
+    : option (cchain A * stored A) :=
+  match c with
+  | CEmpty => None
+  | CSingle p rest =>
+      let '(n, child) := root_and_child p rest in
+      match node_eject n with
+      | Some (n', x) =>
+          match child with
+          | CEmpty => Some (rebuild_childless n', x)
+          | _ => Some (tree_of n' child, x)
+          end
+      | None => None
+      end
+  | CPair l r =>
+      match eject_raw r with
+      | Some (r', x) =>
+          match r' with
+          | CEmpty => Some (l, x)
+          | CSingle (Pkt BHole (Node _ rp rs)) CEmpty =>
+              if length rs <? 5
+              then Some (fold_left inject_chain (rp ++ rs) l, x)
+              else Some (CPair l r', x)
+          | _ => Some (CPair l r', x)
+          end
+      | None => None
+      end
+  end.
+
+(** §6 repair, front splice (Case 1 for left triples; Case 2a for only):
+    pop a stored triple from d1 without repair, merge its prefix into u's,
+    park its suffix, re-attach its child by one child-level concat. *)
+Definition repair_front {A : Type} (k : kind) (body : cbody A)
+    (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
+  match pop_raw rest with
+  | Some (SBig p2 d2 s2, d1') =>
+      match cad_concat d2 (push_chain (SSmall s2) d1') with
+      | Some d3 => Some (CSingle (Pkt body (Node k (p1 ++ p2) s1)) d3)
+      | None => None
+      end
+  | Some (SSmall b, d1') =>
+      Some (CSingle (Pkt body (Node k (p1 ++ b) s1)) d1')
+  | _ => None
+  end.
+
+Definition repair_back {A : Type} (k : kind) (body : cbody A)
+    (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
+  match eject_raw rest with
+  | Some (d1', SBig p2 d2 s2) =>
+      match cad_concat (inject_chain d1' (SSmall p2)) d2 with
+      | Some d3 => Some (CSingle (Pkt body (Node k p1 (s2 ++ s1))) d3)
+      | None => None
+      end
+  | Some (d1', SSmall b) =>
+      Some (CSingle (Pkt body (Node k p1 (b ++ s1))) d1')
+  | _ => None
+  end.
+
+(** Case 2c: both of u's buffers <= 7 — drain one stored triple from each
+    end of d1 and splice both. *)
+Definition repair_both {A : Type} (body : cbody A)
+    (p1 s1 : buffer (stored A)) (rest : cchain A) : option (cchain A) :=
+  match pop_raw rest with
+  | Some (stp, d1') =>
+      match d1' with
+      | CEmpty =>
+          match stp with
+          | SBig p2 d2 s2 =>
+              Some (CSingle (Pkt body (Node KOnly (p1 ++ p2) (s2 ++ s1))) d2)
+          | SSmall b =>
+              Some (CSingle (Pkt body (Node KOnly (p1 ++ b) s1)) CEmpty)
+          | SGround _ => None
+          end
+      | _ =>
+          match eject_raw d1' with
+          | Some (d1'', ste) =>
+              let front :=
+                match stp with
+                | SBig p2 d2 s2 =>
+                    match cad_concat d2 (push_chain (SSmall s2) d1'') with
+                    | Some d4 => Some (p1 ++ p2, d4)
+                    | None => None
+                    end
+                | SSmall b => Some (p1 ++ b, d1'')
+                | SGround _ => None
+                end
+              in
+              match front with
+              | Some (p4, d4) =>
+                  match ste with
+                  | SBig p3 d3 s3 =>
+                      match cad_concat (inject_chain d4 (SSmall p3)) d3 with
+                      | Some d5 =>
+                          Some (CSingle (Pkt body (Node KOnly p4 (s3 ++ s1))) d5)
+                      | None => None
+                      end
+                  | SSmall b =>
+                      Some (CSingle (Pkt body (Node KOnly p4 (b ++ s1))) d4)
+                  | SGround _ => None
+                  end
+              | None => None
+              end
+          | None => None
+          end
+      end
+  | None => None
+  end.
+
+(** Repair a packet whose terminal went red; identity otherwise. *)
+Definition repair_packet {A : Type}
+    (p : cpacket A) (rest : cchain A) : option (cchain A) :=
+  match p with
+  | Pkt body n =>
+      match node_color (chain_has_node rest) n with
+      | CR =>
+          match n with
+          | Node KLeft p1 s1 => repair_front KLeft body p1 s1 rest
+          | Node KRight p1 s1 => repair_back KRight body p1 s1 rest
+          | Node KOnly p1 s1 =>
+              if 8 <=? length s1 then repair_front KOnly body p1 s1 rest
+              else if 8 <=? length p1 then repair_back KOnly body p1 s1 rest
+              else repair_both body p1 s1 rest
+          end
+      | _ => Some (CSingle p rest)
+      end
+  end.
+
+(** After a pop, only the left/single tree's terminal can have gone red;
+    after an eject, only the right/single one. *)
+Definition repair_pop_side {A : Type} (c : cchain A) : option (cchain A) :=
+  match c with
+  | CEmpty => Some CEmpty
+  | CSingle p rest => repair_packet p rest
+  | CPair (CSingle pl rl) r =>
+      match repair_packet pl rl with
+      | Some l' => Some (CPair l' r)
+      | None => None
+      end
+  | CPair _ _ => None
+  end.
+
+Definition repair_eject_side {A : Type} (c : cchain A) : option (cchain A) :=
+  match c with
+  | CEmpty => Some CEmpty
+  | CSingle p rest => repair_packet p rest
+  | CPair l (CSingle pr rr) =>
+      match repair_packet pr rr with
+      | Some r' => Some (CPair l r')
+      | None => None
+      end
+  | CPair _ _ => None
+  end.
+
+(** Public pop/eject: the popped element must be a ground element — the
+    level-0 statement that will make [J] grow its stratification clause
+    when this totality obligation is discharged. *)
+Definition cad_pop {A : Type} (d : cadeque A) : option (A * cadeque A) :=
+  match pop_raw d with
+  | Some (SGround x, d') =>
+      match repair_pop_side d' with
+      | Some d'' => Some (x, d'')
+      | None => None
+      end
+  | _ => None
+  end.
+
+Definition cad_eject {A : Type} (d : cadeque A) : option (cadeque A * A) :=
+  match eject_raw d with
+  | Some (d', SGround x) =>
+      match repair_eject_side d' with
+      | Some d'' => Some (d'', x)
+      | None => None
+      end
+  | _ => None
+  end.
+
+(* -------------------------------------------------------------------------- *)
+(* Pop/eject sequence sanity.                                                  *)
+(* -------------------------------------------------------------------------- *)
+
+Example cad_pop_two :
+  match cad_pop (mk [1; 2; 3]) with
+  | Some (x, d') => (x, cad_to_list d')
+  | None => (0, [])
+  end = (1, [2; 3]).
+Proof. reflexivity. Qed.
+
+Example cad_eject_two :
+  match cad_eject (mk [1; 2; 3]) with
+  | Some (d', x) => (cad_to_list d', x)
+  | None => ([], 0)
+  end = ([1; 2], 3).
+Proof. reflexivity. Qed.
+
+(** Pop through a Case-1 concat result (a CPair with stored triples). *)
+Example cad_pop_after_concat :
+  match cad_concat (mk [1;2;3;4;5;6;7;8]) (mk [11;12;13;14;15;16;17;18]) with
+  | Some de =>
+      match cad_concat de de with
+      | Some f =>
+          match cad_pop f with
+          | Some (x, f') => (x, cad_to_list f')
+          | None => (0, [])
+          end
+      | None => (0, [])
+      end
+  | None => (0, [])
+  end
+  = (1, [2;3;4;5;6;7;8;11;12;13;14;15;16;17;18;
+         1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18]).
+Proof. vm_compute. reflexivity. Qed.
+
+(** Drain a concatenated deque fully from the front: exercises tree_of
+    reroutes, pair collapapse, and the red repair across many pops. *)
+Fixpoint drain (fuel : nat) (d : cadeque nat) : list nat :=
+  match fuel with
+  | 0 => []
+  | S f =>
+      match cad_pop d with
+      | Some (x, d') => x :: drain f d'
+      | None => []
+      end
+  end.
+
+Example cad_drain_concat :
+  match cad_concat (mk [1;2;3;4;5;6;7;8]) (mk [11;12;13;14;15;16;17;18]) with
+  | Some de => drain 20 de
+  | None => []
+  end
+  = [1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18].
+Proof. vm_compute. reflexivity. Qed.
