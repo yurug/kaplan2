@@ -14,16 +14,65 @@ statement UNPROVABLE). Fix: eject2 from p2 into the suffix (mirror: pop2 from
 s1 into prefix) lifting the small side to >=7 => root CY/CG, absorbable.
 Sequence-preserving, O(1), examples unchanged.
 REMAINING = 2 admits, both CatKeystone: cad_pop_total_J_seq,
-cad_eject_total_J_seq. Battle plan for pop: cad_pop requires popped element
-SGround — a LEVEL-0 fact; J v1 has no stratification clause, so per the
-mission grow J in place in Color.v (well-leveled clause mirroring the deque
-keystone: top buffers hold SGround? No — top-level buffers hold stored at
-level 0 = SGround; child chains hold level k+1). After growing J: re-check
-empty_J, singleton_J, and ALL prior discharges (push/inject preserve levels;
-concat preserves levels; the builders move whole cells between same-level
-buffers so leveling should thread through; SSmall/SBig cells parked into a
-child raise level by 1 — define stored_level/chain_level predicates
-accordingly). Then pop_raw/eject_raw totality + repair_* preservation.
+cad_eject_total_J_seq. POP/EJECT OBSTRUCTION MAP (read before attempting):
+(1) LEVELS: cad_pop pattern-matches the popped cell against SGround; J v1
+has no stratification, so a top root buffer could hold SSmall/SBig and
+pop_raw would return a non-ground cell (cad_pop => None). Grow J in place
+(Color.v): a level-indexed wf — top chain at level 0, root buffers hold
+level-k stored where SGround only at k=0, SSmall b children at k+1, SBig p
+c q's chain c at k+1. Mirror the deque keystone's well_leveled (depth-aware
+packet_depth + k). Easiest shape: add a `nat` parameter to the existing
+mutual fixpoints (stored_wf k / cnode_wf k / cbody_wf k kd / chain_wf k kd /
+chain_ends_green stays unleveled) and define SGround-iff-level-0 inside
+stored_wf. Then ALL existing lemmas re-thread: builders move whole cells
+between SAME-level buffers (k preserved); SSmall/SBig parking takes
+level-k buffer contents into a level-(k) cell stored in a level-k buffer?
+NO: parked cells go into the CHILD chain = level k+1, and their contents
+came from level-k buffers => SSmall wraps a level-k buffer and sits in a
+level-(k+1)... wait check: SSmall cell pushed into child chain d1 (level
+k+1): the cell is a level-(k+1) stored whose buffer holds level-k? DESIGN
+CAREFULLY against Model.v's stored_seq before writing. Sanity anchor:
+cad_push pushes SGround at level 0; node buffers at level k hold stored of
+level k; a node's child chain is level k+1; SSmall b at level k+1 holds b
+whose elements are level-k stored (they came from a level-k buffer);
+SBig p c q at level k+1: p,q level-k contents, c is a level-(k+1) chain?
+NO — c came from root_and_child of a level-k tree => c is level k+1
+already. So stored_wf (k+1) (SSmall b) := all (stored_wf k) b;
+stored_wf (k+1) (SBig p c q) := all level-k p,q + chain_wf (k+1) c;
+stored_wf 0 s := s is SGround. Verify against make_left_pair_core's cell
+(SBig (s1++p2) d2 s2': s1,p2,s2' level-k buffers, d2 level-(k+1) child ✓✓).
+(2) REPAIR'S CONCAT NEEDS J OF STORED CHILDREN: repair_front does
+cad_concat d2 (push_chain (SSmall s2) d1') where d2 sits inside a popped
+SBig — cad_concat_total needs J d2 = chain_wf /\ ends_green, but
+stored_wf only records chain_wf. Options: (a) strengthen stored_wf with
+chain_ends_green c for SBig — then check every SBig constructor site:
+make_left_pair_core/make_right_pair_core build SBig with d2 := child of a
+J-tree root via root_and_child — child ends_green holds for Y (BSingle:
+packet-tail green = reassembled single's ends_green ✓) and O roots
+(BPairO: parked lc ends_green ✓ + packet tail ✓) but FAILS for G roots
+(child unconstrained) and BPairY parked rc (only chain_wf). So (a) also
+requires strengthening chain_wf's green-root clause (ends_green rest) and
+BPairY (ends_green rc) — i.e. EVERY child chain ends_green ('every path
+green except a repairable top red'). That is a big but principled
+refinement: re-check tree_of_wf/tree_of_ends_green (CY/CO splice moves the
+old root INTO the body — body clauses unchanged), pkt_update_preserves
+(strong version already threads ends_green), the weak *_preserves_wf
+variants (may need upgrading to carry ends_green), root_color_facts (CR
+clause already demands ends_green child), and all four builders' wf
+obligations. Check Lemma 6.1/6.3 in kb/spec/section6-catenable-deques.md
+(lines ~60-100) for what KT99 actually requires of stored sub-deques
+before choosing. (3) pop_raw shape lemmas needed: pop_raw on J + seq<>[]
+is Some; popped = head of cad_to_list; result semiregular with only the
+pop-side terminal possibly red (define 'semiregular-after-pop' predicate
+or reuse chain_wf + a weakened ends predicate); rebuild_childless
+preserves wf/seq (one-sided merge); the CPair collapse branch (lp<5)
+fold-pushes <=6 cells — fold_push_preserves exists in WfLemmas. (4)
+repair_packet preservation: red terminal => ends_green rest (the red
+clause) => pop_raw rest total via (3) at the child level; spliced node
+sizes: |p1|=5 red + |p2|>=3 gives >=8 ... verify against §6 cases. Suggest
+order: FIRST do the level clause (1) alone and re-thread (mechanical),
+commit; THEN decide (2) reading the spec; THEN (3) pop_raw lemmas; THEN
+(4); finally assemble cad_pop_total_J_seq and mirror eject.
 PROOF-TOOL NOTES added this round: (a) cbn [allowlist] may refuse to
 delta-unfold an op whose body starts with a stuck if — use
 `unfold op. rewrite Hcond. cbn [fst snd].` (any allowlist cbn still does
