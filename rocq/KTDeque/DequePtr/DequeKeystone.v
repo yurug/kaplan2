@@ -689,6 +689,181 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* Colour-consistency of make_small outputs (green_of_red_k Case 1).           *)
+(* The shapes are STRUCTURAL: no level premises needed.                        *)
+(* ========================================================================== *)
+
+Lemma prefix23_green_shape :
+  forall X (opt : option X) (p : X * X),
+    buf5_is_green_shape (prefix23 opt p).
+Proof. intros X opt [b c]; destruct opt; cbn; exact I. Qed.
+
+Lemma suffix23_green_shape :
+  forall X (p : X * X) (opt : option X),
+    buf5_is_green_shape (suffix23 p opt).
+Proof. intros X [b c] opt; destruct opt; cbn; exact I. Qed.
+
+Lemma suffix12_not_red :
+  forall X (x : X) (opt : option X),
+    buf5_is_not_red_shape (suffix12 x opt).
+Proof. intros X x opt; destruct opt; cbn; exact I. Qed.
+
+Lemma prefix_decompose_shapes :
+  forall X (b : Buf5 X),
+    match prefix_decompose b with
+    | BD_pre_underflow _ => True
+    | BD_pre_ok b' => buf5_is_green_shape b'
+    | BD_pre_overflow b' _ _ => buf5_is_green_shape b'
+    end.
+Proof. intros X b; destruct b; cbn; exact I. Qed.
+
+Lemma suffix_decompose_shapes :
+  forall X (b : Buf5 X),
+    match suffix_decompose b with
+    | BD_suf_underflow _ => True
+    | BD_suf_ok b' => buf5_is_green_shape b'
+    | BD_suf_overflow b' _ _ => buf5_is_green_shape b'
+    end.
+Proof. intros X b; destruct b; cbn; exact I. Qed.
+
+Lemma mk_ending_colors :
+  forall A (p1 : option (E.t A)) (mid : option (E.t A * E.t A))
+         (s1 : option (E.t A)),
+    colors_consistent (chain_to_kchain_g (mk_ending_from_options p1 mid s1)).
+Proof.
+  intros A p1 mid s1.
+  destruct p1; destruct mid as [[? ?]|]; destruct s1; cbn; exact I.
+Qed.
+
+Lemma cc_tail_color_green_g :
+  forall A (c : Chain A), cc_tail_color Green (chain_to_kchain_g c).
+Proof.
+  intros A c. destruct c; cbn; [exact I | discriminate].
+Qed.
+
+Lemma buffer_push_chain_colors :
+  forall A (x : E.t A) (b : Buf5 (E.t A)),
+    colors_consistent (chain_to_kchain_g (buffer_push_chain x b)).
+Proof.
+  intros A x b. destruct b; cbn; repeat split; try exact I; discriminate.
+Qed.
+
+Lemma buffer_inject_chain_colors :
+  forall A (b : Buf5 (E.t A)) (x : E.t A),
+    colors_consistent (chain_to_kchain_g (buffer_inject_chain b x)).
+Proof.
+  intros A b x. destruct b; cbn; repeat split; try exact I; discriminate.
+Qed.
+
+Lemma make_small_colors_consistent :
+  forall A (b1 b2 b3 : Buf5 (E.t A)) (c : Chain A),
+    make_small b1 b2 b3 = Some c ->
+    colors_consistent (chain_to_kchain_g c).
+Proof.
+  intros A b1 b2 b3 c.
+  unfold make_small.
+  pose proof (@prefix_decompose_shapes (E.t A) b1) as Hps.
+  pose proof (@suffix_decompose_shapes (E.t A) b3) as Hss.
+  revert Hps Hss.
+  destruct (prefix_decompose b1) as [p1opt|p1'|p1' c0 d0];
+    destruct (suffix_decompose b3) as [s1opt|s1'|s1' a0 e0];
+    intros Hps Hss; cbn in Hps, Hss; ms_reduce.
+  - (* underflow / underflow *)
+    destruct (buffer_unsandwich b2) as [midopt|ab rest cd]; ms_reduce.
+    + destruct midopt as [elem|].
+      * destruct (E.unpair A elem) as [[x y]|]; ms_reduce;
+          [| intros Hbad; discriminate].
+        intros Hmake; injection Hmake as Hc; subst c.
+        destruct p1opt; destruct s1opt; cbn; exact I.
+      * intros Hmake; injection Hmake as Hc; subst c.
+        destruct p1opt; destruct s1opt; cbn; exact I.
+    + destruct (E.unpair A ab) as [[xa ya]|]; ms_reduce;
+        [| intros Hbad; discriminate].
+      destruct (E.unpair A cd) as [[xc yc]|]; ms_reduce;
+        [| intros Hbad; discriminate].
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce.
+      repeat split;
+        [destruct p1opt; exact I | destruct s1opt; exact I].
+  - (* underflow / ok *)
+    destruct (buf5_pop_naive b2) as [[cd rest]|]; ms_reduce.
+    + destruct (E.unpair A cd) as [[x y]|]; ms_reduce;
+        [| intros Hbad; discriminate].
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce.
+      repeat split; [destruct p1opt; exact I | exact Hss].
+    + destruct p1opt as [x|].
+      * destruct (buf5_push_naive x s1') as [s1''|]; ms_reduce;
+          [| intros Hbad; discriminate].
+        intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact I.
+      * intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact I.
+  - (* underflow / overflow *)
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [e|ne]; ms_reduce;
+      [| intros Hbad; discriminate].
+    destruct (suffix_rot b2 (E.pair A a0 e0 e)) as [cd_paired center];
+      ms_reduce.
+    destruct (E.unpair A cd_paired) as [[x y]|]; ms_reduce;
+      [| intros Hbad; discriminate].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce.
+    repeat split; [destruct p1opt; exact I | exact Hss].
+  - (* ok / underflow *)
+    destruct (buf5_eject_naive b2) as [[rest ab]|]; ms_reduce.
+    + destruct (E.unpair A ab) as [[x y]|]; ms_reduce;
+        [| intros Hbad; discriminate].
+      intros Hmake; injection Hmake as Hc; subst c.
+      ms_reduce.
+      repeat split; [exact Hps | destruct s1opt; exact I].
+    + destruct s1opt as [x|].
+      * destruct (buf5_inject_naive p1' x) as [p1''|]; ms_reduce;
+          [| intros Hbad; discriminate].
+        intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact I.
+      * intros Hmake; injection Hmake as Hc; subst c. ms_reduce. exact I.
+  - (* ok / ok *)
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce. repeat split; [exact Hps | exact Hss].
+  - (* ok / overflow *)
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [e|ne]; ms_reduce;
+      [| intros Hbad; discriminate].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce.
+    repeat split;
+      [ exact Hps | exact Hss
+      | destruct b2; cbn; try exact I; discriminate
+      | destruct b2; cbn; repeat split ].
+  - (* overflow / underflow *)
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [e|ne]; ms_reduce;
+      [| intros Hbad; discriminate].
+    destruct (prefix_rot (E.pair A c0 d0 e) b2) as [center ab_paired];
+      ms_reduce.
+    destruct (E.unpair A ab_paired) as [[x y]|]; ms_reduce;
+      [| intros Hbad; discriminate].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce.
+    repeat split; [exact Hps | destruct s1opt; exact I].
+  - (* overflow / ok *)
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [e|ne]; ms_reduce;
+      [| intros Hbad; discriminate].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce.
+    repeat split;
+      [ exact Hps | exact Hss
+      | destruct b2; cbn; try exact I; discriminate
+      | destruct b2; cbn; repeat split ].
+  - (* overflow / overflow *)
+    destruct (Nat.eq_dec (E.level A c0) (E.level A d0)) as [ecd|n1]; ms_reduce;
+      [| intros Hbad; discriminate].
+    destruct (Nat.eq_dec (E.level A a0) (E.level A e0)) as [eab|n2]; ms_reduce;
+      [| intros Hbad; discriminate].
+    destruct (buffer_halve b2) as [midopt rest_pairs]; ms_reduce.
+    destruct (pair_each_buf rest_pairs) as [rest|]; ms_reduce;
+      [| intros Hbad; discriminate].
+    intros Hmake; injection Hmake as Hc; subst c.
+    ms_reduce.
+    repeat split; [exact Hps | exact Hss | destruct midopt; exact I].
+Qed.
+
+(* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
