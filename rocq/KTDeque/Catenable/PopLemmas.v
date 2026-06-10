@@ -688,3 +688,231 @@ Proof.
        end;
        seq_normalize).
 Qed.
+
+(* ========================================================================== *)
+(* Eject mirrors.  node_eject takes the LAST suffix element via rev, so the   *)
+(* buffer bookkeeping goes through rev-append inversions.                      *)
+(* ========================================================================== *)
+
+Lemma rev_cons_inv :
+  forall (X : Type) (s s' : list X) (x : X),
+    rev s = x :: s' -> s = rev s' ++ [x].
+Proof.
+  intros X s s' x H.
+  rewrite <- (rev_involutive s), H. cbn [rev]. reflexivity.
+Qed.
+
+Lemma rev_nil_inv :
+  forall (X : Type) (s : list X), rev s = [] -> s = [].
+Proof.
+  intros X [|a s] H; [reflexivity |].
+  apply (f_equal (@length X)) in H.
+  cbn [rev] in H. rewrite length_app in H. cbn in H. lia.
+Qed.
+
+Lemma eject_rebundle_total :
+  forall A (k : nat) (kd : kind) (pp ss' : buffer (stored A))
+         (x : stored A) (child : cchain A),
+    (kd = KOnly \/ kd = KRight) ->
+    node_sizes true (Node kd pp (ss' ++ [x])) ->
+    node_color (chain_has_node child) (Node kd pp (ss' ++ [x])) <> CR ->
+    buf_stored_all_wf pp -> buf_stored_all_wf ss' ->
+    buf_all_leveled k pp -> buf_all_leveled k ss' ->
+    chain_wf KOnly child -> child <> CEmpty ->
+    chain_leveled (S k) child ->
+    child_color_facts
+      (node_color (chain_has_node child) (Node kd pp (ss' ++ [x]))) child ->
+    chain_wf kd (tree_of (Node kd pp ss') child) /\
+    chain_leveled k (tree_of (Node kd pp ss') child) /\
+    cchain_seq (tree_of (Node kd pp ss') child)
+    = buf_stored_seq pp ++ cchain_seq child ++ buf_stored_seq ss'.
+Proof.
+  intros A k kd pp ss' x child Hkd Hsz Hnr Hpw Hsw Hpl Hsl Hcw Hne Hcl
+    Hccf.
+  assert (Hhc : chain_has_node child = true)
+    by (destruct child; [congruence | reflexivity | reflexivity]).
+  rewrite Hhc in Hnr, Hccf.
+  rewrite node_color_measure in Hnr, Hccf.
+  assert (Hm6 : 6 <= node_measure (Node kd pp (ss' ++ [x]))).
+  { destruct (gyor_of (node_measure (Node kd pp (ss' ++ [x])))) eqn:Hold.
+    - assert (H8 : 8 <= node_measure (Node kd pp (ss' ++ [x])))
+        by exact (gyor_of_inv Hold). lia.
+    - assert (H7 : node_measure (Node kd pp (ss' ++ [x])) = 7)
+        by exact (gyor_of_inv Hold). lia.
+    - assert (H6 : node_measure (Node kd pp (ss' ++ [x])) = 6)
+        by exact (gyor_of_inv Hold). lia.
+    - exfalso. apply Hnr. reflexivity. }
+  assert (Hsz' : node_sizes true (Node kd pp ss')).
+  { destruct Hkd as [-> | ->]; cbn [node_sizes] in Hsz |- *.
+    - destruct Hsz as [[H1 H2] | [Hcontra _]]; [| discriminate].
+      left. cbn [node_measure] in Hm6.
+      rewrite length_app in Hm6, H2. cbn [length] in Hm6, H2.
+      split; lia.
+    - destruct Hsz as [H1 H2]. split; [exact H1 |].
+      cbn [node_measure] in Hm6.
+      rewrite length_app in Hm6. cbn [length] in Hm6. lia. }
+  assert (Hrcf' : root_color_facts (Node kd pp ss') child).
+  { unfold root_color_facts. rewrite Hhc, node_color_measure.
+    destruct (gyor_of (node_measure (Node kd pp ss'))) eqn:Hnew.
+    - exact I.
+    - exact I.
+    - apply gyor_of_inv in Hnew. cbn [node_measure] in Hnew.
+      destruct child as [|? ?|l r2]; [congruence | exact I |].
+      destruct (gyor_of (node_measure (Node kd pp (ss' ++ [x])))) eqn:Hold.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso. destruct Hkd as [-> | ->];
+          cbn [node_measure] in Hold, Hnew;
+          rewrite !length_app in Hold; cbn [length] in Hold; lia.
+      + cbn [child_color_facts cont_green] in Hccf. exact Hccf.
+      + cbn [child_color_facts cont_green] in Hccf.
+        destruct Hccf as [_ Hpk]. exact Hpk.
+      + exfalso. apply Hnr. reflexivity.
+    - apply gyor_of_inv in Hnew. cbn [node_measure] in Hnew.
+      destruct (gyor_of (node_measure (Node kd pp (ss' ++ [x])))) eqn:Hold.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso. destruct Hkd as [-> | ->];
+          cbn [node_measure] in Hold, Hnew;
+          rewrite !length_app in Hold; cbn [length] in Hold; lia.
+      + apply gyor_of_inv in Hold. cbn [node_measure] in Hold.
+        exfalso. destruct Hkd as [-> | ->];
+          cbn [node_measure] in Hold, Hnew;
+          rewrite !length_app in Hold; cbn [length] in Hold; lia.
+      + cbn [child_color_facts cont_green] in Hccf.
+        destruct child as [|? ?|l r2]; [congruence | |].
+        * destruct Hccf as [Hge _]. exact Hge.
+        * destruct Hccf as [HgR HgL].
+          split; [exact HgL | exact HgR].
+      + exfalso. apply Hnr. reflexivity. }
+  split; [| split].
+  - apply tree_of_wf;
+      [reflexivity
+      | rewrite Hhc; exact Hsz'
+      | split; [exact Hpw | exact Hsw]
+      | exact Hcw
+      | exact Hrcf'].
+  - apply tree_of_leveled; [split; [exact Hpl | exact Hsl] | exact Hcl].
+  - rewrite tree_of_seq, cnode_seq_eq. reflexivity.
+Qed.
+
+Lemma eject_raw_only_total :
+  forall A (k : nat) (p : cpacket A) (rest : cchain A),
+    chain_wf KOnly (CSingle p rest) ->
+    chain_ends_green (CSingle p rest) ->
+    chain_leveled k (CSingle p rest) ->
+    exists c' x,
+      eject_raw (CSingle p rest) = Some (c', x) /\
+      stored_wf x /\ stored_leveled k x /\
+      chain_wf KOnly c' /\
+      chain_leveled k c' /\
+      cchain_seq (CSingle p rest) = cchain_seq c' ++ stored_seq x.
+Proof.
+  intros A k p r Hwf Hg Hl.
+  cbn [eject_raw].
+  destruct (root_and_child p r) as [[kd pp ss] child] eqn:Hrc.
+  cbn [fst snd].
+  pose proof (root_and_child_facts Hwf) as Hf.
+  rewrite Hrc in Hf. cbn [fst snd] in Hf.
+  destruct Hf as [Hk [Hsz [Hnw [Hcw _]]]].
+  cbn [node_kind] in Hk. subst kd.
+  pose proof (root_and_child_leveled Hl) as Hlf.
+  rewrite Hrc in Hlf. cbn [fst snd] in Hlf.
+  destruct Hlf as [Hnl Hchl].
+  cbn [cnode_wf] in Hnw. destruct Hnw as [Hppw Hssw].
+  cbn [cnode_leveled] in Hnl. destruct Hnl as [Hppl Hssl].
+  pose proof (root_not_red Hwf Hg) as Hnr.
+  rewrite Hrc in Hnr. cbn [fst snd] in Hnr.
+  pose proof (root_child_facts Hwf Hg) as Hccf.
+  rewrite Hrc in Hccf. cbn [fst snd] in Hccf.
+  assert (Hseq0 : cchain_seq (CSingle p r)
+                  = buf_stored_seq pp ++ cchain_seq child
+                    ++ buf_stored_seq ss).
+  { rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+    rewrite cnode_seq_eq. reflexivity. }
+  cbn [node_eject].
+  destruct (rev ss) as [|x ss''] eqn:Hrs.
+  - (* empty suffix: childless one-sided, eject the prefix's last *)
+    apply rev_nil_inv in Hrs. subst ss.
+    destruct child as [|cp cr|cl cr2].
+    + cbn [node_sizes chain_has_node] in Hsz.
+      assert (Hpp1 : 1 <= length pp).
+      { destruct Hsz as [[H1 H2] | [_ [[Hpe H1] | [_ H1]]]];
+          [cbn in H2; lia | cbn in H1; lia | exact H1]. }
+      destruct (rev pp) as [|y pp''] eqn:Hrp.
+      { apply rev_nil_inv in Hrp. subst pp. cbn in Hpp1. lia. }
+      pose proof (rev_cons_inv Hrp) as Hb.
+      assert (Hppw' : buf_stored_all_wf (rev pp'' ++ [y]))
+        by (rewrite <- Hb; exact Hppw).
+      apply buf_all_wf_app_inv in Hppw'.
+      destruct Hppw' as [Hpp''w Hyw']. cbn in Hyw'.
+      destruct Hyw' as [Hyw _].
+      assert (Hppl' : buf_all_leveled k (rev pp'' ++ [y]))
+        by (rewrite <- Hb; exact Hppl).
+      apply buf_all_leveled_app_inv in Hppl'.
+      destruct Hppl' as [Hpp''l Hyl']. cbn in Hyl'.
+      destruct Hyl' as [Hyl _].
+      destruct (@rebuild_childless_facts A k (Node KOnly (rev pp'') [])
+                  ltac:(reflexivity)
+                  ltac:(split; [exact Hpp''w | exact I])
+                  ltac:(split; [exact Hpp''l | exact I]))
+        as [Hw' [Hg' [Hl' Hs']]].
+      eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Hyw |]. split; [exact Hyl |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      rewrite Hseq0, Hs', Hb.
+      rewrite cnode_seq_eq. seq_normalize.
+    + cbn [node_sizes] in Hsz.
+      destruct Hsz as [[H1 H2] | [Hcontra _]];
+        [cbn in H2; lia | discriminate].
+    + cbn [node_sizes] in Hsz.
+      destruct Hsz as [[H1 H2] | [Hcontra _]];
+        [cbn in H2; lia | discriminate].
+  - (* nonempty suffix: eject its last *)
+    pose proof (rev_cons_inv Hrs) as Hb.
+    assert (Hssw' : buf_stored_all_wf (rev ss'' ++ [x]))
+      by (rewrite <- Hb; exact Hssw).
+    apply buf_all_wf_app_inv in Hssw'.
+    destruct Hssw' as [Hss''w Hxw']. cbn in Hxw'.
+    destruct Hxw' as [Hxw _].
+    assert (Hssl' : buf_all_leveled k (rev ss'' ++ [x]))
+      by (rewrite <- Hb; exact Hssl).
+    apply buf_all_leveled_app_inv in Hssl'.
+    destruct Hssl' as [Hss''l Hxl']. cbn in Hxl'.
+    destruct Hxl' as [Hxl _].
+    rewrite Hb in Hsz, Hnr, Hccf, Hseq0.
+    destruct child as [|cp cr|cl cr2].
+    + (* childless *)
+      destruct (@rebuild_childless_facts A k (Node KOnly pp (rev ss''))
+                  ltac:(reflexivity)
+                  ltac:(split; [exact Hppw | exact Hss''w])
+                  ltac:(split; [exact Hppl | exact Hss''l]))
+        as [Hw' [Hg' [Hl' Hs']]].
+      eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Hxw |]. split; [exact Hxl |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      rewrite Hseq0, Hs'.
+      rewrite cnode_seq_eq. seq_normalize.
+    + (* with child: single *)
+      destruct (@eject_rebundle_total A k KOnly pp (rev ss'') x
+                  (CSingle cp cr)
+                  ltac:(left; reflexivity) Hsz Hnr Hppw Hss''w Hppl Hss''l
+                  Hcw ltac:(discriminate) Hchl Hccf)
+        as [Hw' [Hl' Hs']].
+      eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Hxw |]. split; [exact Hxl |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      rewrite Hseq0, Hs'. seq_normalize.
+    + (* with child: pair *)
+      destruct (@eject_rebundle_total A k KOnly pp (rev ss'') x
+                  (CPair cl cr2)
+                  ltac:(left; reflexivity) Hsz Hnr Hppw Hss''w Hppl Hss''l
+                  Hcw ltac:(discriminate) Hchl Hccf)
+        as [Hw' [Hl' Hs']].
+      eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Hxw |]. split; [exact Hxl |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      rewrite Hseq0, Hs'. seq_normalize.
+Qed.
