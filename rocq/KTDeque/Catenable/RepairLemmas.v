@@ -568,3 +568,431 @@ Proof.
     + apply tree_of_leveled; [split; [exact Hp2l | exact Hnsl] | exact Hdl].
     + rewrite tree_of_seq, cnode_seq_eq, Hseq0. seq_normalize.
 Qed.
+
+(* ========================================================================== *)
+(* drain_both: both end cells of a regular chain, plus a semiregular middle.  *)
+(* ========================================================================== *)
+
+Lemma drain_both_total :
+  forall A (k : nat) (rest : cchain A),
+    chain_wf KOnly rest -> chain_ends_green rest -> chain_leveled k rest ->
+    rest <> CEmpty ->
+    exists cellF ob mid,
+      drain_both rest = Some (cellF, ob, mid) /\
+      stored_wf cellF /\ stored_leveled k cellF /\
+      chain_wf KOnly mid /\ chain_leveled k mid /\
+      match ob with
+      | Some cellB =>
+          stored_wf cellB /\ stored_leveled k cellB /\
+          cchain_seq rest
+          = stored_seq cellF ++ cchain_seq mid ++ stored_seq cellB
+      | None => cchain_seq rest = stored_seq cellF
+      end.
+Proof.
+  intros A k rest Hwf Hg Hl Hne.
+  destruct rest as [|p r|l r].
+  { congruence. }
+  - (* single: double-shrink the root *)
+    cbn [drain_both].
+    destruct (root_and_child p r) as [[kd pp ss] child] eqn:Hrc.
+    cbn [fst snd].
+    pose proof (root_and_child_facts Hwf) as Hf.
+    rewrite Hrc in Hf. cbn [fst snd] in Hf.
+    destruct Hf as [Hk [Hsz [Hnw [Hcw _]]]].
+    cbn [node_kind] in Hk. subst kd.
+    pose proof (root_and_child_leveled Hl) as Hlf.
+    rewrite Hrc in Hlf. cbn [fst snd] in Hlf.
+    destruct Hlf as [Hnl Hchl].
+    cbn [cnode_wf] in Hnw. destruct Hnw as [Hppw Hssw].
+    cbn [cnode_leveled] in Hnl. destruct Hnl as [Hppl Hssl].
+    pose proof (root_not_red Hwf Hg) as Hnr.
+    rewrite Hrc in Hnr. cbn [fst snd] in Hnr.
+    pose proof (root_child_facts Hwf Hg) as Hccf.
+    rewrite Hrc in Hccf. cbn [fst snd] in Hccf.
+    assert (Hseq0 : cchain_seq (CSingle p r)
+                    = buf_stored_seq pp ++ cchain_seq child
+                      ++ buf_stored_seq ss).
+    { rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+      rewrite cnode_seq_eq. reflexivity. }
+    destruct child as [|cp cr|cl cr2].
+    + (* childless root *)
+      cbn [node_sizes chain_has_node] in Hsz.
+      destruct pp as [|a pp'].
+      * (* suffix-only root *)
+        assert (Hss1 : 1 <= length ss).
+        { destruct Hsz as [[H1 H2] | [_ [[Hpe H1] | [Hse H1]]]];
+            [cbn in H1; lia | exact H1 | subst ss; cbn in H1; lia]. }
+        destruct ss as [|b ss']; [cbn in Hss1; lia |].
+        cbn in Hssw. destruct Hssw as [Hbw Hss'w].
+        cbn in Hssl. destruct Hssl as [Hbl Hss'l].
+        cbn [node_pop node_eject].
+        destruct (rev ss') as [|x ss''] eqn:Hrs.
+        { (* one-cell rest *)
+          apply rev_nil_inv in Hrs. subst ss'.
+          eexists. eexists. eexists.
+          split; [reflexivity |].
+          split; [exact Hbw |]. split; [exact Hbl |].
+          split; [exact I |]. split; [exact I |].
+          rewrite Hseq0. seq_normalize. }
+        pose proof (rev_cons_inv Hrs) as Hb.
+        assert (Hss'w2 : buf_stored_all_wf (rev ss'' ++ [x]))
+          by (rewrite <- Hb; exact Hss'w).
+        apply buf_all_wf_app_inv in Hss'w2.
+        destruct Hss'w2 as [Hss''w Hxw']. cbn in Hxw'.
+        destruct Hxw' as [Hxw _].
+        assert (Hss'l2 : buf_all_leveled k (rev ss'' ++ [x]))
+          by (rewrite <- Hb; exact Hss'l).
+        apply buf_all_leveled_app_inv in Hss'l2.
+        destruct Hss'l2 as [Hss''l Hxl']. cbn in Hxl'.
+        destruct Hxl' as [Hxl _].
+        destruct (@rebuild_childless_facts A k (Node KOnly [] (rev ss''))
+                    ltac:(reflexivity)
+                    ltac:(split; [exact I | exact Hss''w])
+                    ltac:(split; [exact I | exact Hss''l]))
+          as [Hw' [Hg' [Hl' Hs']]].
+        eexists. eexists. eexists.
+        split; [reflexivity |].
+        split; [exact Hbw |]. split; [exact Hbl |].
+        split; [exact Hw' |]. split; [exact Hl' |].
+        split; [exact Hxw |]. split; [exact Hxl |].
+        rewrite Hseq0, Hs', Hb.
+        rewrite cnode_seq_eq. seq_normalize.
+      * (* prefix head exists *)
+        cbn in Hppw. destruct Hppw as [Haw Hpp'w].
+        cbn in Hppl. destruct Hppl as [Hal Hpp'l].
+        cbn [node_pop node_eject].
+        destruct (rev ss) as [|x ss''] eqn:Hrs.
+        { (* empty suffix: eject from the prefix tail *)
+          apply rev_nil_inv in Hrs. subst ss.
+          destruct (rev pp') as [|y pp''] eqn:Hrp.
+          { (* one-cell rest *)
+            apply rev_nil_inv in Hrp. subst pp'.
+            eexists. eexists. eexists.
+            split; [reflexivity |].
+            split; [exact Haw |]. split; [exact Hal |].
+            split; [exact I |]. split; [exact I |].
+            rewrite Hseq0. seq_normalize. }
+          pose proof (rev_cons_inv Hrp) as Hb.
+          assert (Hpp'w2 : buf_stored_all_wf (rev pp'' ++ [y]))
+            by (rewrite <- Hb; exact Hpp'w).
+          apply buf_all_wf_app_inv in Hpp'w2.
+          destruct Hpp'w2 as [Hpp''w Hyw']. cbn in Hyw'.
+          destruct Hyw' as [Hyw _].
+          assert (Hpp'l2 : buf_all_leveled k (rev pp'' ++ [y]))
+            by (rewrite <- Hb; exact Hpp'l).
+          apply buf_all_leveled_app_inv in Hpp'l2.
+          destruct Hpp'l2 as [Hpp''l Hyl']. cbn in Hyl'.
+          destruct Hyl' as [Hyl _].
+          destruct (@rebuild_childless_facts A k
+                      (Node KOnly (rev pp'') [])
+                      ltac:(reflexivity)
+                      ltac:(split; [exact Hpp''w | exact I])
+                      ltac:(split; [exact Hpp''l | exact I]))
+            as [Hw' [Hg' [Hl' Hs']]].
+          eexists. eexists. eexists.
+          split; [reflexivity |].
+          split; [exact Haw |]. split; [exact Hal |].
+          split; [exact Hw' |]. split; [exact Hl' |].
+          split; [exact Hyw |]. split; [exact Hyl |].
+          rewrite Hseq0, Hs', Hb.
+          rewrite cnode_seq_eq. seq_normalize. }
+        (* nonempty suffix *)
+        pose proof (rev_cons_inv Hrs) as Hb.
+        assert (Hssw2 : buf_stored_all_wf (rev ss'' ++ [x]))
+          by (rewrite <- Hb; exact Hssw).
+        apply buf_all_wf_app_inv in Hssw2.
+        destruct Hssw2 as [Hss''w Hxw']. cbn in Hxw'.
+        destruct Hxw' as [Hxw _].
+        assert (Hssl2 : buf_all_leveled k (rev ss'' ++ [x]))
+          by (rewrite <- Hb; exact Hssl).
+        apply buf_all_leveled_app_inv in Hssl2.
+        destruct Hssl2 as [Hss''l Hxl']. cbn in Hxl'.
+        destruct Hxl' as [Hxl _].
+        destruct (@rebuild_childless_facts A k
+                    (Node KOnly pp' (rev ss''))
+                    ltac:(reflexivity)
+                    ltac:(split; [exact Hpp'w | exact Hss''w])
+                    ltac:(split; [exact Hpp'l | exact Hss''l]))
+          as [Hw' [Hg' [Hl' Hs']]].
+        eexists. eexists. eexists.
+        split; [reflexivity |].
+        split; [exact Haw |]. split; [exact Hal |].
+        split; [exact Hw' |]. split; [exact Hl' |].
+        split; [exact Hxw |]. split; [exact Hxl |].
+        rewrite Hseq0, Hs', Hb.
+        rewrite cnode_seq_eq. seq_normalize.
+    + (* with child, single: two-sided root, both shrinks *)
+      cbn [node_sizes] in Hsz.
+      pose proof Hsz as Hsz0.
+      destruct Hsz0 as [[H1 H2] | [Hcontra _]]; [| discriminate].
+      destruct pp as [|a pp']; [cbn in H1; lia |].
+      cbn in Hppw. destruct Hppw as [Haw Hpp'w].
+      cbn in Hppl. destruct Hppl as [Hal Hpp'l].
+      cbn [node_pop node_eject].
+      destruct (rev ss) as [|x ss''] eqn:Hrs.
+      { apply rev_nil_inv in Hrs. subst ss. cbn in H2. lia. }
+      pose proof (rev_cons_inv Hrs) as Hb.
+      assert (Hssw2 : buf_stored_all_wf (rev ss'' ++ [x]))
+        by (rewrite <- Hb; exact Hssw).
+      apply buf_all_wf_app_inv in Hssw2.
+      destruct Hssw2 as [Hss''w Hxw']. cbn in Hxw'.
+      destruct Hxw' as [Hxw _].
+      assert (Hssl2 : buf_all_leveled k (rev ss'' ++ [x]))
+        by (rewrite <- Hb; exact Hssl).
+      apply buf_all_leveled_app_inv in Hssl2.
+      destruct Hssl2 as [Hss''l Hxl']. cbn in Hxl'.
+      destruct Hxl' as [Hxl _].
+      rewrite Hb in Hsz, Hnr, Hccf, Hseq0.
+      destruct (@popej_rebundle_total A k pp' (rev ss'') a x
+                  (CSingle cp cr) Hsz Hnr Hpp'w Hss''w Hpp'l Hss''l
+                  Hcw ltac:(discriminate) Hchl Hccf)
+        as [Hw' [Hl' Hs']].
+      eexists. eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Haw |]. split; [exact Hal |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      split; [exact Hxw |]. split; [exact Hxl |].
+      rewrite Hseq0, Hs'. seq_normalize.
+    + (* with child, pair *)
+      cbn [node_sizes] in Hsz.
+      pose proof Hsz as Hsz0.
+      destruct Hsz0 as [[H1 H2] | [Hcontra _]]; [| discriminate].
+      destruct pp as [|a pp']; [cbn in H1; lia |].
+      cbn in Hppw. destruct Hppw as [Haw Hpp'w].
+      cbn in Hppl. destruct Hppl as [Hal Hpp'l].
+      cbn [node_pop node_eject].
+      destruct (rev ss) as [|x ss''] eqn:Hrs.
+      { apply rev_nil_inv in Hrs. subst ss. cbn in H2. lia. }
+      pose proof (rev_cons_inv Hrs) as Hb.
+      assert (Hssw2 : buf_stored_all_wf (rev ss'' ++ [x]))
+        by (rewrite <- Hb; exact Hssw).
+      apply buf_all_wf_app_inv in Hssw2.
+      destruct Hssw2 as [Hss''w Hxw']. cbn in Hxw'.
+      destruct Hxw' as [Hxw _].
+      assert (Hssl2 : buf_all_leveled k (rev ss'' ++ [x]))
+        by (rewrite <- Hb; exact Hssl).
+      apply buf_all_leveled_app_inv in Hssl2.
+      destruct Hssl2 as [Hss''l Hxl']. cbn in Hxl'.
+      destruct Hxl' as [Hxl _].
+      rewrite Hb in Hsz, Hnr, Hccf, Hseq0.
+      destruct (@popej_rebundle_total A k pp' (rev ss'') a x
+                  (CPair cl cr2) Hsz Hnr Hpp'w Hss''w Hpp'l Hss''l
+                  Hcw ltac:(discriminate) Hchl Hccf)
+        as [Hw' [Hl' Hs']].
+      eexists. eexists. eexists.
+      split; [reflexivity |].
+      split; [exact Haw |]. split; [exact Hal |].
+      split; [exact Hw' |]. split; [exact Hl' |].
+      split; [exact Hxw |]. split; [exact Hxl |].
+      rewrite Hseq0, Hs'. seq_normalize.
+  - (* pair: drain the components independently *)
+    cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct l as [|pl rl|? ?]; cbn [is_single] in Hls; try discriminate.
+    destruct r as [|pr rr|? ?]; cbn [is_single] in Hrs; try discriminate.
+    destruct (pop_raw_left_total Hlw Hgl Hll)
+      as [cF [l' [HpopL [HFw [HFl [Hll' [HseqL HdisjL]]]]]]].
+    destruct (eject_raw_right_total Hrw Hgr Hlr)
+      as [r' [cB [HpopR [HBw [HBl [Hlr' [HseqR HdisjR]]]]]]].
+    cbn [drain_both]. rewrite HpopL, HpopR.
+    rewrite (cchain_seq_pair (CSingle pl rl) (CSingle pr rr)).
+    destruct HdisjL as
+      [[lp [ls [-> [Hlpw [Hlsw [Hlpl [Hlsl [Hls2 [Hlp4 HseqCL]]]]]]]]]
+       | [Hwfl' HguardL]];
+      destruct HdisjR as
+      [[rp [rs [-> [Hrpw [Hrsw [Hrpl [Hrsl [Hrp2 [Hrs4 HseqCR]]]]]]]]]
+       | [Hwfr' HguardR]].
+    + (* both childless *)
+      destruct ((length lp <? 5) || (length rs <? 5)) eqn:Hsmall.
+      * (* merge into one childless only node *)
+        eexists. eexists. eexists.
+        split; [reflexivity |].
+        split; [exact HFw |]. split; [exact HFl |].
+        split.
+        { split; [exact I |].
+          split; [reflexivity |].
+          split.
+          { left. split; rewrite length_app; lia. }
+          split.
+          { split; [exact (buf_all_wf_app Hlpw Hlsw)
+                   | exact (buf_all_wf_app Hrpw Hrsw)]. }
+          split; [left; reflexivity | exact I]. }
+        split.
+        { cbn [chain_leveled cbody_leveled body_depth].
+          rewrite Nat.add_0_r.
+          split; [exact I |].
+          split; [| exact I].
+          cbn [cnode_leveled].
+          split; [exact (buf_all_leveled_app Hlpl Hlsl)
+                 | exact (buf_all_leveled_app Hrpl Hrsl)]. }
+        split; [exact HBw |]. split; [exact HBl |].
+        rewrite HseqL, HseqR, HseqCL, HseqCR.
+        cbn [cchain_seq cpacket_seq cbody_seq].
+        rewrite cnode_seq_eq. seq_normalize.
+      * (* both floors hold: keep the pair *)
+        apply Bool.orb_false_elim in Hsmall.
+        destruct Hsmall as [Hlp5 Hrs5].
+        apply Nat.ltb_ge in Hlp5. apply Nat.ltb_ge in Hrs5.
+        eexists. eexists. eexists.
+        split; [reflexivity |].
+        split; [exact HFw |]. split; [exact HFl |].
+        split.
+        { cbn [chain_wf is_single].
+          split; [reflexivity |]. split; [reflexivity |].
+          split.
+          { split; [exact I |].
+            split; [reflexivity |].
+            split.
+            { cbn [chain_has_node node_sizes].
+              split; [exact Hlp5 | exact Hls2]. }
+            split; [split; [exact Hlpw | exact Hlsw] |].
+            split; [left; reflexivity | exact I]. }
+          { split; [exact I |].
+            split; [reflexivity |].
+            split.
+            { cbn [chain_has_node node_sizes].
+              split; [exact Hrp2 | exact Hrs5]. }
+            split; [split; [exact Hrpw | exact Hrsw] |].
+            split; [left; reflexivity | exact I]. } }
+        split.
+        { cbn [chain_leveled].
+          split; [exact Hll' | exact Hlr']. }
+        split; [exact HBw |]. split; [exact HBl |].
+        rewrite HseqL, HseqR.
+        rewrite (cchain_seq_pair
+          (CSingle (Pkt BHole (Node KLeft lp ls)) CEmpty)
+          (CSingle (Pkt BHole (Node KRight rp rs)) CEmpty)).
+        seq_normalize.
+    + (* left childless, right alive *)
+      destruct (length lp <? 5) eqn:Hlp5.
+      * (* left dead: recrown over the right's peeled root *)
+        apply Nat.ltb_lt in Hlp5.
+        assert (Hlp4e : length lp = 4) by lia.
+        destruct r' as [|pr' rr'|? ?]; [exfalso; exact HguardR |
+          | exfalso; exact HguardR].
+        destruct pr' as [bd0 n0]. destruct n0 as [kn0 pn0 sn0].
+        destruct bd0; destruct rr';
+          try (exfalso; exact HguardR);
+          (destruct (recrown_left_dead Hlpw Hlsw Hlpl Hlsl Hls2 Hlp4e
+                       Hwfr' Hlr') as [t [Hmk [Hwt [Hlt Hseqt]]]];
+           lazymatch type of Hmk with
+           | match ?rc with _ => _ end = _ =>
+               destruct rc as [[k2 p2 s2] d2]
+           end;
+           injection Hmk as Hmk2; subst t;
+           eexists; eexists; eexists;
+           split; [reflexivity |];
+           split; [exact HFw |]; split; [exact HFl |];
+           split; [exact Hwt |]; split; [exact Hlt |];
+           split; [exact HBw |]; split; [exact HBl |];
+           rewrite HseqL, HseqR, HseqCL, Hseqt; seq_normalize).
+      * (* left floor holds: keep the pair *)
+        apply Nat.ltb_ge in Hlp5.
+        destruct r' as [|pr' rr'|? ?]; [exfalso; exact HguardR |
+          | exfalso; exact HguardR].
+        destruct pr' as [bd0 n0]. destruct n0 as [kn0 pn0 sn0].
+        destruct bd0; destruct rr';
+          try (exfalso; exact HguardR);
+          (eexists; eexists; eexists;
+           split; [reflexivity |];
+           split; [exact HFw |]; split; [exact HFl |];
+           split;
+             [cbn [chain_wf is_single];
+              split; [reflexivity |]; split; [reflexivity |];
+              split;
+                [split; [exact I |];
+                 split; [reflexivity |];
+                 split;
+                   [cbn [chain_has_node node_sizes];
+                    split; [exact Hlp5 | exact Hls2] |];
+                 split; [split; [exact Hlpw | exact Hlsw] |];
+                 split; [left; reflexivity | exact I]
+                | exact Hwfr'] |];
+           split;
+             [cbn [chain_leveled]; split; [exact Hll' | exact Hlr'] |];
+           split; [exact HBw |]; split; [exact HBl |];
+           rewrite HseqL, HseqR;
+           match goal with
+           | |- _ = _ ++ cchain_seq (CPair ?a ?b) ++ _ =>
+               rewrite (cchain_seq_pair a b)
+           end;
+           seq_normalize).
+    + (* left alive, right childless *)
+      destruct (length rs <? 5) eqn:Hrs5.
+      * apply Nat.ltb_lt in Hrs5.
+        assert (Hrs4e : length rs = 4) by lia.
+        destruct l' as [|pl' rl'|? ?]; [exfalso; exact HguardL |
+          | exfalso; exact HguardL].
+        destruct pl' as [bd0 n0]. destruct n0 as [kn0 pn0 sn0].
+        destruct bd0; destruct rl';
+          try (exfalso; exact HguardL);
+          (destruct (recrown_right_dead Hrpw Hrsw Hrpl Hrsl Hrp2 Hrs4e
+                       Hwfl' Hll') as [t [Hmk [Hwt [Hlt Hseqt]]]];
+           lazymatch type of Hmk with
+           | match ?rc with _ => _ end = _ =>
+               destruct rc as [[k1 p2 s2] d2]
+           end;
+           injection Hmk as Hmk2; subst t;
+           eexists; eexists; eexists;
+           split; [reflexivity |];
+           split; [exact HFw |]; split; [exact HFl |];
+           split; [exact Hwt |]; split; [exact Hlt |];
+           split; [exact HBw |]; split; [exact HBl |];
+           rewrite HseqL, HseqR, HseqCR, Hseqt; seq_normalize).
+      * apply Nat.ltb_ge in Hrs5.
+        destruct l' as [|pl' rl'|? ?]; [exfalso; exact HguardL |
+          | exfalso; exact HguardL].
+        destruct pl' as [bd0 n0]. destruct n0 as [kn0 pn0 sn0].
+        destruct bd0; destruct rl';
+          try (exfalso; exact HguardL);
+          (eexists; eexists; eexists;
+           split; [reflexivity |];
+           split; [exact HFw |]; split; [exact HFl |];
+           split;
+             [cbn [chain_wf is_single];
+              split; [reflexivity |]; split; [reflexivity |];
+              split;
+                [exact Hwfl'
+                | split; [exact I |];
+                  split; [reflexivity |];
+                  split;
+                    [cbn [chain_has_node node_sizes];
+                     split; [exact Hrp2 | exact Hrs5] |];
+                  split; [split; [exact Hrpw | exact Hrsw] |];
+                  split; [left; reflexivity | exact I]] |];
+           split;
+             [cbn [chain_leveled]; split; [exact Hll' | exact Hlr'] |];
+           split; [exact HBw |]; split; [exact HBl |];
+           rewrite HseqL, HseqR;
+           match goal with
+           | |- _ = _ ++ cchain_seq (CPair ?a ?b) ++ _ =>
+               rewrite (cchain_seq_pair a b)
+           end;
+           seq_normalize).
+    + (* both alive: keep the pair *)
+      destruct l' as [|pl' rl'|? ?]; [exfalso; exact HguardL |
+        | exfalso; exact HguardL].
+      destruct r' as [|pr' rr'|? ?]; [exfalso; exact HguardR |
+        | exfalso; exact HguardR].
+      destruct pl' as [bdl nl]. destruct nl as [knl pnl snl].
+      destruct pr' as [bdr nr]. destruct nr as [knr pnr snr].
+      destruct bdl; destruct rl'; try (exfalso; exact HguardL);
+        (destruct bdr; destruct rr'; try (exfalso; exact HguardR);
+         (eexists; eexists; eexists;
+          split; [reflexivity |];
+          split; [exact HFw |]; split; [exact HFl |];
+          split;
+            [cbn [chain_wf is_single];
+             split; [reflexivity |]; split; [reflexivity |];
+             split; [exact Hwfl' | exact Hwfr'] |];
+          split;
+            [cbn [chain_leveled]; split; [exact Hll' | exact Hlr'] |];
+          split; [exact HBw |]; split; [exact HBl |];
+          rewrite HseqL, HseqR;
+          match goal with
+          | |- _ = _ ++ cchain_seq (CPair ?a ?b) ++ _ =>
+              rewrite (cchain_seq_pair a b)
+          end;
+          seq_normalize)).
+Qed.
