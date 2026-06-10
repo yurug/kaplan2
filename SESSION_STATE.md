@@ -13,7 +13,23 @@ pkt_update = compose) AND concat (Cases 1-4 + 1a-1d, sequence-verified by vm_com
 Case 1 CPair path). DONE also: pop/eject + §6 repair (Cases 1/2a-2c; pair-collapse via Viennot vector path;
 drain-verified by vm_compute). DONE also: CatKeystone.v skeleton — cat_keystone_{empty,push,inject,concat,pop,eject}
 proven from 7 Admitted obligations (functional keystone; empty already closed).
-REMAINING for 4b: (a) DISCHARGE the 7 obligations (expected: J grows the level/
+STATUS: 5 admits remain (cad_push/inject_seq DISCHARGED via SeqLemmas:
+push_chain_seq/inject_chain_seq under chain_wf + chain_wf_root_prefix/suffix side
+conditions + tree_of_seq/root_and_child_seq sequence-neutrality).
+REMAINING obligations, in suggested order:
+1. cad_push/inject_preserves_J — the surgery J-preservation (4a-style): prove
+   tree_of preserves chain_wf/ends_green given node sizes+colour facts; node_push
+   keeps sizes (only grows); receiver side conditions as in the seq lemmas.
+2. cad_concat_total_J_seq — totality: every option arm Some under J (buf_eject2/
+   pop2 sizes from J floors; make_left/right case-by-case); J of outputs (tree_of
+   J-rebundling + the new node sizes per case — 1a/1c stored >=3 etc.); sequence
+   via SeqLemmas + buf_stored_seq_app (stored_seq of SBig/SSmall unfold).
+3. cad_pop/eject_total_J_seq — HERE J grows the level clause: popped element
+   SGround needs stratification (add stored_level-style Prop to J in Color.v, in
+   place; re-check empty_J/singleton_J and prior discharges). Repair totality:
+   red terminal => child nonempty (colour def) => pop_raw Some; repair J: spliced
+   node green (>=8 sizes per §6 Lemma 6.4); repair seq via SeqLemmas + concat seq.
+THEN cost layer + gate. REMAINING for 4b (orig): (a) DISCHARGE the 7 obligations (expected: J grows the level/
 stratification clause at pop-totality — SGround-ness is level-0; push/inject seq
 needs J sizes for the empty-prefix suffix-push case; tree_of/root_and_child seq
 lemmas are the workhorses — prove cchain_seq (tree_of n c) = cnode_seq n (cchain_seq c)
