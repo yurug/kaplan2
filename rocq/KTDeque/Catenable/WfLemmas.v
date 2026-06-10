@@ -415,3 +415,189 @@ Proof.
   intros A upd p rest. unfold pkt_update.
   destruct (root_and_child p rest) as [n child]. apply tree_of_is_single.
 Qed.
+
+(* ========================================================================== *)
+(* The central assembly: pkt_update preserves chain_wf + chain_ends_green.     *)
+(* Generic over the updater; the caller supplies kind/sizes/wf preservation    *)
+(* and colour monotonicity (push and inject both qualify).                     *)
+(* ========================================================================== *)
+
+Lemma pkt_update_preserves :
+  forall A (upd : cnode A -> cnode A) (k : kind)
+         (p : cpacket A) (rest : cchain A),
+    (forall n0, node_kind (upd n0) = node_kind n0) ->
+    (forall hc pp ss,
+        node_sizes hc (Node k pp ss) -> node_sizes hc (upd (Node k pp ss))) ->
+    (forall n0, cnode_wf n0 -> cnode_wf (upd n0)) ->
+    (forall n0,
+        gyor_rank (node_color true n0)
+        <= gyor_rank (node_color true (upd n0))) ->
+    chain_wf k (CSingle p rest) ->
+    chain_ends_green (CSingle p rest) ->
+    chain_wf k (pkt_update upd p rest) /\
+    chain_ends_green (pkt_update upd p rest).
+Proof.
+  intros A upd k p rest Hupk Hupsz Hupwf Hupmono Hwf Hgreen.
+  pose proof (root_and_child_facts Hwf) as [Hk [Hsz [Hn [Hchild Hcf]]]].
+  unfold pkt_update.
+  destruct p as [b n0].
+  destruct b as [|hn b'|hn b' rc|hn lc b'];
+    cbn [root_and_child fst snd] in Hk, Hsz, Hn, Hchild, Hcf |- *;
+    cbn [chain_wf cbody_wf body_out_kind is_single] in Hwf;
+    cbn [chain_ends_green] in Hgreen.
+  - (* BHole: the root is the (green, by ends_green) terminal *)
+    destruct n0 as [k0 pp ss]. cbn [node_kind] in Hk. subst k0.
+    destruct rest as [|rp rrest|rl rr].
+    + (* CEmpty child: colour stays CG definitionally *)
+      split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact I
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite node_color_no_child; exact I].
+      * apply tree_of_ends_green; [exact I |].
+        cbn [chain_has_node]. rewrite node_color_no_child. exact I.
+    + (* CSingle child *)
+      cbn [chain_has_node] in Hsz, Hgreen |- *.
+      destruct (node_color true (upd (Node k pp ss))) eqn:Hnew.
+      * split.
+        -- apply tree_of_wf;
+             [rewrite Hupk; reflexivity
+             | apply Hupsz; exact Hsz
+             | apply Hupwf; exact Hn
+             | exact Hchild
+             | unfold root_color_facts; cbn [chain_has_node];
+               rewrite Hnew; exact I].
+        -- apply tree_of_ends_green; [exact Hchild |].
+           cbn [chain_has_node]. rewrite Hnew. exact I.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+    + (* CPair child *)
+      cbn [chain_has_node] in Hsz, Hgreen |- *.
+      destruct (node_color true (upd (Node k pp ss))) eqn:Hnew.
+      * split.
+        -- apply tree_of_wf;
+             [rewrite Hupk; reflexivity
+             | apply Hupsz; exact Hsz
+             | apply Hupwf; exact Hn
+             | exact Hchild
+             | unfold root_color_facts; cbn [chain_has_node];
+               rewrite Hnew; exact I].
+        -- apply tree_of_ends_green; [exact Hchild |].
+           cbn [chain_has_node]. rewrite Hnew. exact I.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+      * pose proof (Hupmono (Node k pp ss)) as Hm.
+        rewrite Hgreen, Hnew in Hm. cbn in Hm. lia.
+  - (* BSingle head: old colour CY or CO; child is the single-packet chain *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS Hb']]]] _].
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact I.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact Hgreen.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact Hgreen.
+    + pose proof (Hupmono (Node k pp ss)) as Hm.
+      destruct HcolS as [Hc | Hc]; rewrite Hc, Hnew in Hm; cbn in Hm; lia.
+  - (* BPairY head: old colour CY *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS [Hrs [Hrc Hb']]]]]] _].
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact I.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact Hgreen.
+    + pose proof (Hupmono (Node k pp ss)) as Hm.
+      rewrite HcolS, Hnew in Hm. cbn in Hm. lia.
+    + pose proof (Hupmono (Node k pp ss)) as Hm.
+      rewrite HcolS, Hnew in Hm. cbn in Hm. lia.
+  - (* BPairO head: old colour CO; parked left is a green-path tree *)
+    destruct Hwf as [[HkS [HszS [HnS [HcolS [Hls [Hlc [Hlg Hb']]]]]]] _].
+    destruct hn as [k0 pp ss]. cbn [node_kind] in HkS. subst k0.
+    cbn [chain_has_node] in Hsz |- *.
+    destruct (node_color true (upd (Node k pp ss))) eqn:Hnew.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact I.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact Hlg.
+    + split.
+      * apply tree_of_wf;
+          [rewrite Hupk; reflexivity
+          | apply Hupsz; exact Hsz
+          | apply Hupwf; exact Hn
+          | exact Hchild
+          | unfold root_color_facts; cbn [chain_has_node];
+            rewrite Hnew; exact Hlg].
+      * apply tree_of_ends_green; [exact Hchild |].
+        cbn [chain_has_node]. rewrite Hnew. exact Hgreen.
+    + pose proof (Hupmono (Node k pp ss)) as Hm.
+      rewrite HcolS, Hnew in Hm. cbn in Hm. lia.
+Qed.
