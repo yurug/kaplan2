@@ -362,3 +362,128 @@ Proof.
     split; [exact Hw' |]. split; [exact Hl' |].
     rewrite Hseq0, Hs'. seq_normalize.
 Qed.
+
+(* ========================================================================== *)
+(* pop_raw on a KLeft single (a pair's left component): same as the KOnly     *)
+(* case except the childless remainder is reported shape-explicitly — the     *)
+(* pair parent dispatches on it (keep if the floor holds, collapse if not).   *)
+(* ========================================================================== *)
+
+Lemma pop_raw_left_total :
+  forall A (k : nat) (p : cpacket A) (rest : cchain A),
+    chain_wf KLeft (CSingle p rest) ->
+    chain_ends_green (CSingle p rest) ->
+    chain_leveled k (CSingle p rest) ->
+    exists x c',
+      pop_raw (CSingle p rest) = Some (x, c') /\
+      stored_wf x /\ stored_leveled k x /\
+      chain_leveled k c' /\
+      cchain_seq (CSingle p rest) = stored_seq x ++ cchain_seq c' /\
+      ((exists lp ls,
+          c' = CSingle (Pkt BHole (Node KLeft lp ls)) CEmpty /\
+          buf_stored_all_wf lp /\ buf_stored_all_wf ls /\
+          buf_all_leveled k lp /\ buf_all_leveled k ls /\
+          length ls = 2 /\ 4 <= length lp /\
+          cchain_seq c' = buf_stored_seq lp ++ buf_stored_seq ls)
+       \/ (chain_wf KLeft c' /\
+           match c' with
+           | CSingle (Pkt BHole _) CEmpty => False
+           | CSingle _ _ => True
+           | _ => False
+           end)).
+Proof.
+  intros A k p r Hwf Hg Hl.
+  cbn [pop_raw].
+  destruct (root_and_child p r) as [[kd pp ss] child] eqn:Hrc.
+  cbn [fst snd].
+  pose proof (root_and_child_facts Hwf) as Hf.
+  rewrite Hrc in Hf. cbn [fst snd] in Hf.
+  destruct Hf as [Hk [Hsz [Hnw [Hcw _]]]].
+  cbn [node_kind] in Hk. subst kd.
+  pose proof (root_and_child_leveled Hl) as Hlf.
+  rewrite Hrc in Hlf. cbn [fst snd] in Hlf.
+  destruct Hlf as [Hnl Hchl].
+  cbn [cnode_wf] in Hnw. destruct Hnw as [Hppw Hssw].
+  cbn [cnode_leveled] in Hnl. destruct Hnl as [Hppl Hssl].
+  pose proof (root_not_red Hwf Hg) as Hnr.
+  rewrite Hrc in Hnr. cbn [fst snd] in Hnr.
+  pose proof (root_child_facts Hwf Hg) as Hccf.
+  rewrite Hrc in Hccf. cbn [fst snd] in Hccf.
+  assert (Hseq0 : cchain_seq (CSingle p r)
+                  = buf_stored_seq pp ++ cchain_seq child
+                    ++ buf_stored_seq ss).
+  { rewrite (root_and_child_seq p r), Hrc. cbn [fst snd].
+    rewrite cnode_seq_eq. reflexivity. }
+  cbn [node_sizes] in Hsz. destruct Hsz as [Hp5 Hs2].
+  destruct pp as [|a pp']; [cbn in Hp5; lia |].
+  cbn in Hppw. destruct Hppw as [Haw Hpp'w].
+  cbn in Hppl. destruct Hppl as [Hal Hpp'l].
+  destruct child as [|cp cr|cl cr2].
+  - (* childless: rebuild keeps the KLeft node — report the shape *)
+    eexists. eexists.
+    split; [reflexivity |].
+    split; [exact Haw |]. split; [exact Hal |].
+    assert (Hrb : rebuild_childless (Node KLeft pp' ss)
+                  = CSingle (Pkt BHole (Node KLeft pp' ss)) CEmpty).
+    { unfold rebuild_childless.
+      destruct pp' as [|? ?]; destruct ss as [|? ?];
+        try reflexivity.
+      cbn [length] in Hs2. lia. }
+    rewrite Hrb.
+    split.
+    { cbn [chain_leveled cbody_leveled body_depth].
+      rewrite Nat.add_0_r.
+      split; [exact I |].
+      split; [| exact I].
+      cbn [cnode_leveled]. split; [exact Hpp'l | exact Hssl]. }
+    split.
+    { rewrite Hseq0.
+      cbn [cchain_seq cpacket_seq cbody_seq].
+      rewrite cnode_seq_eq. seq_normalize. }
+    left. exists pp', ss.
+    split; [reflexivity |].
+    split; [exact Hpp'w |]. split; [exact Hssw |].
+    split; [exact Hpp'l |]. split; [exact Hssl |].
+    split; [exact Hs2 |].
+    split; [cbn [length] in Hp5; lia |].
+    cbn [cchain_seq cpacket_seq cbody_seq].
+    rewrite cnode_seq_eq. seq_normalize.
+  - (* with child: single *)
+    destruct (@pop_rebundle_total A k KLeft pp' ss a (CSingle cp cr)
+                ltac:(right; reflexivity)
+                ltac:(cbn [node_sizes]; split; [exact Hp5 | exact Hs2])
+                Hnr Hpp'w Hssw Hpp'l Hssl Hcw
+                ltac:(discriminate) Hchl Hccf)
+      as [Hw' [Hl' Hs']].
+    eexists. eexists.
+    split; [reflexivity |].
+    split; [exact Haw |]. split; [exact Hal |].
+    split; [exact Hl' |].
+    split; [rewrite Hseq0, Hs'; seq_normalize |].
+    right. split; [exact Hw' |].
+    unfold tree_of.
+    destruct (node_color (chain_has_node (CSingle cp cr))
+                (Node KLeft pp' ss));
+      [| destruct cp as [cb cn] | destruct cp as [cb cn] |];
+      cbn; exact I.
+  - (* with child: pair *)
+    destruct (@pop_rebundle_total A k KLeft pp' ss a (CPair cl cr2)
+                ltac:(right; reflexivity)
+                ltac:(cbn [node_sizes]; split; [exact Hp5 | exact Hs2])
+                Hnr Hpp'w Hssw Hpp'l Hssl Hcw
+                ltac:(discriminate) Hchl Hccf)
+      as [Hw' [Hl' Hs']].
+    eexists. eexists.
+    split; [reflexivity |].
+    split; [exact Haw |]. split; [exact Hal |].
+    split; [exact Hl' |].
+    split; [rewrite Hseq0, Hs'; seq_normalize |].
+    right. split; [exact Hw' |].
+    unfold tree_of.
+    destruct (node_color (chain_has_node (CPair cl cr2))
+                (Node KLeft pp' ss)).
+    + cbn. exact I.
+    + destruct cl as [|[lb ln] lrest|? ?]; cbn; exact I.
+    + destruct cr2 as [|[rb rn] rrest|? ?]; cbn; exact I.
+    + cbn. exact I.
+Qed.
