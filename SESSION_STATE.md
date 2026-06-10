@@ -1,7 +1,45 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
-PROGRESS-10: PIECE (A) COMPLETE — SRLemmas.v fully proven (cad_concat_sr
+PROGRESS-11: (A) DONE + (C) 2/5 DONE. RepairLemmas.v: repair_front_total
+and repair_back_total PROVEN (statements take the packet's destructured
+chain_wf/leveled clauses at the terminal's level j = k0 + body_depth
+body, conclude chain_wf kd0 / ends_green / leveled k0 / seq of the
+rebuilt packet; the new terminal is green by |5+>=3| >= 8 via the
+chain_has_node destruct trick; SBig path = cad_concat_sr +
+cad_concat_leveled (now level-generic) + push/inject_chain_leveled).
+★ REPAIR_BOTH OBSTRUCTION (the one hard corner left in (C)) ★
+repair_both ejects from the POP REMAINDER d1', which may be red-topped
+(rest's root orange-by-prefix), where eject_rebundle_total's not-red
+premise fails.  Reachability saves it: rest is J so its root measure
+>= 6 on BOTH sides => after pop the SUFFIX is still >= 6 and the
+prefix >= 5; after eject both >= 5 — sizes fine; the missing colour
+facts in the red case come from d1''s OWN red clause (ends_green of
+its child).  PLAN: (1) enrich pop_raw_only_total + pop_raw_pair_total
+conclusions with a disjunct
+  chain_ends_green c'  \/  (c' = CSingle (Pkt BHole (Node KOnly pp' ss))
+  child' /\ 5 <= |pp'| /\ 6 <= |ss| /\ chain_ends_green child' /\ wf
+  /\ leveled pieces)
+(the green cases: tree_of CG terminal green; CY/CO splice keeps the old
+packet tail = green by input ends_green — needs ends conclusions added
+to pop_rebundle_total: cont facts available from the old root's
+child_color_facts as in the J builders... CHECK: pop_rebundle currently
+concludes wf+leveled+seq only; add ends_green-or-red-shape);
+(2) an eject_rebundle_red lemma: old root CR with premise ends_green
+child + explicit 5 <= |ss'| (from the >= 6 fact), root facts for ANY new
+colour from ends child (mono); (3) repair_both_total assembling: pop
+(enriched) -> CEmpty case (SBig: v=(p1++p2, s2++s1) >=8/>=8 green over
+d2; SSmall: v=(p1++b, s1) childless... WAIT |s1| in [5,7] and childless
+two-sided v needs only >=5 ✓ green childless ✓); nonempty d1': eject via
+green-or-red dispatch, then the two SR concats per the op nesting; v =
+(p4, s3++s1) or (p4, b++s1) green >=8/>=8 ✓. THEN repair_packet_total:
+dispatch on terminal colour: CR -> front/back/both per kind and the
+8<=? tests; else identity (Some (CSingle p rest) with ends_green: the
+chain_wf colour clause forces CG-or-CR; not CR => CG => ends ✓).
+THEN repair_pop_side/eject_side (CEmpty trivial; CSingle = packet;
+CPair: repair the one packet, other side untouched keeps its J half).
+THEN (D) assembly in CatKeystone.
+PROGRESS-10 (superseded): PIECE (A) COMPLETE — SRLemmas.v fully proven (cad_concat_sr
 = Lemma 6.2's weak half: chain_wf x chain_wf -> Some f, chain_wf f, seq;
 levels via the colour-blind twins). NEXT = (C) repair lemmas in a new
 RepairLemmas.v (or PopLemmas): repair_front k body p1 s1 rest — red
