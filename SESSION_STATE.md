@@ -3,7 +3,28 @@
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
 PROGRESS: admits 5 -> 3. PUSH AND INJECT FULLY CLOSED (cat_keystone_push/inject on
 zero admits): WfLemmas now has gyor mono + receiver lemmas + pkt_update_preserves
-(generic central assembly) + push/inject_chain_preserves. PROGRESS-2: concat ASSEMBLED — cat_keystone_concat discharged at keystone level;
+(generic central assembly) + push/inject_chain_preserves. PROGRESS-3: buffer toolkit + child_color_facts/root_child_facts PROVEN. NEXT =
+make_left_only_total (1c/1d on an only-triple's pieces (p1,d1,s1), both >=5,
+bundle keyed on gyor_of(min |p1| |s1|) given only when d1<>CEmpty):
+- 1d (d1=CEmpty): <=8: eject2 s1, node KLeft (p1++s1') [y;z] childless green;
+  >8: s1=a::b::c::srest, eject2 srest, node over push (SSmall smid) CEmpty;
+  both: chain_wf KLeft by explicit splits, ends CG, seq via eject2_inv+app.
+- 1c (d1<>CEmpty): eject2 s1 -> SSmall s1' (>=3) injected: d1' =
+  inject_chain d1 (SSmall s1'): wf via inject_chain_preserves_wf (KOnly);
+  new node Node KLeft p1 [y;z] colour = gyor_of |p1| >=rank gyor_of(min) (mono);
+  per new colour: CG ok; CY: cont CY d1': d1 CSingle-> use STRONG
+  inject_chain_preserves (ends_green d1 = bundle-CY) -> ends d1'; d1 CPair->
+  inject descends RIGHT so left unchanged: cont = ends left = bundle ✓;
+  CO (only when bundle CO): facts parked-left (CPair: unchanged left, bundle) +
+  cont CO d1' = ends (inject right) via STRONG inject on the right component
+  (chain_wf KRight from CPair wf; ends right = bundle CO cont); CR impossible
+  (rank >= bundle's >= 1). Seq: tree_of_seq + node eq + inject_chain_seq +
+  eject2_inv. THEN make_left_total (dispatch CSingle via root facts incl.
+  root_two_sided-from-nondegenerate; CPair 1a (eject2 s2, SBig (s1++p2) d2 s2'
+  — note KLeft new node colour = OLD left-root colour literally, same |p1|)
+  + 1b combined-only into make_left_only with min-colour bundle derived from
+  t2's colour facts). THEN make_right mirror. THEN small-big Cases 2/3.
+OLD: PROGRESS-2: concat ASSEMBLED — cat_keystone_concat discharged at keystone level;
 keystone admits = 2 (pop, eject); concat sub-admits = 4 in ConcatLemmas.v:
 concat_small_left_big / concat_small_right_big (Case 2/3 >=8: store the receiving
 prefix/suffix as SSmall, push/inject into the root child via *_chain_preserves_wf
