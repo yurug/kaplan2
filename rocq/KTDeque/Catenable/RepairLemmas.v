@@ -996,3 +996,306 @@ Proof.
           end;
           seq_normalize)).
 Qed.
+
+(* ========================================================================== *)
+(* Both-sides repair (Case 2c): drain both end cells, splice both sides.      *)
+(* ========================================================================== *)
+
+Lemma repair_both_total :
+  forall A (kd0 : kind) (k0 : nat) (body : cbody A)
+         (p1 s1 : buffer (stored A)) (rest : cchain A),
+    cbody_wf kd0 body ->
+    node_kind (Node KOnly p1 s1) = body_out_kind kd0 body ->
+    node_sizes (chain_has_node rest) (Node KOnly p1 s1) ->
+    cnode_wf (Node KOnly p1 s1) ->
+    node_color (chain_has_node rest) (Node KOnly p1 s1) = CR ->
+    chain_ends_green rest ->
+    chain_wf KOnly rest ->
+    cbody_leveled k0 body ->
+    cnode_leveled (k0 + body_depth body) (Node KOnly p1 s1) ->
+    chain_leveled (S (k0 + body_depth body)) rest ->
+    exists f,
+      repair_both body p1 s1 rest = Some f /\
+      chain_wf kd0 f /\ chain_ends_green f /\ chain_leveled k0 f /\
+      cchain_seq f = cchain_seq (CSingle (Pkt body (Node KOnly p1 s1)) rest).
+Proof.
+  intros A kd0 k0 body p1 s1 rest Hbw Hbk Hsz Hnw Hred Hgrest Hwrest
+    Hbl Hnl Hrl.
+  assert (Hne : rest <> CEmpty).
+  { intros ->. cbn [chain_has_node] in Hred.
+    rewrite node_color_no_child in Hred. discriminate. }
+  assert (Hhc : chain_has_node rest = true)
+    by (destruct rest; [congruence | reflexivity | reflexivity]).
+  rewrite Hhc in Hred, Hsz.
+  cbn [cnode_wf] in Hnw. destruct Hnw as [Hp1w Hs1w].
+  cbn [cnode_leveled] in Hnl. destruct Hnl as [Hp1l Hs1l].
+  assert (Hboth5 : 5 <= length p1 /\ 5 <= length s1).
+  { cbn [node_sizes] in Hsz.
+    destruct Hsz as [[H1 H2] | [Hc _]]; [split; assumption | discriminate]. }
+  destruct Hboth5 as [Hp15 Hs15].
+  destruct (@drain_both_total A (S (k0 + body_depth body)) rest
+              Hwrest Hgrest Hrl Hne)
+    as [cellF [ob [mid [Hdr [HFw [HFl [Hmw [Hml Hob]]]]]]]].
+  unfold repair_both. rewrite Hdr.
+  destruct ob as [cellB|].
+  - (* two cells *)
+    destruct Hob as [HBw [HBl Hseq0]].
+    destruct cellF as [g|b|p2 d2 s2].
+    { cbn [stored_leveled] in HFl. discriminate. }
+    + (* front SSmall b *)
+      cbn [stored_wf] in HFw. destruct HFw as [Hb3 Hbw'].
+      cbn [stored_leveled] in HFl.
+      destruct cellB as [g|b3|p3 d3 s3].
+      { cbn [stored_leveled] in HBl. discriminate. }
+      * (* back SSmall b3 *)
+        cbn [stored_wf] in HBw. destruct HBw as [Hb33 Hb3w].
+        cbn [stored_leveled] in HBl.
+        assert (Hvg : node_color (chain_has_node mid)
+                  (Node KOnly (p1 ++ b) (b3 ++ s1)) = CG).
+        { destruct (chain_has_node mid).
+          - rewrite node_color_measure. cbn [node_measure].
+            apply gyor_of_big. rewrite !length_app.
+            apply Nat.min_glb; lia.
+          - apply node_color_no_child. }
+        eexists. split; [reflexivity |].
+        split; [| split; [| split]].
+        -- cbn [chain_wf].
+           split; [exact Hbw |]. split; [exact Hbk |].
+           split.
+           { left. split; rewrite length_app; lia. }
+           split.
+           { split; [exact (buf_all_wf_app Hp1w Hbw')
+                    | exact (buf_all_wf_app Hb3w Hs1w)]. }
+           split; [left; exact Hvg | exact Hmw].
+        -- cbn [chain_ends_green]. exact Hvg.
+        -- cbn [chain_leveled].
+           split; [exact Hbl |].
+           split.
+           { cbn [cnode_leveled].
+             split; [exact (buf_all_leveled_app Hp1l HFl)
+                    | exact (buf_all_leveled_app HBl Hs1l)]. }
+           exact Hml.
+        -- cbn [cchain_seq cpacket_seq].
+           f_equal.
+           rewrite !cnode_seq_eq, Hseq0.
+           cbn [stored_seq]. seq_normalize.
+      * (* back SBig p3 d3 s3 *)
+        cbn [stored_wf] in HBw.
+        destruct HBw as [Hp33 [Hs33 [Hp3w [Hs3w Hwd3]]]].
+        cbn [stored_leveled] in HBl.
+        destruct HBl as [Hp3l [Hs3l Hld3]].
+        assert (Hcellw3 : stored_wf (SSmall p3))
+          by (cbn [stored_wf]; split; [exact Hp33 | exact Hp3w]).
+        assert (Hwinj : chain_wf KOnly (inject_chain mid (SSmall p3))).
+        { apply (@inject_chain_preserves_wf A (SSmall p3) mid KOnly);
+            [congruence | intros _; reflexivity
+            | exact Hcellw3 | exact Hmw]. }
+        destruct (cad_concat_sr Hwinj Hwd3) as [d5 [Hcc [Hwd5 Hseq5]]].
+        rewrite Hcc.
+        assert (Hld5 : chain_leveled (S (k0 + body_depth body)) d5).
+        { apply (cad_concat_leveled
+                   (d:=inject_chain mid (SSmall p3)) (e:=d3) (f:=d5));
+            [| exact Hld3 | exact Hcc].
+          apply (inject_chain_leveled (c:=mid) (s:=SSmall p3));
+            [exact Hml |].
+          cbn [stored_leveled]. exact Hp3l. }
+        assert (Hvg : node_color (chain_has_node d5)
+                  (Node KOnly (p1 ++ b) (s3 ++ s1)) = CG).
+        { destruct (chain_has_node d5).
+          - rewrite node_color_measure. cbn [node_measure].
+            apply gyor_of_big. rewrite !length_app.
+            apply Nat.min_glb; lia.
+          - apply node_color_no_child. }
+        eexists. split; [reflexivity |].
+        split; [| split; [| split]].
+        -- cbn [chain_wf].
+           split; [exact Hbw |]. split; [exact Hbk |].
+           split.
+           { left. split; rewrite length_app; lia. }
+           split.
+           { split; [exact (buf_all_wf_app Hp1w Hbw')
+                    | exact (buf_all_wf_app Hs3w Hs1w)]. }
+           split; [left; exact Hvg | exact Hwd5].
+        -- cbn [chain_ends_green]. exact Hvg.
+        -- cbn [chain_leveled].
+           split; [exact Hbl |].
+           split.
+           { cbn [cnode_leveled].
+             split; [exact (buf_all_leveled_app Hp1l HFl)
+                    | exact (buf_all_leveled_app Hs3l Hs1l)]. }
+           exact Hld5.
+        -- cbn [cchain_seq cpacket_seq].
+           f_equal.
+           rewrite !cnode_seq_eq, Hseq0.
+           unfold cad_to_list in Hseq5. rewrite Hseq5.
+           rewrite (inject_chain_seq (SSmall p3) Hmw).
+           cbn [stored_seq]. seq_normalize.
+    + (* front SBig p2 d2 s2 *)
+      cbn [stored_wf] in HFw.
+      destruct HFw as [Hp23 [Hs23 [Hp2w [Hs2w Hwd2]]]].
+      cbn [stored_leveled] in HFl.
+      destruct HFl as [Hp2l [Hs2l Hld2]].
+      assert (Hcellw2 : stored_wf (SSmall s2))
+        by (cbn [stored_wf]; split; [exact Hs23 | exact Hs2w]).
+      assert (Hwpush : chain_wf KOnly (push_chain (SSmall s2) mid)).
+      { apply (@push_chain_preserves_wf A (SSmall s2) mid KOnly);
+          [congruence | intros _; reflexivity
+          | exact Hcellw2 | exact Hmw]. }
+      destruct (cad_concat_sr Hwd2 Hwpush) as [d4 [Hcc4 [Hwd4 Hseq4]]].
+      rewrite Hcc4.
+      assert (Hld4 : chain_leveled (S (k0 + body_depth body)) d4).
+      { apply (cad_concat_leveled Hld2
+                 (e:=push_chain (SSmall s2) mid) (f:=d4));
+          [| exact Hcc4].
+        apply (push_chain_leveled (s:=SSmall s2));
+          [cbn [stored_leveled]; exact Hs2l | exact Hml]. }
+      assert (Hseq4' : cchain_seq d4
+                       = cchain_seq d2 ++ buf_stored_seq s2
+                         ++ cchain_seq mid).
+      { unfold cad_to_list in Hseq4. rewrite Hseq4.
+        rewrite (push_chain_seq (SSmall s2) Hmw).
+        cbn [stored_seq]. seq_normalize. }
+      destruct cellB as [g|b3|p3 d3 s3].
+      { cbn [stored_leveled] in HBl. discriminate. }
+      * cbn [stored_wf] in HBw. destruct HBw as [Hb33 Hb3w].
+        cbn [stored_leveled] in HBl.
+        assert (Hvg : node_color (chain_has_node d4)
+                  (Node KOnly (p1 ++ p2) (b3 ++ s1)) = CG).
+        { destruct (chain_has_node d4).
+          - rewrite node_color_measure. cbn [node_measure].
+            apply gyor_of_big. rewrite !length_app.
+            apply Nat.min_glb; lia.
+          - apply node_color_no_child. }
+        eexists. split; [reflexivity |].
+        split; [| split; [| split]].
+        -- cbn [chain_wf].
+           split; [exact Hbw |]. split; [exact Hbk |].
+           split.
+           { left. split; rewrite length_app; lia. }
+           split.
+           { split; [exact (buf_all_wf_app Hp1w Hp2w)
+                    | exact (buf_all_wf_app Hb3w Hs1w)]. }
+           split; [left; exact Hvg | exact Hwd4].
+        -- cbn [chain_ends_green]. exact Hvg.
+        -- cbn [chain_leveled].
+           split; [exact Hbl |].
+           split.
+           { cbn [cnode_leveled].
+             split; [exact (buf_all_leveled_app Hp1l Hp2l)
+                    | exact (buf_all_leveled_app HBl Hs1l)]. }
+           exact Hld4.
+        -- cbn [cchain_seq cpacket_seq].
+           f_equal.
+           rewrite !cnode_seq_eq, Hseq0, Hseq4'.
+           cbn [stored_seq]. seq_normalize.
+      * cbn [stored_wf] in HBw.
+        destruct HBw as [Hp33 [Hs33 [Hp3w [Hs3w Hwd3]]]].
+        cbn [stored_leveled] in HBl.
+        destruct HBl as [Hp3l [Hs3l Hld3]].
+        assert (Hcellw3 : stored_wf (SSmall p3))
+          by (cbn [stored_wf]; split; [exact Hp33 | exact Hp3w]).
+        assert (Hwinj : chain_wf KOnly (inject_chain d4 (SSmall p3))).
+        { apply (@inject_chain_preserves_wf A (SSmall p3) d4 KOnly);
+            [congruence | intros _; reflexivity
+            | exact Hcellw3 | exact Hwd4]. }
+        destruct (cad_concat_sr Hwinj Hwd3) as [d5 [Hcc [Hwd5 Hseq5]]].
+        rewrite Hcc.
+        assert (Hld5 : chain_leveled (S (k0 + body_depth body)) d5).
+        { apply (cad_concat_leveled
+                   (d:=inject_chain d4 (SSmall p3)) (e:=d3) (f:=d5));
+            [| exact Hld3 | exact Hcc].
+          apply (inject_chain_leveled (c:=d4) (s:=SSmall p3));
+            [exact Hld4 |].
+          cbn [stored_leveled]. exact Hp3l. }
+        assert (Hvg : node_color (chain_has_node d5)
+                  (Node KOnly (p1 ++ p2) (s3 ++ s1)) = CG).
+        { destruct (chain_has_node d5).
+          - rewrite node_color_measure. cbn [node_measure].
+            apply gyor_of_big. rewrite !length_app.
+            apply Nat.min_glb; lia.
+          - apply node_color_no_child. }
+        eexists. split; [reflexivity |].
+        split; [| split; [| split]].
+        -- cbn [chain_wf].
+           split; [exact Hbw |]. split; [exact Hbk |].
+           split.
+           { left. split; rewrite length_app; lia. }
+           split.
+           { split; [exact (buf_all_wf_app Hp1w Hp2w)
+                    | exact (buf_all_wf_app Hs3w Hs1w)]. }
+           split; [left; exact Hvg | exact Hwd5].
+        -- cbn [chain_ends_green]. exact Hvg.
+        -- cbn [chain_leveled].
+           split; [exact Hbl |].
+           split.
+           { cbn [cnode_leveled].
+             split; [exact (buf_all_leveled_app Hp1l Hp2l)
+                    | exact (buf_all_leveled_app Hs3l Hs1l)]. }
+           exact Hld5.
+        -- cbn [cchain_seq cpacket_seq].
+           f_equal.
+           rewrite !cnode_seq_eq, Hseq0.
+           unfold cad_to_list in Hseq5. rewrite Hseq5.
+           rewrite (inject_chain_seq (SSmall p3) Hwd4).
+           rewrite Hseq4'.
+           cbn [stored_seq]. seq_normalize.
+  - (* one cell *)
+    pose proof Hob as Hseq0.
+    destruct cellF as [g|b|p2 d2 s2].
+    { cbn [stored_leveled] in HFl. discriminate. }
+    + cbn [stored_wf] in HFw. destruct HFw as [Hb3 Hbw'].
+      cbn [stored_leveled] in HFl.
+      eexists. split; [reflexivity |].
+      split; [| split; [| split]].
+      * cbn [chain_wf].
+        split; [exact Hbw |]. split; [exact Hbk |].
+        split.
+        { left. split; [rewrite length_app; lia | lia]. }
+        split.
+        { split; [exact (buf_all_wf_app Hp1w Hbw') | exact Hs1w]. }
+        split; [left; apply node_color_no_child | exact I].
+      * cbn [chain_ends_green]. apply node_color_no_child.
+      * cbn [chain_leveled].
+        split; [exact Hbl |].
+        split.
+        { cbn [cnode_leveled].
+          split; [exact (buf_all_leveled_app Hp1l HFl) | exact Hs1l]. }
+        exact I.
+      * cbn [cchain_seq cpacket_seq].
+        f_equal.
+        rewrite !cnode_seq_eq, Hseq0.
+        cbn [stored_seq]. seq_normalize.
+    + cbn [stored_wf] in HFw.
+      destruct HFw as [Hp23 [Hs23 [Hp2w [Hs2w Hwd2]]]].
+      cbn [stored_leveled] in HFl.
+      destruct HFl as [Hp2l [Hs2l Hld2]].
+      assert (Hvg : node_color (chain_has_node d2)
+                (Node KOnly (p1 ++ p2) (s2 ++ s1)) = CG).
+      { destruct (chain_has_node d2).
+        - rewrite node_color_measure. cbn [node_measure].
+          apply gyor_of_big. rewrite !length_app.
+          apply Nat.min_glb; lia.
+        - apply node_color_no_child. }
+      eexists. split; [reflexivity |].
+      split; [| split; [| split]].
+      * cbn [chain_wf].
+        split; [exact Hbw |]. split; [exact Hbk |].
+        split.
+        { left. split; rewrite length_app; lia. }
+        split.
+        { split; [exact (buf_all_wf_app Hp1w Hp2w)
+                 | exact (buf_all_wf_app Hs2w Hs1w)]. }
+        split; [left; exact Hvg | exact Hwd2].
+      * cbn [chain_ends_green]. exact Hvg.
+      * cbn [chain_leveled].
+        split; [exact Hbl |].
+        split.
+        { cbn [cnode_leveled].
+          split; [exact (buf_all_leveled_app Hp1l Hp2l)
+                 | exact (buf_all_leveled_app Hs2l Hs1l)]. }
+        exact Hld2.
+      * cbn [cchain_seq cpacket_seq].
+        f_equal.
+        rewrite !cnode_seq_eq, Hseq0.
+        cbn [stored_seq]. seq_normalize.
+Qed.
