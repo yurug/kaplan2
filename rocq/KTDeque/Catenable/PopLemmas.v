@@ -530,7 +530,8 @@ Lemma pop_raw_pair_total :
       stored_wf x /\ stored_leveled k x /\
       chain_wf KOnly c' /\
       chain_leveled k c' /\
-      cchain_seq (CPair l r) = stored_seq x ++ cchain_seq c'.
+      cchain_seq (CPair l r) = stored_seq x ++ cchain_seq c' /\
+      (forall l2 r2, c' = CPair l2 r2 -> chain_ends_green r2).
 Proof.
   intros A k l r Hsl Hsr Hl Hr Hgl Hgr Hll Hlr.
   destruct l as [|pl rl|? ?]; cbn [is_single] in Hsl; try discriminate.
@@ -584,10 +585,17 @@ Proof.
              | exact I].
         -- apply tree_of_leveled;
              [split; [exact Hnpl | exact Hs2l] | exact I].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseql, Hseqcl.
-           rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseql, Hseqcl.
+             rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
       * (* rooted right root: single child *)
         assert (Hhc : chain_has_node (CSingle d2p d2r) = true)
           by reflexivity.
@@ -612,10 +620,17 @@ Proof.
                | exfalso; apply Hnr2; reflexivity]].
         -- apply tree_of_leveled;
              [split; [exact Hnpl | exact Hs2l] | exact Hd2l].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseql, Hseqcl.
-           rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseql, Hseqcl.
+             rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
       * (* rooted right root: pair child *)
         assert (Hhc : chain_has_node (CPair d2l d2rr) = true)
           by reflexivity.
@@ -640,10 +655,17 @@ Proof.
                | exfalso; apply Hnr2; reflexivity]].
         -- apply tree_of_leveled;
              [split; [exact Hnpl | exact Hs2l] | exact Hd2l].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseql, Hseqcl.
-           rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseql, Hseqcl.
+             rewrite (root_and_child_seq pr rr), Hrc2. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
     + (* keep: the childless left single stays legal *)
       apply Nat.ltb_ge in Hlp.
       eexists. eexists.
@@ -662,10 +684,13 @@ Proof.
         split; [left; reflexivity | exact I].
       * cbn [chain_leveled].
         split; [exact Hll' | exact Hlr].
-      * rewrite Hseql.
-        rewrite (cchain_seq_pair
-          (CSingle (Pkt BHole (Node KLeft lp ls)) CEmpty) r).
-        seq_normalize.
+      * split.
+        { rewrite Hseql.
+          rewrite (cchain_seq_pair
+            (CSingle (Pkt BHole (Node KLeft lp ls)) CEmpty) r).
+          seq_normalize. }
+        intros l2 r2 Heq. injection Heq as He1 He2. subst r2.
+        exact Hgr.
   - (* with-child left remainder: keep the pair *)
     destruct l' as [|[bd0 n0] rest0|? ?];
       [exfalso; exact Hguard | | exfalso; exact Hguard].
@@ -681,12 +706,15 @@ Proof.
           split; [exact Hwfl' | exact Hr] |];
        split;
          [cbn [chain_leveled]; split; [exact Hll' | exact Hlr] |];
-       rewrite Hseql;
-       match goal with
-       | |- _ = _ ++ cchain_seq (CPair ?a ?b) =>
-           rewrite (cchain_seq_pair a b)
-       end;
-       seq_normalize).
+       (split;
+        [rewrite Hseql;
+         match goal with
+         | |- _ = _ ++ cchain_seq (CPair ?a ?b) =>
+             rewrite (cchain_seq_pair a b)
+         end;
+         seq_normalize
+        | intros l2 r2 Heq; injection Heq as He1 He2; subst r2;
+          exact Hgr])).
 Qed.
 
 (* ========================================================================== *)
@@ -1095,7 +1123,8 @@ Lemma eject_raw_pair_total :
       stored_wf x /\ stored_leveled k x /\
       chain_wf KOnly c' /\
       chain_leveled k c' /\
-      cchain_seq (CPair l r) = cchain_seq c' ++ stored_seq x.
+      cchain_seq (CPair l r) = cchain_seq c' ++ stored_seq x /\
+      (forall l2 r2, c' = CPair l2 r2 -> chain_ends_green l2).
 Proof.
   intros A k l r Hsl Hsr Hl Hr Hgl Hgr Hll Hlr.
   destruct r as [|pr rr|? ?]; cbn [is_single] in Hsr; try discriminate.
@@ -1149,10 +1178,17 @@ Proof.
              | exact I].
         -- apply tree_of_leveled;
              [split; [exact Hp1l | exact Hnsl] | exact I].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseqr, Hseqcr.
-           rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseqr, Hseqcr.
+             rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
       * (* rooted left root: single child *)
         assert (Hnewc : node_color (chain_has_node (CSingle d1p d1r))
                   (Node KOnly p1 (s1 ++ rp ++ rs)) = gyor_of (length p1)).
@@ -1176,10 +1212,17 @@ Proof.
                | exfalso; apply Hnr1; reflexivity]].
         -- apply tree_of_leveled;
              [split; [exact Hp1l | exact Hnsl] | exact Hd1l].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseqr, Hseqcr.
-           rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseqr, Hseqcr.
+             rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
       * (* rooted left root: pair child *)
         assert (Hnewc : node_color (chain_has_node (CPair d1l d1rr))
                   (Node KOnly p1 (s1 ++ rp ++ rs)) = gyor_of (length p1)).
@@ -1203,10 +1246,17 @@ Proof.
                | exfalso; apply Hnr1; reflexivity]].
         -- apply tree_of_leveled;
              [split; [exact Hp1l | exact Hnsl] | exact Hd1l].
-        -- rewrite tree_of_seq, cnode_seq_eq.
-           rewrite Hseqr, Hseqcr.
-           rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
-           rewrite cnode_seq_eq. seq_normalize.
+        -- split.
+           { rewrite tree_of_seq, cnode_seq_eq.
+             rewrite Hseqr, Hseqcr.
+             rewrite (root_and_child_seq pl rl), Hrc1. cbn [fst snd].
+             rewrite cnode_seq_eq. seq_normalize. }
+           intros l2 r2 Heq.
+           match type of Heq with
+           | tree_of ?n0 ?c0 = _ =>
+               pose proof (tree_of_is_single n0 c0) as Hsing2
+           end.
+           rewrite Heq in Hsing2. discriminate.
     + (* keep *)
       apply Nat.ltb_ge in Hrs5.
       eexists. eexists.
@@ -1225,10 +1275,13 @@ Proof.
         split; [left; reflexivity | exact I].
       * cbn [chain_leveled].
         split; [exact Hll | exact Hlr'].
-      * rewrite Hseqr.
-        rewrite (cchain_seq_pair l
-          (CSingle (Pkt BHole (Node KRight rp rs)) CEmpty)).
-        seq_normalize.
+      * split.
+        { rewrite Hseqr.
+          rewrite (cchain_seq_pair l
+            (CSingle (Pkt BHole (Node KRight rp rs)) CEmpty)).
+          seq_normalize. }
+        intros l2 r2 Heq. injection Heq as He1 He2. subst l2.
+        exact Hgl.
   - (* with-child right remainder: keep the pair *)
     destruct r' as [|[bd0 n0] rest0|? ?];
       [exfalso; exact Hguard | | exfalso; exact Hguard].
@@ -1244,12 +1297,15 @@ Proof.
           split; [exact Hl | exact Hwfr'] |];
        split;
          [cbn [chain_leveled]; split; [exact Hll | exact Hlr'] |];
-       rewrite Hseqr;
-       match goal with
-       | |- _ = cchain_seq (CPair ?a ?b) ++ _ =>
-           rewrite (cchain_seq_pair a b)
-       end;
-       seq_normalize).
+       (split;
+        [rewrite Hseqr;
+         match goal with
+         | |- _ = cchain_seq (CPair ?a ?b) ++ _ =>
+             rewrite (cchain_seq_pair a b)
+         end;
+         seq_normalize
+        | intros l2 r2 Heq; injection Heq as He1 He2; subst l2;
+          exact Hgl])).
 Qed.
 
 (* ========================================================================== *)
@@ -1273,7 +1329,9 @@ Proof.
   - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
     cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
     cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
-    exact (pop_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr).
+    destruct (pop_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr)
+      as [x [c' [H1 [H2 [H3 [H4 [H5 [H6 _]]]]]]]].
+    exists x, c'. tauto.
 Qed.
 
 Lemma eject_raw_J_total :
@@ -1293,5 +1351,7 @@ Proof.
   - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hl' Hr']]].
     cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
     cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
-    exact (eject_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr).
+    destruct (eject_raw_pair_total Hls Hrs Hl' Hr' Hgl Hgr Hll Hlr)
+      as [c' [x [H1 [H2 [H3 [H4 [H5 [H6 _]]]]]]]].
+    exists c', x. tauto.
 Qed.
