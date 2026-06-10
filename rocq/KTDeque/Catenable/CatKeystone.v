@@ -84,18 +84,6 @@ Proof.
   reflexivity.
 Qed.
 
-(** Levels through concat: scaffolding admit (J v2 growth step).  The op
-    moves whole cells between same-level buffers and parks SSmall/SBig
-    cells one level down — mechanical, but it traverses every concat
-    branch, so it is discharged separately from the wf/green theorem. *)
-Lemma cad_concat_leveled :
-  forall A (d e f : cadeque A),
-    chain_wf KOnly d -> chain_ends_green d -> chain_leveled 0 d ->
-    chain_wf KOnly e -> chain_ends_green e -> chain_leveled 0 e ->
-    cad_concat d e = Some f ->
-    chain_leveled 0 f.
-Proof. Admitted.
-
 Lemma cad_concat_total_J_seq :
   forall A (d e : cadeque A),
     J d -> J e ->
@@ -111,7 +99,7 @@ Proof.
   split; [exact Hmk |].
   split; [| exact Hseq].
   split; [exact Hwf |]. split; [exact Hg |].
-  exact (cad_concat_leveled Hwfd Hgd Hld Hwfe Hge Hle Hmk).
+  exact (cad_concat_leveled Hld Hle Hmk).
 Qed.
 
 Lemma cad_pop_total_J_seq :

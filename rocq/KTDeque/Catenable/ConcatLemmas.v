@@ -2258,3 +2258,470 @@ Proof.
     + exact (cad_concat_core_total Hwfd Hgd Hwfe Hge
                ltac:(discriminate) ltac:(discriminate)).
 Qed.
+
+(* ========================================================================== *)
+(* Levels through concat (J v2 companion).  Colour-blind: only the cell-      *)
+(* movement bookkeeping matters, so these mirror the totality proofs' case    *)
+(* structure with trivial obligations.                                         *)
+(* ========================================================================== *)
+
+Lemma fold_push_leveled :
+  forall A k (b : buffer (stored A)) (c : cchain A),
+    buf_all_leveled k b -> chain_leveled k c ->
+    chain_leveled k (fold_right push_chain c b).
+Proof.
+  intros A k b. induction b as [|x r IH]; intros c Hb Hc; cbn [fold_right].
+  - exact Hc.
+  - destruct Hb as [Hx Hr].
+    apply push_chain_leveled; [exact Hx | apply IH; assumption].
+Qed.
+
+Lemma fold_inject_leveled :
+  forall A k (b : buffer (stored A)) (c : cchain A),
+    chain_leveled k c -> buf_all_leveled k b ->
+    chain_leveled k (fold_left inject_chain b c).
+Proof.
+  intros A k b. induction b as [|x r IH]; intros c Hc Hb; cbn [fold_left].
+  - exact Hc.
+  - destruct Hb as [Hx Hr].
+    apply IH; [apply inject_chain_leveled; assumption | exact Hr].
+Qed.
+
+Lemma degenerate_buf_leveled :
+  forall A k (d : cchain A) (b : buffer (stored A)),
+    chain_leveled k d -> degenerate_buf d = Some b ->
+    buf_all_leveled k b.
+Proof.
+  intros A k d b Hl Hdeg.
+  destruct d as [|[bd n] rest|? ?]; cbn [degenerate_buf] in Hdeg;
+    try discriminate.
+  destruct bd; try discriminate.
+  destruct n as [kd p s]; destruct kd; try discriminate.
+  destruct rest; try discriminate.
+  cbn [chain_leveled body_depth] in Hl.
+  destruct Hl as [_ [Hn _]].
+  rewrite Nat.add_0_r in Hn.
+  cbn [cnode_leveled] in Hn. destruct Hn as [Hp Hs].
+  destruct p as [|? ?]; [injection Hdeg as Hb2; subst b; exact Hs |].
+  destruct s as [|? ?]; [injection Hdeg as Hb2; subst b; exact Hp |].
+  discriminate.
+Qed.
+
+Lemma make_left_only_leveled :
+  forall A k (p1 s1 : buffer (stored A)) (d1 t : cchain A),
+    buf_all_leveled k p1 -> buf_all_leveled k s1 ->
+    chain_leveled (S k) d1 ->
+    make_left_only p1 d1 s1 = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k p1 s1 d1 t Hp Hs Hd Hmk.
+  unfold make_left_only in Hmk.
+  destruct d1 as [|d1p d1r|d1l d1rr].
+  - destruct (length s1 <=? 8).
+    + destruct (buf_eject2 s1) as [[[s1' y] z]|] eqn:He; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_eject2_inv He) as Hb2. subst s1.
+      assert (Hs' : buf_all_leveled k (s1' ++ [y; z])) by exact Hs.
+      apply buf_all_leveled_app_inv in Hs'. destruct Hs' as [Hs1' Hyz].
+      cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+      apply tree_of_leveled; [| exact I].
+      cbn [cnode_leveled].
+      split; [exact (buf_all_leveled_app Hp Hs1') |].
+      cbn. repeat split; assumption.
+    + destruct s1 as [|a [|b2 [|c2 srest]]]; try discriminate.
+      destruct (buf_eject2 srest) as [[[smid y] z]|] eqn:He; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_eject2_inv He) as Hb2. subst srest.
+      cbn in Hs. destruct Hs as [Ha [Hb3 [Hc3 Hrest]]].
+      assert (Hrest' : buf_all_leveled k (smid ++ [y; z])) by exact Hrest.
+      apply buf_all_leveled_app_inv in Hrest'. destruct Hrest' as [Hsm Hyz].
+      cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split.
+        -- apply buf_all_leveled_app; [exact Hp |].
+           cbn. repeat split; assumption.
+        -- cbn. repeat split; assumption.
+      * apply (push_chain_leveled (s:=SSmall smid) (c:=@CEmpty A));
+          [cbn [stored_leveled]; exact Hsm | exact I].
+  - destruct (buf_eject2 s1) as [[[s1' y] z]|] eqn:He; [|discriminate].
+    injection Hmk as Hb; subst t.
+    pose proof (buf_eject2_inv He) as Hb2. subst s1.
+    assert (Hs' : buf_all_leveled k (s1' ++ [y; z])) by exact Hs.
+    apply buf_all_leveled_app_inv in Hs'. destruct Hs' as [Hs1' Hyz].
+    cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+    apply tree_of_leveled.
+    + cbn [cnode_leveled].
+      split; [exact Hp | cbn; repeat split; assumption].
+    + apply (inject_chain_leveled (c:=CSingle d1p d1r) (s:=SSmall s1'));
+        [exact Hd | cbn [stored_leveled]; exact Hs1'].
+  - destruct (buf_eject2 s1) as [[[s1' y] z]|] eqn:He; [|discriminate].
+    injection Hmk as Hb; subst t.
+    pose proof (buf_eject2_inv He) as Hb2. subst s1.
+    assert (Hs' : buf_all_leveled k (s1' ++ [y; z])) by exact Hs.
+    apply buf_all_leveled_app_inv in Hs'. destruct Hs' as [Hs1' Hyz].
+    cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+    apply tree_of_leveled.
+    + cbn [cnode_leveled].
+      split; [exact Hp | cbn; repeat split; assumption].
+    + apply (inject_chain_leveled (c:=CPair d1l d1rr) (s:=SSmall s1'));
+        [exact Hd | cbn [stored_leveled]; exact Hs1'].
+Qed.
+
+Lemma make_right_only_leveled :
+  forall A k (p1 s1 : buffer (stored A)) (d1 t : cchain A),
+    buf_all_leveled k p1 -> buf_all_leveled k s1 ->
+    chain_leveled (S k) d1 ->
+    make_right_only p1 d1 s1 = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k p1 s1 d1 t Hp Hs Hd Hmk.
+  unfold make_right_only in Hmk.
+  destruct d1 as [|d1p d1r|d1l d1rr].
+  - destruct (length p1 <=? 8).
+    + destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_pop2_inv He) as Hb2. subst p1.
+      cbn in Hp. destruct Hp as [Hx [Hy Hp1']].
+      apply tree_of_leveled; [| exact I].
+      cbn [cnode_leveled].
+      split; [cbn; repeat split; assumption |].
+      exact (buf_all_leveled_app (a:=p1') Hp1' Hs).
+    + destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He; [|discriminate].
+      destruct (buf_eject3 p1') as [[[[pmid a] b2] c2]|] eqn:He3;
+        [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_pop2_inv He) as Hb2. subst p1.
+      pose proof (buf_eject3_inv He3) as Hb3. subst p1'.
+      cbn in Hp. destruct Hp as [Hx [Hy Hrest]].
+      assert (Hrest' : buf_all_leveled k (pmid ++ [a; b2; c2]))
+        by exact Hrest.
+      apply buf_all_leveled_app_inv in Hrest'. destruct Hrest' as [Hpm Habc].
+      cbn in Habc. destruct Habc as [Ha [Hb4 [Hc4 _]]].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split; [cbn; repeat split; assumption |].
+        cbn. repeat split; first [assumption | exact Hs].
+      * apply (push_chain_leveled (s:=SSmall pmid) (c:=@CEmpty A));
+          [cbn [stored_leveled]; exact Hpm | exact I].
+  - destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He; [|discriminate].
+    injection Hmk as Hb; subst t.
+    pose proof (buf_pop2_inv He) as Hb2. subst p1.
+    cbn in Hp. destruct Hp as [Hx [Hy Hp1']].
+    apply tree_of_leveled.
+    + cbn [cnode_leveled].
+      split; [cbn; repeat split; assumption | exact Hs].
+    + apply (push_chain_leveled (s:=SSmall p1') (c:=CSingle d1p d1r));
+        [cbn [stored_leveled]; exact Hp1' | exact Hd].
+  - destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He; [|discriminate].
+    injection Hmk as Hb; subst t.
+    pose proof (buf_pop2_inv He) as Hb2. subst p1.
+    cbn in Hp. destruct Hp as [Hx [Hy Hp1']].
+    apply tree_of_leveled.
+    + cbn [cnode_leveled].
+      split; [cbn; repeat split; assumption | exact Hs].
+    + apply (push_chain_leveled (s:=SSmall p1') (c:=CPair d1l d1rr));
+        [cbn [stored_leveled]; exact Hp1' | exact Hd].
+Qed.
+
+Lemma make_left_leveled :
+  forall A k (d t : cchain A),
+    chain_leveled k d ->
+    make_left d = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k d t Hl Hmk.
+  destruct d as [|p r|dl dr]; cbn [make_left] in Hmk; [discriminate | |].
+  - destruct (root_and_child p r) as [[k0 pp ss] child] eqn:Hrc.
+    pose proof (root_and_child_leveled Hl) as Hf.
+    rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+    cbn [cnode_leveled] in Hn. destruct Hn as [Hpp Hss].
+    exact (make_left_only_leveled Hpp Hss Hch Hmk).
+  - cbn [chain_leveled] in Hl. destruct Hl as [Hld Hrd].
+    destruct dl as [|pl rl|? ?]; try discriminate.
+    destruct dr as [|pr rr|? ?]; try discriminate.
+    destruct (root_and_child pl rl) as [[k1 p1 s1] d1] eqn:Hrc1.
+    destruct (root_and_child pr rr) as [[k2 p2 s2] d2] eqn:Hrc2.
+    pose proof (root_and_child_leveled Hld) as Hf1.
+    rewrite Hrc1 in Hf1. cbn [fst snd] in Hf1. destruct Hf1 as [Hn1 Hc1].
+    cbn [cnode_leveled] in Hn1. destruct Hn1 as [Hp1 Hs1].
+    pose proof (root_and_child_leveled Hrd) as Hf2.
+    rewrite Hrc2 in Hf2. cbn [fst snd] in Hf2. destruct Hf2 as [Hn2 Hc2].
+    cbn [cnode_leveled] in Hn2. destruct Hn2 as [Hp2 Hs2].
+    cbn [fst snd] in Hmk.
+    destruct d1 as [|d1p d1r|d1l d1rr].
+    + assert (Hcomb : buf_all_leveled k (p1 ++ s1 ++ p2)).
+      { apply buf_all_leveled_app; [exact Hp1 |].
+        apply buf_all_leveled_app; [exact Hs1 | exact Hp2]. }
+      exact (make_left_only_leveled Hcomb Hs2 Hc2 Hmk).
+    + cbn [fst snd] in Hmk.
+      destruct (buf_eject2 s2) as [[[s2' y] z]|] eqn:He;
+        cbn [fst snd] in Hmk; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_eject2_inv He) as Hb2. subst s2.
+      assert (Hs2' : buf_all_leveled k (s2' ++ [y; z])) by exact Hs2.
+      apply buf_all_leveled_app_inv in Hs2'. destruct Hs2' as [Hs2'' Hyz].
+      cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split; [exact Hp1 | cbn; repeat split; assumption].
+      * apply (inject_chain_leveled (c:=CSingle d1p d1r)
+                 (s:=SBig (s1 ++ p2) d2 s2'));
+          [exact Hc1 |].
+        cbn [stored_leveled].
+        split; [exact (buf_all_leveled_app Hs1 Hp2) |].
+        split; [exact Hs2'' | exact Hc2].
+    + cbn [fst snd] in Hmk.
+      destruct (buf_eject2 s2) as [[[s2' y] z]|] eqn:He;
+        cbn [fst snd] in Hmk; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_eject2_inv He) as Hb2. subst s2.
+      assert (Hs2' : buf_all_leveled k (s2' ++ [y; z])) by exact Hs2.
+      apply buf_all_leveled_app_inv in Hs2'. destruct Hs2' as [Hs2'' Hyz].
+      cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split; [exact Hp1 | cbn; repeat split; assumption].
+      * apply (inject_chain_leveled (c:=CPair d1l d1rr)
+                 (s:=SBig (s1 ++ p2) d2 s2'));
+          [exact Hc1 |].
+        cbn [stored_leveled].
+        split; [exact (buf_all_leveled_app Hs1 Hp2) |].
+        split; [exact Hs2'' | exact Hc2].
+Qed.
+
+Lemma make_right_leveled :
+  forall A k (e t : cchain A),
+    chain_leveled k e ->
+    make_right e = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k e t Hl Hmk.
+  destruct e as [|p r|dl dr]; cbn [make_right] in Hmk; [discriminate | |].
+  - destruct (root_and_child p r) as [[k0 pp ss] child] eqn:Hrc.
+    pose proof (root_and_child_leveled Hl) as Hf.
+    rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+    cbn [cnode_leveled] in Hn. destruct Hn as [Hpp Hss].
+    exact (make_right_only_leveled Hpp Hss Hch Hmk).
+  - cbn [chain_leveled] in Hl. destruct Hl as [Hld Hrd].
+    destruct dl as [|pl rl|? ?]; try discriminate.
+    destruct dr as [|pr rr|? ?]; try discriminate.
+    destruct (root_and_child pl rl) as [[k1 p1 s1] d1] eqn:Hrc1.
+    destruct (root_and_child pr rr) as [[k2 p2 s2] d2] eqn:Hrc2.
+    pose proof (root_and_child_leveled Hld) as Hf1.
+    rewrite Hrc1 in Hf1. cbn [fst snd] in Hf1. destruct Hf1 as [Hn1 Hc1].
+    cbn [cnode_leveled] in Hn1. destruct Hn1 as [Hp1 Hs1].
+    pose proof (root_and_child_leveled Hrd) as Hf2.
+    rewrite Hrc2 in Hf2. cbn [fst snd] in Hf2. destruct Hf2 as [Hn2 Hc2].
+    cbn [cnode_leveled] in Hn2. destruct Hn2 as [Hp2 Hs2].
+    cbn [fst snd] in Hmk.
+    destruct d2 as [|d2p d2r|d2l d2rr].
+    + assert (Hcomb : buf_all_leveled k (s1 ++ p2 ++ s2)).
+      { apply buf_all_leveled_app; [exact Hs1 |].
+        apply buf_all_leveled_app; [exact Hp2 | exact Hs2]. }
+      exact (make_right_only_leveled Hp1 Hcomb Hc1 Hmk).
+    + cbn [fst snd] in Hmk.
+      destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He;
+        cbn [fst snd] in Hmk; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_pop2_inv He) as Hb2. subst p1.
+      cbn in Hp1. destruct Hp1 as [Hx [Hy Hp1']].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split; [cbn; repeat split; assumption | exact Hs2].
+      * apply (push_chain_leveled
+                 (s:=SBig p1' d1 (s1 ++ p2)) (c:=CSingle d2p d2r));
+          [| exact Hc2].
+        cbn [stored_leveled].
+        split; [exact Hp1' |].
+        split; [exact (buf_all_leveled_app Hs1 Hp2) | exact Hc1].
+    + cbn [fst snd] in Hmk.
+      destruct (buf_pop2 p1) as [[[x y] p1']|] eqn:He;
+        cbn [fst snd] in Hmk; [|discriminate].
+      injection Hmk as Hb; subst t.
+      pose proof (buf_pop2_inv He) as Hb2. subst p1.
+      cbn in Hp1. destruct Hp1 as [Hx [Hy Hp1']].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled].
+        split; [cbn; repeat split; assumption | exact Hs2].
+      * apply (push_chain_leveled
+                 (s:=SBig p1' d1 (s1 ++ p2)) (c:=CPair d2l d2rr));
+          [| exact Hc2].
+        cbn [stored_leveled].
+        split; [exact Hp1' |].
+        split; [exact (buf_all_leveled_app Hs1 Hp2) | exact Hc1].
+Qed.
+
+Lemma concat_small_left_leveled :
+  forall A k (p3 : buffer (stored A)) (e t : cchain A),
+    buf_all_leveled k p3 -> chain_leveled k e ->
+    concat_small_left p3 e = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k p3 e t Hp He Hmk.
+  unfold concat_small_left in Hmk.
+  destruct (length p3 <? 8); cbn [fst snd] in Hmk.
+  - injection Hmk as Hb; subst t.
+    apply fold_push_leveled; assumption.
+  - destruct e as [|p r|el er]; [discriminate | |].
+    + destruct (root_and_child p r) as [[k0 p2 s2] d2] eqn:Hrc.
+      cbn [fst snd] in Hmk.
+      pose proof (root_and_child_leveled He) as Hf.
+      rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+      cbn [cnode_leveled] in Hn. destruct Hn as [Hp2 Hs2].
+      destruct d2 as [|d2p d2r|d2l d2rr]; cbn [fst snd] in Hmk.
+      * destruct (buf_eject2 p2) as [[[p2' y] z]|] eqn:He2;
+          cbn [fst snd] in Hmk; [|discriminate].
+        injection Hmk as Hb; subst t.
+        pose proof (buf_eject2_inv He2) as Hb2. subst p2.
+        assert (Hp2' : buf_all_leveled k (p2' ++ [y; z])) by exact Hp2.
+        apply buf_all_leveled_app_inv in Hp2'. destruct Hp2' as [Hp2'' Hyz].
+        cbn in Hyz. destruct Hyz as [Hy [Hz _]].
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled].
+           split; [exact Hp | cbn; repeat split; assumption].
+        -- apply (push_chain_leveled (s:=SSmall p2') (c:=@CEmpty A));
+             [cbn [stored_leveled]; exact Hp2'' | exact I].
+      * injection Hmk as Hb; subst t.
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled]. split; [exact Hp | exact Hs2].
+        -- apply (push_chain_leveled (s:=SSmall p2) (c:=CSingle d2p d2r));
+             [cbn [stored_leveled]; exact Hp2 | exact Hch].
+      * injection Hmk as Hb; subst t.
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled]. split; [exact Hp | exact Hs2].
+        -- apply (push_chain_leveled (s:=SSmall p2) (c:=CPair d2l d2rr));
+             [cbn [stored_leveled]; exact Hp2 | exact Hch].
+    + destruct el as [|pl rl|? ?]; try discriminate.
+      destruct (root_and_child pl rl) as [[k1 p2 s2] d2] eqn:Hrc.
+      cbn [fst snd] in Hmk.
+      injection Hmk as Hb; subst t.
+      cbn [chain_leveled] in He. destruct He as [Hel Her].
+      pose proof (root_and_child_leveled Hel) as Hf.
+      rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+      cbn [cnode_leveled] in Hn. destruct Hn as [Hp2 Hs2].
+      cbn [chain_leveled].
+      split; [| exact Her].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled]. split; [exact Hp | exact Hs2].
+      * apply (push_chain_leveled (s:=SSmall p2) (c:=d2));
+          [cbn [stored_leveled]; exact Hp2 | exact Hch].
+Qed.
+
+Lemma concat_small_right_leveled :
+  forall A k (d : cchain A) (s3 : buffer (stored A)) (t : cchain A),
+    chain_leveled k d -> buf_all_leveled k s3 ->
+    concat_small_right d s3 = Some t ->
+    chain_leveled k t.
+Proof.
+  intros A k d s3 t Hd Hs Hmk.
+  unfold concat_small_right in Hmk.
+  destruct (length s3 <? 8); cbn [fst snd] in Hmk.
+  - injection Hmk as Hb; subst t.
+    apply fold_inject_leveled; assumption.
+  - destruct d as [|p r|dl dr]; [discriminate | |].
+    + destruct (root_and_child p r) as [[k0 p1 s1] d1] eqn:Hrc.
+      cbn [fst snd] in Hmk.
+      pose proof (root_and_child_leveled Hd) as Hf.
+      rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+      cbn [cnode_leveled] in Hn. destruct Hn as [Hp1 Hs1].
+      destruct d1 as [|d1p d1r|d1l d1rr]; cbn [fst snd] in Hmk.
+      * destruct (buf_pop2 s1) as [[[x y] s1']|] eqn:He2;
+          cbn [fst snd] in Hmk; [|discriminate].
+        injection Hmk as Hb; subst t.
+        pose proof (buf_pop2_inv He2) as Hb2. subst s1.
+        cbn in Hs1. destruct Hs1 as [Hx [Hy Hs1']].
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled].
+           split; [| exact Hs].
+           apply buf_all_leveled_app;
+             [exact Hp1 | cbn; repeat split; assumption].
+        -- apply (push_chain_leveled (s:=SSmall s1') (c:=@CEmpty A));
+             [cbn [stored_leveled]; exact Hs1' | exact I].
+      * injection Hmk as Hb; subst t.
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled]. split; [exact Hp1 | exact Hs].
+        -- apply (inject_chain_leveled (c:=CSingle d1p d1r) (s:=SSmall s1));
+             [exact Hch | cbn [stored_leveled]; exact Hs1].
+      * injection Hmk as Hb; subst t.
+        apply tree_of_leveled.
+        -- cbn [cnode_leveled]. split; [exact Hp1 | exact Hs].
+        -- apply (inject_chain_leveled (c:=CPair d1l d1rr) (s:=SSmall s1));
+             [exact Hch | cbn [stored_leveled]; exact Hs1].
+    + destruct dr as [|pr rr|? ?]; try discriminate.
+      destruct (root_and_child pr rr) as [[k2 p1 s1] d1] eqn:Hrc.
+      cbn [fst snd] in Hmk.
+      injection Hmk as Hb; subst t.
+      cbn [chain_leveled] in Hd. destruct Hd as [Hdl Hdr].
+      pose proof (root_and_child_leveled Hdr) as Hf.
+      rewrite Hrc in Hf. cbn [fst snd] in Hf. destruct Hf as [Hn Hch].
+      cbn [cnode_leveled] in Hn. destruct Hn as [Hp1 Hs1].
+      cbn [chain_leveled].
+      split; [exact Hdl |].
+      apply tree_of_leveled.
+      * cbn [cnode_leveled]. split; [exact Hp1 | exact Hs].
+      * apply (inject_chain_leveled (c:=d1) (s:=SSmall s1));
+          [exact Hch | cbn [stored_leveled]; exact Hs1].
+Qed.
+
+Lemma cad_concat_leveled :
+  forall A (d e f : cadeque A),
+    chain_leveled 0 d -> chain_leveled 0 e ->
+    cad_concat d e = Some f ->
+    chain_leveled 0 f.
+Proof.
+  intros A d e f Hd He Hmk.
+  assert (Hcore :
+    forall (d' e' : cchain A),
+      chain_leveled 0 d' -> chain_leveled 0 e' ->
+      match degenerate_buf d', degenerate_buf e' with
+      | Some p, Some s =>
+          if (length p <? 8) || (length s <? 8)
+          then Some (CSingle (Pkt BHole (Node KOnly (p ++ s) [])) CEmpty)
+          else Some (CSingle (Pkt BHole (Node KOnly p s)) CEmpty)
+      | Some p, None => concat_small_left p e'
+      | None, Some s => concat_small_right d' s
+      | None, None =>
+          match make_left d', make_right e' with
+          | Some t, Some u => Some (CPair t u)
+          | _, _ => None
+          end
+      end = Some f ->
+      chain_leveled 0 f).
+  { intros d' e' Hd' He' Hmk'.
+    destruct (degenerate_buf d') as [p|] eqn:Hdd;
+      destruct (degenerate_buf e') as [s|] eqn:Hde.
+    - pose proof (degenerate_buf_leveled Hd' Hdd) as Hp.
+      pose proof (degenerate_buf_leveled He' Hde) as Hs.
+      destruct ((length p <? 8) || (length s <? 8));
+        injection Hmk' as Hb; subst f;
+        cbn [chain_leveled cbody_leveled body_depth Nat.add].
+      + split; [exact I |]. split; [| exact I].
+        cbn [cnode_leveled].
+        split; [exact (buf_all_leveled_app Hp Hs) | exact I].
+      + split; [exact I |]. split; [| exact I].
+        cbn [cnode_leveled].
+        split; [exact Hp | exact Hs].
+    - pose proof (degenerate_buf_leveled Hd' Hdd) as Hp.
+      exact (concat_small_left_leveled Hp He' Hmk').
+    - pose proof (degenerate_buf_leveled He' Hde) as Hs.
+      exact (concat_small_right_leveled Hd' Hs Hmk').
+    - destruct (make_left d') as [t|] eqn:Hml; [|discriminate].
+      destruct (make_right e') as [u|] eqn:Hmr; [|discriminate].
+      injection Hmk' as Hb; subst f.
+      cbn [chain_leveled].
+      split;
+        [exact (make_left_leveled Hd' Hml)
+        | exact (make_right_leveled He' Hmr)]. }
+  unfold cad_concat in Hmk.
+  destruct d as [|? ?|? ?].
+  { injection Hmk as Hb; subst f. exact He. }
+  - destruct e as [|? ?|? ?].
+    { injection Hmk as Hb; subst f. exact Hd. }
+    + exact (Hcore _ _ Hd He Hmk).
+    + exact (Hcore _ _ Hd He Hmk).
+  - destruct e as [|? ?|? ?].
+    { injection Hmk as Hb; subst f. exact Hd. }
+    + exact (Hcore _ _ Hd He Hmk).
+    + exact (Hcore _ _ Hd He Hmk).
+Qed.
