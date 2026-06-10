@@ -83,15 +83,33 @@ Fixpoint colors_consistent {A : Type} (c : KChain A) : Prop :=
   | KCons _ Hole _ => False
   end.
 
+(** [packet_depth p]: number of [PNode] layers — how many levels the yellow
+    run bundles.  The chain link below a packet sits [packet_depth p] levels
+    deeper, NOT one level deeper: Model.v's [chain_levels] hard-codes [S k]
+    per link, which is wrong for nested (depth ≥ 2) packets (e.g. the
+    Overflow/Overflow case of [make_small] puts the ending two levels down). *)
+Fixpoint packet_depth {A : Type} (p : Packet A) : nat :=
+  match p with
+  | Hole => 0
+  | PNode _ i _ => S (packet_depth i)
+  end.
+
+(** Depth-aware levels invariant for [Chain] (used for [make_small] outputs). *)
+Fixpoint chain_levels_d {A : Type} (k : nat) (c : Chain A) : Prop :=
+  match c with
+  | Ending b => buf_all_at_level k b
+  | ChainCons p c' => packet_levels k p /\ chain_levels_d (packet_depth p + k) c'
+  end.
+
 (** Level-consistency: buffers at chain-depth [k] hold level-[k] elements.
-    Lifts Model.v's [buf_all_at_level]/[packet_levels] to [KChain].  Over the
-    production instance [E = ElementTree], positive-level elements are
-    unpairable (a theorem, not an axiom), which is what the repair's underflow
-    arms need. *)
+    Lifts Model.v's [buf_all_at_level]/[packet_levels] to [KChain], with the
+    depth-aware tail index.  Over the production instance [E = ElementTree],
+    positive-level elements are unpairable (a theorem, not an axiom), which is
+    what the repair's underflow arms need. *)
 Fixpoint well_leveled_at {A : Type} (k : nat) (c : KChain A) : Prop :=
   match c with
   | KEnding b => buf_all_at_level k b
-  | KCons _ p tail => packet_levels k p /\ well_leveled_at (S k) tail
+  | KCons _ p tail => packet_levels k p /\ well_leveled_at (packet_depth p + k) tail
   end.
 
 Definition well_leveled {A : Type} (c : KChain A) : Prop := well_leveled_at 0 c.
