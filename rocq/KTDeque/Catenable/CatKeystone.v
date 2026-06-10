@@ -29,7 +29,8 @@
 From Stdlib Require Import List Arith.
 Import ListNotations.
 From KTDeque.Common Require Import Prelude.
-From KTDeque.Catenable Require Import Model Color Ops SeqLemmas WfLemmas.
+From KTDeque.Catenable Require Import Model Color Ops SeqLemmas WfLemmas
+  ConcatLemmas.
 
 Set Implicit Arguments.
 
@@ -84,7 +85,7 @@ Lemma cad_concat_total_J_seq :
       cad_concat d e = Some f /\
       J f /\
       cad_to_list f = cad_to_list d ++ cad_to_list e.
-Proof. Admitted.
+Proof. intros A d e HJd HJe. apply cad_concat_total; assumption. Qed.
 
 Lemma cad_pop_total_J_seq :
   forall A (d : cadeque A),
