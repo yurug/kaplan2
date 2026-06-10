@@ -864,6 +864,149 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* Colour-consistency of the repair (Cases 2/3) and the repair itself.         *)
+(* ========================================================================== *)
+
+(** Case 2 shapes: merging into a GREEN tail packet keeps the outer buffer
+    green and leaves the (consumed) tail buffer not-red. *)
+Lemma green_prefix_concat_green_shapes :
+  forall A (b1 b2 b1' b2' : Buf5 (E.t A)),
+    buf5_is_green_shape b2 ->
+    green_prefix_concat b1 b2 = Some (b1', b2') ->
+    buf5_is_green_shape b1' /\ buf5_is_not_red_shape b2'.
+Proof.
+  intros A b1 b2 b1' b2' Hb2 Hconcat.
+  unfold green_prefix_concat in Hconcat.
+  destruct b1 as [|p1|p1 p2|p1 p2 p3|p1 p2 p3 p4|p1 p2 p3 p4 p5];
+    destruct b2 as [|q1|q1 q2|q1 q2 q3|q1 q2 q3 q4|q1 q2 q3 q4 q5];
+    cbn in Hb2, Hconcat; try contradiction; try discriminate;
+    repeat match goal with
+      | H : context [E.unpair ?A ?e] |- _ =>
+          destruct (E.unpair A e) as [[u v]|]; try discriminate
+      | H : context [Nat.eq_dec ?x ?y] |- _ =>
+          destruct (Nat.eq_dec x y); try discriminate
+      end;
+    inversion Hconcat; subst; cbn; repeat split; exact I.
+Qed.
+
+Lemma green_suffix_concat_green_shapes :
+  forall A (b1 b2 b1' b2' : Buf5 (E.t A)),
+    buf5_is_green_shape b1 ->
+    green_suffix_concat b1 b2 = Some (b1', b2') ->
+    buf5_is_not_red_shape b1' /\ buf5_is_green_shape b2'.
+Proof.
+  intros A b1 b2 b1' b2' Hb1 Hconcat.
+  unfold green_suffix_concat in Hconcat.
+  destruct b1 as [|p1|p1 p2|p1 p2 p3|p1 p2 p3 p4|p1 p2 p3 p4 p5];
+    destruct b2 as [|q1|q1 q2|q1 q2 q3|q1 q2 q3 q4|q1 q2 q3 q4 q5];
+    cbn in Hb1, Hconcat; try contradiction; try discriminate;
+    repeat match goal with
+      | H : context [E.unpair ?A ?e] |- _ =>
+          destruct (E.unpair A e) as [[u v]|]; try discriminate
+      | H : context [Nat.eq_dec ?x ?y] |- _ =>
+          destruct (Nat.eq_dec x y); try discriminate
+      end;
+    inversion Hconcat; subst; cbn; repeat split; exact I.
+Qed.
+
+(** Case 3 shapes: the new outer buffers are green structurally (the fresh
+    Red inner's buffers are unconstrained — its link shape clause is True). *)
+Lemma prefix_concat_outer_green_shape :
+  forall A (b1 b2 b1' b2' : Buf5 (E.t A)),
+    prefix_concat b1 b2 = Some (b1', b2') ->
+    buf5_is_green_shape b1'.
+Proof.
+  intros A b1 b2 b1' b2' Hconcat.
+  unfold prefix_concat in Hconcat.
+  destruct b1 as [|p1|p1 p2|p1 p2 p3|p1 p2 p3 p4|p1 p2 p3 p4 p5];
+    cbn in Hconcat;
+    repeat match goal with
+      | H : context [yellow_pop ?b] |- _ =>
+          destruct (yellow_pop b) as [[w1 w2]|]; try discriminate
+      | H : context [yellow_push ?x ?b] |- _ =>
+          destruct (yellow_push x b); try discriminate
+      | H : context [E.unpair ?A ?e] |- _ =>
+          destruct (E.unpair A e) as [[u v]|]; try discriminate
+      | H : context [Nat.eq_dec ?x ?y] |- _ =>
+          destruct (Nat.eq_dec x y); try discriminate
+      end;
+    inversion Hconcat; subst; cbn; exact I.
+Qed.
+
+Lemma suffix_concat_outer_green_shape :
+  forall A (b1 b2 b1' b2' : Buf5 (E.t A)),
+    suffix_concat b1 b2 = Some (b1', b2') ->
+    buf5_is_green_shape b2'.
+Proof.
+  intros A b1 b2 b1' b2' Hconcat.
+  unfold suffix_concat in Hconcat.
+  destruct b2 as [|p1|p1 p2|p1 p2 p3|p1 p2 p3 p4|p1 p2 p3 p4 p5];
+    cbn in Hconcat;
+    repeat match goal with
+      | H : context [yellow_eject ?b] |- _ =>
+          destruct (yellow_eject b) as [[w1 w2]|]; try discriminate
+      | H : context [yellow_inject ?b ?x] |- _ =>
+          destruct (yellow_inject b x); try discriminate
+      | H : context [E.unpair ?A ?e] |- _ =>
+          destruct (E.unpair A e) as [[u v]|]; try discriminate
+      | H : context [Nat.eq_dec ?x ?y] |- _ =>
+          destruct (Nat.eq_dec x y); try discriminate
+      end;
+    inversion Hconcat; subst; cbn; exact I.
+Qed.
+
+(** The repair preserves colour-consistency. *)
+Lemma green_of_red_k_preserves_colors_consistent :
+  forall A (c c' : KChain A),
+    colors_consistent c ->
+    green_of_red_k c = Some c' ->
+    colors_consistent c'.
+Proof.
+  intros A c c' Hcc.
+  unfold green_of_red_k.
+  destruct c as [b | col [|pre1 i1 suf1] tail].
+  - intros Hg; discriminate.
+  - destruct col; intros Hg; discriminate.
+  - destruct col; [intros Hg; discriminate | intros Hg; discriminate |].
+    (* col = Red *)
+    cbn in Hcc. destruct Hcc as [_ [Hyr [Htc Htail]]].
+    destruct i1 as [|pre2 child suf2]; gor_reduce.
+    + (* Hole inner *)
+      destruct tail as [b | col2 [|tpre tchild tsuf] c2]; gor_reduce.
+      * (* Case 1 *)
+        destruct (make_small pre1 b suf1) as [cm|] eqn:Hms; gor_reduce;
+          [| intros Hg; discriminate].
+        intros Hg; injection Hg as Hg; subst c'.
+        eapply make_small_colors_consistent; exact Hms.
+      * intros Hg; discriminate.
+      * (* Case 2 *)
+        cbn in Htc. subst col2.
+        cbn in Htail. destruct Htail as [[Hg1 Hg2] [Hyr2 [Htc2 Hcc2]]].
+        destruct (green_prefix_concat pre1 tpre) as [[pre1' pre2']|] eqn:Hgp;
+          gor_reduce; [| intros Hg; discriminate].
+        destruct (green_suffix_concat tsuf suf1) as [[suf2' suf1']|] eqn:Hgs;
+          gor_reduce; [| intros Hg; discriminate].
+        intros Hg; injection Hg as Hg; subst c'.
+        pose proof (@green_prefix_concat_green_shapes A pre1 tpre pre1' pre2'
+                      Hg1 Hgp) as [Hp1' Hp2'].
+        pose proof (@green_suffix_concat_green_shapes A tsuf suf1 suf2' suf1'
+                      Hg2 Hgs) as [Hs2' Hs1'].
+        gor_reduce. repeat split; try assumption.
+    + (* Case 3 *)
+      cbn in Hyr. destruct Hyr as [Hnr2 [Hns2 Hyrchild]].
+      destruct (prefix_concat pre1 pre2) as [[pre1' pre2']|] eqn:Hpc;
+        gor_reduce; [| intros Hg; discriminate].
+      destruct (suffix_concat suf2 suf1) as [[suf2' suf1']|] eqn:Hsc;
+        gor_reduce; [| intros Hg; discriminate].
+      intros Hg; injection Hg as Hg; subst c'.
+      pose proof (@prefix_concat_outer_green_shape A pre1 pre2 pre1' pre2' Hpc)
+        as Hp1'.
+      pose proof (@suffix_concat_outer_green_shape A suf2 suf1 suf2' suf1' Hsc)
+        as Hs1'.
+      gor_reduce. repeat split; try assumption; try discriminate.
+Qed.
+
+(* ========================================================================== *)
 (* Per-operation obligations (Admitted scaffolding — the to-do list).          *)
 (* ========================================================================== *)
 
