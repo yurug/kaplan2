@@ -50,8 +50,18 @@ bundles with the per-colour table above; conclusions drop ends_green.
   root_color_facts ✓); (b) post-pop sizes survive: rooted measures are
   >=6 pre-pop (G>=8/Y7/O6 — terminal green by input J, body heads Y/O)
   so >=5 after; childless violations are exactly the op's
-  rebuild_childless (only) and Viennot collapse (pair, lp<5 fold-push,
-  use fold_push_preserves + fold_push_leveled) branches; (c) at k=0 the
+  rebuild_childless (only) and Viennot collapse branches. COLLAPSE OP
+  FIXED this iteration (fold-push into the KRight sibling broke its
+  |p|=2 discipline): now re-crowns tree_of (Node KOnly (lp++ls++p2) s2)
+  d2 over the peeled sibling root — new prefix = 4+2+2 = 8, so the min
+  colour = old right-root colour key (gyor_of |s2|), and the per-colour
+  facts come from root_child_facts of r (input J gives ends_green r);
+  if rooted, |s2| >= 6 so never red; if d2 = CEmpty childless green.
+  l' = CEmpty arm unreachable (childless KLeft keeps >= 5+2). NOTE pop_raw
+  must be stated KIND-GENERICALLY (chain_wf kd c) because the CPair case
+  recurses into the KLeft component; node sizes per kind; the CSingle
+  with-child case has nonempty prefix (with-child only roots are
+  two-sided; KLeft/KRight prefixes are 2 or >=5). (c) at k=0 the
   popped cell is stored_leveled 0 = SGround (cad_pop's match ✓); at
   child levels k+1 it is SSmall/SBig (repair's match ✓).
 (C) repair lemmas: repair_front/back/both/packet/pop_side/eject_side.
