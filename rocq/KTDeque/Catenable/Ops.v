@@ -144,6 +144,274 @@ Example cad_push_inject_mix :
   = [1; 2; 3].
 Proof. reflexivity. Qed.
 
+(* ========================================================================== *)
+(* Concat (KT99 §6.2, Cases 1–4 with subcases 1a–1d).                          *)
+(*                                                                            *)
+(* Every element movement below is CONSTANT-bounded (combine two 2-buffers,   *)
+(* eject/pop two, move at most 8): the §6 concat never appends two unbounded  *)
+(* buffers.  [option] marks the size side conditions; under [J] every [None]  *)
+(* arm is unreachable (a keystone obligation).                                *)
+(* ========================================================================== *)
+
+(** Pop / eject two elements from a buffer. *)
+Definition buf_pop2 {X : Type} (b : buffer X) : option (X * X * buffer X) :=
+  match b with
+  | x :: y :: r => Some (x, y, r)
+  | _ => None
+  end.
+
+Definition buf_eject2 {X : Type} (b : buffer X) : option (buffer X * X * X) :=
+  match rev b with
+  | z :: y :: r => Some (rev r, y, z)
+  | _ => None
+  end.
+
+Definition buf_eject3 {X : Type} (b : buffer X)
+    : option (buffer X * X * X * X) :=
+  match rev b with
+  | c :: bb :: a :: r => Some (rev r, a, bb, c)
+  | _ => None
+  end.
+
+(** A degenerate top: a single childless one-sided only triple (the shapes
+    Cases 2–4 receive).  Returns its one buffer. *)
+Definition degenerate_buf {A : Type} (d : cchain A)
+    : option (buffer (stored A)) :=
+  match d with
+  | CSingle (Pkt BHole (Node KOnly p s)) CEmpty =>
+      match p, s with
+      | [], _ => Some s
+      | _, [] => Some p
+      | _, _ => None
+      end
+  | _ => None
+  end.
+
+(** Subcases 1c/1d on an only-triple (p1, d1, s1): build the LEFT triple. *)
+Definition make_left_only {A : Type}
+    (p1 : buffer (stored A)) (d1 : cchain A) (s1 : buffer (stored A))
+    : option (cchain A) :=
+  match d1 with
+  | CEmpty =>
+      (* 1d *)
+      if length s1 <=? 8 then
+        match buf_eject2 s1 with
+        | Some (s1', y, z) =>
+            Some (tree_of (Node KLeft (p1 ++ s1') [y; z]) CEmpty)
+        | None => None
+        end
+      else
+        match s1 with
+        | a :: b :: c :: srest =>
+            match buf_eject2 srest with
+            | Some (smid, y, z) =>
+                Some (tree_of (Node KLeft (p1 ++ [a; b; c]) [y; z])
+                        (push_chain (SSmall smid) CEmpty))
+            | None => None
+            end
+        | _ => None
+        end
+  | _ =>
+      (* 1c *)
+      match buf_eject2 s1 with
+      | Some (s1', y, z) =>
+          Some (tree_of (Node KLeft p1 [y; z])
+                  (inject_chain d1 (SSmall s1')))
+      | None => None
+      end
+  end.
+
+(** Case 1, d side: turn a (non-degenerate, nonempty) deque into a LEFT
+    triple's tree. *)
+Definition make_left {A : Type} (d : cchain A) : option (cchain A) :=
+  match d with
+  | CEmpty => None
+  | CSingle p r =>
+      match root_and_child p r with
+      | (Node _ p1 s1, d1) => make_left_only p1 d1 s1
+      end
+  | CPair (CSingle pl rl) (CSingle pr rr) =>
+      match root_and_child pl rl, root_and_child pr rr with
+      | (Node _ p1 s1, d1), (Node _ p2 s2, d2) =>
+          match d1 with
+          | CEmpty =>
+              (* 1b: collapse to an only triple, then 1c/1d *)
+              make_left_only (p1 ++ s1 ++ p2) d2 s2
+          | _ =>
+              (* 1a *)
+              match buf_eject2 s2 with
+              | Some (s2', y, z) =>
+                  Some (tree_of (Node KLeft p1 [y; z])
+                          (inject_chain d1 (SBig (s1 ++ p2) d2 s2')))
+              | None => None
+              end
+          end
+      end
+  | CPair _ _ => None
+  end.
+
+(** Mirrors for the e side: build a RIGHT triple's tree. *)
+Definition make_right_only {A : Type}
+    (p1 : buffer (stored A)) (d1 : cchain A) (s1 : buffer (stored A))
+    : option (cchain A) :=
+  match d1 with
+  | CEmpty =>
+      if length p1 <=? 8 then
+        match buf_pop2 p1 with
+        | Some (x, y, p1') =>
+            Some (tree_of (Node KRight [x; y] (p1' ++ s1)) CEmpty)
+        | None => None
+        end
+      else
+        match buf_pop2 p1 with
+        | Some (x, y, p1') =>
+            match buf_eject3 p1' with
+            | Some (pmid, a, b, c) =>
+                Some (tree_of (Node KRight [x; y] ([a; b; c] ++ s1))
+                        (push_chain (SSmall pmid) CEmpty))
+            | None => None
+            end
+        | None => None
+        end
+  | _ =>
+      match buf_pop2 p1 with
+      | Some (x, y, p1') =>
+          Some (tree_of (Node KRight [x; y] s1)
+                  (push_chain (SSmall p1') d1))
+      | None => None
+      end
+  end.
+
+(** Case 1, e side. *)
+Definition make_right {A : Type} (e : cchain A) : option (cchain A) :=
+  match e with
+  | CEmpty => None
+  | CSingle p r =>
+      match root_and_child p r with
+      | (Node _ p1 s1, d1) => make_right_only p1 d1 s1
+      end
+  | CPair (CSingle pl rl) (CSingle pr rr) =>
+      match root_and_child pl rl, root_and_child pr rr with
+      | (Node _ p1 s1, d1), (Node _ p2 s2, d2) =>
+          match d2 with
+          | CEmpty =>
+              make_right_only p1 d1 (s1 ++ p2 ++ s2)
+          | _ =>
+              match buf_pop2 p1 with
+              | Some (x, y, p1') =>
+                  Some (tree_of (Node KRight [x; y] s2)
+                          (push_chain (SBig p1' d1 (s1 ++ p2)) d2))
+              | None => None
+              end
+          end
+      end
+  | CPair _ _ => None
+  end.
+
+(** Case 2: degenerate d (one buffer [p3]) onto a normal e. *)
+Definition concat_small_left {A : Type}
+    (p3 : buffer (stored A)) (e : cchain A) : option (cchain A) :=
+  if length p3 <? 8 then Some (fold_right push_chain e p3)
+  else
+    match e with
+    | CSingle p r =>
+        match root_and_child p r with
+        | (Node _ p2 s2, d2) =>
+            Some (tree_of (Node KOnly p3 s2) (push_chain (SSmall p2) d2))
+        end
+    | CPair (CSingle pl rl) rt =>
+        match root_and_child pl rl with
+        | (Node _ p2 s2, d2) =>
+            Some (CPair (tree_of (Node KLeft p3 s2)
+                           (push_chain (SSmall p2) d2)) rt)
+        end
+    | _ => None
+    end.
+
+(** Case 3: normal d, degenerate e (one buffer [s3]). *)
+Definition concat_small_right {A : Type}
+    (d : cchain A) (s3 : buffer (stored A)) : option (cchain A) :=
+  if length s3 <? 8 then Some (fold_left inject_chain s3 d)
+  else
+    match d with
+    | CSingle p r =>
+        match root_and_child p r with
+        | (Node _ p1 s1, d1) =>
+            Some (tree_of (Node KOnly p1 s3) (inject_chain d1 (SSmall s1)))
+        end
+    | CPair lt (CSingle pr rr) =>
+        match root_and_child pr rr with
+        | (Node _ p1 s1, d1) =>
+            Some (CPair lt (tree_of (Node KRight p1 s3)
+                              (inject_chain d1 (SSmall s1))))
+        end
+    | _ => None
+    end.
+
+Definition cad_concat {A : Type} (d e : cadeque A) : option (cadeque A) :=
+  match d, e with
+  | CEmpty, _ => Some e
+  | _, CEmpty => Some d
+  | _, _ =>
+      match degenerate_buf d, degenerate_buf e with
+      | Some p, Some s =>
+          (* Case 4 *)
+          if (length p <? 8) || (length s <? 8)
+          then Some (CSingle (Pkt BHole (Node KOnly (p ++ s) [])) CEmpty)
+          else Some (CSingle (Pkt BHole (Node KOnly p s)) CEmpty)
+      | Some p, None => concat_small_left p e
+      | None, Some s => concat_small_right d s
+      | None, None =>
+          match make_left d, make_right e with
+          | Some t, Some u => Some (CPair t u)
+          | _, _ => None
+          end
+      end
+  end.
+
+(* -------------------------------------------------------------------------- *)
+(* Concat sequence sanity.                                                     *)
+(* -------------------------------------------------------------------------- *)
+
+Definition mk (l : list nat) : cadeque nat := fold_right cad_push cad_empty l.
+
+Definition cad_concat_list (d e : cadeque nat) : list nat :=
+  match cad_concat d e with
+  | Some f => cad_to_list f
+  | None => []
+  end.
+
+(** Case 4, small side: two one-sided childless triples merge buffers. *)
+Example cad_concat_case4_small :
+  cad_concat_list (mk [1; 2]) (mk [3; 4]) = [1; 2; 3; 4].
+Proof. reflexivity. Qed.
+
+(** Case 4, both >=8: a two-sided childless only triple. *)
+Example cad_concat_case4_big :
+  cad_concat_list (mk [1;2;3;4;5;6;7;8]) (mk [11;12;13;14;15;16;17;18])
+  = [1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Case 1 (the general path): concatenating two already-concatenated deques
+    goes through make_left / make_right and produces a CPair. *)
+Example cad_concat_case1 :
+  match cad_concat (mk [1;2;3;4;5;6;7;8]) (mk [11;12;13;14;15;16;17;18]) with
+  | Some de => cad_concat_list de de
+  | None => []
+  end
+  = [1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18;
+     1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18].
+Proof. vm_compute. reflexivity. Qed.
+
+(** Case 2: a small degenerate left operand folds onto a normal right one. *)
+Example cad_concat_case2_small :
+  match cad_concat (mk [1;2;3;4;5;6;7;8]) (mk [11;12;13;14;15;16;17;18]) with
+  | Some de => cad_concat_list (mk [97; 98]) de
+  | None => []
+  end
+  = [97;98;1;2;3;4;5;6;7;8;11;12;13;14;15;16;17;18].
+Proof. vm_compute. reflexivity. Qed.
+
 (** A Y->G split: a yellow only-triple head (7/7 with a child) goes green and
     leaves the run.  Sequence is preserved across the surgery. *)
 Example pkt_update_split_seq :
