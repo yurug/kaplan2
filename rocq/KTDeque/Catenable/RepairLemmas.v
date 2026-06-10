@@ -1312,3 +1312,154 @@ Proof.
         rewrite !cnode_seq_eq, Hseq0.
         cbn [stored_seq]. seq_normalize.
 Qed.
+
+(* ========================================================================== *)
+(* repair_packet: dispatch on the terminal colour.  chain_wf itself forces    *)
+(* the terminal to be green (identity path) or red with a green child (the    *)
+(* repair builders' input).                                                    *)
+(* ========================================================================== *)
+
+Lemma repair_packet_total :
+  forall A (kd0 : kind) (k0 : nat) (p : cpacket A) (rest : cchain A),
+    chain_wf kd0 (CSingle p rest) ->
+    chain_leveled k0 (CSingle p rest) ->
+    exists f,
+      repair_packet p rest = Some f /\
+      is_single f = true /\
+      chain_wf kd0 f /\ chain_ends_green f /\ chain_leveled k0 f /\
+      cchain_seq f = cchain_seq (CSingle p rest).
+Proof.
+  intros A kd0 k0 [body n] rest Hwf Hl.
+  pose proof Hwf as Hwf0.
+  cbn [chain_wf] in Hwf0.
+  destruct Hwf0 as [Hbw [Hbk [Hsz [Hnw [Hcol Hwrest]]]]].
+  pose proof Hl as Hl0.
+  cbn [chain_leveled] in Hl0.
+  destruct Hl0 as [Hbl [Hnl Hrl]].
+  unfold repair_packet.
+  destruct Hcol as [Hgcol | [Hred Hgrest]].
+  - (* green terminal: identity *)
+    rewrite Hgcol.
+    eexists. split; [reflexivity |].
+    split; [reflexivity |].
+    split; [exact Hwf |].
+    split; [| split].
+    + cbn [chain_ends_green]. exact Hgcol.
+    + exact Hl.
+    + reflexivity.
+  - (* red terminal: repair per kind *)
+    rewrite Hred.
+    destruct n as [k p1 s1].
+    cbn [node_kind] in Hbk.
+    destruct k.
+    + (* KOnly: the 8-tests *)
+      destruct (8 <=? length s1) eqn:Hs8.
+      * apply Nat.leb_le in Hs8.
+        destruct (@repair_front_total A kd0 k0 body KOnly p1 s1 rest
+                    Hbw Hbk Hsz Hnw Hred Hgrest Hwrest Hbl Hnl Hrl
+                    ltac:(right; split; [reflexivity | exact Hs8]))
+          as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+        exists f. tauto.
+      * destruct (8 <=? length p1) eqn:Hp8.
+        -- apply Nat.leb_le in Hp8.
+           destruct (@repair_back_total A kd0 k0 body KOnly p1 s1 rest
+                       Hbw Hbk Hsz Hnw Hred Hgrest Hwrest Hbl Hnl Hrl
+                       ltac:(right; split; [reflexivity | exact Hp8]))
+             as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+           exists f. tauto.
+        -- destruct (@repair_both_total A kd0 k0 body p1 s1 rest
+                       Hbw Hbk Hsz Hnw Hred Hgrest Hwrest Hbl Hnl Hrl)
+             as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+           exists f. tauto.
+    + (* KLeft *)
+      destruct (@repair_front_total A kd0 k0 body KLeft p1 s1 rest
+                  Hbw Hbk Hsz Hnw Hred Hgrest Hwrest Hbl Hnl Hrl
+                  ltac:(left; reflexivity))
+        as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+      exists f. tauto.
+    + (* KRight *)
+      destruct (@repair_back_total A kd0 k0 body KRight p1 s1 rest
+                  Hbw Hbk Hsz Hnw Hred Hgrest Hwrest Hbl Hnl Hrl
+                  ltac:(left; reflexivity))
+        as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+      exists f. tauto.
+Qed.
+
+(* ========================================================================== *)
+(* The side dispatchers: repair the packet on the removal side; the           *)
+(* untouched sibling keeps its half of the top greenness.                      *)
+(* ========================================================================== *)
+
+Lemma repair_pop_side_total :
+  forall A (k : nat) (c : cchain A),
+    chain_wf KOnly c -> chain_leveled k c ->
+    (forall l2 r2, c = CPair l2 r2 -> chain_ends_green r2) ->
+    exists f,
+      repair_pop_side c = Some f /\
+      chain_wf KOnly f /\ chain_ends_green f /\ chain_leveled k f /\
+      cchain_seq f = cchain_seq c.
+Proof.
+  intros A k c Hwf Hl Hsib.
+  destruct c as [|p rest|l r].
+  - exists CEmpty. cbn.
+    repeat split; reflexivity.
+  - cbn [repair_pop_side].
+    destruct (@repair_packet_total A KOnly k p rest Hwf Hl)
+      as [f [Hmk [_ [Hw [Hg [Hl' Hs]]]]]].
+    exists f. tauto.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct l as [|pl rl|? ?]; cbn [is_single] in Hls; try discriminate.
+    cbn [repair_pop_side].
+    destruct (@repair_packet_total A KLeft k pl rl Hlw Hll)
+      as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+    rewrite Hmk.
+    eexists. split; [reflexivity |].
+    split; [| split; [| split]].
+    + cbn [chain_wf].
+      split; [exact Hsf |]. split; [exact Hrs |].
+      split; [exact Hw | exact Hrw].
+    + cbn [chain_ends_green].
+      split; [exact Hg | exact (Hsib _ _ eq_refl)].
+    + cbn [chain_leveled]. split; [exact Hl' | exact Hlr].
+    + rewrite (cchain_seq_pair f r),
+        (cchain_seq_pair (CSingle pl rl) r), Hs.
+      reflexivity.
+Qed.
+
+Lemma repair_eject_side_total :
+  forall A (k : nat) (c : cchain A),
+    chain_wf KOnly c -> chain_leveled k c ->
+    (forall l2 r2, c = CPair l2 r2 -> chain_ends_green l2) ->
+    exists f,
+      repair_eject_side c = Some f /\
+      chain_wf KOnly f /\ chain_ends_green f /\ chain_leveled k f /\
+      cchain_seq f = cchain_seq c.
+Proof.
+  intros A k c Hwf Hl Hsib.
+  destruct c as [|p rest|l r].
+  - exists CEmpty. cbn.
+    repeat split; reflexivity.
+  - cbn [repair_eject_side].
+    destruct (@repair_packet_total A KOnly k p rest Hwf Hl)
+      as [f [Hmk [_ [Hw [Hg [Hl' Hs]]]]]].
+    exists f. tauto.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct r as [|pr rr|? ?]; cbn [is_single] in Hrs; try discriminate.
+    cbn [repair_eject_side].
+    destruct (@repair_packet_total A KRight k pr rr Hrw Hlr)
+      as [f [Hmk [Hsf [Hw [Hg [Hl' Hs]]]]]].
+    rewrite Hmk.
+    eexists. split; [reflexivity |].
+    split; [| split; [| split]].
+    + cbn [chain_wf].
+      split; [exact Hls |]. split; [exact Hsf |].
+      split; [exact Hlw | exact Hw].
+    + cbn [chain_ends_green].
+      split; [exact (Hsib _ _ eq_refl) | exact Hg].
+    + cbn [chain_leveled]. split; [exact Hll | exact Hl'].
+    + rewrite (cchain_seq_pair l f),
+        (cchain_seq_pair l (CSingle pr rr)), Hs.
+      reflexivity.
+Qed.
