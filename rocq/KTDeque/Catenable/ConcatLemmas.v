@@ -245,3 +245,98 @@ Proof.
     + exact (cad_concat_core_total Hwfd Hgd Hwfe Hge
                ltac:(discriminate) ltac:(discriminate)).
 Qed.
+
+(* ========================================================================== *)
+(* Buffer decomposition toolkit (for the Case-1 builders).                     *)
+(* ========================================================================== *)
+
+Lemma buf_pop2_inv :
+  forall (X : Type) (b : buffer X) (x y : X) (r : buffer X),
+    buf_pop2 b = Some (x, y, r) -> b = x :: y :: r.
+Proof.
+  intros X b x y r H.
+  destruct b as [|a [|a' b']]; cbn in H; try discriminate.
+  injection H as <- <- <-. reflexivity.
+Qed.
+
+Lemma buf_pop2_total :
+  forall (X : Type) (b : buffer X),
+    2 <= length b -> exists x y r, buf_pop2 b = Some (x, y, r).
+Proof.
+  intros X [|a [|a' b']] H; cbn in H; try lia.
+  repeat eexists.
+Qed.
+
+Lemma buf_eject2_inv :
+  forall (X : Type) (b : buffer X) (i : buffer X) (y z : X),
+    buf_eject2 b = Some (i, y, z) -> b = i ++ [y; z].
+Proof.
+  intros X b i y z H.
+  unfold buf_eject2 in H.
+  destruct (rev b) as [|z0 [|y0 r]] eqn:Hr; try discriminate.
+  injection H as <- <- <-.
+  rewrite <- (rev_involutive b), Hr.
+  cbn [rev]. rewrite <- app_assoc. reflexivity.
+Qed.
+
+Lemma buf_eject2_total :
+  forall (X : Type) (b : buffer X),
+    2 <= length b -> exists i y z, buf_eject2 b = Some (i, y, z).
+Proof.
+  intros X b H.
+  unfold buf_eject2.
+  destruct (rev b) as [|z0 [|y0 r]] eqn:Hr.
+  - apply (f_equal (@length X)) in Hr. rewrite length_rev in Hr. cbn in Hr. lia.
+  - apply (f_equal (@length X)) in Hr. rewrite length_rev in Hr. cbn in Hr. lia.
+  - repeat eexists.
+Qed.
+
+Lemma buf_eject3_inv :
+  forall (X : Type) (b : buffer X) (i : buffer X) (x y z : X),
+    buf_eject3 b = Some (i, x, y, z) -> b = i ++ [x; y; z].
+Proof.
+  intros X b i x y z H.
+  unfold buf_eject3 in H.
+  destruct (rev b) as [|c [|bb [|a r]]] eqn:Hr; try discriminate.
+  injection H as <- <- <- <-.
+  rewrite <- (rev_involutive b), Hr.
+  cbn [rev]. rewrite <- !app_assoc. reflexivity.
+Qed.
+
+Lemma buf_eject3_total :
+  forall (X : Type) (b : buffer X),
+    3 <= length b -> exists i x y z, buf_eject3 b = Some (i, x, y, z).
+Proof.
+  intros X b H.
+  unfold buf_eject3.
+  destruct (rev b) as [|c [|bb [|a r]]] eqn:Hr;
+    try (apply (f_equal (@length X)) in Hr; rewrite length_rev in Hr;
+         cbn in Hr; lia).
+  repeat eexists.
+Qed.
+
+Lemma buf_all_wf_app_inv :
+  forall A (a b : buffer (stored A)),
+    buf_stored_all_wf (a ++ b) ->
+    buf_stored_all_wf a /\ buf_stored_all_wf b.
+Proof.
+  intros A a b H. induction a as [|x r IH]; cbn in *.
+  - split; [exact I | exact H].
+  - destruct H as [Hx Hr]. destruct (IH Hr) as [Ha Hb].
+    repeat split; assumption.
+Qed.
+
+Lemma buf_all_wf_app :
+  forall A (a b : buffer (stored A)),
+    buf_stored_all_wf a -> buf_stored_all_wf b ->
+    buf_stored_all_wf (a ++ b).
+Proof. intros A a b. apply buf_all_stored_wf_app. Qed.
+
+(** Length of the eject2 remainder. *)
+Lemma buf_eject2_length :
+  forall (X : Type) (b i : buffer X) (y z : X),
+    buf_eject2 b = Some (i, y, z) -> length b = length i + 2.
+Proof.
+  intros X b i y z H. apply buf_eject2_inv in H. subst b.
+  rewrite length_app. cbn. lia.
+Qed.
