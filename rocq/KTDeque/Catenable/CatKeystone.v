@@ -1,11 +1,14 @@
 (** * KTDeque.Catenable.CatKeystone — the catenable keystone (Phase 4b).
 
-    Top-down per rebuild-plan methodology rule 6, exactly as the deque
-    keystone (DequePtr/DequeKeystone.v) was built: the per-operation
-    obligations below are [Admitted] SCAFFOLDING on the [rebuild] branch; the
-    headline theorems are proven FROM them, validating the architecture, and
-    [Print Assumptions] exposes the admit set as the to-do list.  CLOSURE =
-    zero admits + clean Print Assumptions.
+    CLOSED 2026-06-11: zero admits; all six [cat_keystone_*] theorems report
+    "Closed under the global context".  Built top-down per rebuild-plan
+    methodology rule 6, exactly as the deque keystone
+    (DequePtr/DequeKeystone.v): the per-operation obligations started as
+    [Admitted] scaffolding and were discharged through ConcatLemmas (regular
+    concat), SRLemmas (semiregular concat, Lemma 6.2's weak half), PopLemmas
+    (raw removals) and RepairLemmas (§6 red-terminal repair), under the
+    three-clause invariant J = chain_wf /\ chain_ends_green /\
+    chain_leveled 0 grown in place in Color.v.
 
     This v1 states the FUNCTIONAL keystone — KT99 §6 Theorem 6.1's content:
     every operation is total on regular ([J]) inputs, preserves [J], and has
@@ -19,18 +22,18 @@
     structural argument is already on record (every element movement in
     Ops.v is constant-bounded; buffers instantiate to the proven kt4 deque).
 
-    Expected discharge notes (from the construction):
-    - push/inject sequence correctness needs [J]'s sizes (pushing onto the
+    Discharge notes (as built):
+    - push/inject sequence correctness uses [J]'s sizes (pushing onto the
       suffix of an empty-prefix node is front-correct only when childless);
-    - pop/eject totality needs the popped element to be [SGround] — a
-      level-0 fact, so [J] is expected to grow its stratification clause
-      here (the deliberate omission recorded in Color.v). *)
+    - pop/eject totality needs the popped element to be [SGround] — the
+      level-0 fact delivered by [chain_leveled]'s stratification, which
+      also forces the repair-level cells to be [SSmall]/[SBig]. *)
 
 From Stdlib Require Import List Arith.
 Import ListNotations.
 From KTDeque.Common Require Import Prelude.
 From KTDeque.Catenable Require Import Model Color Ops SeqLemmas WfLemmas
-  ConcatLemmas.
+  ConcatLemmas PopLemmas SRLemmas RepairLemmas.
 
 Set Implicit Arguments.
 
@@ -109,7 +112,44 @@ Lemma cad_pop_total_J_seq :
       cad_pop d = Some (x, d') /\
       J d' /\
       cad_to_list d = x :: cad_to_list d'.
-Proof. Admitted.
+Proof.
+  intros A d [Hwf [Hg Hl]] Hne.
+  unfold cad_pop.
+  destruct d as [|p r|l r]; [exfalso; apply Hne; reflexivity | |].
+  - destruct (pop_raw_only_total Hwf Hg Hl)
+      as [x [c' [Hpop [Hxw [Hxl [Hwc' [Hlc' [Hseq Hnp]]]]]]]].
+    rewrite Hpop.
+    destruct x as [a|b|p2 d2 s2];
+      [| cbn [stored_leveled] in Hxl; contradiction
+       | cbn [stored_leveled] in Hxl; contradiction].
+    destruct (repair_pop_side_total Hwc' Hlc'
+                ltac:(intros l2 r2 Heq; rewrite Heq in Hnp;
+                      contradiction))
+      as [f [Hrep [Hw [Hg' [Hl' Hs']]]]].
+    rewrite Hrep.
+    exists a, f.
+    split; [reflexivity |].
+    split.
+    + split; [exact Hw |]. split; [exact Hg' | exact Hl'].
+    + unfold cad_to_list. rewrite Hseq, Hs'. reflexivity.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct (pop_raw_pair_total Hls Hrs Hlw Hrw Hgl Hgr Hll Hlr)
+      as [x [c' [Hpop [Hxw [Hxl [Hwc' [Hlc' [Hseq Hsib]]]]]]]].
+    rewrite Hpop.
+    destruct x as [a|b|p2 d2 s2];
+      [| cbn [stored_leveled] in Hxl; contradiction
+       | cbn [stored_leveled] in Hxl; contradiction].
+    destruct (repair_pop_side_total Hwc' Hlc' Hsib)
+      as [f [Hrep [Hw [Hg' [Hl' Hs']]]]].
+    rewrite Hrep.
+    exists a, f.
+    split; [reflexivity |].
+    split.
+    + split; [exact Hw |]. split; [exact Hg' | exact Hl'].
+    + unfold cad_to_list. rewrite Hseq, Hs'. reflexivity.
+Qed.
 
 Lemma cad_eject_total_J_seq :
   forall A (d : cadeque A),
@@ -118,7 +158,44 @@ Lemma cad_eject_total_J_seq :
       cad_eject d = Some (d', x) /\
       J d' /\
       cad_to_list d = cad_to_list d' ++ [x].
-Proof. Admitted.
+Proof.
+  intros A d [Hwf [Hg Hl]] Hne.
+  unfold cad_eject.
+  destruct d as [|p r|l r]; [exfalso; apply Hne; reflexivity | |].
+  - destruct (eject_raw_only_total Hwf Hg Hl)
+      as [c' [x [Hpop [Hxw [Hxl [Hwc' [Hlc' [Hseq Hnp]]]]]]]].
+    rewrite Hpop.
+    destruct x as [a|b|p2 d2 s2];
+      [| cbn [stored_leveled] in Hxl; contradiction
+       | cbn [stored_leveled] in Hxl; contradiction].
+    destruct (repair_eject_side_total Hwc' Hlc'
+                ltac:(intros l2 r2 Heq; rewrite Heq in Hnp;
+                      contradiction))
+      as [f [Hrep [Hw [Hg' [Hl' Hs']]]]].
+    rewrite Hrep.
+    exists f, a.
+    split; [reflexivity |].
+    split.
+    + split; [exact Hw |]. split; [exact Hg' | exact Hl'].
+    + unfold cad_to_list. rewrite Hseq, Hs'. reflexivity.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct (eject_raw_pair_total Hls Hrs Hlw Hrw Hgl Hgr Hll Hlr)
+      as [c' [x [Hpop [Hxw [Hxl [Hwc' [Hlc' [Hseq Hsib]]]]]]]].
+    rewrite Hpop.
+    destruct x as [a|b|p2 d2 s2];
+      [| cbn [stored_leveled] in Hxl; contradiction
+       | cbn [stored_leveled] in Hxl; contradiction].
+    destruct (repair_eject_side_total Hwc' Hlc' Hsib)
+      as [f [Hrep [Hw [Hg' [Hl' Hs']]]]].
+    rewrite Hrep.
+    exists f, a.
+    split; [reflexivity |].
+    split.
+    + split; [exact Hw |]. split; [exact Hg' | exact Hl'].
+    + unfold cad_to_list. rewrite Hseq, Hs'. reflexivity.
+Qed.
 
 (* ========================================================================== *)
 (* The functional keystone: §6 Theorem 6.1 for this implementation.            *)
