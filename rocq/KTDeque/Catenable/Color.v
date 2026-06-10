@@ -185,19 +185,105 @@ with chain_ends_green {A : Type} (c : cchain A) : Prop :=
   | CPair l r => chain_ends_green l /\ chain_ends_green r
   end.
 
+(* ========================================================================== *)
+(* Level stratification (J v2, grown in place for pop/eject).                  *)
+(*                                                                              *)
+(* A node at level k holds level-k stored cells in its buffers; its child      *)
+(* chain's roots sit at level k+1; a packet's tail node sits body_depth        *)
+(* levels below its head (each body step descends one level).  SGround is      *)
+(* exactly the level-0 cell — this is what makes [cad_pop]'s SGround match     *)
+(* total on regular inputs.  A level-(k+1) cell contains level-k cells, so     *)
+(* repair's buffer splices (child cell contents into the parent's buffers)     *)
+(* are level-correct by construction.                                          *)
+(* ========================================================================== *)
+
+Fixpoint body_depth {A : Type} (b : cbody A) : nat :=
+  match b with
+  | BHole => 0
+  | BSingle _ b' => S (body_depth b')
+  | BPairY _ b' _ => S (body_depth b')
+  | BPairO _ _ b' => S (body_depth b')
+  end.
+
+Fixpoint stored_leveled {A : Type} (k : nat) (s : stored A) : Prop :=
+  match s with
+  | SGround _ => k = 0
+  | SSmall b =>
+      match k with
+      | 0 => False
+      | S k' =>
+          (fix all (l : list (stored A)) : Prop :=
+             match l with
+             | [] => True
+             | x :: r => stored_leveled k' x /\ all r
+             end) b
+      end
+  | SBig p c q =>
+      match k with
+      | 0 => False
+      | S k' =>
+          (fix all (l : list (stored A)) : Prop :=
+             match l with
+             | [] => True
+             | x :: r => stored_leveled k' x /\ all r
+             end) p /\
+          (fix all (l : list (stored A)) : Prop :=
+             match l with
+             | [] => True
+             | x :: r => stored_leveled k' x /\ all r
+             end) q /\
+          chain_leveled (S k') c
+      end
+  end
+with cnode_leveled {A : Type} (k : nat) (n : cnode A) : Prop :=
+  match n with
+  | Node _ p s =>
+      (fix all (l : list (stored A)) : Prop :=
+         match l with
+         | [] => True
+         | x :: r => stored_leveled k x /\ all r
+         end) p /\
+      (fix all (l : list (stored A)) : Prop :=
+         match l with
+         | [] => True
+         | x :: r => stored_leveled k x /\ all r
+         end) s
+  end
+with cbody_leveled {A : Type} (k : nat) (b : cbody A) : Prop :=
+  match b with
+  | BHole => True
+  | BSingle n b' => cnode_leveled k n /\ cbody_leveled (S k) b'
+  | BPairY n b' rc =>
+      cnode_leveled k n /\ cbody_leveled (S k) b' /\
+      chain_leveled (S k) rc
+  | BPairO n lc b' =>
+      cnode_leveled k n /\ chain_leveled (S k) lc /\
+      cbody_leveled (S k) b'
+  end
+with chain_leveled {A : Type} (k : nat) (c : cchain A) : Prop :=
+  match c with
+  | CEmpty => True
+  | CSingle (Pkt b n) rest =>
+      cbody_leveled k b /\
+      cnode_leveled (k + body_depth b) n /\
+      chain_leveled (S (k + body_depth b)) rest
+  | CPair l r => chain_leveled k l /\ chain_leveled k r
+  end.
+
 (** §6 regularity, packaged: a catenable deque is semiregular by [chain_wf]
     (red packets force green child chains; orange's parked child is a green
-    path) and REGULAR when additionally every top-level preferred path is
-    green ([chain_ends_green]). *)
+    path), REGULAR when additionally every top-level preferred path is
+    green ([chain_ends_green]), and stratified ([chain_leveled 0]) so that
+    the elements reachable at the top are exactly the [SGround]s. *)
 Definition J {A : Type} (d : cadeque A) : Prop :=
-  chain_wf KOnly d /\ chain_ends_green d.
+  chain_wf KOnly d /\ chain_ends_green d /\ chain_leveled 0 d.
 
 (* ========================================================================== *)
 (* Basic facts.                                                                *)
 (* ========================================================================== *)
 
 Lemma empty_J : forall A, J (@cad_empty A).
-Proof. intros A. split; cbn; exact I. Qed.
+Proof. intros A. split; [cbn; exact I | split; cbn; exact I]. Qed.
 
 (** A childless node is green, whatever its buffers. *)
 Lemma node_color_no_child :

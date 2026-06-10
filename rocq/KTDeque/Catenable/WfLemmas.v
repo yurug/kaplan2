@@ -946,3 +946,183 @@ Proof.
     split; [cbn; lia|]. split; [exact Hpw|].
     cbn. rewrite !app_nil_r. reflexivity.
 Qed.
+
+(* ========================================================================== *)
+(* Level stratification toolkit (J v2): the ops preserve [chain_leveled].      *)
+(* ========================================================================== *)
+
+Definition buf_all_leveled {A : Type} (k : nat) (b : buffer (stored A))
+    : Prop :=
+  (fix all (l : list (stored A)) : Prop :=
+     match l with
+     | [] => True
+     | x :: r => stored_leveled k x /\ all r
+     end) b.
+
+Lemma buf_all_leveled_app :
+  forall A (k : nat) (a b : buffer (stored A)),
+    buf_all_leveled k a -> buf_all_leveled k b ->
+    buf_all_leveled k (a ++ b).
+Proof.
+  intros A k a b Ha Hb. induction a as [|x r IH]; cbn in *.
+  - exact Hb.
+  - destruct Ha as [Hx Hr]. split; [exact Hx | exact (IH Hr)].
+Qed.
+
+Lemma buf_all_leveled_app_inv :
+  forall A (k : nat) (a b : buffer (stored A)),
+    buf_all_leveled k (a ++ b) ->
+    buf_all_leveled k a /\ buf_all_leveled k b.
+Proof.
+  intros A k a b H. induction a as [|x r IH]; cbn in *.
+  - split; [exact I | exact H].
+  - destruct H as [Hx Hr]. destruct (IH Hr) as [Ha Hb].
+    repeat split; assumption.
+Qed.
+
+Lemma node_push_leveled :
+  forall A (k : nat) (x : stored A) (n : cnode A),
+    stored_leveled k x -> cnode_leveled k n ->
+    cnode_leveled k (node_push x n).
+Proof.
+  intros A k x [kd p s] Hx Hn.
+  cbn [cnode_leveled] in Hn. destruct Hn as [Hp Hs].
+  destruct p as [|h t]; cbn [node_push cnode_leveled].
+  - split; [exact I |]. cbn. split; [exact Hx | exact Hs].
+  - split; [| exact Hs]. cbn. split; [exact Hx | exact Hp].
+Qed.
+
+Lemma node_inject_leveled :
+  forall A (k : nat) (n : cnode A) (x : stored A),
+    cnode_leveled k n -> stored_leveled k x ->
+    cnode_leveled k (node_inject n x).
+Proof.
+  intros A k [kd p s] x Hn Hx.
+  cbn [cnode_leveled] in Hn. destruct Hn as [Hp Hs].
+  assert (Hxx : buf_all_leveled k [x])
+    by (cbn; split; [exact Hx | exact I]).
+  destruct s as [|h t]; cbn [node_inject cnode_leveled].
+  - split; [exact (buf_all_leveled_app Hp Hxx) | exact I].
+  - split; [exact Hp |].
+    exact (buf_all_leveled_app (a:=h::t) Hs Hxx).
+Qed.
+
+Lemma root_and_child_leveled :
+  forall A (k : nat) (p : cpacket A) (rest : cchain A),
+    chain_leveled k (CSingle p rest) ->
+    cnode_leveled k (fst (root_and_child p rest)) /\
+    chain_leveled (S k) (snd (root_and_child p rest)).
+Proof.
+  intros A k [b n] rest H.
+  cbn [chain_leveled] in H. destruct H as [Hb [Hn Hr]].
+  destruct b as [|m b'|m b' rc|m lc b']; cbn [root_and_child fst snd].
+  - cbn [body_depth] in Hn, Hr.
+    rewrite Nat.add_0_r in Hn, Hr.
+    split; [exact Hn | exact Hr].
+  - cbn [cbody_leveled] in Hb. destruct Hb as [Hm Hb'].
+    cbn [body_depth] in Hn, Hr.
+    rewrite Nat.add_succ_r in Hn, Hr.
+    split; [exact Hm |].
+    cbn [chain_leveled].
+    split; [exact Hb' |]. split; [exact Hn | exact Hr].
+  - cbn [cbody_leveled] in Hb. destruct Hb as [Hm [Hb' Hrc]].
+    cbn [body_depth] in Hn, Hr.
+    rewrite Nat.add_succ_r in Hn, Hr.
+    split; [exact Hm |].
+    cbn [chain_leveled].
+    split; [| exact Hrc].
+    split; [exact Hb' |]. split; [exact Hn | exact Hr].
+  - cbn [cbody_leveled] in Hb. destruct Hb as [Hm [Hlc Hb']].
+    cbn [body_depth] in Hn, Hr.
+    rewrite Nat.add_succ_r in Hn, Hr.
+    split; [exact Hm |].
+    cbn [chain_leveled].
+    split; [exact Hlc |].
+    split; [exact Hb' |]. split; [exact Hn | exact Hr].
+Qed.
+
+Lemma tree_of_leveled :
+  forall A (k : nat) (n : cnode A) (child : cchain A),
+    cnode_leveled k n -> chain_leveled (S k) child ->
+    chain_leveled k (tree_of n child).
+Proof.
+  intros A k n child Hn Hc.
+  assert (Hhole : chain_leveled k (CSingle (Pkt BHole n) child)).
+  { cbn [chain_leveled cbody_leveled body_depth].
+    rewrite Nat.add_0_r.
+    split; [exact I |]. split; [exact Hn | exact Hc]. }
+  unfold tree_of.
+  destruct (node_color (chain_has_node child) n).
+  - exact Hhole.
+  - (* CY *)
+    destruct child as [|[rb rn] rrest|l r]; [exact Hhole | |].
+    + cbn [chain_leveled] in Hc. destruct Hc as [Hrb [Hrn Hrr]].
+      cbn [chain_leveled cbody_leveled body_depth].
+      rewrite !Nat.add_succ_r.
+      split; [split; [exact Hn | exact Hrb] |].
+      split; [exact Hrn | exact Hrr].
+    + destruct l as [|[lb ln] lrest|? ?]; [exact Hhole | | exact Hhole].
+      cbn [chain_leveled] in Hc. destruct Hc as [Hl Hr2].
+      cbn [chain_leveled] in Hl. destruct Hl as [Hlb [Hln Hlr]].
+      cbn [chain_leveled cbody_leveled body_depth].
+      rewrite !Nat.add_succ_r.
+      split; [split; [exact Hn | split; [exact Hlb | exact Hr2]] |].
+      split; [exact Hln | exact Hlr].
+  - (* CO *)
+    destruct child as [|[rb rn] rrest|l r]; [exact Hhole | |].
+    + cbn [chain_leveled] in Hc. destruct Hc as [Hrb [Hrn Hrr]].
+      cbn [chain_leveled cbody_leveled body_depth].
+      rewrite !Nat.add_succ_r.
+      split; [split; [exact Hn | exact Hrb] |].
+      split; [exact Hrn | exact Hrr].
+    + destruct r as [|[rb rn] rrest|? ?]; [exact Hhole | | exact Hhole].
+      cbn [chain_leveled] in Hc. destruct Hc as [Hl Hr2].
+      cbn [chain_leveled] in Hr2. destruct Hr2 as [Hrb [Hrn Hrr]].
+      cbn [chain_leveled cbody_leveled body_depth].
+      rewrite !Nat.add_succ_r.
+      split; [split; [exact Hn | split; [exact Hl | exact Hrb]] |].
+      split; [exact Hrn | exact Hrr].
+  - exact Hhole.
+Qed.
+
+Lemma push_chain_leveled :
+  forall A (s : stored A) (c : cchain A) (k : nat),
+    stored_leveled k s -> chain_leveled k c ->
+    chain_leveled k (push_chain s c).
+Proof.
+  intros A s c. induction c as [|p rest IH|l IHl r IHr]; intros k Hs Hc.
+  - cbn [push_chain chain_leveled cbody_leveled body_depth cnode_leveled].
+    rewrite Nat.add_0_r.
+    repeat split. exact Hs.
+  - cbn [push_chain]. unfold pkt_update.
+    destruct (root_and_child p rest) as [n child] eqn:Hrc.
+    pose proof (root_and_child_leveled Hc) as Hf.
+    rewrite Hrc in Hf. cbn [fst snd] in Hf.
+    destruct Hf as [Hn Hchild].
+    apply tree_of_leveled;
+      [apply node_push_leveled; assumption | exact Hchild].
+  - cbn [push_chain chain_leveled] in Hc |- *.
+    destruct Hc as [Hl Hr2].
+    split; [apply IHl; assumption | exact Hr2].
+Qed.
+
+Lemma inject_chain_leveled :
+  forall A (c : cchain A) (s : stored A) (k : nat),
+    chain_leveled k c -> stored_leveled k s ->
+    chain_leveled k (inject_chain c s).
+Proof.
+  intros A c s. induction c as [|p rest IH|l IHl r IHr]; intros k Hc Hs.
+  - cbn [inject_chain chain_leveled cbody_leveled body_depth cnode_leveled].
+    rewrite Nat.add_0_r.
+    repeat split. exact Hs.
+  - cbn [inject_chain]. unfold pkt_update.
+    destruct (root_and_child p rest) as [n child] eqn:Hrc.
+    pose proof (root_and_child_leveled Hc) as Hf.
+    rewrite Hrc in Hf. cbn [fst snd] in Hf.
+    destruct Hf as [Hn Hchild].
+    apply tree_of_leveled;
+      [apply node_inject_leveled; assumption | exact Hchild].
+  - cbn [inject_chain chain_leveled] in Hc |- *.
+    destruct Hc as [Hl Hr2].
+    split; [exact Hl | apply IHr; assumption].
+Qed.

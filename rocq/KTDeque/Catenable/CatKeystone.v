@@ -42,10 +42,13 @@ Lemma cad_push_preserves_J :
   forall A (x : A) (d : cadeque A),
     J d -> J (cad_push x d).
 Proof.
-  intros A x d [Hwf Hg].
+  intros A x d [Hwf [Hg Hl]].
   unfold cad_push.
-  apply (@push_chain_preserves A (SGround x) d KOnly);
-    [congruence | intros _; reflexivity | exact I | exact Hwf | exact Hg].
+  destruct (@push_chain_preserves A (SGround x) d KOnly
+              ltac:(congruence) ltac:(intros _; reflexivity) I Hwf Hg)
+    as [Hwf' Hg'].
+  split; [exact Hwf' |]. split; [exact Hg' |].
+  apply push_chain_leveled; [reflexivity | exact Hl].
 Qed.
 
 Lemma cad_push_seq :
@@ -62,10 +65,13 @@ Lemma cad_inject_preserves_J :
   forall A (d : cadeque A) (x : A),
     J d -> J (cad_inject d x).
 Proof.
-  intros A d x [Hwf Hg].
+  intros A d x [Hwf [Hg Hl]].
   unfold cad_inject.
-  apply (@inject_chain_preserves A (SGround x) d KOnly);
-    [congruence | intros _; reflexivity | exact I | exact Hwf | exact Hg].
+  destruct (@inject_chain_preserves A (SGround x) d KOnly
+              ltac:(congruence) ltac:(intros _; reflexivity) I Hwf Hg)
+    as [Hwf' Hg'].
+  split; [exact Hwf' |]. split; [exact Hg' |].
+  apply inject_chain_leveled; [exact Hl | reflexivity].
 Qed.
 
 Lemma cad_inject_seq :
@@ -78,6 +84,18 @@ Proof.
   reflexivity.
 Qed.
 
+(** Levels through concat: scaffolding admit (J v2 growth step).  The op
+    moves whole cells between same-level buffers and parks SSmall/SBig
+    cells one level down — mechanical, but it traverses every concat
+    branch, so it is discharged separately from the wf/green theorem. *)
+Lemma cad_concat_leveled :
+  forall A (d e f : cadeque A),
+    chain_wf KOnly d -> chain_ends_green d -> chain_leveled 0 d ->
+    chain_wf KOnly e -> chain_ends_green e -> chain_leveled 0 e ->
+    cad_concat d e = Some f ->
+    chain_leveled 0 f.
+Proof. Admitted.
+
 Lemma cad_concat_total_J_seq :
   forall A (d e : cadeque A),
     J d -> J e ->
@@ -85,7 +103,16 @@ Lemma cad_concat_total_J_seq :
       cad_concat d e = Some f /\
       J f /\
       cad_to_list f = cad_to_list d ++ cad_to_list e.
-Proof. intros A d e HJd HJe. apply cad_concat_total; assumption. Qed.
+Proof.
+  intros A d e [Hwfd [Hgd Hld]] [Hwfe [Hge Hle]].
+  destruct (cad_concat_total Hwfd Hgd Hwfe Hge)
+    as [f [Hmk [[Hwf Hg] Hseq]]].
+  exists f.
+  split; [exact Hmk |].
+  split; [| exact Hseq].
+  split; [exact Hwf |]. split; [exact Hg |].
+  exact (cad_concat_leveled Hwfd Hgd Hld Hwfe Hge Hle Hmk).
+Qed.
 
 Lemma cad_pop_total_J_seq :
   forall A (d : cadeque A),

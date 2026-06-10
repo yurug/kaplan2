@@ -2229,14 +2229,15 @@ Qed.
 
 Lemma cad_concat_total :
   forall A (d e : cadeque A),
-    J d -> J e ->
+    chain_wf KOnly d -> chain_ends_green d ->
+    chain_wf KOnly e -> chain_ends_green e ->
     exists f,
       cad_concat d e = Some f /\
-      J f /\
+      (chain_wf KOnly f /\ chain_ends_green f) /\
       cad_to_list f = cad_to_list d ++ cad_to_list e.
 Proof.
-  intros A d e [Hwfd Hgd] [Hwfe Hge].
-  unfold cad_concat, J, cad_to_list.
+  intros A d e Hwfd Hgd Hwfe Hge.
+  unfold cad_concat, cad_to_list.
   destruct d as [|dp drest|dl dr].
   { exists e. split; [reflexivity|].
     split; [split; [exact Hwfe | exact Hge]|]. reflexivity. }
