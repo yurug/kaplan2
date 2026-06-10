@@ -1,7 +1,46 @@
 # SESSION_STATE — rebuild (Phase 4b in progress)
 
 ## ★ OVERNIGHT MISSION (2026-06-03, second night) ★
-PROGRESS-11: (A) DONE + (C) 2/5 DONE. RepairLemmas.v: repair_front_total
+PROGRESS-12: (C) ~90%% DONE. drain_both op restructured (no
+eject-after-pop: single rest double-shrinks its root via
+popej_rebundle_total — exactly one rank drop, J facts apply; pair rest
+drains components INDEPENDENTLY with recrown_{left,right}_dead for dead
+sides and a both-childless merge; optional back cell = the paper's
+d1'=empty one-cell path). PROVEN in RepairLemmas.v: repair_front_total,
+repair_back_total, popej_rebundle_total, recrown_{left,right}_dead,
+drain_both_total, repair_both_total. PopLemmas pair lemmas now export
+untouched-sibling greenness (c' = CPair l2 r2 -> ends of the other side)
+for the side dispatch; J wrappers project it away.
+REMAINING: (C-end) repair_packet_total: input chain_wf kd0
+(CSingle (Pkt body n) rest) + leveled k0 (NO ends); destruct the
+terminal colour clause (chain_wf gives CG \/ CR/\ends rest): identity
+path (colour CG -> Some (CSingle p rest), ends_green = the colour ✓);
+CR path: destructure packet clauses, dispatch on node_kind n: KLeft ->
+repair_front_total (disj left), KRight -> repair_back_total, KOnly ->
+destruct (8 <=? length s1): front (right conj via leb_le); else
+(8 <=? length p1): back; else repair_both_total. NOTE the op
+repair_packet matches `node_color (chain_has_node rest) n` FIRST — in
+the proof destruct that colour eqn and use the chain_wf clause to kill
+CY/CO (clause says CG-or-CR!). Then repair_pop_side_total: CEmpty ->
+Some CEmpty trivial J; CSingle -> repair_packet_total directly (input =
+pop_raw output: chain_wf KOnly + leveled, conclusion J + seq); CPair
+(CSingle pl rl) r -> repair_packet_total on (pl, rl) at kd0=KLeft —
+input wf from the pair clause, leveled from pair; result l' (wf KLeft,
+ENDS l', leveled, seq) -> Some (CPair l' r): J: is_single l' — hmm
+repair_packet's output: identity = CSingle ✓; front/back/both rebuild
+CSingle ✓ — ADD is_single f to repair_packet_total's conclusion (or
+derive: all paths produce CSingle — state it). ends (CPair l' r) =
+ends l' ✓ /\ ends r — from the pop pair lemma's NEW sibling conjunct
+(thread it as a hypothesis into repair_pop_side_total:
+`(forall l2 r2, c = CPair l2 r2 -> ends_green r2)`).
+eject mirror. THEN (D): cad_pop_total_J_seq: destruct d (CEmpty: seq
+nil contra); pop at k=0 via pop_raw_only_total/pop_raw_pair_total
+(x : stored_leveled 0 -> SGround by destruct+discriminate);
+unfold cad_pop; rewrite the pop eq; repair_pop_side_total; assemble
+J + seq (seq d = seq (SGround x0) ++ seq c' = x0 :: ...). Mirror eject.
+THEN delete the two Admitted in CatKeystone, Print Assumptions check =
+CLOSURE. Then the cost layer per the keystone file's notes.
+PROGRESS-11 (superseded): (A) DONE + (C) 2/5 DONE. RepairLemmas.v: repair_front_total
 and repair_back_total PROVEN (statements take the packet's destructured
 chain_wf/leveled clauses at the terminal's level j = k0 + body_depth
 body, conclude chain_wf kd0 / ends_green / leveled k0 / seq of the
