@@ -332,6 +332,26 @@ Lemma buf_all_wf_app :
     buf_stored_all_wf (a ++ b).
 Proof. intros A a b. apply buf_all_stored_wf_app. Qed.
 
+Lemma buf_stored_seq_cons :
+  forall A (x : stored A) (r : buffer (stored A)),
+    buf_stored_seq (x :: r) = stored_seq x ++ buf_stored_seq r.
+Proof. reflexivity. Qed.
+
+Lemma buf_stored_seq_nil :
+  forall A, buf_stored_seq (@nil (stored A)) = [].
+Proof. reflexivity. Qed.
+
+(** Normalize a sequence goal: split all buffer apps/conses, reduce empties,
+    right-associate. *)
+Ltac seq_normalize :=
+  repeat first
+    [ rewrite buf_stored_seq_app
+    | rewrite buf_stored_seq_cons
+    | rewrite buf_stored_seq_nil ];
+  cbn [cchain_seq stored_seq];
+  rewrite <- ?app_assoc, ?app_nil_r, ?app_nil_l;
+  try reflexivity.
+
 (** Length of the eject2 remainder. *)
 Lemma buf_eject2_length :
   forall (X : Type) (b i : buffer X) (y z : X),
@@ -391,4 +411,403 @@ Proof.
     destruct Hwf as [[_ [_ [_ [Hcol [_ [_ [Hlg _]]]]]]] _].
     unfold child_color_facts. cbn [chain_has_node].
     rewrite Hcol. split; [exact Hgreen | exact Hlg].
+Qed.
+
+(* ========================================================================== *)
+(* Case 1c/1d: the only-triple LEFT builder.                                   *)
+(* ========================================================================== *)
+
+(** The singleton chain [push_chain (SSmall b) CEmpty] is well-formed and
+    carries [b]'s sequence, given the stored floor. *)
+Lemma small_singleton_wf :
+  forall A (b : buffer (stored A)),
+    3 <= length b -> buf_stored_all_wf b ->
+    chain_wf KOnly (push_chain (SSmall b) CEmpty) /\
+    chain_ends_green (push_chain (SSmall b) CEmpty) /\
+    cchain_seq (push_chain (SSmall b) CEmpty) = buf_stored_seq b.
+Proof.
+  intros A b H3 Hw.
+  cbn [push_chain].
+  split; [| split].
+  - split; [exact I|]. split; [reflexivity|].
+    split.
+    + right. split; [reflexivity|]. right.
+      split; [reflexivity | cbn; lia].
+    + split.
+      * cbn. repeat split; [exact H3 | exact Hw].
+      * split; [left; reflexivity | exact I].
+  - reflexivity.
+  - cbn. rewrite !app_nil_r. reflexivity.
+Qed.
+
+Lemma make_left_only_total :
+  forall A (p1 : buffer (stored A)) (d1 : cchain A) (s1 : buffer (stored A)),
+    5 <= length p1 -> 5 <= length s1 ->
+    buf_stored_all_wf p1 -> buf_stored_all_wf s1 ->
+    chain_wf KOnly d1 ->
+    (d1 <> CEmpty ->
+       child_color_facts (gyor_of (Nat.min (length p1) (length s1))) d1) ->
+    exists t,
+      make_left_only p1 d1 s1 = Some t /\
+      is_single t = true /\
+      chain_wf KLeft t /\ chain_ends_green t /\
+      cchain_seq t
+      = buf_stored_seq p1 ++ cchain_seq d1 ++ buf_stored_seq s1.
+Proof.
+  intros A p1 d1 s1 Hp5 Hs5 Hpw Hsw Hd1 Hbundle.
+  unfold make_left_only.
+  destruct d1 as [|d1p d1rest|d1l d1r].
+  - (* 1d: childless *)
+    destruct (length s1 <=? 8) eqn:H8.
+    + (* small: move all but the last two across *)
+      destruct (@buf_eject2_total (stored A) s1 ltac:(lia))
+        as [s1' [y [z He2]]].
+      rewrite He2.
+      pose proof (buf_eject2_inv He2) as Hs1eq.
+      pose proof (buf_eject2_length He2) as Hlen.
+      subst s1.
+      destruct (buf_all_wf_app_inv Hsw) as [Hs1'w Hyzw].
+      cbn in Hyzw. destruct Hyzw as [Hyw [Hzw _]].
+      eexists. split; [reflexivity|].
+      split; [apply tree_of_is_single|].
+      assert (Hnode : node_color (chain_has_node (@CEmpty A))
+                        (Node KLeft (p1 ++ s1') [y; z]) = CG)
+        by (cbn [chain_has_node]; apply node_color_no_child).
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn; rewrite length_app; split; [lia | reflexivity]
+          | split;
+            [apply buf_all_wf_app; assumption
+            | cbn; repeat split; assumption]
+          | exact I
+          | unfold root_color_facts; rewrite Hnode; exact I].
+      * apply tree_of_ends_green; [exact I |].
+        rewrite Hnode. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq. seq_normalize.
+    + (* big: keep a stored middle *)
+      apply Nat.leb_gt in H8.
+      destruct s1 as [|a [|b [|c srest]]]; cbn in H8; try lia.
+      assert (Hsr : 2 <= length srest) by (cbn in Hs5, H8; lia).
+      destruct (@buf_eject2_total (stored A) srest Hsr)
+        as [smid [y [z He2]]].
+      rewrite He2.
+      pose proof (buf_eject2_inv He2) as Hsreq.
+      pose proof (buf_eject2_length He2) as Hlen.
+      subst srest.
+      cbn [buf_stored_all_wf] in Hsw.
+      destruct Hsw as [Haw [Hbw [Hcw Hrw]]].
+      destruct (buf_all_wf_app_inv Hrw) as [Hmidw Hyzw].
+      cbn in Hyzw. destruct Hyzw as [Hyw [Hzw _]].
+      assert (Hmid3 : 3 <= length smid) by (cbn in H8; lia).
+      destruct (small_singleton_wf Hmid3 Hmidw) as [Hcwf [Hcg Hcseq]].
+      eexists. split; [reflexivity|].
+      split; [apply tree_of_is_single|].
+      assert (Hnode :
+          node_color
+            (chain_has_node (push_chain (SSmall smid) (@CEmpty A)))
+            (Node KLeft (p1 ++ [a; b; c]) [y; z]) = CG).
+      { cbn [push_chain chain_has_node].
+        rewrite node_color_measure. unfold gyor_of.
+        cbn [node_measure]. rewrite length_app.
+        destruct (8 <=? length p1 + length [a; b; c]) eqn:HH;
+          [reflexivity | apply Nat.leb_gt in HH; cbn in HH; lia]. }
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; rewrite length_app;
+            split; [cbn; lia | reflexivity]
+          | split;
+            [apply buf_all_wf_app;
+              [assumption | cbn; repeat split; assumption]
+            | cbn; repeat split; assumption]
+          | exact Hcwf
+          | unfold root_color_facts; rewrite Hnode; exact I].
+      * apply tree_of_ends_green; [exact Hcwf |].
+        rewrite Hnode. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hcseq. seq_normalize.
+  - (* 1c, single child *)
+    specialize (Hbundle ltac:(discriminate)).
+    destruct (@buf_eject2_total (stored A) s1 ltac:(lia))
+      as [s1' [y [z He2]]].
+    rewrite He2.
+    pose proof (buf_eject2_inv He2) as Hs1eq.
+    pose proof (buf_eject2_length He2) as Hlen.
+    subst s1.
+    destruct (buf_all_wf_app_inv Hsw) as [Hs1'w Hyzw].
+    cbn in Hyzw. destruct Hyzw as [Hyw [Hzw _]].
+    assert (Hsm : stored_wf (SSmall s1'))
+      by (cbn; split; [lia | exact Hs1'w]).
+    (* The bundle colour cannot be red, and on a single child it gives the
+       child's greenness whenever it is CY or CO. *)
+    assert (Hgd1 :
+        gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))) = CG \/
+        chain_ends_green (CSingle d1p d1rest)).
+    { unfold child_color_facts in Hbundle.
+      destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+        [left; reflexivity | right; exact Hbundle
+        | right; exact (proj1 Hbundle) | contradiction]. }
+    pose proof (@inject_chain_preserves_wf A (SSmall s1')
+                  (CSingle d1p d1rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hsm Hd1) as Hwf'.
+    eexists. split; [reflexivity|].
+    split; [apply tree_of_is_single|].
+    assert (Hseqd1' :
+        cchain_seq (inject_chain (CSingle d1p d1rest) (SSmall s1'))
+        = cchain_seq (CSingle d1p d1rest) ++ buf_stored_seq s1').
+    { rewrite (inject_chain_seq (SSmall s1') Hd1). reflexivity. }
+    (* colour of the new node *)
+    destruct (node_color
+                (chain_has_node
+                   (inject_chain (CSingle d1p d1rest) (SSmall s1')))
+                (Node KLeft p1 [y; z])) eqn:Hnew.
+    + (* CG *)
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CY: the child must have been green-ended (single-child bundle) *)
+      destruct Hgd1 as [HgCG | Hge].
+      { (* bundle CG would force the new node green too *)
+        exfalso.
+        assert (Hm : gyor_rank (gyor_of (Nat.min (length p1)
+                       (length (s1' ++ [y; z]))))
+                     <= gyor_rank (gyor_of (length p1)))
+          by (apply gyor_of_mono; lia).
+        rewrite HgCG in Hm. cbn in Hm.
+        revert Hnew.
+        destruct (inject_chain (CSingle d1p d1rest) (SSmall s1'));
+          cbn [chain_has_node];
+          [ intros Hnew; rewrite node_color_no_child in Hnew; discriminate
+          | rewrite node_color_measure; cbn [node_measure];
+            intros Hnew; rewrite Hnew in Hm; cbn in Hm; lia
+          | rewrite node_color_measure; cbn [node_measure];
+            intros Hnew; rewrite Hnew in Hm; cbn in Hm; lia ]. }
+      destruct (@inject_chain_preserves A (SSmall s1')
+                  (CSingle d1p d1rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hsm Hd1 Hge)
+        as [_ Hge'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew.
+        unfold cont_green.
+        destruct (inject_chain (CSingle d1p d1rest) (SSmall s1')) eqn:Hi;
+          [exact I | exact Hge' |].
+        (* inject of a CSingle is single *)
+        exfalso. cbn [inject_chain] in Hi.
+        pose proof (pkt_update_is_single
+                      (fun n => node_inject n (SSmall s1')) d1p d1rest) as Hs.
+        rewrite Hi in Hs. cbn in Hs. discriminate.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CO: same single-child bundle story *)
+      destruct Hgd1 as [HgCG | Hge].
+      { exfalso.
+        assert (Hm : gyor_rank (gyor_of (Nat.min (length p1)
+                       (length (s1' ++ [y; z]))))
+                     <= gyor_rank (gyor_of (length p1)))
+          by (apply gyor_of_mono; lia).
+        rewrite HgCG in Hm. cbn in Hm.
+        revert Hnew.
+        destruct (inject_chain (CSingle d1p d1rest) (SSmall s1'));
+          cbn [chain_has_node];
+          [ intros Hnew; rewrite node_color_no_child in Hnew; discriminate
+          | rewrite node_color_measure; cbn [node_measure];
+            intros Hnew; rewrite Hnew in Hm; cbn in Hm; lia
+          | rewrite node_color_measure; cbn [node_measure];
+            intros Hnew; rewrite Hnew in Hm; cbn in Hm; lia ]. }
+      destruct (@inject_chain_preserves A (SSmall s1')
+                  (CSingle d1p d1rest) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hsm Hd1 Hge)
+        as [_ Hge'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf' |].
+        unfold root_color_facts. rewrite Hnew.
+        destruct (inject_chain (CSingle d1p d1rest) (SSmall s1')) eqn:Hi;
+          [exact I | exact I |].
+        exfalso. cbn [inject_chain] in Hi.
+        pose proof (pkt_update_is_single
+                      (fun n => node_inject n (SSmall s1')) d1p d1rest) as Hs.
+        rewrite Hi in Hs. cbn in Hs. discriminate.
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew.
+        unfold cont_green.
+        destruct (inject_chain (CSingle d1p d1rest) (SSmall s1')) eqn:Hi;
+          [exact I | exact Hge' |].
+        exfalso. cbn [inject_chain] in Hi.
+        pose proof (pkt_update_is_single
+                      (fun n => node_inject n (SSmall s1')) d1p d1rest) as Hs.
+        rewrite Hi in Hs. cbn in Hs. discriminate.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CR: impossible — the new rank dominates the non-red bundle rank *)
+      exfalso.
+      assert (Hg0 : gyor_of (Nat.min (length p1) (length (s1' ++ [y; z])))
+                    <> CR).
+      { unfold child_color_facts in Hbundle.
+        destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+          congruence. }
+      assert (Hm : gyor_rank (gyor_of (Nat.min (length p1)
+                     (length (s1' ++ [y; z]))))
+                   <= gyor_rank (gyor_of (length p1)))
+        by (apply gyor_of_mono; lia).
+      revert Hnew.
+      destruct (inject_chain (CSingle d1p d1rest) (SSmall s1'));
+        cbn [chain_has_node].
+      * intros Hnew. rewrite node_color_no_child in Hnew. discriminate.
+      * rewrite node_color_measure; cbn [node_measure].
+        intros Hnew. rewrite Hnew in Hm. cbn in Hm.
+        destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+          cbn in Hm; congruence || lia.
+      * rewrite node_color_measure; cbn [node_measure].
+        intros Hnew. rewrite Hnew in Hm. cbn in Hm.
+        destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+          cbn in Hm; congruence || lia.
+  - (* 1c, pair child *)
+    specialize (Hbundle ltac:(discriminate)).
+    destruct (@buf_eject2_total (stored A) s1 ltac:(lia))
+      as [s1' [y [z He2]]].
+    rewrite He2.
+    pose proof (buf_eject2_inv He2) as Hs1eq.
+    pose proof (buf_eject2_length He2) as Hlen.
+    subst s1.
+    destruct (buf_all_wf_app_inv Hsw) as [Hs1'w Hyzw].
+    cbn in Hyzw. destruct Hyzw as [Hyw [Hzw _]].
+    assert (Hsm : stored_wf (SSmall s1'))
+      by (cbn; split; [lia | exact Hs1'w]).
+    pose proof Hd1 as Hd1'. cbn [chain_wf] in Hd1'.
+    destruct Hd1' as [Hls [Hrs [Hl Hr]]].
+    pose proof (@inject_chain_preserves_wf A (SSmall s1')
+                  (CPair d1l d1r) KOnly
+                  ltac:(congruence) ltac:(discriminate) Hsm Hd1) as Hwf'.
+    assert (Hseqd1' :
+        cchain_seq (inject_chain (CPair d1l d1r) (SSmall s1'))
+        = cchain_seq (CPair d1l d1r) ++ buf_stored_seq s1').
+    { rewrite (inject_chain_seq (SSmall s1') Hd1). reflexivity. }
+    cbn [inject_chain] in Hwf', Hseqd1' |- *.
+    eexists. split; [reflexivity|].
+    split; [apply tree_of_is_single|].
+    destruct (node_color
+                (chain_has_node
+                   (CPair d1l (inject_chain d1r (SSmall s1'))))
+                (Node KLeft p1 [y; z])) eqn:Hnew.
+    + (* CG *)
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew. exact I.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CY: the continuation is the (unchanged) left side *)
+      assert (HgL : chain_ends_green d1l).
+      { unfold child_color_facts in Hbundle.
+        destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))))
+          eqn:Hg0.
+        - exfalso.
+          assert (Hm : 3 <= gyor_rank (gyor_of (length p1))).
+          { pose proof (@gyor_of_mono
+                          (Nat.min (length p1) (length (s1' ++ [y; z])))
+                          (length p1) ltac:(lia)) as Hm.
+            rewrite Hg0 in Hm. cbn in Hm. exact Hm. }
+          revert Hnew. cbn [chain_has_node].
+          rewrite node_color_measure; cbn [node_measure].
+          intros Hnew. rewrite Hnew in Hm. cbn in Hm. lia.
+        - cbn [cont_green] in Hbundle. exact Hbundle.
+        - destruct Hbundle as [_ Hpl]. exact Hpl.
+        - contradiction.
+      }
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnew; exact I].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew. cbn [cont_green]. exact HgL.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CO: bundle must be CO — gives parked-left green and right-side green *)
+      assert (HgCO : gyor_of (Nat.min (length p1) (length (s1' ++ [y; z])))
+                     = CO \/
+                     gyor_of (Nat.min (length p1) (length (s1' ++ [y; z])))
+                     = CY).
+      { destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))))
+          eqn:Hg0.
+        - exfalso.
+          assert (Hm : 3 <= gyor_rank (gyor_of (length p1))).
+          { pose proof (@gyor_of_mono
+                          (Nat.min (length p1) (length (s1' ++ [y; z])))
+                          (length p1) ltac:(lia)) as Hm.
+            rewrite Hg0 in Hm. cbn in Hm. exact Hm. }
+          revert Hnew. cbn [chain_has_node].
+          rewrite node_color_measure; cbn [node_measure].
+          intros Hnew. rewrite Hnew in Hm. cbn in Hm. lia.
+        - right; reflexivity.
+        - left; reflexivity.
+        - contradiction. }
+      (* In the CY-bundle case the new node cannot be CO (rank would drop). *)
+      destruct HgCO as [HgCO | HgCY].
+      2: { exfalso.
+           assert (Hm : 2 <= gyor_rank (gyor_of (length p1))).
+           { pose proof (@gyor_of_mono
+                           (Nat.min (length p1) (length (s1' ++ [y; z])))
+                           (length p1) ltac:(lia)) as Hm.
+             rewrite HgCY in Hm. cbn in Hm. exact Hm. }
+           revert Hnew. cbn [chain_has_node].
+           rewrite node_color_measure; cbn [node_measure].
+           intros Hnew. rewrite Hnew in Hm. cbn in Hm. lia. }
+      unfold child_color_facts in Hbundle. rewrite HgCO in Hbundle.
+      destruct Hbundle as [HgR HgL].
+      cbn [cont_green] in HgR.
+      (* strong inject on the right component for its greenness *)
+      assert (Hrne : d1r <> CEmpty)
+        by (destruct d1r; cbn in Hrs; congruence).
+      destruct (@inject_chain_preserves A (SSmall s1') d1r KRight
+                  ltac:(congruence)
+                  ltac:(intros Heq; exfalso; apply Hrne; exact Heq)
+                  Hsm Hr HgR) as [_ HgR'].
+      split; [| split].
+      * apply tree_of_wf;
+          [reflexivity
+          | cbn [node_sizes]; split; [lia | reflexivity]
+          | split; [exact Hpw | cbn; repeat split; assumption]
+          | exact Hwf'
+          | unfold root_color_facts; rewrite Hnew; exact HgL].
+      * apply tree_of_ends_green; [exact Hwf' |].
+        rewrite Hnew. cbn [cont_green]. exact HgR'.
+      * rewrite tree_of_seq, cnode_seq_eq, Hseqd1'. seq_normalize.
+    + (* CR impossible *)
+      exfalso.
+      assert (Hg0 : gyor_of (Nat.min (length p1) (length (s1' ++ [y; z])))
+                    <> CR).
+      { unfold child_color_facts in Hbundle.
+        destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+          congruence. }
+      assert (Hm : gyor_rank (gyor_of (Nat.min (length p1)
+                     (length (s1' ++ [y; z]))))
+                   <= gyor_rank (gyor_of (length p1)))
+        by (apply gyor_of_mono; lia).
+      revert Hnew. cbn [chain_has_node].
+      rewrite node_color_measure; cbn [node_measure].
+      intros Hnew. rewrite Hnew in Hm. cbn in Hm.
+      destruct (gyor_of (Nat.min (length p1) (length (s1' ++ [y; z]))));
+        cbn in Hm; congruence || lia.
 Qed.
