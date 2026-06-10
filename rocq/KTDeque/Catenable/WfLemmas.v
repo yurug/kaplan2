@@ -863,3 +863,86 @@ Proof.
         | intros Heq; subst r; cbn in Hrs; congruence
         | exact Hs | exact Hr].
 Qed.
+
+(* ========================================================================== *)
+(* Folded pushes/injects (Cases 2/3 small) and degenerate-shape facts.         *)
+(* ========================================================================== *)
+
+Definition buf_stored_all_wf {A : Type} (b : buffer (stored A)) : Prop :=
+  (fix all (l : list (stored A)) : Prop :=
+     match l with [] => True | x :: r => stored_wf x /\ all r end) b.
+
+Lemma fold_push_preserves :
+  forall A (l : buffer (stored A)) (c : cchain A),
+    buf_stored_all_wf l ->
+    chain_wf KOnly c ->
+    chain_ends_green c ->
+    chain_wf KOnly (fold_right push_chain c l) /\
+    chain_ends_green (fold_right push_chain c l) /\
+    cchain_seq (fold_right push_chain c l)
+    = buf_stored_seq l ++ cchain_seq c.
+Proof.
+  intros A l. induction l as [|x r IH]; intros c Hl Hwf Hg.
+  - cbn. repeat split; assumption.
+  - destruct Hl as [Hx Hr].
+    destruct (IH c Hr Hwf Hg) as [Hwf' [Hg' Hseq']].
+    cbn [fold_right].
+    destruct (@push_chain_preserves A x (fold_right push_chain c r) KOnly)
+      as [Hwf'' Hg''];
+      [congruence | intros _; reflexivity | exact Hx | exact Hwf' | exact Hg' |].
+    repeat split; [exact Hwf'' | exact Hg'' |].
+    rewrite (push_chain_seq x Hwf').
+    rewrite Hseq'. cbn [buf_stored_seq]. rewrite app_assoc. reflexivity.
+Qed.
+
+Lemma fold_inject_preserves :
+  forall A (l : buffer (stored A)) (c : cchain A),
+    buf_stored_all_wf l ->
+    chain_wf KOnly c ->
+    chain_ends_green c ->
+    chain_wf KOnly (fold_left inject_chain l c) /\
+    chain_ends_green (fold_left inject_chain l c) /\
+    cchain_seq (fold_left inject_chain l c)
+    = cchain_seq c ++ buf_stored_seq l.
+Proof.
+  intros A l. induction l as [|x r IH]; intros c Hl Hwf Hg.
+  - cbn. rewrite app_nil_r. repeat split; assumption.
+  - destruct Hl as [Hx Hr].
+    cbn [fold_left].
+    destruct (@inject_chain_preserves A x c KOnly) as [Hwf' Hg'];
+      [congruence | intros _; reflexivity | exact Hx | exact Hwf | exact Hg |].
+    destruct (IH (inject_chain c x) Hr Hwf' Hg') as [Hwf'' [Hg'' Hseq'']].
+    repeat split; [exact Hwf'' | exact Hg'' |].
+    rewrite Hseq''. rewrite (inject_chain_seq x Hwf).
+    cbn [buf_stored_seq]. rewrite <- app_assoc. reflexivity.
+Qed.
+
+(** A degenerate top (single childless one-sided only triple): its buffer is
+    nonempty, all-wf, and carries the whole sequence. *)
+Lemma degenerate_buf_facts :
+  forall A (d : cchain A) (b : buffer (stored A)),
+    chain_wf KOnly d ->
+    degenerate_buf d = Some b ->
+    1 <= length b /\ buf_stored_all_wf b /\ cchain_seq d = buf_stored_seq b.
+Proof.
+  intros A d b Hwf Hdeg.
+  unfold degenerate_buf in Hdeg.
+  destruct d as [|[db dn] drest|? ?]; try discriminate.
+  destruct db; try discriminate.
+  destruct dn as [k0 p s]; destruct k0; try discriminate.
+  destruct drest; try discriminate.
+  destruct Hwf as [_ [_ [Hsz [[Hpw Hsw] _]]]].
+  destruct p as [|a p']; destruct s as [|a' s']; try discriminate.
+  - (* p = [], s = [] : Some [] — sizes rule it out *)
+    injection Hdeg as Hdeg; subst b.
+    destruct Hsz as [[Hp _] | [_ Hone]]; [cbn in Hp; lia |].
+    destruct Hone as [[_ Hs] | [_ Hp]]; cbn in *; lia.
+  - (* p = [], s nonempty *)
+    injection Hdeg as Hdeg; subst b.
+    split; [cbn; lia|]. split; [exact Hsw|].
+    cbn. reflexivity.
+  - (* p nonempty, s = [] *)
+    injection Hdeg as Hdeg; subst b.
+    split; [cbn; lia|]. split; [exact Hpw|].
+    cbn. rewrite !app_nil_r. reflexivity.
+Qed.
