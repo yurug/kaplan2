@@ -2665,15 +2665,15 @@ Proof.
 Qed.
 
 Lemma cad_concat_leveled :
-  forall A (d e f : cadeque A),
-    chain_leveled 0 d -> chain_leveled 0 e ->
+  forall A (k : nat) (d e f : cadeque A),
+    chain_leveled k d -> chain_leveled k e ->
     cad_concat d e = Some f ->
-    chain_leveled 0 f.
+    chain_leveled k f.
 Proof.
-  intros A d e f Hd He Hmk.
+  intros A k d e f Hd He Hmk.
   assert (Hcore :
     forall (d' e' : cchain A),
-      chain_leveled 0 d' -> chain_leveled 0 e' ->
+      chain_leveled k d' -> chain_leveled k e' ->
       match degenerate_buf d', degenerate_buf e' with
       | Some p, Some s =>
           if (length p <? 8) || (length s <? 8)
@@ -2687,7 +2687,7 @@ Proof.
           | _, _ => None
           end
       end = Some f ->
-      chain_leveled 0 f).
+      chain_leveled k f).
   { intros d' e' Hd' He' Hmk'.
     destruct (degenerate_buf d') as [p|] eqn:Hdd;
       destruct (degenerate_buf e') as [s|] eqn:Hde.
@@ -2695,11 +2695,13 @@ Proof.
       pose proof (degenerate_buf_leveled He' Hde) as Hs.
       destruct ((length p <? 8) || (length s <? 8));
         injection Hmk' as Hb; subst f;
-        cbn [chain_leveled cbody_leveled body_depth Nat.add].
-      + split; [exact I |]. split; [| exact I].
+        cbn [chain_leveled cbody_leveled body_depth].
+      + rewrite Nat.add_0_r.
+        split; [exact I |]. split; [| exact I].
         cbn [cnode_leveled].
         split; [exact (buf_all_leveled_app Hp Hs) | exact I].
-      + split; [exact I |]. split; [| exact I].
+      + rewrite Nat.add_0_r.
+        split; [exact I |]. split; [| exact I].
         cbn [cnode_leveled].
         split; [exact Hp | exact Hs].
     - pose proof (degenerate_buf_leveled Hd' Hdd) as Hp.
