@@ -61,10 +61,13 @@ Definition cc_color_shape {X : Type} (col : color) (pre suf : Buf5 X) : Prop :=
 
 (** Green-readiness of the level directly below a single (Hole-inner) link:
     that tail must be an [Ending], or a [KCons] whose packet has green-shaped
-    outer buffers.  This is KT99's "the first non-yellow below is green"
-    localised: it is exactly what [green_of_red_k]'s Case-2 repair needs
-    ([green_of_red_k_ready_at]), and is the recursive clause the prior
-    [*_ready_state] accretion never closed. *)
+    outer buffers.  This is exactly what [green_of_red_k]'s Case-2 repair
+    needs ([green_of_red_k_ready_at]).  It is NOT a clause of the invariant —
+    it is DERIVED ([tail_green_ready_of_cc]) for Yellow/Red links from the
+    tail-colour discipline below.  (Making it a clause of every Hole-inner
+    link is too strong: the repair's Case 3 legitimately outputs a Green link
+    over a fresh Red inner whose buffers are not green-shaped — the precise
+    wall the prior [*_ready_state] accretion hit.) *)
 Definition tail_green_ready {A : Type} (tail : KChain A) : Prop :=
   match tail with
   | KEnding _ => True
@@ -73,16 +76,51 @@ Definition tail_green_ready {A : Type} (tail : KChain A) : Prop :=
   | KCons _ Hole _ => False
   end.
 
+(** Tail-colour discipline (KT99 §4 made local):
+    - Yellow links occur only at the top: every link's tail is non-Yellow.
+    - A Yellow or Red link sits over a Green link (or the Ending) — the
+      "first non-yellow below is green" rule.  This is what makes the link
+      repairable when it degrades.
+    - A Green link may sit over Green or RED (the repair's Case 3 creates
+      Green-over-fresh-Red; the wrap path repairs that Red before the Green
+      ever degrades). *)
+Definition cc_tail_color {A : Type} (col : color) (tail : KChain A) : Prop :=
+  match tail with
+  | KEnding _ => True
+  | KCons tc _ _ =>
+      match col with
+      | Green => tc <> Yellow
+      | _ => tc = Green
+      end
+  end.
+
 Fixpoint colors_consistent {A : Type} (c : KChain A) : Prop :=
   match c with
   | KEnding _ => True
   | KCons col (PNode pre i suf) tail =>
       cc_color_shape col pre suf /\
       cc_yellow_run i /\
-      (match i with Hole => tail_green_ready tail | _ => True end) /\
+      cc_tail_color col tail /\
       colors_consistent tail
   | KCons _ Hole _ => False
   end.
+
+(** The derived green-readiness: a non-Green link's tail is Green-topped (or
+    Ending), and the tail's own Green clause supplies the green shapes. *)
+Lemma tail_green_ready_of_cc :
+  forall A col (tail : KChain A),
+    col <> Green ->
+    cc_tail_color col tail ->
+    colors_consistent tail ->
+    tail_green_ready tail.
+Proof.
+  intros A col tail Hcol Htc Hcc.
+  destruct tail as [b | tc [|pre2 i2 suf2] tail2]; cbn; [exact I | |].
+  - cbn in Hcc. contradiction.
+  - destruct col; [congruence | |];
+      cbn in Htc; subst tc;
+      cbn in Hcc; destruct Hcc as [[Hg1 Hg2] _]; exact (conj Hg1 Hg2).
+Qed.
 
 (** [packet_depth p]: number of [PNode] layers — how many levels the yellow
     run bundles.  The chain link below a packet sits [packet_depth p] levels
@@ -140,22 +178,24 @@ Qed.
 Lemma context_ready_of_consistent :
   forall A k col (pre : Buf5 (E.t A)) (i : Packet A) (suf : Buf5 (E.t A))
          (tail : KChain A),
+    col <> Green ->
     colors_consistent (KCons col (PNode pre i suf) tail) ->
     well_leveled_at k (KCons col (PNode pre i suf) tail) ->
     green_of_red_k_context_ready_at k i tail.
 Proof.
-  intros A k col pre i suf tail Hcc Hwl.
-  cbn in Hcc. destruct Hcc as [_Hshape [Hyr [Hihole _Htail]]].
+  intros A k col pre i suf tail Hcol Hcc Hwl.
+  cbn in Hcc. destruct Hcc as [_Hshape [Hyr [Htc Htail]]].
+  pose proof (@tail_green_ready_of_cc A col tail Hcol Htc Htail) as Hgr.
   cbn in Hwl. destruct Hwl as [Hpkt Hwltail].
   destruct i as [|ipre ichild isuf].
   - (* i = Hole *)
     unfold green_of_red_k_context_ready_at.
     destruct tail as [b | col2 [|tpre tchild tsuf] tail2].
     + (* KEnding b *) cbn in Hwltail |- *. exact Hwltail.
-    + (* KCons col2 Hole tail2 *) cbn in Hihole. contradiction.
+    + (* KCons col2 Hole tail2 *) cbn in Hgr. contradiction.
     + (* KCons col2 (PNode tpre tchild tsuf) tail2 *)
-      cbn in Hihole, Hwltail |- *.
-      destruct Hihole as [Hp2 Hs2]. destruct Hwltail as [Hpkt2 _].
+      cbn in Hgr, Hwltail |- *.
+      destruct Hgr as [Hp2 Hs2]. destruct Hwltail as [Hpkt2 _].
       repeat split; assumption.
   - (* i = PNode *)
     unfold green_of_red_k_context_ready_at.
@@ -168,11 +208,12 @@ Qed.
 Lemma ready_at_of_consistent :
   forall A k col (pre pre' : Buf5 (E.t A)) (i : Packet A)
          (suf suf' : Buf5 (E.t A)) (tail : KChain A),
+    col <> Green ->
     colors_consistent (KCons col (PNode pre i suf) tail) ->
     well_leveled_at k (KCons col (PNode pre i suf) tail) ->
     green_of_red_k_ready_at k (PNode pre' i suf') tail.
 Proof.
-  intros A k col pre pre' i suf suf' tail Hcc Hwl.
+  intros A k col pre pre' i suf suf' tail Hcol Hcc Hwl.
   apply green_of_red_k_ready_at_from_context.
   eapply context_ready_of_consistent; eassumption.
 Qed.
@@ -193,7 +234,8 @@ Proof.
     pose proof Hwl as Hwl0. cbn in Hwl0. destruct Hwl0 as [Hpkt _].
     eapply green_of_red_k_total_under_ready_levels.
     + exact Hpkt.
-    + eapply ready_at_of_consistent; eassumption.
+    + eapply ready_at_of_consistent; [| eassumption | eassumption].
+      discriminate.
 Qed.
 
 (** The Green-link push precondition: a consistent well-levelled tail is
@@ -680,7 +722,8 @@ Proof.
       * edestruct yellow_push_red_repair_witness_from_ready as [crep Hrep].
         -- exact Hx.
         -- exact Hpkt.
-        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- eapply ready_at_of_consistent; [| exact Hcc | exact Hwl].
+           discriminate.
         -- rewrite Hrep. eexists; reflexivity.
     + (* Red top contradicts regular_kt_top *)
       destruct Hreg as [Htop _]. cbn in Htop. congruence.
@@ -735,7 +778,8 @@ Proof.
       * edestruct yellow_inject_red_repair_witness_from_ready as [crep Hrep].
         -- exact Hx.
         -- exact Hpkt.
-        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- eapply ready_at_of_consistent; [| exact Hcc | exact Hwl].
+           discriminate.
         -- rewrite Hrep. eexists; reflexivity.
     + destruct Hreg as [Htop _]. cbn in Htop. congruence.
 Qed.
@@ -784,7 +828,8 @@ Proof.
         cbn -[yellow_wrap_pr green_of_red_k].
       * edestruct yellow_pop_red_repair_witness_from_ready as [crep Hrep].
         -- exact Hpkt.
-        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- eapply ready_at_of_consistent; [| exact Hcc | exact Hwl].
+           discriminate.
         -- rewrite Hrep. repeat eexists; reflexivity.
       * repeat eexists; reflexivity.
       * repeat eexists; reflexivity.
@@ -836,7 +881,8 @@ Proof.
         cbn -[yellow_wrap_pr green_of_red_k].
       * edestruct yellow_eject_red_repair_witness_from_ready as [crep Hrep].
         -- exact Hpkt.
-        -- eapply ready_at_of_consistent; [exact Hcc | exact Hwl].
+        -- eapply ready_at_of_consistent; [| exact Hcc | exact Hwl].
+           discriminate.
         -- rewrite Hrep. repeat eexists; reflexivity.
       * repeat eexists; reflexivity.
       * repeat eexists; reflexivity.
