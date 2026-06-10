@@ -8,7 +8,14 @@ floors, the invariant J = chain_wf + chain_ends_green; empty_J, singleton_J).
 J v1 deliberately omits level-stratification (recorded in-file; add in place if
 an obligation demands it).
 
-NEXT: Catenable/Ops.v. Design note for push/inject (KT99 Lemma 6.1 made
+DONE also: Catenable/Ops.v with push/inject (colour-driven surgery via root_and_child/tree_of;
+pkt_update = compose) AND concat (Cases 1-4 + 1a-1d, sequence-verified by vm_compute incl.
+Case 1 CPair path). REMAINING for 4b: pop/eject + the §6 repair (Cases 1, 2a-2c — NOTE repair
+Case 1a calls cad_concat on child deques), then CatKeystone.v (cat_wc_o1 from admitted
+obligations: J-preservation for all 5 ops, totality of the option-returning concat/pop/eject
+under J, sequence correctness, primitive-count bound).
+
+OLD design note for push/inject (KT99 Lemma 6.1 made
 structural — the path surgery):
 - push onto CEmpty => singleton only-triple.
 - push onto CSingle (Pkt body n) rest: the receiving node = head of body (or n
