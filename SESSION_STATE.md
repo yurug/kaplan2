@@ -21,10 +21,16 @@ pop_raw would return a non-ground cell (cad_pop => None). Grow J in place
 (Color.v): a level-indexed wf — top chain at level 0, root buffers hold
 level-k stored where SGround only at k=0, SSmall b children at k+1, SBig p
 c q's chain c at k+1. Mirror the deque keystone's well_leveled (depth-aware
-packet_depth + k). Easiest shape: add a `nat` parameter to the existing
-mutual fixpoints (stored_wf k / cnode_wf k / cbody_wf k kd / chain_wf k kd /
-chain_ends_green stays unleveled) and define SGround-iff-level-0 inside
-stored_wf. Then ALL existing lemmas re-thread: builders move whole cells
+packet_depth + k). DESIGN DECISION (do it this way): do NOT add a nat
+parameter to the existing mutual fixpoints — that breaks every proven
+lemma. Instead add a SEPARATE mutual fixpoint family
+stored_leveled (k:nat) / cnode_leveled k / cbody_leveled k /
+chain_leveled k (same recursion skeleton as the wf family) and grow J to
+J d := chain_wf KOnly d /\ chain_ends_green d /\ chain_leveled 0 d —
+exactly how the deque keystone composed I_kt. All existing wf/seq lemmas
+stay untouched; add parallel *_preserves_leveled lemmas (push/inject/
+concat/builders), which are mechanical because the ops move whole cells
+between same-level buffers. Then ALL existing lemmas re-thread: builders move whole cells
 between SAME-level buffers (k preserved); SSmall/SBig parking takes
 level-k buffer contents into a level-(k) cell stored in a level-k buffer?
 NO: parked cells go into the CHILD chain = level k+1, and their contents
