@@ -405,3 +405,270 @@ Proof.
   destruct d as [|? ?|? ?]; [lia | |];
     (destruct e as [|? ?|? ?]; [lia | exact Hcore | exact Hcore]).
 Qed.
+
+(* ========================================================================== *)
+(* Removal and repair costs.  The repair counters are flat compositions       *)
+(* (drain + deficient-side moves + cell pushes + at most two concats); they   *)
+(* dominate the per-branch implementation work on regular inputs, where       *)
+(* every inner concat costs <= 43 by [cad_concat_cost_bound].                  *)
+(* ========================================================================== *)
+
+Fixpoint pop_raw_cost {A : Type} (c : cchain A) : nat :=
+  match c with
+  | CEmpty => 0
+  | CSingle _ _ => 3
+  | CPair l _ => 11 + pop_raw_cost l
+  end.
+
+Fixpoint eject_raw_cost {A : Type} (c : cchain A) : nat :=
+  match c with
+  | CEmpty => 0
+  | CSingle _ _ => 3
+  | CPair _ r => 11 + eject_raw_cost r
+  end.
+
+Lemma pop_raw_cost_bound :
+  forall A (k : kind) (c : cchain A),
+    chain_wf k c -> pop_raw_cost c <= 14.
+Proof.
+  intros A k c Hwf.
+  destruct c as [|? ?|l r]; cbn [pop_raw_cost]; [lia | lia |].
+  cbn [chain_wf] in Hwf. destruct Hwf as [Hls _].
+  destruct l as [|? ?|? ?]; cbn [is_single] in Hls; try discriminate.
+  cbn [pop_raw_cost]. lia.
+Qed.
+
+Lemma eject_raw_cost_bound :
+  forall A (k : kind) (c : cchain A),
+    chain_wf k c -> eject_raw_cost c <= 14.
+Proof.
+  intros A k c Hwf.
+  destruct c as [|? ?|l r]; cbn [eject_raw_cost]; [lia | lia |].
+  cbn [chain_wf] in Hwf. destruct Hwf as [_ [Hrs _]].
+  destruct r as [|? ?|? ?]; cbn [is_single] in Hrs; try discriminate.
+  cbn [eject_raw_cost]. lia.
+Qed.
+
+Definition drain_both_cost {A : Type} (rest : cchain A) : nat :=
+  match rest with
+  | CEmpty => 0
+  | CSingle _ _ => 4
+  | CPair l r => 1 + pop_raw_cost l + eject_raw_cost r + 12
+  end.
+
+Lemma drain_both_cost_bound :
+  forall A (rest : cchain A),
+    chain_wf KOnly rest -> drain_both_cost rest <= 19.
+Proof.
+  intros A rest Hwf.
+  destruct rest as [|? ?|l r]; cbn [drain_both_cost]; [lia | lia |].
+  cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs _]].
+  destruct l as [|? ?|? ?]; cbn [is_single] in Hls; try discriminate.
+  destruct r as [|? ?|? ?]; cbn [is_single] in Hrs; try discriminate.
+  cbn [pop_raw_cost eject_raw_cost]. lia.
+Qed.
+
+(** Repairs: drain the cell(s), move the deficient side(s) (<= 7 each by
+    the red measure / the repair_packet 8-tests), push back at most two
+    parked cells, run at most two semiregular concats. *)
+Definition repair_front_cost {A : Type}
+    (p1 : buffer (stored A)) (rest : cchain A) : nat :=
+  pop_raw_cost rest + length p1 + 5 + 43.
+
+Definition repair_back_cost {A : Type}
+    (s1 : buffer (stored A)) (rest : cchain A) : nat :=
+  eject_raw_cost rest + length s1 + 5 + 43.
+
+Definition repair_both_cost {A : Type}
+    (p1 s1 : buffer (stored A)) (rest : cchain A) : nat :=
+  drain_both_cost rest + length p1 + length s1 + 10 + 86.
+
+Definition repair_packet_cost {A : Type}
+    (p : cpacket A) (rest : cchain A) : nat :=
+  match p with
+  | Pkt body n =>
+      match node_color (chain_has_node rest) n with
+      | CR =>
+          match n with
+          | Node KLeft p1 s1 => repair_front_cost p1 rest
+          | Node KRight p1 s1 => repair_back_cost s1 rest
+          | Node KOnly p1 s1 =>
+              if 8 <=? length s1 then repair_front_cost p1 rest
+              else if 8 <=? length p1 then repair_back_cost s1 rest
+              else repair_both_cost p1 s1 rest
+          end
+      | _ => 1
+      end
+  end.
+
+Lemma repair_packet_cost_bound :
+  forall A (kd0 : kind) (p : cpacket A) (rest : cchain A),
+    chain_wf kd0 (CSingle p rest) ->
+    repair_packet_cost p rest <= 130.
+Proof.
+  intros A kd0 [body n] rest Hwf.
+  pose proof Hwf as Hwf0.
+  cbn [chain_wf] in Hwf0.
+  destruct Hwf0 as [_ [_ [Hsz [_ [Hcol Hwrest]]]]].
+  unfold repair_packet_cost.
+  destruct (node_color (chain_has_node rest) n) eqn:Hc;
+    try lia.
+  (* red terminal *)
+  assert (Hm : node_measure n <= 5).
+  { destruct rest as [|? ?|? ?].
+    - cbn [chain_has_node] in Hc.
+      rewrite node_color_no_child in Hc. discriminate.
+    - cbn [chain_has_node] in Hc.
+      rewrite node_color_measure in Hc.
+      exact (gyor_of_inv Hc).
+    - cbn [chain_has_node] in Hc.
+      rewrite node_color_measure in Hc.
+      exact (gyor_of_inv Hc). }
+  pose proof (pop_raw_cost_bound Hwrest) as Hpc.
+  pose proof (eject_raw_cost_bound Hwrest) as Hec.
+  pose proof (drain_both_cost_bound Hwrest) as Hdc.
+  destruct n as [k p1 s1].
+  cbn [node_measure] in Hm.
+  destruct k.
+  - destruct (8 <=? length s1) eqn:Hs8.
+    + apply Nat.leb_le in Hs8.
+      unfold repair_front_cost. lia.
+    + destruct (8 <=? length p1) eqn:Hp8.
+      * apply Nat.leb_le in Hp8.
+        unfold repair_back_cost. lia.
+      * apply Nat.leb_gt in Hs8. apply Nat.leb_gt in Hp8.
+        unfold repair_both_cost. lia.
+  - unfold repair_front_cost. lia.
+  - unfold repair_back_cost. lia.
+Qed.
+
+Definition repair_pop_side_cost {A : Type} (c : cchain A) : nat :=
+  match c with
+  | CEmpty => 0
+  | CSingle p rest => repair_packet_cost p rest
+  | CPair (CSingle pl rl) _ => repair_packet_cost pl rl
+  | CPair _ _ => 0
+  end.
+
+Definition repair_eject_side_cost {A : Type} (c : cchain A) : nat :=
+  match c with
+  | CEmpty => 0
+  | CSingle p rest => repair_packet_cost p rest
+  | CPair _ (CSingle pr rr) => repair_packet_cost pr rr
+  | CPair _ _ => 0
+  end.
+
+Lemma repair_pop_side_cost_bound :
+  forall A (c : cchain A),
+    chain_wf KOnly c -> repair_pop_side_cost c <= 130.
+Proof.
+  intros A c Hwf.
+  destruct c as [|p rest|l r]; cbn [repair_pop_side_cost]; [lia | |].
+  - exact (repair_packet_cost_bound Hwf).
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [_ [Hl _]]].
+    destruct l as [|pl rl|? ?]; cbn [is_single] in Hls;
+      try discriminate.
+    exact (repair_packet_cost_bound Hl).
+Qed.
+
+Lemma repair_eject_side_cost_bound :
+  forall A (c : cchain A),
+    chain_wf KOnly c -> repair_eject_side_cost c <= 130.
+Proof.
+  intros A c Hwf.
+  destruct c as [|p rest|l r]; cbn [repair_eject_side_cost]; [lia | |].
+  - exact (repair_packet_cost_bound Hwf).
+  - cbn [chain_wf] in Hwf. destruct Hwf as [_ [Hrs [_ Hr]]].
+    destruct r as [|pr rr|? ?]; cbn [is_single] in Hrs;
+      try discriminate.
+    exact (repair_packet_cost_bound Hr).
+Qed.
+
+(* ========================================================================== *)
+(* Public pop/eject costs.                                                     *)
+(* ========================================================================== *)
+
+Definition cad_pop_cost {A : Type} (d : cadeque A) : nat :=
+  pop_raw_cost d + 1 +
+  match pop_raw d with
+  | Some (_, c') => repair_pop_side_cost c'
+  | None => 0
+  end.
+
+Definition cad_eject_cost {A : Type} (d : cadeque A) : nat :=
+  eject_raw_cost d + 1 +
+  match eject_raw d with
+  | Some (c', _) => repair_eject_side_cost c'
+  | None => 0
+  end.
+
+Lemma cad_pop_cost_bound :
+  forall A (d : cadeque A),
+    J d -> cad_pop_cost d <= 145.
+Proof.
+  intros A d [Hwf [Hg Hl]].
+  unfold cad_pop_cost.
+  pose proof (pop_raw_cost_bound Hwf) as Hpc.
+  destruct (pop_raw d) as [[x c']|] eqn:Hpop; [| lia].
+  destruct d as [|p r|l r].
+  - cbn [pop_raw] in Hpop. discriminate.
+  - destruct (pop_raw_only_total Hwf Hg Hl)
+      as [x0 [c0 [Hpop0 [_ [_ [Hwc0 _]]]]]].
+    rewrite Hpop0 in Hpop. injection Hpop as He1 He2. subst x0 c0.
+    pose proof (repair_pop_side_cost_bound Hwc0). lia.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct (@pop_raw_pair_total A 0 l r Hls Hrs Hlw Hrw Hgl Hgr Hll Hlr)
+      as [x0 [c0 [Hpop0 [_ [_ [Hwc0 _]]]]]].
+    rewrite Hpop0 in Hpop. injection Hpop as He1 He2. subst x0 c0.
+    pose proof (repair_pop_side_cost_bound Hwc0). lia.
+Qed.
+
+Lemma cad_eject_cost_bound :
+  forall A (d : cadeque A),
+    J d -> cad_eject_cost d <= 145.
+Proof.
+  intros A d [Hwf [Hg Hl]].
+  unfold cad_eject_cost.
+  pose proof (eject_raw_cost_bound Hwf) as Hec.
+  destruct (eject_raw d) as [[c' x]|] eqn:Hpop; [| lia].
+  destruct d as [|p r|l r].
+  - cbn [eject_raw] in Hpop. discriminate.
+  - destruct (eject_raw_only_total Hwf Hg Hl)
+      as [c0 [x0 [Hpop0 [_ [_ [Hwc0 _]]]]]].
+    rewrite Hpop0 in Hpop. injection Hpop as He1 He2. subst x0 c0.
+    pose proof (repair_eject_side_cost_bound Hwc0). lia.
+  - cbn [chain_wf] in Hwf. destruct Hwf as [Hls [Hrs [Hlw Hrw]]].
+    cbn [chain_ends_green] in Hg. destruct Hg as [Hgl Hgr].
+    cbn [chain_leveled] in Hl. destruct Hl as [Hll Hlr].
+    destruct (@eject_raw_pair_total A 0 l r Hls Hrs Hlw Hrw Hgl Hgr
+                Hll Hlr)
+      as [c0 [x0 [Hpop0 [_ [_ [Hwc0 _]]]]]].
+    rewrite Hpop0 in Hpop. injection Hpop as He1 He2. subst x0 c0.
+    pose proof (repair_eject_side_cost_bound Hwc0). lia.
+Qed.
+
+(* ========================================================================== *)
+(* The cost headline: worst-case O(1) buffer primitives per operation.        *)
+(* ========================================================================== *)
+
+Theorem cat_wc_o1 :
+  forall A,
+    (forall (x : A) (d : cadeque A), J d -> cad_push_cost x d <= 4) /\
+    (forall (d : cadeque A) (x : A), J d -> cad_inject_cost d x <= 4) /\
+    (forall (d e : cadeque A),
+        J d -> J e -> cad_concat_cost d e <= 43) /\
+    (forall (d : cadeque A), J d -> cad_pop_cost d <= 145) /\
+    (forall (d : cadeque A), J d -> cad_eject_cost d <= 145).
+Proof.
+  intros A.
+  split; [intros x d HJ; exact (cad_push_cost_bound x HJ) |].
+  split; [intros d x HJ; exact (cad_inject_cost_bound x HJ) |].
+  split.
+  { intros d e [Hwfd _] [Hwfe _].
+    exact (cad_concat_cost_bound Hwfd Hwfe). }
+  split; [exact (@cad_pop_cost_bound A) | exact (@cad_eject_cost_bound A)].
+Qed.
+
+Print Assumptions cat_wc_o1.
