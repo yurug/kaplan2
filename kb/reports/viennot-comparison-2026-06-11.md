@@ -140,11 +140,18 @@ cell budget (quadratic regime).
   benchmark isolates, and the natural next phase if the catenable
   layer is to be shipped rather than only verified.
 
+## Web page
+
+A self-contained rendering of this report with log-log scaling charts:
+[`kb/viennot-comparison.html`](../viennot-comparison.html) — regenerate
+with `bench/render-comparison-page.py` after a fresh `make bench-cadeque`.
+
 ## Reproduce
 
 ```sh
 make bench-cadeque              # full sweep, ~2 minutes
 SIZES="1000 10000" bench/cadeque-compare.sh   # quick look
+bench/render-comparison-page.py # regenerate kb/viennot-comparison.html
 ```
 
 ## Related files

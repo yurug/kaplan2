@@ -382,4 +382,7 @@ concat-fold / concat-tree / concat+pop interleave / persistent-fork,
 swept over N (default 1k → 1M); a projected-time guard prints
 `(>cap)` instead of letting a quadratic cell run for minutes.  A
 sequence-semantics self-check (both impls must agree) runs before any
-timing.  Analysis: `kb/reports/viennot-comparison-2026-06-11.md`.
+timing.  Analysis: `kb/reports/viennot-comparison-2026-06-11.md`; the
+self-contained web page `kb/viennot-comparison.html` (charts + prose)
+is regenerated from the latest dated result by
+`bench/render-comparison-page.py`.
