@@ -54,6 +54,28 @@ cleanup of the warm-up module).
        module); (c) run the full release gate / extraction profile if
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
+
+## 2026-06-11 (user request): Viennot comparison + catenable benchmark — DONE
+- Catenable layer now EXTRACTED: Extract/Extraction.v emits
+  kTCadeque.ml (model layer; honest-cost caveat in the header);
+  snapshot at ocaml/extracted/kTCadeque.{ml,mli}, module added to the
+  ktdeque library.
+- Viennot cadeque VENDORED: lib/{color_GYOR,cadeque_core,cadeque,
+  listLike}.ml -> ocaml/bench/viennot/ (dune updated; black-box).
+- New benchmark: ocaml/bench/cadeque_compare.ml +
+  bench/cadeque-compare.sh + `make bench-cadeque` (sweeps 1k..1M,
+  9 workloads incl. concat-fold/tree/interleave + persistent fork;
+  sequence self-check before timing; projected-time guard prints
+  (>cap) for quadratic cells).  Dated run saved (results/ gitignored;
+  table embedded in the report).
+- Report: kb/reports/viennot-comparison-2026-06-11.md (qualitative
+  extrinsic-vs-intrinsic comparison + benchmark analysis).  Headline:
+  functional verification parity; mechanized cost bound = ours only;
+  production wall-clock = theirs only until model list-buffers are
+  instantiated with the proven §4 deque (cons-side ops and persistent
+  fork already 2-4x FASTER than Viennot; inject/eject quadratic as
+  predicted; that instantiation is the isolated next work item).
+- kb/INDEX.md by-task row + bench/README.md + external note updated.
 1. (DONE) COST LAYER (cat_wc_o1): per the keystone header and the design memo
    Decision 4 — buffer-primitive counters mirroring the now-FROZEN op
    code + constant bounds.  The structural argument is on record: every

@@ -60,6 +60,7 @@ We **do not** use `coq-aac-tactics`, `coq-hammer-tactics`, or `coq-equations`. A
 
 1. **The reference OCaml in `lib/`** — useful as a *secondary* reference for hand-written OCaml in `ocaml/lib/`. Ideas only; the structure is theirs.
 2. **The Monolith harness in `test_monolith/`** — almost a verbatim template for `ocaml/test_monolith/`. Adapt file names, not the harness logic.
+   (2026-06-11) **`lib/{color_GYOR,cadeque_core,cadeque,listLike}.ml`** are now also vendored at `ocaml/bench/viennot/` for the catenable benchmark (`make bench-cadeque`); see `kb/reports/viennot-comparison-2026-06-11.md`.
 3. **`Utils/comp_eq.v`** — only if ADR-0007 escalates to Accepted. Copy with attribution.
 4. **`Signatures.v`** — inspiration for the public Module Type. We do **not** copy the intrinsic-style signatures; we use the extrinsic-style as a model only.
 
@@ -78,8 +79,9 @@ We **do not** use `coq-aac-tactics`, `coq-hammer-tactics`, or `coq-equations`. A
 | `theory/Color/GYR.v`            | inlined in DequePtr Model + `rocq/KTDeque/Common/Params.v`    |
 | `theory/Deque/Deque.v`          | `rocq/KTDeque/DequePtr/{Model,Footprint,...}.v`               |
 | `theory/Deque/Deque_lvl.v`      | n/a (they need level-indexing; we don't)                      |
-| `theory/Cadeque/Operations.v`   | n/a (catenable cadeque out of scope)                          |
-| `theory/Cadeque/Abstraction.v`  | n/a                                                           |
+| `theory/Cadeque/{Types,Core}.v` | `rocq/KTDeque/Catenable/{Model,Ops}.v` (extrinsic; rebuilt 2026-06) |
+| `theory/Cadeque/Operations.v`   | `rocq/KTDeque/Catenable/CatKeystone.v` (the six keystone theorems) |
+| `theory/Cadeque/Abstraction.v`  | `rocq/KTDeque/Catenable/Color.v` (invariant J, extrinsic)     |
 | `theory/Signatures.v`           | inspiration for `Interface.v` Module Type                     |
 | `theory/Utils/comp_eq.v`        | n/a (out of scope per ADR-0007)                                |
 | `lib/*.ml`                      | inspiration for `ocaml/lib/`                                   |

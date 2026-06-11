@@ -1,4 +1,5 @@
-; Vendored copy of Viennot et al.'s deque (lib/{color_GYR,deque_core,deque}.ml)
+; Vendored copy of Viennot et al.'s deque AND cadeque
+; (lib/{color_GYR,deque_core,deque,color_GYOR,cadeque_core,cadeque,listLike}.ml)
 ; from external-refs/VerifiedCatenableDeque/, MIT-licensed, used here
 ; solely for benchmark comparison per ADR-0009.
 ;
@@ -6,4 +7,4 @@
 
 (library
  (name viennot_deque)
- (modules color_GYR deque_core deque))
+ (modules color_GYR deque_core deque color_GYOR cadeque_core cadeque listLike))

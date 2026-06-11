@@ -65,3 +65,28 @@ Extraction "kTDeque.ml"
   pop_kt4
   eject_kt4
   kchain_to_list.
+
+(** ** Catenable deque (KT99 §6, Catenable/) — model-layer extraction.
+
+    Extracted for benchmarking against Viennot et al.'s hand-written
+    cadeque.  NOTE (honest-cost caveat): this is the MODEL layer — buffers
+    are OCaml lists and colours are recomputed via [length], so the
+    extracted wall-clock cost of one operation is O(root buffer size),
+    not O(1).  The mechanized cost theorem ([Cost.v:cat_wc_o1]) bounds the
+    number of BUFFER PRIMITIVES per operation by a constant; making the
+    wall-clock match means instantiating buffers with the proven §4 deque
+    (future work, recorded in the closure report). *)
+
+From KTDeque.Catenable Require Import Model Ops.
+
+Extraction "kTCadeque.ml"
+  KTDeque.Catenable.Model.stored
+  KTDeque.Catenable.Model.cchain
+  cadeque
+  cad_empty
+  cad_to_list
+  cad_push
+  cad_inject
+  cad_pop
+  cad_eject
+  cad_concat.

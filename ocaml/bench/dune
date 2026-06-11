@@ -27,3 +27,11 @@
 (executable
  (name adversarial)
  (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+
+; cadeque_compare.ml: our Rocq-extracted §6 CATENABLE deque (KTCadeque,
+; model-layer) vs Viennot's hand-written cadeque.  Driven from
+; bench/cadeque-compare.sh.
+(executable
+ (name cadeque_compare)
+ (modules cadeque_compare)
+ (libraries unix viennot_deque ktdeque))

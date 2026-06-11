@@ -11,6 +11,7 @@ embedded in every result file).
 | [`canonical.sh`](canonical.sh)   | Our verified ktdeque vs canonical-style alternatives, à la Viennot et al. PLDI'24 | `make bench-canonical`        |
 | [`sweep.sh`](sweep.sh)           | C / KTDeque / Viennot / **D4** swept over N from 10⁴ to 10⁸; renders PNG plots    | `make bench-sweep`            |
 | [`adversarial.sh`](adversarial.sh) | Persistent-fork microbench: forces D4's worst case per op, isolates WC vs amortized | `make bench-adversarial`    |
+| [`cadeque-compare.sh`](cadeque-compare.sh) | **CATENABLE**: our Rocq-extracted §6 cadeque (model layer) vs **Viennot cadeque**, swept over N | `make bench-cadeque`        |
 
 Both scripts:
 
@@ -360,3 +361,25 @@ Before quoting numbers from these benches in a paper or README, please:
 
 For the everyday "is the perf number still in the right ballpark?"
 check, a single run is fine.
+
+## `cadeque-compare.sh` — CATENABLE: ours vs Viennot
+
+Head-to-head on the **catenable** deques (`make bench-cadeque`):
+
+1. **KT** — our Rocq extraction `ocaml/extracted/kTCadeque.ml` of the
+   KT99 §6 catenable deque (`rocq/KTDeque/Catenable/`, keystone closed
+   2026-06-11).  **Model layer**: buffers are lists and colours
+   recompute `length`, so wall-clock per op is O(root buffer size);
+   the mechanized constant bound (`Catenable/Cost.v:cat_wc_o1`) counts
+   buffer *primitives*.  Quadratic cells on the inject/eject side are
+   the expected, honestly-reported cost of not yet instantiating
+   buffers with the verified §4 deque.
+2. **Vi** — Viennot et al.'s hand-written cadeque (vendored at
+   `ocaml/bench/viennot/cadeque*.ml`, MIT).
+
+Workloads: push / inject / pop-drain / eject-drain / mixed /
+concat-fold / concat-tree / concat+pop interleave / persistent-fork,
+swept over N (default 1k → 1M); a projected-time guard prints
+`(>cap)` instead of letting a quadratic cell run for minutes.  A
+sequence-semantics self-check (both impls must agree) runs before any
+timing.  Analysis: `kb/reports/viennot-comparison-2026-06-11.md`.

@@ -1,7 +1,8 @@
 .PHONY: all rocq ocaml extraction bench clean check check-c check-all \
         release-gate wc-o1-gate strict-wc-o1-gate        ports-wc-o1-gate wc-o1-kt4-assumptions \
         deque-keystone-gate \
-        bench-three-way bench-canonical bench-sweep bench-adversarial bench-all
+        bench-three-way bench-canonical bench-sweep bench-adversarial \
+        bench-cadeque bench-all
 
 all: rocq
 
@@ -115,7 +116,15 @@ bench-sweep:
 bench-adversarial:
 	bench/adversarial.sh
 
-bench-all: bench-three-way bench-canonical bench-adversarial
+# Catenable deque head-to-head: our Rocq-extracted §6 cadeque
+# (KTCadeque, model layer) vs Viennot's hand-written cadeque, across a
+# push/inject/drain/mixed/concat/fork battery swept over n.  Quadratic
+# cells on the KT side are expected (list buffers) and reported
+# honestly as part of the result.  Wall-clock ~1-3 minutes.
+bench-cadeque:
+	bench/cadeque-compare.sh
+
+bench-all: bench-three-way bench-canonical bench-adversarial bench-cadeque
 
 clean:
 	dune clean
