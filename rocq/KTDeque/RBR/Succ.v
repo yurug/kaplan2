@@ -94,3 +94,107 @@ Proof. reflexivity. Qed.
 (** ** Value of succ on regular inputs is val n + 1.
 
     These small lemmas are used in [Proofs.v]. *)
+
+(** ** The deferred equivalence/correctness theorem for the two-phase form.
+
+    [Model.v]'s [regular_aux] encodes "every red is discharged by a LATER
+    green" (the VWGP Fig. 1 reading).  That invariant admits numbers like
+    [Yellow3; Red3; Green3] on which BOTH [succ_rec] and the two-phase
+    [succ] mis-carry, and it is NOT preserved by the two-phase form
+    (succ [1;1] = [0;2], whose trailing red has no later green).
+
+    KT99 §3's counter discipline is the mirror: a green occurs BEFORE each
+    red (scanning from the least significant digit, you must have seen a
+    green since the last red before meeting a red).  Under THIS invariant
+    the two-phase [succ] is total, value-correct and invariant-preserving —
+    the deferred RBR-1 statement for the pointer-motivated form.  The
+    full-carry [succ_v2] of [Proofs.v] is correct under both readings. *)
+
+Fixpoint kt_aux (seen_green : bool) (n : number) : Prop :=
+  match n with
+  | [] => True
+  | Green3 :: ds => kt_aux true ds
+  | Yellow3 :: ds => kt_aux seen_green ds
+  | Red3 :: ds => seen_green = true /\ kt_aux false ds
+  end.
+
+Definition kt_regular (n : number) : Prop := kt_aux false n.
+
+Lemma bump_lsd_value :
+  forall n, leading_not_red n -> val (bump_lsd n) = val n + 1.
+Proof.
+  intros [|d ds] Hl; [reflexivity |].
+  destruct d; cbn in *; [lia | lia | contradiction].
+Qed.
+
+(** Bumping a kt-regular number yields a number that is kt-regular FOR a
+    reader who has already seen a green: the freshly-created red (1 -> 2)
+    is licensed by the green the carry will deposit in front of it. *)
+Lemma bump_kt :
+  forall n, kt_regular n -> kt_aux true (bump_lsd n).
+Proof.
+  intros [|d ds] HJ; [exact I |].
+  destruct d; cbn in *.
+  - exact HJ.
+  - split; [reflexivity | exact HJ].
+  - destruct HJ as [Hcontra _]. discriminate.
+Qed.
+
+Lemma kt_aux_false_not_red :
+  forall n, kt_aux false n -> leading_not_red n.
+Proof.
+  intros [|d ds] H; [exact I |].
+  destruct d; cbn in *; [exact I | exact I |].
+  destruct H as [Hcontra _]. discriminate.
+Qed.
+
+Lemma regularize_value :
+  forall n (b : bool), kt_aux b n -> val (regularize n) = val n.
+Proof.
+  intros n. induction n as [|d ds IH]; intros b H; [reflexivity |].
+  destruct d; cbn in *.
+  - reflexivity.
+  - rewrite (IH _ H). reflexivity.
+  - destruct H as [_ Hds].
+    rewrite (bump_lsd_value (kt_aux_false_not_red Hds)). lia.
+Qed.
+
+Lemma regularize_regular :
+  forall n, kt_aux true n -> kt_regular (regularize n).
+Proof.
+  intros n. induction n as [|d ds IH]; intros H; [exact I |].
+  destruct d; cbn in *.
+  - exact H.
+  - exact (IH H).
+  - destruct H as [_ Hds].
+    exact (bump_kt Hds).
+Qed.
+
+(** RBR-1 for the two-phase form (kb/spec/algorithms.md §1). *)
+Theorem succ_pointer_correct :
+  forall n,
+    kt_regular n ->
+    kt_regular (succ n) /\ val (succ n) = val n + 1.
+Proof.
+  intros n HJ.
+  unfold succ.
+  pose proof (bump_kt HJ) as Hb.
+  split.
+  - exact (regularize_regular Hb).
+  - rewrite (regularize_value Hb).
+    apply bump_lsd_value.
+    apply kt_aux_false_not_red. exact HJ.
+Qed.
+
+(** Sanity: the [Y;Y] cascade that distinguishes the invariants. *)
+Example succ_three_pointer : succ [Yellow3; Yellow3] = [Green3; Red3].
+Proof. reflexivity. Qed.
+
+Example succ_three_pointer_value : val (succ [Yellow3; Yellow3]) = 4.
+Proof. reflexivity. Qed.
+
+Example succ_four_pointer :
+  succ [Green3; Red3] = [Yellow3; Green3; Yellow3].
+Proof. reflexivity. Qed.
+
+Print Assumptions succ_pointer_correct.
