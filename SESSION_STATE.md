@@ -23,8 +23,22 @@ concat_small_* childless-root eject2/pop2-lift; pop/eject_raw collapse
 re-crown (no fold-push into KRight); repair_both via drain_both (no
 eject-after-pop double degradation; one-cell path kept).
 
-## NEXT (the remaining Phase 4b items, in order)
-1. COST LAYER (cat_wc_o1): per the keystone header and the design memo
+## PROGRESS-13 (2026-06-11, post-closure)
+COST LAYER DONE: rocq/KTDeque/Catenable/Cost.v — cat_wc_o1 PROVEN and
+"Closed under the global context": push/inject <= 4, concat <= 43,
+pop/eject <= 145 buffer primitives on J inputs (counters mirror the
+frozen ops; splices charge the moved bounded side; repairs are flat
+compositions dominating per-branch work; see the file header for the
+per-site justification).  KB DONE:
+kb/reports/catenable-keystone-closure-2026-06-11.md (supersedes the
+05-24 audit's catenable rows), §6 spec deviation log, INDEX row.
+Gate done earlier (make cat-keystone-gate, 6/6).
+
+## NEXT (remaining items)
+0. OPTIONAL hardening: add cat_wc_o1 to the gate target; an
+   instrumented-monad cost version (Footprint-style) if extraction
+   needs it.
+1. (DONE) COST LAYER (cat_wc_o1): per the keystone header and the design memo
    Decision 4 — buffer-primitive counters mirroring the now-FROZEN op
    code + constant bounds.  The structural argument is on record: every
    element movement in Ops.v is constant-bounded (the drains/repairs
