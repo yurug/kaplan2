@@ -85,5 +85,5 @@ kb/
 | **Add tests** | `conventions/testing-strategy.md`, `properties/functional.md`, `properties/edge-cases.md`, `spec/error-taxonomy.md` |
 | **Run the bench** | `../ocaml/README.md`, `properties/non-functional.md` |
 | **Prepare a release** | `runbooks/minimum-release-gate.md`, `runbooks/gate-d-top-down-plan.md`, `reports/minimum-release-gate-2026-05-25.md` |
-| **Review current WC O(1) status** | `reports/wc-o1-verification-audit-2026-05-24.md`, `reports/minimum-release-gate-2026-05-25.md` |
+| **Review current WC O(1) status** | `reports/catenable-keystone-closure-2026-06-11.md` (catenable: CLOSED), `reports/wc-o1-verification-audit-2026-05-24.md`, `reports/minimum-release-gate-2026-05-25.md` |
 | **Avoid known pitfalls** | `lessons.md` |

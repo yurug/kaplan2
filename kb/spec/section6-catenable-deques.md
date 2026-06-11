@@ -180,3 +180,27 @@ cost of asymmetry (e.g. lower bounds on right-triple/only-triple suffixes).
   spine can realize this, or whether faithful §6 needs the triple +
   preferred-path + compressed-forest structure (cf. Viennot's GYOR), is the
   canonical-variant question of [`catenable-concat-invariant.md`](catenable-concat-invariant.md).
+
+## Implementation deviation log (rebuild branch, 2026-06)
+
+The §6 mechanization (`rocq/KTDeque/Catenable/`) is CLOSED — see
+[`../reports/catenable-keystone-closure-2026-06-11.md`](../reports/catenable-keystone-closure-2026-06-11.md)
+for the theorem inventory.  Deviations from the verbatim transcription
+above (all O(1) and sequence-preserving; each was forced by a proof
+that refused to close):
+
+1. **Cases 2/3, childless small-side root**: lift the surviving small
+   buffer to ≥ 7 with two moves before re-crowning (a childless root
+   carries no colour constraint, so the naive rebuild can crown red).
+2. **pop/eject pair collapse**: re-crown one only-rooted tree over the
+   surviving sibling's peeled root instead of folding the ≤ 6 leftover
+   cells into it (which would break the sibling's exact-2 buffer).
+3. **Repair 2c drain**: take front and back cells in ONE step
+   (`drain_both`) — a single child double-shrinks its root in one
+   rebundle; a pair child drains its components independently — never
+   eject from the pop remainder (double degradation breaks the re-park
+   discipline at depth).  The paper's `d₁' = ∅` one-cell path is kept.
+4. Childless floor breaks merge to the legal one-sided form
+   (`rebuild_childless`); a pop on a one-sided root takes the suffix
+   head (the front element) — Viennot's vector path, as planned in the
+   design memo.
