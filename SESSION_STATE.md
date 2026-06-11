@@ -34,6 +34,15 @@ kb/reports/catenable-keystone-closure-2026-06-11.md (supersedes the
 05-24 audit's catenable rows), §6 spec deviation log, INDEX row.
 Gate done earlier (make cat-keystone-gate, 6/6).
 
+## PROGRESS-14 (2026-06-11): RBR/Succ.v FINISHED
+succ_pointer_correct PROVEN (closed): the two-phase succ is correct
+under the KT99-faithful green-BEFORE-red invariant (kt_regular, added
+additively; Model.v's regular_aux is the mirror reading — admits
+[1;2;0] where succ_rec/succ mis-carry and is NOT preserved by the
+two-phase form; succ_v2's P9 unchanged).  Worth surfacing to the user:
+whether to retire Model.regular in favour of kt_regular (a breaking
+cleanup of the warm-up module).
+
 ## NEXT (remaining items)
 0. OPTIONAL hardening: add cat_wc_o1 to the gate target; an
    instrumented-monad cost version (Footprint-style) if extraction
