@@ -123,8 +123,8 @@ clean:
 
 cat-keystone-gate:
 	@dune clean --root . 2>/dev/null; true
-	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* =="
-	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo --display=quiet --no-buffer 2>&1); \
+	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* + cat_wc_o1 =="
+	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo rocq/KTDeque/Catenable/Cost.vo --display=quiet --no-buffer 2>&1); \
 	  status=$$?; \
 	  if [ $$status -ne 0 ]; then \
 	    printf '%s\n' "$$output"; \
@@ -132,9 +132,9 @@ cat-keystone-gate:
 	  fi; \
 	  printf '%s\n' "$$output" | grep -c "Closed under the global context" \
 	    | { read n; \
-	        if [ "$$n" -eq 6 ]; then \
-	          echo "OK: 6/6 keystone theorems closed under the global context"; \
+	        if [ "$$n" -eq 7 ]; then \
+	          echo "OK: 7/7 (six keystone theorems + cat_wc_o1) closed under the global context"; \
 	        else \
-	          echo "FAIL: expected 6 closed keystone theorems, saw $$n"; \
+	          echo "FAIL: expected 7 closed theorems, saw $$n"; \
 	          exit 1; \
 	        fi; }
