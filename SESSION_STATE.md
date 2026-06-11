@@ -44,9 +44,16 @@ whether to retire Model.regular in favour of kt_regular (a breaking
 cleanup of the warm-up module).
 
 ## NEXT (remaining items)
-0. OPTIONAL hardening: add cat_wc_o1 to the gate target; an
-   instrumented-monad cost version (Footprint-style) if extraction
+0. (DONE) gate asserts 7/7 incl. cat_wc_o1.  Possible later hardening:
+   an instrumented-monad cost version (Footprint-style) if extraction
    needs it.
+★ ALL AUTONOMOUS WORK IS DONE.  Outstanding items NEED THE USER:
+   (a) promote rebuild -> main and push (139+ commits, never push
+       autonomously); (b) decide whether to retire RBR Model.regular
+       in favour of kt_regular (breaking cleanup of the warm-up
+       module); (c) run the full release gate / extraction profile if
+       desired.  Loop iterations from here should only sanity-check
+       (build green, zero admits, gate 7/7) and idle.
 1. (DONE) COST LAYER (cat_wc_o1): per the keystone header and the design memo
    Decision 4 — buffer-primitive counters mirroring the now-FROZEN op
    code + constant bounds.  The structural argument is on record: every
