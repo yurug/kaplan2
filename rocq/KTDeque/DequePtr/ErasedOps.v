@@ -402,3 +402,296 @@ Proof.
     rewrite <- (er_pair e), map_yellow_inject, Hg.
     reflexivity.
 Qed.
+
+(* ========================================================================== *)
+(* Stage 3: make_small, check-erased.                                          *)
+(* ========================================================================== *)
+
+Definition er2 {A : Type} (p : E.t A * E.t A) : etree A * etree A :=
+  (er (fst p), er (snd p)).
+
+Definition gpair_one {A : Type} (p : etree A * etree A) : etree A :=
+  EPair (fst p) (snd p).
+
+Definition gpair_each {A : Type} (b : Buf5 (etree A * etree A))
+    : Buf5 (etree A) := buf5_map (@gpair_one A) b.
+
+Lemma pair_one_nat : forall A (p : E.t A * E.t A) (x : E.t A),
+    pair_one p = Some x -> gpair_one (er2 p) = er x.
+Proof.
+  intros A [a b] x H.
+  unfold pair_one in H.
+  destruct (Nat.eq_dec (E.level A a) (E.level A b)) as [e|]; [|discriminate].
+  injection H as <-.
+  unfold gpair_one, er2; cbn [fst snd].
+  rewrite (er_pair e). reflexivity.
+Qed.
+
+Lemma pair_each_buf_nat : forall A (b : Buf5 (E.t A * E.t A)) b',
+    pair_each_buf b = Some b' ->
+    gpair_each (buf5_map (@er2 A) b) = er_buf b'.
+Proof.
+  intros A b b' H.
+  destruct b as [| p1 | p1 p2 | p1 p2 p3 | p1 p2 p3 p4 | p1 p2 p3 p4 p5];
+    cbn in H;
+    repeat
+      match goal with
+      | H : context [match pair_one ?p with _ => _ end] |- _ =>
+          destruct (pair_one p) eqn:?; [|discriminate]
+      end;
+    injection H as <-;
+    unfold gpair_each, er_buf; cbn [buf5_map];
+    repeat
+      match goal with
+      | Hp : pair_one ?p = Some ?x |- _ =>
+          rewrite <- (pair_one_nat Hp); clear Hp
+      end;
+    reflexivity.
+Qed.
+
+Definition gbuffer_push_chain {X : Type} (x : X) (b : Buf5 X) : GChain X :=
+  match b with
+  | B0           => GEnding (B1 x)
+  | B1 a         => GEnding (B2 x a)
+  | B2 a b1      => GEnding (B3 x a b1)
+  | B3 a b1 c    => GEnding (B4 x a b1 c)
+  | B4 a b1 c d  => GEnding (B5 x a b1 c d)
+  | B5 a b1 c d e =>
+      GChainCons (GPNode (B3 x a b1) GHole (B3 c d e)) (GEnding B0)
+  end.
+
+Definition gbuffer_inject_chain {X : Type} (b : Buf5 X) (x : X) : GChain X :=
+  match b with
+  | B0           => GEnding (B1 x)
+  | B1 a         => GEnding (B2 a x)
+  | B2 a b1      => GEnding (B3 a b1 x)
+  | B3 a b1 c    => GEnding (B4 a b1 c x)
+  | B4 a b1 c d  => GEnding (B5 a b1 c d x)
+  | B5 a b1 c d e =>
+      GChainCons (GPNode (B3 a b1 c) GHole (B3 d e x)) (GEnding B0)
+  end.
+
+Lemma er_buffer_push_chain : forall A (x : E.t A) b,
+    er_chain (buffer_push_chain x b)
+    = gbuffer_push_chain (er x) (er_buf b).
+Proof. intros A x b; destruct b; reflexivity. Qed.
+
+Lemma er_buffer_inject_chain : forall A b (x : E.t A),
+    er_chain (buffer_inject_chain b x)
+    = gbuffer_inject_chain (er_buf b) (er x).
+Proof. intros A b x; destruct b; reflexivity. Qed.
+
+Definition gmk_ending_from_options {X : Type}
+    (p1 : option X) (mid : option (X * X)) (s1 : option X) : GChain X :=
+  match p1, mid, s1 with
+  | None,   None,        None      => GEnding B0
+  | Some a, None,        None      => GEnding (B1 a)
+  | None,   None,        Some a    => GEnding (B1 a)
+  | Some a, None,        Some b    => GEnding (B2 a b)
+  | None,   Some (a, b), None      => GEnding (B2 a b)
+  | Some a, Some (b, c), None      => GEnding (B3 a b c)
+  | None,   Some (a, b), Some c    => GEnding (B3 a b c)
+  | Some a, Some (b, c), Some d    => GEnding (B4 a b c d)
+  end.
+
+Lemma er_mk_ending : forall A (p1 : option (E.t A)) mid s1,
+    er_chain (mk_ending_from_options p1 mid s1)
+    = gmk_ending_from_options (option_map (@er A) p1)
+        (option_map (@er2 A) mid) (option_map (@er A) s1).
+Proof.
+  intros A [a|] [[b c]|] [d|]; reflexivity.
+Qed.
+
+Definition make_small_e {A : Type}
+    (b1 b2 b3 : Buf5 (etree A)) : option (GChain (etree A)) :=
+  match prefix_decompose b1, suffix_decompose b3 with
+  | BD_pre_underflow p1opt, BD_suf_underflow s1opt =>
+      match buffer_unsandwich b2 with
+      | BS_alone midopt =>
+          match midopt with
+          | None => Some (gmk_ending_from_options p1opt None s1opt)
+          | Some (EPair x y) =>
+              Some (gmk_ending_from_options p1opt (Some (x, y)) s1opt)
+          | Some (ELeaf _) => None
+          end
+      | BS_sandwich ab rest cd =>
+          match ab, cd with
+          | EPair ax ay, EPair cx cy =>
+              Some (GChainCons
+                      (GPNode (prefix23 p1opt (ax, ay)) GHole
+                              (suffix23 (cx, cy) s1opt))
+                      (GEnding rest))
+          | _, _ => None
+          end
+      end
+  | BD_pre_underflow p1opt, BD_suf_ok s1' =>
+      match buf5_pop_naive b2, p1opt with
+      | None, None   => Some (GEnding s1')
+      | None, Some x =>
+          match buf5_push_naive x s1' with
+          | Some s1'' => Some (GEnding s1'')
+          | None      => None
+          end
+      | Some (cd, rest), _ =>
+          match cd with
+          | EPair cx cy =>
+              Some (GChainCons
+                      (GPNode (prefix23 p1opt (cx, cy)) GHole s1')
+                      (GEnding rest))
+          | ELeaf _ => None
+          end
+      end
+  | BD_pre_underflow p1opt, BD_suf_overflow s1' a b =>
+      let '(cd, center) := suffix_rot b2 (EPair a b) in
+      match cd with
+      | EPair cx cy =>
+          Some (GChainCons
+                  (GPNode (prefix23 p1opt (cx, cy)) GHole s1')
+                  (GEnding center))
+      | ELeaf _ => None
+      end
+  | BD_pre_ok p1', BD_suf_underflow s1opt =>
+      match buf5_eject_naive b2, s1opt with
+      | None, None   => Some (GEnding p1')
+      | None, Some x =>
+          match buf5_inject_naive p1' x with
+          | Some p1'' => Some (GEnding p1'')
+          | None      => None
+          end
+      | Some (rest, ab), _ =>
+          match ab with
+          | EPair ax ay =>
+              Some (GChainCons
+                      (GPNode p1' GHole (suffix23 (ax, ay) s1opt))
+                      (GEnding rest))
+          | ELeaf _ => None
+          end
+      end
+  | BD_pre_ok p1', BD_suf_ok s1' =>
+      Some (GChainCons (GPNode p1' GHole s1') (GEnding b2))
+  | BD_pre_ok p1', BD_suf_overflow s1' a b =>
+      Some (GChainCons (GPNode p1' GHole s1')
+              (gbuffer_inject_chain b2 (EPair a b)))
+  | BD_pre_overflow p1' c d, BD_suf_underflow s1opt =>
+      let '(center, ab) := prefix_rot (EPair c d) b2 in
+      match ab with
+      | EPair ax ay =>
+          Some (GChainCons
+                  (GPNode p1' GHole (suffix23 (ax, ay) s1opt))
+                  (GEnding center))
+      | ELeaf _ => None
+      end
+  | BD_pre_overflow p1' c d, BD_suf_ok s1' =>
+      Some (GChainCons (GPNode p1' GHole s1')
+              (gbuffer_push_chain (EPair c d) b2))
+  | BD_pre_overflow p1' c d, BD_suf_overflow s1' a b =>
+      let '(midopt, rest_pairs) := buffer_halve b2 in
+      Some (GChainCons
+              (GPNode p1' (GPNode (suffix12 (EPair c d) midopt) GHole
+                                  (B1 (EPair a b))) s1')
+              (GEnding (gpair_each rest_pairs)))
+  end.
+
+Lemma make_small_nat : forall A (b1 b2 b3 : Buf5 (E.t A)) c,
+    make_small b1 b2 b3 = Some c ->
+    make_small_e (er_buf b1) (er_buf b2) (er_buf b3) = Some (er_chain c).
+Proof.
+  intros A b1 b2 b3 c H.
+  unfold make_small in H; unfold make_small_e.
+  unfold er_buf.
+  rewrite map_prefix_decompose, !map_suffix_decompose.
+  destruct (prefix_decompose b1) as [p1opt | p1' | p1' cc dd];
+    destruct (suffix_decompose b3) as [s1opt | s1' | s1' aa bb];
+    cbn [bd_pre_map bd_suf_map].
+  - (* U, U *)
+    rewrite map_buffer_unsandwich.
+    destruct (buffer_unsandwich b2) as [midopt | ab rest cd]; cbn [bs_map].
+    + destruct midopt as [elem|]; cbn [option_map].
+      * destruct (E.unpair A elem) as [[x y]|] eqn:Hu; [|discriminate].
+        injection H as <-.
+        rewrite (unpair_er Hu), er_mk_ending. reflexivity.
+      * injection H as <-. rewrite er_mk_ending. reflexivity.
+    + destruct (E.unpair A ab) as [[ax ay]|] eqn:Hua; [|discriminate].
+      destruct (E.unpair A cd) as [[cx cy]|] eqn:Huc; [|discriminate].
+      injection H as <-.
+      rewrite (unpair_er Hua), (unpair_er Huc).
+      destruct p1opt; destruct s1opt; reflexivity.
+  - (* U, Ok *)
+    rewrite map_buf5_pop_naive.
+    destruct (buf5_pop_naive b2) as [[cd rest]|] eqn:Hp; cbn [option_map].
+    + destruct (E.unpair A cd) as [[cx cy]|] eqn:Hu; [|discriminate].
+      injection H as <-.
+      rewrite (unpair_er Hu).
+      destruct p1opt; reflexivity.
+    + destruct p1opt as [x|]; cbn [option_map].
+      * rewrite map_buf5_push_naive.
+        destruct (buf5_push_naive x s1') as [s1''|] eqn:Hpu;
+          cbn [option_map]; [|discriminate].
+        injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+  - (* U, Overflow *)
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [e|];
+      [|discriminate].
+    destruct (suffix_rot b2 (E.pair A aa bb e)) as [cd center] eqn:Hrot.
+    rewrite <- (er_pair e), map_suffix_rot, Hrot.
+    cbn [fst snd].
+    destruct (E.unpair A cd) as [[cx cy]|] eqn:Hu; [|discriminate].
+    injection H as <-.
+    rewrite (unpair_er Hu).
+    destruct p1opt; reflexivity.
+  - (* Ok, U *)
+    rewrite map_buf5_eject_naive.
+    destruct (buf5_eject_naive b2) as [[rest ab]|] eqn:Hp; cbn [option_map].
+    + destruct (E.unpair A ab) as [[ax ay]|] eqn:Hu; [|discriminate].
+      injection H as <-.
+      rewrite (unpair_er Hu).
+      destruct s1opt; reflexivity.
+    + destruct s1opt as [x|]; cbn [option_map].
+      * rewrite map_buf5_inject_naive.
+        destruct (buf5_inject_naive p1' x) as [p1''|] eqn:Hpu;
+          cbn [option_map]; [|discriminate].
+        injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+  - (* Ok, Ok *)
+    injection H as <-. reflexivity.
+  - (* Ok, Overflow *)
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [e|];
+      [|discriminate].
+    injection H as <-.
+    cbn [er_chain er_packet].
+    rewrite <- (er_pair e), er_buffer_inject_chain.
+    reflexivity.
+  - (* Overflow, U *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [e|];
+      [|discriminate].
+    destruct (prefix_rot (E.pair A cc dd e) b2) as [center ab] eqn:Hrot.
+    rewrite <- (er_pair e), map_prefix_rot, Hrot.
+    cbn [fst snd].
+    destruct (E.unpair A ab) as [[ax ay]|] eqn:Hu; [|discriminate].
+    injection H as <-.
+    rewrite (unpair_er Hu).
+    destruct s1opt; reflexivity.
+  - (* Overflow, Ok *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [e|];
+      [|discriminate].
+    injection H as <-.
+    cbn [er_chain er_packet].
+    rewrite <- (er_pair e), er_buffer_push_chain.
+    reflexivity.
+  - (* Overflow, Overflow *)
+    destruct (Nat.eq_dec (E.level A cc) (E.level A dd)) as [ecd|];
+      [|discriminate].
+    destruct (Nat.eq_dec (E.level A aa) (E.level A bb)) as [eab|];
+      [|discriminate].
+    destruct (buffer_halve b2) as [midopt rest_pairs] eqn:Hh.
+    rewrite <- (er_pair ecd), <- (er_pair eab),
+      map_buffer_halve, Hh.
+    cbn [fst snd].
+    destruct (pair_each_buf rest_pairs) as [rest|] eqn:Hpe; [|discriminate].
+    injection H as <-.
+    pose proof (pair_each_buf_nat Hpe) as HPE.
+    unfold er2 in HPE.
+    cbn [er_chain er_packet].
+    rewrite HPE.
+    destruct midopt; reflexivity.
+Qed.
