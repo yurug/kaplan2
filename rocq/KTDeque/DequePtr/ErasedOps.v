@@ -1174,3 +1174,22 @@ Proof.
       * injection H as <- <-. reflexivity.
     + destruct p; discriminate.
 Qed.
+
+(* ========================================================================== *)
+(* Extraction entry points.                                                    *)
+(* ========================================================================== *)
+
+Definition egs_empty {A : Type} : GSChain (etree A) := GSEnding 0 B0.
+
+Definition egs_size {X : Type} (c : GSChain X) : nat :=
+  match c with
+  | GSEnding n _ => n
+  | GSCons n _ _ _ => n
+  end.
+
+Lemma egs_empty_er : forall A, egs_empty = er_schain (@s_empty A).
+Proof. reflexivity. Qed.
+
+Lemma egs_size_er : forall A (c : SChain A),
+    egs_size (er_schain c) = s_size c.
+Proof. intros A [n b | n col p t]; reflexivity. Qed.

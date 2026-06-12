@@ -79,3 +79,34 @@ Extraction "kTSizedChain.ml"
   inject_s
   pop_s
   eject_s.
+
+(** ** The check-erased sized chain (DequePtr/ErasedOps.v).
+
+    Replaces kTSizedChain as the buffer storage: the erased ops carry
+    no runtime level discipline at all — pairing is an unchecked
+    constructor, unpairing is blind field access.  [etree] extracts to
+    a ZERO-BOX representation: a leaf IS its payload ([Obj.repr]), a
+    pair is one two-field block, and the match function reads the
+    fields blindly.  Soundness: the erased mirrors match [etree] only
+    at the old unpair sites, and the naturality lemmas (ErasedOps.v)
+    show those sites see pairs whenever the keystone-proven kt4 op
+    succeeds — i.e. on every input reachable from regular chains.  The
+    ELeaf arms exist in the Rocq code only on paths where the original
+    operation failed. *)
+
+From KTDeque.Common Require Import ErasedTree.
+From KTDeque.DequePtr Require Import ErasedOps.
+
+Extract Inductive etree => "Eraw.t"
+  [ "Eraw.leaf" "Eraw.pair" ]
+  "(fun _ fp t -> Eraw.case_pair fp t)".
+
+Extraction "kTErasedChain.ml"
+  GSChain
+  gpop_result
+  egs_empty
+  egs_size
+  epush_s
+  einject_s
+  epop_s
+  eeject_s.

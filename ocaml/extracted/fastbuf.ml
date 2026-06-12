@@ -5,15 +5,16 @@
    list semantics of the corresponding BufPrims.v primitive, with
 
      - all four end operations worst-case O(1): the storage is the
-       SIZE-FUSED verified §4 Kaplan–Tarjan deque
-       (rocq/KTDeque/DequePtr/SizedChain.v, extracted at
-       kTSizedChain.ml).  [SChain] carries the element count fused
-       into its top constructor — verified data-constructor fusion —
-       so there is no wrapper record, push/inject return the chain
-       bare (no result constructor), and [size] is a field read.
-       Each sized op carries a [_spec] lemma in SizedChain.v reducing
-       it to the keystone-proven kt4 op, so the deque keystone
-       (sequence semantics + WC O(1)) describes this storage verbatim;
+       CHECK-ERASED, size-fused verified §4 deque
+       (rocq/KTDeque/DequePtr/ErasedOps.v, extracted at
+       kTErasedChain.ml): the size rides in the top constructor
+       (no wrapper record, [size] is a field read), push/inject return
+       the chain bare, and the element trees carry NO runtime level
+       discipline — leaves are unboxed (eraw.ml), pairing is one
+       unchecked block, unpairing is blind field access.  Each erased
+       op carries a success-conditional naturality lemma down to the
+       keystone-proven kt4 op, so the deque keystone describes this
+       storage on every input reachable from regular chains;
      - append O(min |a| |b|): the smaller side is folded into the
        larger — every §6 call site has a constant-bounded side under
        the regularity invariant J (the accounting audited in
@@ -23,46 +24,52 @@
    the wrap/unwrap.  The fail arms of the sized ops return their input
    (a sentinel the §6 keystone proves unreachable on regular inputs). *)
 
-open KTSizedChain
+open KTErasedChain
 
-type 'a t = 'a sChain
+type 'a t = 'a Eraw.t gSChain
 
-let empty : 'a t = s_empty
+let empty : 'a t = egs_empty
 
 let size (b : 'a t) : int =
   match b with
-  | SEnding (n, _) -> n
-  | SCons (n, _, _, _) -> n
+  | GSEnding (n, _) -> n
+  | GSCons (n, _, _, _) -> n
 
 let is_empty (b : 'a t) : bool = size b = 0
 
-(* a level-0 element tree is ExistT (0, x) — allocated in place *)
-let base (x : 'a) : 'a Coq0_E.t = ExistT (0, Obj.magic x)
+(* check-erased elements (eraw.ml): a level-0 element IS the value —
+   zero allocation, zero runtime level checks *)
+let base (x : 'a) : 'a Eraw.t = Eraw.leaf x
 
-let unbase (t : 'a Coq0_E.t) : 'a =
-  let ExistT (_, v) = t in
-  Obj.magic v
+let unbase (t : 'a Eraw.t) : 'a = Eraw.unleaf t
 
-let push (x : 'a) (b : 'a t) : 'a t = push_s (base x) b
+let push (x : 'a) (b : 'a t) : 'a t = epush_s (base x) b
 
-let inject (b : 'a t) (x : 'a) : 'a t = inject_s b (base x)
+let inject (b : 'a t) (x : 'a) : 'a t = einject_s b (base x)
 
 let pop (b : 'a t) : ('a * 'a t) option =
-  match pop_s b with
-  | SPopOk (x, b') -> Some (unbase x, b')
-  | SPopFail -> None
+  match epop_s b with
+  | GPopOk (x, b') -> Some (unbase x, b')
+  | GPopFail -> None
 
 let eject (b : 'a t) : ('a t * 'a) option =
-  match eject_s b with
-  | SPopOk (x, b') -> Some (b', unbase x)
-  | SPopFail -> None
+  match eeject_s b with
+  | GPopOk (x, b') -> Some (b', unbase x)
+  | GPopFail -> None
 
 let b1 (x : 'a) : 'a t = push x empty
 let b2 (x : 'a) (y : 'a) : 'a t = push x (push y empty)
 let b3 (x : 'a) (y : 'a) (z : 'a) : 'a t = push x (push y (push z empty))
 
-(* front-to-back element list; O(n), used only by the bounded helpers *)
-let to_list (b : 'a t) : 'a list = s_to_list b
+(* front-to-back element list by pop-drain (each pop verified); O(n),
+   used only by the bounded helpers and append's smaller side *)
+let to_list (b : 'a t) : 'a list =
+  let rec go acc b =
+    match epop_s b with
+    | GPopOk (x, b') -> go (unbase x :: acc) b'
+    | GPopFail -> List.rev acc
+  in
+  go [] b
 
 let append (a : 'a t) (b : 'a t) : 'a t =
   if size a = 0 then b
