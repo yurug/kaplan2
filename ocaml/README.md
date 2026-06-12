@@ -208,17 +208,17 @@ channel is the transport.
 
 ```
 ocaml/
-├── extracted/           PUBLIC LIBRARY (ktdeque) + private experiments
-│   ├── kTDeque.{ml,mli}        public non-catenable Rocq extraction
-│   ├── kTCatenableDeque.{ml,mli}  private catenable spec layer (Cadeque6;
-│   │                              reference, not WC O(1))
-│   ├── kCadeque.{ml,mli}       private Cadeque7 catenable cadeque
-│   │                              (legacy/reference, known linear paths)
-│   ├── kCadeque8.{ml,mli}      private Cadeque8 catenable experiment
-│   │                              (OCaml fallback removed; proof pending)
-│   ├── kCadeque9.{ml,mli}      private Cadeque9 catenable experiment
-│   │                              (constant-shape concat; proof pending)
-│   ├── kCadequeShim.ml         private Buf6 -> kt2 routing (shared by both)
+├── extracted/           PUBLIC LIBRARY (ktdeque)
+│   ├── kTDeque.{ml,mli}        non-catenable §4 Rocq extraction
+│   ├── kTFlatCadeque.{ml,mli}  PRODUCTION catenable §6 extraction
+│   │                              (fused spine; keystone FlatKeystone.v)
+│   ├── kTCadequeFast.{ml,mli}  previous production artifact (kept for A/B)
+│   ├── kTCadeque.{ml,mli}      catenable model layer (honest baseline)
+│   ├── kTSizedChain.ml         size-fused §4 chain extraction
+│   ├── kTErasedChain.ml        check-erased §4 chain extraction
+│   ├── eraw.ml / sraw.ml       zero-box carriers (trusted seam, see
+│   │                              Extract/ExtractionFast.v)
+│   ├── fastbuf.ml              buffer seam: verified kt4 chain + O(1) size
 │   ├── test_ktdeque.ml         smoke test against a list reference
 │   ├── diff_workload.ml        paired with c/tests/diff_workload.c
 │   └── dune
