@@ -147,14 +147,30 @@ The buffer instantiation isolated above is DONE, the verified way:
   `ocaml/extracted/fastbuf.ml`).  The 17 one-line `Extract Constant`
   directives are the only trusted seam.
 
+On top of the mirror, `Catenable/OpsFused.v` applies classic compiler
+transformations as VERIFIED Rocq program transformations, each with an
+equality proof down to the frozen ops:
+
+- `upd_pkt` — case-of-case fusion of the packet update (the
+  intermediate (node, child) pair vanishes; the Y/O absorb arms
+  deforest the rebuilt child cell);
+- `tree_repair` — deforestation of `repair ∘ tree_of` on the removal
+  paths (colour computed once, duplicate packet teardown and CSingle
+  re-allocation gone, childless rebuilds skip repair outright);
+- `cad_{push,inject,pop,eject}_v2` — the shipped ops; FastKeystone is
+  stated over them; `Extraction Inline` flattens the helper chain.
+
 Result (`bench/results/cadeque-compare-2026-06-12.md`, n = 10^6,
-ns/op, KTf vs Vi): eject 70 vs 77, mixed 58 vs 72, concat-fold 646 vs
-1154, concat-tree 2649 vs 3497, concat+pop interleave 143 vs 269,
-persistent fork 53 vs 64 — **faster on 6 of 9 workloads**, pop-drain at
-parity (83 vs 83), push 130 vs 89 and inject 128 vs 91 still ~1.4×
-behind (both dominated by the kt4 buffer push; optimizing the §4
-extraction's push path is the identified next target).  The model
-layer's quadratic cells are gone.  The web page
+ns/op, KTf vs Vi): pop 60 vs 80, eject 55 vs 77, mixed 52 vs 75,
+concat-fold 594 vs 1001, concat-tree 1903 vs 2759, concat+pop
+interleave 111 vs 270 (2.4×), persistent fork 41 vs 64 — **faster on
+7 of 9 workloads**; push 113 vs 79 and inject 103 vs 86 remain
+~1.2–1.4× behind (both dominated by the kt4 buffer push; the next
+targets are the same verified-fusion treatment for the §4 extraction's
+push path, and the level-erasure data refinement that would remove the
+per-element box).  The fusion pass alone bought 20–30% on every
+removal-side workload over the plain mirror.  The model layer's
+quadratic cells are gone.  The web page
 ([`kb/viennot-comparison.html`](../viennot-comparison.html)) renders
 all three implementations.
 
@@ -162,10 +178,11 @@ all three implementations.
 
 - Functional verification: **parity** (same theorem shape, both closed).
 - Mechanized cost: **ours only** (buffer-primitive counter).
-- Production performance (2026-06-12): **ours on 6 of 9 workloads**
-  (eject, mixed, all three concat patterns, persistent forks; pop at
-  parity); theirs on build-side push/inject by ~1.4× — a §4 buffer
-  constant, not a §6 design gap.
+- Production performance (2026-06-12, after the verified fusion pass):
+  **ours on 7 of 9 workloads** (both drains, mixed, all three concat
+  patterns, persistent forks — up to 2.4×); theirs on build-side
+  push/inject by ~1.2–1.4× — a §4 buffer constant, not a §6 design
+  gap.
 
 ## Web page
 

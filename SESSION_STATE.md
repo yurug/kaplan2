@@ -55,6 +55,22 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12b (user request): verified fusion pass (OpsFused.v) — DONE
+- Coq-level program transformations proved correct: upd_pkt
+  (case-of-case fusion of pkt_update_f, deforests the Y/O child cell),
+  tree_repair (deforestation of repair∘tree_of: colour computed once,
+  no duplicate CSingle; childless rebuilds skip repair via
+  repair_*_side_rebuild), cad_*_v2 ops with _eq chains to the frozen
+  ops.  FastKeystone restated over v2 (6x Closed; gate 13/13).
+  ExtractionFast extracts v2 + Extraction Inline of helpers.
+- Bench after fusion (KTf vs Vi at 1M): pop 60v80, eject 55v77,
+  mixed 52v75, fold 594v1001, tree 1903v2759, interleave 111v270,
+  fork 41v64 — 7/9 WINS (fusion = 20-30% on all removal paths);
+  push 113v79, inject 103v86 remain behind (kt4-push-bound).
+- NEXT optimization targets (user-gated): same fusion treatment inside
+  the §4 extraction push path (OpsKT), and the level-erasure data
+  refinement removing the per-element ExistT box.
+
 ## 2026-06-12 (user request): production cadeque (beat Viennot) — DONE
 - Verified mirror route (user-approved): BufPrims.v (15 primitives,
   definitional list wrappers) + OpsFast.v (1:1 mirror of every frozen

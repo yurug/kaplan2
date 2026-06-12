@@ -235,11 +235,11 @@ our extrinsic rebuild (<code>rocq/KTDeque/Catenable/</code>, keystone closed 202
 and Viennot/Wendling/Guéneau/Pottier's intrinsic development.
 <em>Functional verification: parity. Mechanized worst-case cost bound: ours only.
 Production wall-clock: our verified artifact (<strong>KTf</strong> — the OpsFast
-mirror over verified §4-deque buffers) is <strong>faster than Viennot's hand-written
-cadeque on 6 of the 9 workloads</strong> (eject-drain, mixed, all three concat
-patterns — up to 1.9× on concat-heavy — and persistent forks), at parity on
-pop-drain; their build-side push/inject remain ~1.4× ahead, a gap that lives inside
-the §4 buffer's push path.</em>
+mirror plus the verified fusion pass of OpsFused.v, over verified §4-deque buffers)
+is <strong>faster than Viennot's hand-written cadeque on 7 of the 9 workloads</strong>
+(both drains, mixed, all three concat patterns, persistent forks — up to 2.4× on
+the concat+pop interleave); their build-side push/inject remain ~1.3× ahead, a gap
+that lives inside the §4 buffer's push path.</em>
 </div>
 
 <h2>1 · The two contenders</h2>
@@ -318,15 +318,23 @@ artifact (<strong>KTf</strong>) implements every counted primitive with the veri
 §4 deque, so the mechanized constants translate directly into the flat lines in the
 charts below.</p>
 
-<h3>2.5 The port that proves itself</h3>
+<h3>2.5 The port that proves itself — and optimizes inside the prover</h3>
 <p>The production artifact is not a hand-written port: <code>OpsFast.v</code> mirrors
 every frozen operation against ~15 named buffer primitives, and each mirror carries an
 <code>op_f&nbsp;=&nbsp;op</code> equality lemma — the machine-checked diff of the
-port.  The keystone bundle transfers verbatim (<code>FastKeystone.v</code>, six
-theorems, <code>Print Assumptions</code> closed).  The only trusted seam is 17
-one-line <code>Extract Constant</code> directives mapping the primitives to
-<code>Fastbuf</code> (= <code>kt4</code> + a size field), each implementing a
-one-line list definition with an already-verified deque operation.</p>
+port.  On top of it, <code>OpsFused.v</code> applies classic compiler transformations
+<em>as verified Rocq program transformations</em>: case-of-case fusion of the packet
+update (the intermediate (node,&nbsp;child) pair vanishes; the Y/O absorb arms
+deforest the rebuilt child cell), and deforestation of
+<code>repair&nbsp;∘&nbsp;tree_of</code> on the removal paths (the root colour is
+computed once; the duplicate packet teardown and re-allocation disappear; childless
+rebuilds skip repair outright).  Each fused function carries an equality proof down
+to the frozen ops, so the keystone bundle transfers verbatim
+(<code>FastKeystone.v</code>, six theorems, <code>Print Assumptions</code> closed).
+The fusion pass alone bought 20–30% on every removal-side workload.
+The only trusted seam is 17 one-line <code>Extract Constant</code> directives mapping
+the primitives to <code>Fastbuf</code> (= <code>kt4</code> + a size field), each
+implementing a one-line list definition with an already-verified deque operation.</p>
 
 <h3>2.6 Statement-strength parity</h3>
 <p>Both developments state concat on two <em>arbitrary</em> regular deques (the clause
@@ -374,21 +382,23 @@ budget (quadratic regime). Raw dated output:
 
 <h3>3.3 Reading the results honestly</h3>
 <div class="win">
-<strong>KTf beats Viennot on 6 of 9 workloads, flat at every size.</strong>
-At n&nbsp;=&nbsp;10⁶: eject-drain 70&nbsp;vs&nbsp;77, mixed 58&nbsp;vs&nbsp;72,
-concat-fold 646&nbsp;vs&nbsp;1154 (1.8×), concat-tree 2649&nbsp;vs&nbsp;3497,
-concat+pop interleave 143&nbsp;vs&nbsp;269 (1.9×), and the persistent-fork rerun
-53&nbsp;vs&nbsp;64&nbsp;ns/op; pop-drain sits at parity (83&nbsp;vs&nbsp;83).
-The model layer's quadratic cells are gone: the verified buffer swap turned every
-<em>(&gt;cap)</em> into a flat line.
+<strong>KTf beats Viennot on 7 of 9 workloads, flat at every size.</strong>
+At n&nbsp;=&nbsp;10⁶: pop-drain 60&nbsp;vs&nbsp;80, eject-drain 55&nbsp;vs&nbsp;77,
+mixed 52&nbsp;vs&nbsp;75, concat-fold 594&nbsp;vs&nbsp;1001 (1.7×), concat-tree
+1903&nbsp;vs&nbsp;2759, concat+pop interleave 111&nbsp;vs&nbsp;270 (2.4×), and the
+persistent-fork rerun 41&nbsp;vs&nbsp;64&nbsp;ns/op (1.6×).  The model layer's
+quadratic cells are gone, and the verified fusion pass (OpsFused.v) bought a further
+20–30% on every removal path over the plain mirror.
 </div>
 <div class="honest">
 <strong>Where we still lose: the two build-side workloads.</strong> Steady push
-(130&nbsp;vs&nbsp;89) and steady inject (128&nbsp;vs&nbsp;91) trail by ~1.4×.  Both
-are dominated by one verified §4-deque push per element (~81&nbsp;ns standalone);
-Viennot's hand-tuned buffer push is a few tens of ns cheaper inside their cadeque.
-Closing this means optimizing the kt4 extraction's push path — a §4 concern,
-orthogonal to the catenable layer, and the identified next target.
+(113&nbsp;vs&nbsp;79) and steady inject (103&nbsp;vs&nbsp;86) trail by ~1.2–1.4×.
+Both are dominated by one verified §4-deque push per element (~81&nbsp;ns
+standalone); Viennot's hand-tuned buffer push is a few tens of ns cheaper inside
+their cadeque.  Closing this means applying the same verified-fusion treatment to
+the kt4 extraction's push path — a §4 concern, orthogonal to the catenable layer,
+and the identified next target (along with the level-erasure data refinement that
+would remove the per-element box).
 </div>
 <p><strong>The model baseline (KT) tells the same story from the other side.</strong>
 Its cons-side cells (push/pop on a bare list) bound what any buffer can do, and its
@@ -404,9 +414,9 @@ buffer-primitive counts say it should sit.</p>
 <tr><td>Mechanized worst-case cost bound</td>
 <td><strong style="color:var(--kt)">Ours only</strong> (<code>cat_wc_o1</code>)</td></tr>
 <tr><td>Production wall-clock performance</td>
-<td><strong style="color:var(--ktf)">Ours on 6 of 9 workloads</strong> (eject, mixed,
-all concats, forks; pop at parity); <span style="color:var(--vi)">theirs</span> on
-build-side push/inject by ~1.4×</td></tr>
+<td><strong style="color:var(--ktf)">Ours on 7 of 9 workloads</strong> (both drains,
+mixed, all concats, forks — up to 2.4×); <span style="color:var(--vi)">theirs</span>
+on build-side push/inject by ~1.2–1.4×</td></tr>
 <tr><td>Toolchain footprint</td>
 <td><strong style="color:var(--kt)">Ours</strong>: kernel + stdlib only ·
 <span style="color:var(--vi)">theirs</span>: 3 plugin dependencies</td></tr>
