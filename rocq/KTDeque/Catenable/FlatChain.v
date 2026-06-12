@@ -277,3 +277,35 @@ Definition fchain_has_node {A : Type} (c : fchain A) : bool :=
 Lemma fchain_has_node_er : forall A (c : fchain A),
     chain_has_node (fc_er c) = fchain_has_node c.
 Proof. intros A [| k p s rest | b n rest | l r]; reflexivity. Qed.
+
+(* ========================================================================== *)
+(* Cell-access wrappers (the §6 element-unboxing seam).                       *)
+(*                                                                            *)
+(* The §6 ops INSPECT stored cells in exactly two disciplines, and          *)
+(* [chain_leveled] (part of [J]) makes each one total on its level:          *)
+(* level-0 cells are always [FGround] (pop/eject read an element), and       *)
+(* child-level cells are never ground (the repair web reads a structural     *)
+(* cell).  Routing every cell match through the named wrappers below lets    *)
+(* extraction map [fstored] to a ZERO-BOX carrier — a ground cell IS its     *)
+(* payload, erasing one heap block PER ELEMENT — with the fallback arms      *)
+(* dropped blindly.  Soundness of the blind extraction is the keystone       *)
+(* itself: on [fJ] inputs (FlatKeystone.v) the fallback continuations are    *)
+(* unreachable, exactly the ErasedTree/Eraw argument one layer up.           *)
+(* ========================================================================== *)
+
+Definition cell_case_ground {A R : Type} (c : fstored A)
+    (kg : A -> R) (kf : R) : R :=
+  match c with
+  | FGround a => kg a
+  | _ => kf
+  end.
+
+Definition cell_case_struct {A R : Type} (c : fstored A)
+    (ks : buffer (fstored A) -> R)
+    (kb : buffer (fstored A) -> fchain A -> buffer (fstored A) -> R)
+    (kf : R) : R :=
+  match c with
+  | FGround _ => kf
+  | FSmall b => ks b
+  | FBig p d q => kb p d q
+  end.

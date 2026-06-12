@@ -1274,14 +1274,16 @@ Qed.
 Definition repair_front_x {A : Type} (k : kind) (body : fbody A)
     (p1 s1 : buffer (fstored A)) (rest : fchain A) : option (fchain A) :=
   match pop_raw_x rest with
-  | Some (FBig p2 d2 s2, d1') =>
-      match cad_concat_x d2 (push_chain_x (FSmall s2) d1') with
-      | Some d3 => Some (fsingle body (FNode k (bapp p1 p2) s1) d3)
-      | None => None
-      end
-  | Some (FSmall b, d1') =>
-      Some (fsingle body (FNode k (bapp p1 b) s1) d1')
-  | _ => None
+  | Some (cell, d1') =>
+      cell_case_struct cell
+        (fun b => Some (fsingle body (FNode k (bapp p1 b) s1) d1'))
+        (fun p2 d2 s2 =>
+           match cad_concat_x d2 (push_chain_x (FSmall s2) d1') with
+           | Some d3 => Some (fsingle body (FNode k (bapp p1 p2) s1) d3)
+           | None => None
+           end)
+        None
+  | None => None
   end.
 
 Lemma repair_front_x_er : forall A k (body : fbody A) p1 s1 rest,
@@ -1293,7 +1295,7 @@ Proof.
   rewrite pop_raw_x_er.
   destruct (pop_raw_x rest) as [[cell d1']|]; cbn [option_map];
     [|reflexivity].
-  destruct cell as [a | b | p2 d2 s2]; cbn [option_map].
+  destruct cell as [a | b | p2 d2 s2]; cbn [cell_case_struct option_map].
   - reflexivity.
   - rewrite fs_er_small; cbn [option_map].
     rewrite fc_er_fsingle, fn_er_node, map_bapp. reflexivity.
@@ -1307,14 +1309,16 @@ Qed.
 Definition repair_back_x {A : Type} (k : kind) (body : fbody A)
     (p1 s1 : buffer (fstored A)) (rest : fchain A) : option (fchain A) :=
   match eject_raw_x rest with
-  | Some (d1', FBig p2 d2 s2) =>
-      match cad_concat_x (inject_chain_x d1' (FSmall p2)) d2 with
-      | Some d3 => Some (fsingle body (FNode k p1 (bapp s2 s1)) d3)
-      | None => None
-      end
-  | Some (d1', FSmall b) =>
-      Some (fsingle body (FNode k p1 (bapp b s1)) d1')
-  | _ => None
+  | Some (d1', cell) =>
+      cell_case_struct cell
+        (fun b => Some (fsingle body (FNode k p1 (bapp b s1)) d1'))
+        (fun p2 d2 s2 =>
+           match cad_concat_x (inject_chain_x d1' (FSmall p2)) d2 with
+           | Some d3 => Some (fsingle body (FNode k p1 (bapp s2 s1)) d3)
+           | None => None
+           end)
+        None
+  | None => None
   end.
 
 Lemma repair_back_x_er : forall A k (body : fbody A) p1 s1 rest,
@@ -1326,7 +1330,7 @@ Proof.
   rewrite eject_raw_x_er.
   destruct (eject_raw_x rest) as [[d1' cell]|]; cbn [option_map];
     [|reflexivity].
-  destruct cell as [a | b | p2 d2 s2]; cbn [option_map].
+  destruct cell as [a | b | p2 d2 s2]; cbn [cell_case_struct option_map].
   - reflexivity.
   - rewrite fs_er_small; cbn [option_map].
     rewrite fc_er_fsingle, fn_er_node, map_bapp. reflexivity.
@@ -1507,40 +1511,36 @@ Definition repair_both_x {A : Type} (body : fbody A)
     (p1 s1 : buffer (fstored A)) (rest : fchain A) : option (fchain A) :=
   match drain_both_x rest with
   | Some (cellF, None, _) =>
-      match cellF with
-      | FBig p2 d2 s2 =>
-          Some (fsingle body (FNode KOnly (bapp p1 p2) (bapp s2 s1)) d2)
-      | FSmall b =>
-          Some (fsingle body (FNode KOnly (bapp p1 b) s1) FEmpty)
-      | FGround _ => None
-      end
+      cell_case_struct cellF
+        (fun b => Some (fsingle body (FNode KOnly (bapp p1 b) s1) FEmpty))
+        (fun p2 d2 s2 =>
+           Some (fsingle body (FNode KOnly (bapp p1 p2) (bapp s2 s1)) d2))
+        None
   | Some (cellF, Some cellB, mid) =>
       let front :=
-        match cellF with
-        | FBig p2 d2 s2 =>
-            match cad_concat_x d2 (push_chain_x (FSmall s2) mid) with
-            | Some d4 => Some (p2, d4)
-            | None => None
-            end
-        | FSmall b => Some (b, mid)
-        | FGround _ => None
-        end
+        cell_case_struct cellF
+          (fun b => Some (b, mid))
+          (fun p2 d2 s2 =>
+             match cad_concat_x d2 (push_chain_x (FSmall s2) mid) with
+             | Some d4 => Some (p2, d4)
+             | None => None
+             end)
+          None
       in
       match front with
       | Some (pf, d4) =>
-          match cellB with
-          | FBig p3 d3 s3 =>
-              match cad_concat_x (inject_chain_x d4 (FSmall p3)) d3 with
-              | Some d5 =>
-                  Some (fsingle body
-                          (FNode KOnly (bapp p1 pf) (bapp s3 s1)) d5)
-              | None => None
-              end
-          | FSmall b =>
-              Some (fsingle body
-                      (FNode KOnly (bapp p1 pf) (bapp b s1)) d4)
-          | FGround _ => None
-          end
+          cell_case_struct cellB
+            (fun b =>
+               Some (fsingle body
+                       (FNode KOnly (bapp p1 pf) (bapp b s1)) d4))
+            (fun p3 d3 s3 =>
+               match cad_concat_x (inject_chain_x d4 (FSmall p3)) d3 with
+               | Some d5 =>
+                   Some (fsingle body
+                           (FNode KOnly (bapp p1 pf) (bapp s3 s1)) d5)
+               | None => None
+               end)
+            None
       | None => None
       end
   | None => None
@@ -1556,39 +1556,42 @@ Proof.
   destruct (drain_both_x rest) as [[[cellF [cellB|]] mid]|];
     cbn [option_map]; [| |reflexivity].
   - (* with back cell *)
-    destruct cellF as [a | b | p2 d2 s2]; cbn [option_map].
+    destruct cellF as [a | b | p2 d2 s2]; cbn [cell_case_struct option_map].
     + reflexivity.
     + (* SSmall front *)
-      rewrite fs_er_small; cbn [option_map].
-      destruct cellB as [a3 | b3 | p3 d3 s3]; cbn [option_map].
+      rewrite fs_er_small; cbn [cell_case_struct option_map].
+      destruct cellB as [a3 | b3 | p3 d3 s3];
+        cbn [cell_case_struct option_map].
       * reflexivity.
-      * rewrite fs_er_small; cbn [option_map].
+      * rewrite fs_er_small; cbn [cell_case_struct option_map].
         rewrite fc_er_fsingle, fn_er_node, !map_bapp. reflexivity.
-      * rewrite fs_er_big; cbn [option_map].
+      * rewrite fs_er_big; cbn [cell_case_struct option_map].
         rewrite inject_small_f_er, cad_concat_x_er.
         destruct (cad_concat_x (inject_chain_x mid (FSmall p3)) d3) as [d5|];
           cbn [option_map]; [|reflexivity].
         rewrite fc_er_fsingle, fn_er_node, !map_bapp. reflexivity.
     + (* SBig front *)
-      rewrite fs_er_big; cbn [option_map].
+      rewrite fs_er_big; cbn [cell_case_struct option_map].
       rewrite push_small_f_er, cad_concat_x_er.
       destruct (cad_concat_x d2 (push_chain_x (FSmall s2) mid)) as [d4|];
         cbn [option_map]; [|reflexivity].
-      destruct cellB as [a3 | b3 | p3 d3 s3]; cbn [option_map].
+      destruct cellB as [a3 | b3 | p3 d3 s3];
+        cbn [cell_case_struct option_map].
       * reflexivity.
-      * rewrite fs_er_small; cbn [option_map].
+      * rewrite fs_er_small; cbn [cell_case_struct option_map].
         rewrite fc_er_fsingle, fn_er_node, !map_bapp. reflexivity.
-      * rewrite fs_er_big; cbn [option_map].
+      * rewrite fs_er_big; cbn [cell_case_struct option_map].
         rewrite inject_small_f_er, cad_concat_x_er.
         destruct (cad_concat_x (inject_chain_x d4 (FSmall p3)) d3) as [d5|];
           cbn [option_map]; [|reflexivity].
         rewrite fc_er_fsingle, fn_er_node, !map_bapp. reflexivity.
   - (* front only *)
-    destruct cellF as [a | b | p2 d2 s2]; cbn [option_map].
+    destruct cellF as [a | b | p2 d2 s2];
+      cbn [cell_case_struct option_map].
     + reflexivity.
-    + rewrite fs_er_small; cbn [option_map].
+    + rewrite fs_er_small; cbn [cell_case_struct option_map].
       rewrite fc_er_fsingle, fn_er_node, map_bapp. reflexivity.
-    + rewrite fs_er_big; cbn [option_map].
+    + rewrite fs_er_big; cbn [cell_case_struct option_map].
       rewrite fc_er_fsingle, fn_er_node, !map_bapp. reflexivity.
 Qed.
 
@@ -1797,39 +1800,48 @@ Definition cad_pop_x {A : Type} (d : fchain A) : option (A * fchain A) :=
   | FEmpty => None
   | FFlat k p s rest =>
       match node_pop_x (FNode k p s) with
-      | Some (FGround a, n') =>
-          match rest with
-          | FEmpty => Some (a, rebuild_childless_x n')
-          | _ =>
-              match tree_repair_x n' rest with
-              | Some d'' => Some (a, d'')
-              | None => None
-              end
-          end
-      | _ => None
+      | Some (cell, n') =>
+          cell_case_ground cell
+            (fun a =>
+               match rest with
+               | FEmpty => Some (a, rebuild_childless_x n')
+               | _ =>
+                   match tree_repair_x n' rest with
+                   | Some d'' => Some (a, d'')
+                   | None => None
+                   end
+               end)
+            None
+      | None => None
       end
   | FSingle b n rest =>
       let '(n0, child) := root_and_child_x b n rest in
       match node_pop_x n0 with
-      | Some (FGround a, n') =>
-          match child with
-          | FEmpty => Some (a, rebuild_childless_x n')
-          | _ =>
-              match tree_repair_x n' child with
-              | Some d'' => Some (a, d'')
-              | None => None
-              end
-          end
-      | _ => None
+      | Some (cell, n') =>
+          cell_case_ground cell
+            (fun a =>
+               match child with
+               | FEmpty => Some (a, rebuild_childless_x n')
+               | _ =>
+                   match tree_repair_x n' child with
+                   | Some d'' => Some (a, d'')
+                   | None => None
+                   end
+               end)
+            None
+      | None => None
       end
   | FPair _ _ =>
       match pop_raw_x d with
-      | Some (FGround x, d') =>
-          match repair_pop_side_x d' with
-          | Some d'' => Some (x, d'')
-          | None => None
-          end
-      | _ => None
+      | Some (cell, d') =>
+          cell_case_ground cell
+            (fun x =>
+               match repair_pop_side_x d' with
+               | Some d'' => Some (x, d'')
+               | None => None
+               end)
+            None
+      | None => None
       end
   end.
 
@@ -1838,7 +1850,7 @@ Local Ltac cad_pop_cell n0 child :=
   rewrite node_pop_x_er;
   destruct (node_pop_x n0) as [[cell n']|]; cbn [option_map];
   [ destruct cell as [a | bb | pp dd ss];
-    [ cbn [fs_er option_map];
+    [ cbn [fs_er cell_case_ground option_map];
       destruct child as [| ? ? ? ? | ? ? ? | ? ?];
       [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
       | cbn [option_map]; rewrite tree_repair_x_er;
@@ -1867,7 +1879,7 @@ Proof.
     destruct (pop_raw_x (FPair l r)) as [[cell d']|]; cbn [option_map];
       [|reflexivity].
     destruct cell as [a | bb | pp dd ss]; [|reflexivity|reflexivity].
-    cbn [fs_er option_map].
+    cbn [fs_er cell_case_ground option_map].
     rewrite repair_pop_side_x_er.
     destruct (repair_pop_side_x d'); cbn [option_map]; reflexivity.
 Qed.
@@ -1877,39 +1889,48 @@ Definition cad_eject_x {A : Type} (d : fchain A) : option (fchain A * A) :=
   | FEmpty => None
   | FFlat k p s rest =>
       match node_eject_x (FNode k p s) with
-      | Some (n', FGround a) =>
-          match rest with
-          | FEmpty => Some (rebuild_childless_x n', a)
-          | _ =>
-              match tree_repair_x n' rest with
-              | Some d'' => Some (d'', a)
-              | None => None
-              end
-          end
-      | _ => None
+      | Some (n', cell) =>
+          cell_case_ground cell
+            (fun a =>
+               match rest with
+               | FEmpty => Some (rebuild_childless_x n', a)
+               | _ =>
+                   match tree_repair_x n' rest with
+                   | Some d'' => Some (d'', a)
+                   | None => None
+                   end
+               end)
+            None
+      | None => None
       end
   | FSingle b n rest =>
       let '(n0, child) := root_and_child_x b n rest in
       match node_eject_x n0 with
-      | Some (n', FGround a) =>
-          match child with
-          | FEmpty => Some (rebuild_childless_x n', a)
-          | _ =>
-              match tree_repair_x n' child with
-              | Some d'' => Some (d'', a)
-              | None => None
-              end
-          end
-      | _ => None
+      | Some (n', cell) =>
+          cell_case_ground cell
+            (fun a =>
+               match child with
+               | FEmpty => Some (rebuild_childless_x n', a)
+               | _ =>
+                   match tree_repair_x n' child with
+                   | Some d'' => Some (d'', a)
+                   | None => None
+                   end
+               end)
+            None
+      | None => None
       end
   | FPair _ _ =>
       match eject_raw_x d with
-      | Some (d', FGround x) =>
-          match repair_eject_side_x d' with
-          | Some d'' => Some (d'', x)
-          | None => None
-          end
-      | _ => None
+      | Some (d', cell) =>
+          cell_case_ground cell
+            (fun x =>
+               match repair_eject_side_x d' with
+               | Some d'' => Some (d'', x)
+               | None => None
+               end)
+            None
+      | None => None
       end
   end.
 
@@ -1917,7 +1938,7 @@ Local Ltac cad_eject_cell n0 child :=
   rewrite node_eject_x_er;
   destruct (node_eject_x n0) as [[n' cell]|]; cbn [option_map];
   [ destruct cell as [a | bb | pp dd ss];
-    [ cbn [fs_er option_map];
+    [ cbn [fs_er cell_case_ground option_map];
       destruct child as [| ? ? ? ? | ? ? ? | ? ?];
       [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
       | cbn [option_map]; rewrite tree_repair_x_er;
@@ -1946,7 +1967,7 @@ Proof.
     destruct (eject_raw_x (FPair l r)) as [[d' cell]|]; cbn [option_map];
       [|reflexivity].
     destruct cell as [a | bb | pp dd ss]; [|reflexivity|reflexivity].
-    cbn [fs_er option_map].
+    cbn [fs_er cell_case_ground option_map].
     rewrite repair_eject_side_x_er.
     destruct (repair_eject_side_x d'); cbn [option_map]; reflexivity.
 Qed.

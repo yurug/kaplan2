@@ -222,6 +222,11 @@ let run_cells ~ops_of ~mk_thunk ns =
        if !dead || projected > time_budget then begin dead := true; "(>cap)" end
        else begin
          let thunk = mk_thunk n in
+         (* normalize major-heap state between cells: without this, a
+            cell's wall-clock depends on the allocation history of the
+            cells before it (the model layer's quadratic cells bloat
+            the major heap and tax every later measurement). *)
+         Gc.compact ();
          let t = time thunk in
          last := Some (n, t);
          if t > time_budget then dead := true;

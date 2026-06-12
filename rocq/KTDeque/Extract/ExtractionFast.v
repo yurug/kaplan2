@@ -24,6 +24,12 @@ From KTDeque.Catenable Require Import Model Color Ops BufPrims OpsFast OpsFused.
 Set Extraction Output Directory "kt_extracted".
 Extraction Language OCaml.
 
+(* ExtrOcamlNatInt leaves Nat.min as the recursive Peano definition
+   emulated over int — O(min a b) per call.  It sits on the §6 colour
+   path (node_color, KOnly arm).  Remap to a branch; sound for the
+   nat-as-int embedding (both operands are nonnegative). *)
+Extract Constant Nat.min => "(fun a b -> if (a:int) <= b then a else b)".
+
 Extract Constant buffer "'x" => "'x Fastbuf.t".
 Extract Constant bempty => "Fastbuf.empty".
 Extract Constant b1 => "Fastbuf.b1".
@@ -121,6 +127,20 @@ Extraction "kTErasedChain.ml"
     erasure commutations). *)
 
 From KTDeque.Catenable Require Import FlatChain FlatOps.
+
+(* The element-unboxing seam: fstored maps to the zero-box carrier
+   (ocaml/extracted/sraw.ml) — a ground cell IS its payload.  The two
+   FlatChain cell wrappers extract blindly (fallback arms dropped);
+   FlatKeystone.v is the static justification (under fJ, level-0 cells
+   are ground and child-level cells are structural, so the fallbacks
+   are unreachable).  No raw match on fstored survives in the
+   extracted op set — the carrier match function traps loudly. *)
+Extract Inductive fstored => "Sraw.t"
+  [ "Sraw.ground" "Sraw.small" "Sraw.big" ]
+  "(fun _ _ _ _ -> assert false (* fstored: raw match reached *))".
+Extract Constant cell_case_ground => "(fun c kg _ -> kg (Obj.magic c))".
+Extract Constant cell_case_struct =>
+  "(fun c ks kb _ -> Sraw.case_struct ks kb c)".
 
 Extraction Inline
   fsingle fcell fdegen

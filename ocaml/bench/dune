@@ -47,3 +47,8 @@
  (name flat_ab_ext)
  (modules flat_ab_ext)
  (libraries unix ktdeque))
+
+(executable
+ (name push_prof)
+ (modules push_prof)
+ (libraries unix viennot_deque ktdeque))
