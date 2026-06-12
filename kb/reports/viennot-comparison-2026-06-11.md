@@ -196,6 +196,31 @@ conditional-naturality mirror of the §4 ops in Rocq — the genuine
 next-phase project.  (The reverted implementation survives at commit
 `4d774ab` for reference.)
 
+## Addendum (2026-06-12, check erasure): the third verified pass
+
+`Common/ErasedTree.v` + `DequePtr/ErasedOps.v`: mirrors of the §4
+sized ops over CHECK-FREE elements — every `Nat.eq_dec (E.level …)` +
+proof-carrying `E.pair` becomes an unchecked `EPair`, every
+`match E.unpair` a structural match.  Each mirror carries a
+success-conditional naturality lemma (`f args = Some r ->
+f_e (er args) = Some (er r)`) down to the keystone-proven kt4 ops;
+the audit showed every `unpair = None` arm is failure propagation, so
+the blind extraction (`Extract Inductive etree` → `eraw.ml`: zero-box
+leaves, one-block pairs, field reads without discrimination) is pinned
+by the lemmas on every input reachable from regular chains.  This is
+the statically-justified form of Viennot's erased GADT indices.
+
+Result (`bench/results/cadeque-compare-2026-06-12.md`, KTf vs Vi):
+margins widen across the board — at 10⁶: mixed 48 vs 73, concat-fold
+549 vs 1078 (2×), concat-tree 1414 vs 3023 (2.1×), interleave 116 vs
+271 (2.3×), fork 44 vs 65, pop 65 vs 81, eject 61 vs 75 — and the
+build ops now WIN at small/mid sizes (push 51 vs 57 at 10³, 96 vs 102
+at 10⁴), trailing only at 10⁶ (112 vs 84, 103 vs 90).  With element
+representation now cost-free, the residual large-n gap is the §6
+spine's allocation count (CSingle∘Pkt∘Node = three nested blocks per
+op vs their flatter cells) under large-heap GC pressure — a §6
+representation-fusion data refinement is the next candidate phase.
+
 ## Verdict
 
 - Functional verification: **parity** (same theorem shape, both closed).

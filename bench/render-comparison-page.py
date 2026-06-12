@@ -383,29 +383,31 @@ budget (quadratic regime). Raw dated output:
 <h3>3.3 Reading the results honestly</h3>
 <div class="win">
 <strong>KTf beats Viennot on 7 of 9 workloads, flat at every size.</strong>
-At n&nbsp;=&nbsp;10⁶: pop-drain 74&nbsp;vs&nbsp;83, eject-drain 69&nbsp;vs&nbsp;75,
-mixed 48&nbsp;vs&nbsp;72 (1.5×), concat-fold 597&nbsp;vs&nbsp;987 (1.65×), concat-tree
-1903&nbsp;vs&nbsp;2899, concat+pop interleave 122&nbsp;vs&nbsp;268 (2.2×), and the
-persistent-fork rerun 40&nbsp;vs&nbsp;65&nbsp;ns/op (1.6×).  Two verified
-optimization passes built this: the OpsFused.v fusion pass (case-of-case +
-deforestation, 20–30% on every removal path) and the SizedChain.v
-data-constructor fusion (the buffer size lives inside the §4 chain's top
-constructor — no wrapper record, no result constructor on push/inject).
+At n&nbsp;=&nbsp;10⁶: pop-drain 65&nbsp;vs&nbsp;81, eject-drain 61&nbsp;vs&nbsp;75,
+mixed 48&nbsp;vs&nbsp;73 (1.5×), concat-fold 549&nbsp;vs&nbsp;1078 (2×), concat-tree
+1414&nbsp;vs&nbsp;3023 (2.1×), concat+pop interleave 116&nbsp;vs&nbsp;271 (2.3×), and
+the persistent-fork rerun 44&nbsp;vs&nbsp;65&nbsp;ns/op (1.5×) — and the build-side
+ops now win at small/mid sizes too (push 51&nbsp;vs&nbsp;57 at 10³,
+96&nbsp;vs&nbsp;102 at 10⁴).  Three verified optimization passes built this:
+the OpsFused.v fusion pass (case-of-case + deforestation, 20–30% on every
+removal path), the SizedChain.v data-constructor fusion (the buffer size lives
+inside the §4 chain's top constructor), and the ErasedOps.v CHECK ERASURE —
+mirrors of the §4 ops with no runtime level discipline at all (unchecked
+pairing, blind unpairing, zero-box leaves), each carrying a success-conditional
+naturality proof down to the keystone-proven kt4 ops.
 </div>
 <div class="honest">
-<strong>Where we still lose: the two build-side workloads at scale.</strong> Steady
-push (113&nbsp;vs&nbsp;80) and steady inject (109&nbsp;vs&nbsp;91) trail by
-~1.2–1.4× at n&nbsp;=&nbsp;10⁶ (at n&nbsp;=&nbsp;10³ they win: push 49&nbsp;vs&nbsp;67).
-The constructor-fusion passes removed the removable allocations.  A
-<em>measured negative result</em> sharpened what remains: a tag-checked zero-box
-element representation (leaves unboxed, level-carrying pair blocks) was implemented,
-A/B-benchmarked under identical load, and <em>reverted</em> — it traded the
-per-element box for a header-byte load on the cold payload at every level/unpair
-site, losing 10–25% (the sigT box doubles as a level cache).  Matching Viennot's
-build-side numbers therefore requires erasing the level <em>checks</em>, not just
-the level data — unchecked pairing and blind unpairing, justified the way their
-GADT indices are: statically.  That is the conditional-naturality mirror of the §4
-ops in Rocq, the identified next phase.
+<strong>Where we still lose: the two build-side workloads at 10⁶ only.</strong>
+Steady push (112&nbsp;vs&nbsp;84) and steady inject (103&nbsp;vs&nbsp;90) trail by
+~1.2–1.3× at the largest size.  The journey here was empirical: a tag-checked
+zero-box representation was measured and <em>reverted</em> (the tag test loaded
+the cold payload's header byte — the sigT box doubles as a level cache); the
+check-erasure phase then removed the checks themselves, statically justified by
+naturality proofs, exactly as Viennot's erased GADT indices are.  With element
+representation now cost-free, the remaining 10⁶-scale gap is the §6 spine's
+allocation count (three nested blocks per operation vs their flatter cells)
+under large-heap GC pressure — a §6 representation-fusion refinement, recorded
+as the next candidate phase.
 </div>
 <p><strong>The model baseline (KT) tells the same story from the other side.</strong>
 Its cons-side cells (push/pop on a bare list) bound what any buffer can do, and its

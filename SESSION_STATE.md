@@ -55,7 +55,26 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
-## 2026-06-12e (user request, IN PROGRESS): check-erasure naturality mirror
+## 2026-06-12e (user request): check-erasure naturality mirror — DONE
+- ErasedTree.v (etree + er + laws), ErasedOps.v (~900 lines): generic
+  GPacket/GKChain/GSChain + erasure maps + buf5_map commutation
+  toolkit + check-erased mirrors of green/prefix/suffix concats,
+  make_small (9 cases), green_of_red_k, and the four sized ops —
+  every mirror with a success-conditional naturality lemma down to
+  the keystone-proven kt4 ops.  Zero admits.
+- Blind extraction: Extract Inductive etree => Eraw.t (zero-box
+  leaves = Obj.repr, one-block pairs, blind field-read match) →
+  kTErasedChain.ml; Fastbuf rewritten on it (to_list = verified pop
+  drain; no Coq seq mirror needed).  Self-check PASSES.
+- Bench (taskset, ollama load present): 7/9 wins with widened margins
+  (mixed 48v73, fold 549v1078, tree 1414v3023, interleave 116v271,
+  fork 44v65, pop 65v81, eject 61v75); push/inject WIN at 1k/10k
+  (51v57, 96v102) and trail only at 1M (112v84, 103v90).
+- RESIDUAL (next candidate phase): §6 spine allocation count —
+  CSingle∘Pkt∘Node = 3 nested blocks/op vs Viennot's flatter cells;
+  a §6 representation-fusion data refinement (fused constructor for
+  the dominant CSingle(Pkt BHole n) shape) would attack it.
+THE ORIGINAL PLAN (kept for reference):
 THE PLAN (continue here; audit DONE, design FROZEN):
 - AUDIT RESULT: every `E.unpair = None` arm in OpsKT.v (helpers
   green/prefix/suffix_concat ~l.408-510, pair_one l.604, make_small
