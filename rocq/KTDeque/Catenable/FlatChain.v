@@ -155,9 +155,22 @@ Lemma fc_er_flat : forall A k (p s : buffer (fstored A)) rest,
     = CSingle (Pkt BHole (Node k (map fs_er p) (map fs_er s))) (fc_er rest).
 Proof. reflexivity. Qed.
 
-(** Erasure rewriting set: after [cbn] exposes the inner fixes, fold
-    them back to [map fs_er] via the lemmas above (or avoid [cbn] on
-    erasures entirely and rewrite with these equations). *)
+Lemma fc_er_empty : forall A, fc_er (@FEmpty A) = CEmpty.
+Proof. reflexivity. Qed.
+
+Lemma fc_er_single : forall A (b : fbody A) n rest,
+    fc_er (FSingle b n rest)
+    = CSingle (Pkt (fb_er b) (fn_er n)) (fc_er rest).
+Proof. reflexivity. Qed.
+
+Lemma fc_er_pair : forall A (l r : fchain A),
+    fc_er (FPair l r) = CPair (fc_er l) (fc_er r).
+Proof. reflexivity. Qed.
+
+(** Erasure rewriting set: rewrite with the equations above instead of
+    [cbn]-reducing an erasure application — [cbn] exposes the inner
+    buffer fixes, which then defeat syntactic rewriting against the
+    [map fs_er] forms. *)
 
 (* ========================================================================== *)
 (* The smart single constructor: keep hole-bodied packets fused.               *)
