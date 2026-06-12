@@ -124,9 +124,9 @@ From KTDeque.Catenable Require Import FlatChain FlatOps.
 
 Extraction Inline
   fsingle fcell fdegen
-  upd_flat_x upd_single_x
+  upd_flat_x upd_single_x tree_repair_x
   node_push_x node_inject_x node_pop_x node_eject_x
-  node_color_x fchain_has_node.
+  node_color_x fchain_has_node rebuild_childless_x.
 
 Extraction "kTFlatCadeque.ml"
   fchain

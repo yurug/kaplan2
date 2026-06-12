@@ -35,3 +35,15 @@
  (name cadeque_compare)
  (modules cadeque_compare)
  (libraries unix viennot_deque ktdeque))
+
+; flat_ab.ml: interleaved A/B of the previous production artifact
+; (KTCadequeFast) vs the fused-spine artifact (KTFlatCadeque).
+(executable
+ (name flat_ab)
+ (modules flat_ab)
+ (libraries unix ktdeque))
+
+(executable
+ (name flat_ab_ext)
+ (modules flat_ab_ext)
+ (libraries unix ktdeque))

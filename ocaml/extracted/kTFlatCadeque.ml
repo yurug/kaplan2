@@ -1219,27 +1219,6 @@ let cad_concat_x d e =
                  | None -> None)
               | None -> None))))
 
-(** val rebuild_childless_x : 'a1 fnode -> 'a1 fchain **)
-
-let rebuild_childless_x = function
-| FNode (k, p, s) ->
-  if (&&) (bis_empty p) (bis_empty s)
-  then FEmpty
-  else (match k with
-        | KOnly ->
-          if (||) (bis_empty p) (bis_empty s)
-          then FFlat (k, p, s, FEmpty)
-          else if (||)
-                    (Nat.ltb (bsize p) (Stdlib.Int.succ (Stdlib.Int.succ
-                      (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                      0))))))
-                    (Nat.ltb (bsize s) (Stdlib.Int.succ (Stdlib.Int.succ
-                      (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                      0))))))
-               then FFlat (KOnly, (bapp p s), bempty, FEmpty)
-               else FFlat (k, p, s, FEmpty)
-        | _ -> FFlat (k, p, s, FEmpty))
-
 (** val pop_raw_x : 'a1 fchain -> ('a1 fstored * 'a1 fchain) option **)
 
 let rec pop_raw_x = function
@@ -1251,7 +1230,25 @@ let rec pop_raw_x = function
      let p1 = (x, (FNode (k, p', s))) in
      let (x0, n') = p1 in
      (match rest with
-      | FEmpty -> Some (x0, (rebuild_childless_x n'))
+      | FEmpty ->
+        Some (x0,
+          (let FNode (k0, p2, s0) = n' in
+           if (&&) (bis_empty p2) (bis_empty s0)
+           then FEmpty
+           else (match k0 with
+                 | KOnly ->
+                   if (||) (bis_empty p2) (bis_empty s0)
+                   then FFlat (k0, p2, s0, FEmpty)
+                   else if (||)
+                             (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                             (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                        then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                        else FFlat (k0, p2, s0, FEmpty)
+                 | _ -> FFlat (k0, p2, s0, FEmpty))))
       | _ -> Some (x0, (tree_of_x n' rest)))
    | None ->
      (match bpop s with
@@ -1260,7 +1257,25 @@ let rec pop_raw_x = function
         let p1 = (x, (FNode (k, p, s'))) in
         let (x0, n') = p1 in
         (match rest with
-         | FEmpty -> Some (x0, (rebuild_childless_x n'))
+         | FEmpty ->
+           Some (x0,
+             (let FNode (k0, p2, s0) = n' in
+              if (&&) (bis_empty p2) (bis_empty s0)
+              then FEmpty
+              else (match k0 with
+                    | KOnly ->
+                      if (||) (bis_empty p2) (bis_empty s0)
+                      then FFlat (k0, p2, s0, FEmpty)
+                      else if (||)
+                                (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                           then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                           else FFlat (k0, p2, s0, FEmpty)
+                    | _ -> FFlat (k0, p2, s0, FEmpty))))
          | _ -> Some (x0, (tree_of_x n' rest)))
       | None -> None))
 | FSingle (b, n, rest) ->
@@ -1272,7 +1287,25 @@ let rec pop_raw_x = function
      let p1 = (x, (FNode (k, p', s))) in
      let (x0, n') = p1 in
      (match child with
-      | FEmpty -> Some (x0, (rebuild_childless_x n'))
+      | FEmpty ->
+        Some (x0,
+          (let FNode (k0, p2, s0) = n' in
+           if (&&) (bis_empty p2) (bis_empty s0)
+           then FEmpty
+           else (match k0 with
+                 | KOnly ->
+                   if (||) (bis_empty p2) (bis_empty s0)
+                   then FFlat (k0, p2, s0, FEmpty)
+                   else if (||)
+                             (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                             (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                        then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                        else FFlat (k0, p2, s0, FEmpty)
+                 | _ -> FFlat (k0, p2, s0, FEmpty))))
       | _ -> Some (x0, (tree_of_x n' child)))
    | None ->
      (match bpop s with
@@ -1281,7 +1314,25 @@ let rec pop_raw_x = function
         let p1 = (x, (FNode (k, p, s'))) in
         let (x0, n') = p1 in
         (match child with
-         | FEmpty -> Some (x0, (rebuild_childless_x n'))
+         | FEmpty ->
+           Some (x0,
+             (let FNode (k0, p2, s0) = n' in
+              if (&&) (bis_empty p2) (bis_empty s0)
+              then FEmpty
+              else (match k0 with
+                    | KOnly ->
+                      if (||) (bis_empty p2) (bis_empty s0)
+                      then FFlat (k0, p2, s0, FEmpty)
+                      else if (||)
+                                (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                           then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                           else FFlat (k0, p2, s0, FEmpty)
+                    | _ -> FFlat (k0, p2, s0, FEmpty))))
          | _ -> Some (x0, (tree_of_x n' child)))
       | None -> None))
 | FPair (l, r) ->
@@ -1360,7 +1411,26 @@ let rec eject_raw_x = function
      let p1 = ((FNode (k, p, s')), x) in
      let (n', x0) = p1 in
      (match rest with
-      | FEmpty -> Some ((rebuild_childless_x n'), x0)
+      | FEmpty ->
+        Some
+          ((let FNode (k0, p2, s0) = n' in
+            if (&&) (bis_empty p2) (bis_empty s0)
+            then FEmpty
+            else (match k0 with
+                  | KOnly ->
+                    if (||) (bis_empty p2) (bis_empty s0)
+                    then FFlat (k0, p2, s0, FEmpty)
+                    else if (||)
+                              (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                         then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                         else FFlat (k0, p2, s0, FEmpty)
+                  | _ -> FFlat (k0, p2, s0, FEmpty))),
+          x0)
       | _ -> Some ((tree_of_x n' rest), x0))
    | None ->
      (match beject p with
@@ -1369,7 +1439,26 @@ let rec eject_raw_x = function
         let p1 = ((FNode (k, p', bempty)), x) in
         let (n', x0) = p1 in
         (match rest with
-         | FEmpty -> Some ((rebuild_childless_x n'), x0)
+         | FEmpty ->
+           Some
+             ((let FNode (k0, p2, s0) = n' in
+               if (&&) (bis_empty p2) (bis_empty s0)
+               then FEmpty
+               else (match k0 with
+                     | KOnly ->
+                       if (||) (bis_empty p2) (bis_empty s0)
+                       then FFlat (k0, p2, s0, FEmpty)
+                       else if (||)
+                                 (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                 (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                            then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                            else FFlat (k0, p2, s0, FEmpty)
+                     | _ -> FFlat (k0, p2, s0, FEmpty))),
+             x0)
          | _ -> Some ((tree_of_x n' rest), x0))
       | None -> None))
 | FSingle (b, n, rest) ->
@@ -1381,7 +1470,26 @@ let rec eject_raw_x = function
      let p1 = ((FNode (k, p, s')), x) in
      let (n', x0) = p1 in
      (match child with
-      | FEmpty -> Some ((rebuild_childless_x n'), x0)
+      | FEmpty ->
+        Some
+          ((let FNode (k0, p2, s0) = n' in
+            if (&&) (bis_empty p2) (bis_empty s0)
+            then FEmpty
+            else (match k0 with
+                  | KOnly ->
+                    if (||) (bis_empty p2) (bis_empty s0)
+                    then FFlat (k0, p2, s0, FEmpty)
+                    else if (||)
+                              (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ
+                                (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                         then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                         else FFlat (k0, p2, s0, FEmpty)
+                  | _ -> FFlat (k0, p2, s0, FEmpty))),
+          x0)
       | _ -> Some ((tree_of_x n' child), x0))
    | None ->
      (match beject p with
@@ -1390,7 +1498,26 @@ let rec eject_raw_x = function
         let p1 = ((FNode (k, p', bempty)), x) in
         let (n', x0) = p1 in
         (match child with
-         | FEmpty -> Some ((rebuild_childless_x n'), x0)
+         | FEmpty ->
+           Some
+             ((let FNode (k0, p2, s0) = n' in
+               if (&&) (bis_empty p2) (bis_empty s0)
+               then FEmpty
+               else (match k0 with
+                     | KOnly ->
+                       if (||) (bis_empty p2) (bis_empty s0)
+                       then FFlat (k0, p2, s0, FEmpty)
+                       else if (||)
+                                 (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                 (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                            then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                            else FFlat (k0, p2, s0, FEmpty)
+                     | _ -> FFlat (k0, p2, s0, FEmpty))),
+             x0)
          | _ -> Some ((tree_of_x n' child), x0))
       | None -> None))
 | FPair (l, r) ->
@@ -2122,7 +2249,25 @@ let drain_both_x rest = match rest with
            let p7 = ((FNode (k1, p5, s')), x0) in
            let (n2, cellB) = p7 in
            (match dd with
-            | FEmpty -> Some ((cellF, (Some cellB)), (rebuild_childless_x n2))
+            | FEmpty ->
+              Some ((cellF, (Some cellB)),
+                (let FNode (k2, p8, s2) = n2 in
+                 if (&&) (bis_empty p8) (bis_empty s2)
+                 then FEmpty
+                 else (match k2 with
+                       | KOnly ->
+                         if (||) (bis_empty p8) (bis_empty s2)
+                         then FFlat (k2, p8, s2, FEmpty)
+                         else if (||)
+                                   (Nat.ltb (bsize p8) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                   (Nat.ltb (bsize s2) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              then FFlat (KOnly, (bapp p8 s2), bempty, FEmpty)
+                              else FFlat (k2, p8, s2, FEmpty)
+                       | _ -> FFlat (k2, p8, s2, FEmpty))))
             | _ -> Some ((cellF, (Some cellB)), (tree_of_x n2 dd)))
          | None ->
            (match beject p5 with
@@ -2132,7 +2277,27 @@ let drain_both_x rest = match rest with
               let (n2, cellB) = p7 in
               (match dd with
                | FEmpty ->
-                 Some ((cellF, (Some cellB)), (rebuild_childless_x n2))
+                 Some ((cellF, (Some cellB)),
+                   (let FNode (k2, p8, s2) = n2 in
+                    if (&&) (bis_empty p8) (bis_empty s2)
+                    then FEmpty
+                    else (match k2 with
+                          | KOnly ->
+                            if (||) (bis_empty p8) (bis_empty s2)
+                            then FFlat (k2, p8, s2, FEmpty)
+                            else if (||)
+                                      (Nat.ltb (bsize p8) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                      (Nat.ltb (bsize s2) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                 then FFlat (KOnly, (bapp p8 s2), bempty,
+                                        FEmpty)
+                                 else FFlat (k2, p8, s2, FEmpty)
+                          | _ -> FFlat (k2, p8, s2, FEmpty))))
                | _ -> Some ((cellF, (Some cellB)), (tree_of_x n2 dd)))
             | None ->
               (match dd with
@@ -2152,7 +2317,27 @@ let drain_both_x rest = match rest with
               let (n2, cellB) = p7 in
               (match dd with
                | FEmpty ->
-                 Some ((cellF, (Some cellB)), (rebuild_childless_x n2))
+                 Some ((cellF, (Some cellB)),
+                   (let FNode (k2, p8, s2) = n2 in
+                    if (&&) (bis_empty p8) (bis_empty s2)
+                    then FEmpty
+                    else (match k2 with
+                          | KOnly ->
+                            if (||) (bis_empty p8) (bis_empty s2)
+                            then FFlat (k2, p8, s2, FEmpty)
+                            else if (||)
+                                      (Nat.ltb (bsize p8) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                      (Nat.ltb (bsize s2) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                 then FFlat (KOnly, (bapp p8 s2), bempty,
+                                        FEmpty)
+                                 else FFlat (k2, p8, s2, FEmpty)
+                          | _ -> FFlat (k2, p8, s2, FEmpty))))
                | _ -> Some ((cellF, (Some cellB)), (tree_of_x n2 dd)))
             | None ->
               (match beject p5 with
@@ -2162,7 +2347,27 @@ let drain_both_x rest = match rest with
                  let (n2, cellB) = p7 in
                  (match dd with
                   | FEmpty ->
-                    Some ((cellF, (Some cellB)), (rebuild_childless_x n2))
+                    Some ((cellF, (Some cellB)),
+                      (let FNode (k2, p8, s2) = n2 in
+                       if (&&) (bis_empty p8) (bis_empty s2)
+                       then FEmpty
+                       else (match k2 with
+                             | KOnly ->
+                               if (||) (bis_empty p8) (bis_empty s2)
+                               then FFlat (k2, p8, s2, FEmpty)
+                               else if (||)
+                                         (Nat.ltb (bsize p8) (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           0))))))
+                                         (Nat.ltb (bsize s2) (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           0))))))
+                                    then FFlat (KOnly, (bapp p8 s2), bempty,
+                                           FEmpty)
+                                    else FFlat (k2, p8, s2, FEmpty)
+                             | _ -> FFlat (k2, p8, s2, FEmpty))))
                   | _ -> Some ((cellF, (Some cellB)), (tree_of_x n2 dd)))
                | None ->
                  (match dd with
@@ -2187,7 +2392,25 @@ let drain_both_x rest = match rest with
            let p6 = ((FNode (k0, p4, s')), x0) in
            let (n3, cellB) = p6 in
            (match dd with
-            | FEmpty -> Some ((cellF, (Some cellB)), (rebuild_childless_x n3))
+            | FEmpty ->
+              Some ((cellF, (Some cellB)),
+                (let FNode (k1, p7, s1) = n3 in
+                 if (&&) (bis_empty p7) (bis_empty s1)
+                 then FEmpty
+                 else (match k1 with
+                       | KOnly ->
+                         if (||) (bis_empty p7) (bis_empty s1)
+                         then FFlat (k1, p7, s1, FEmpty)
+                         else if (||)
+                                   (Nat.ltb (bsize p7) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                   (Nat.ltb (bsize s1) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              then FFlat (KOnly, (bapp p7 s1), bempty, FEmpty)
+                              else FFlat (k1, p7, s1, FEmpty)
+                       | _ -> FFlat (k1, p7, s1, FEmpty))))
             | _ -> Some ((cellF, (Some cellB)), (tree_of_x n3 dd)))
          | None ->
            (match beject p4 with
@@ -2197,7 +2420,27 @@ let drain_both_x rest = match rest with
               let (n3, cellB) = p6 in
               (match dd with
                | FEmpty ->
-                 Some ((cellF, (Some cellB)), (rebuild_childless_x n3))
+                 Some ((cellF, (Some cellB)),
+                   (let FNode (k1, p7, s1) = n3 in
+                    if (&&) (bis_empty p7) (bis_empty s1)
+                    then FEmpty
+                    else (match k1 with
+                          | KOnly ->
+                            if (||) (bis_empty p7) (bis_empty s1)
+                            then FFlat (k1, p7, s1, FEmpty)
+                            else if (||)
+                                      (Nat.ltb (bsize p7) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                      (Nat.ltb (bsize s1) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                 then FFlat (KOnly, (bapp p7 s1), bempty,
+                                        FEmpty)
+                                 else FFlat (k1, p7, s1, FEmpty)
+                          | _ -> FFlat (k1, p7, s1, FEmpty))))
                | _ -> Some ((cellF, (Some cellB)), (tree_of_x n3 dd)))
             | None ->
               (match dd with
@@ -2217,7 +2460,27 @@ let drain_both_x rest = match rest with
               let (n3, cellB) = p6 in
               (match dd with
                | FEmpty ->
-                 Some ((cellF, (Some cellB)), (rebuild_childless_x n3))
+                 Some ((cellF, (Some cellB)),
+                   (let FNode (k1, p7, s1) = n3 in
+                    if (&&) (bis_empty p7) (bis_empty s1)
+                    then FEmpty
+                    else (match k1 with
+                          | KOnly ->
+                            if (||) (bis_empty p7) (bis_empty s1)
+                            then FFlat (k1, p7, s1, FEmpty)
+                            else if (||)
+                                      (Nat.ltb (bsize p7) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                      (Nat.ltb (bsize s1) (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        (Stdlib.Int.succ (Stdlib.Int.succ
+                                        0))))))
+                                 then FFlat (KOnly, (bapp p7 s1), bempty,
+                                        FEmpty)
+                                 else FFlat (k1, p7, s1, FEmpty)
+                          | _ -> FFlat (k1, p7, s1, FEmpty))))
                | _ -> Some ((cellF, (Some cellB)), (tree_of_x n3 dd)))
             | None ->
               (match beject p4 with
@@ -2227,7 +2490,27 @@ let drain_both_x rest = match rest with
                  let (n3, cellB) = p6 in
                  (match dd with
                   | FEmpty ->
-                    Some ((cellF, (Some cellB)), (rebuild_childless_x n3))
+                    Some ((cellF, (Some cellB)),
+                      (let FNode (k1, p7, s1) = n3 in
+                       if (&&) (bis_empty p7) (bis_empty s1)
+                       then FEmpty
+                       else (match k1 with
+                             | KOnly ->
+                               if (||) (bis_empty p7) (bis_empty s1)
+                               then FFlat (k1, p7, s1, FEmpty)
+                               else if (||)
+                                         (Nat.ltb (bsize p7) (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           0))))))
+                                         (Nat.ltb (bsize s1) (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           (Stdlib.Int.succ (Stdlib.Int.succ
+                                           0))))))
+                                    then FFlat (KOnly, (bapp p7 s1), bempty,
+                                           FEmpty)
+                                    else FFlat (k1, p7, s1, FEmpty)
+                             | _ -> FFlat (k1, p7, s1, FEmpty))))
                   | _ -> Some ((cellF, (Some cellB)), (tree_of_x n3 dd)))
                | None ->
                  (match dd with
@@ -2403,101 +2686,6 @@ let repair_eject_side_x = function
       | None -> None)
    | _ -> None)
 
-(** val tree_repair_x : 'a1 fnode -> 'a1 fchain -> 'a1 fchain option **)
-
-let tree_repair_x n child =
-  match if negb (match child with
-                 | FEmpty -> false
-                 | _ -> true)
-        then CG
-        else let FNode (k, p, s) = n in
-             let m =
-               match k with
-               | KOnly -> Nat.min (bsize p) (bsize s)
-               | KLeft -> bsize p
-               | KRight -> bsize s
-             in
-             if (<=) (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                  (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                  (Stdlib.Int.succ (Stdlib.Int.succ 0)))))))) m
-             then CG
-             else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                       (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                       (Stdlib.Int.succ 0)))))))
-                  then CY
-                  else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ
-                            (Stdlib.Int.succ (Stdlib.Int.succ
-                            (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
-                       then CO
-                       else CR with
-  | CG ->
-    Some
-      (let b = FHole in
-       match b with
-       | FHole -> let FNode (k, p, s) = n in FFlat (k, p, s, child)
-       | _ -> FSingle (b, n, child))
-  | CY ->
-    (match child with
-     | FEmpty ->
-       Some
-         (let b = FHole in
-          match b with
-          | FHole -> let FNode (k, p, s) = n in FFlat (k, p, s, child)
-          | _ -> FSingle (b, n, child))
-     | FFlat (k2, p2, s2, rrest) ->
-       repair_packet_x (FBSingle (n, FHole)) (FNode (k2, p2, s2)) rrest
-     | FSingle (rb, rn, rrest) -> repair_packet_x (FBSingle (n, rb)) rn rrest
-     | FPair (f, rr) ->
-       (match f with
-        | FFlat (k2, p2, s2, lrest) ->
-          repair_packet_x (FBPairY (n, FHole, rr)) (FNode (k2, p2, s2)) lrest
-        | FSingle (lb, ln, lrest) ->
-          repair_packet_x (FBPairY (n, lb, rr)) ln lrest
-        | _ ->
-          Some
-            (let b = FHole in
-             match b with
-             | FHole -> let FNode (k, p, s) = n in FFlat (k, p, s, child)
-             | _ -> FSingle (b, n, child))))
-  | CO ->
-    (match child with
-     | FEmpty ->
-       Some
-         (let b = FHole in
-          match b with
-          | FHole -> let FNode (k, p, s) = n in FFlat (k, p, s, child)
-          | _ -> FSingle (b, n, child))
-     | FFlat (k2, p2, s2, rrest) ->
-       repair_packet_x (FBSingle (n, FHole)) (FNode (k2, p2, s2)) rrest
-     | FSingle (rb, rn, rrest) -> repair_packet_x (FBSingle (n, rb)) rn rrest
-     | FPair (ll, f) ->
-       (match f with
-        | FFlat (k2, p2, s2, rrest) ->
-          repair_packet_x (FBPairO (n, ll, FHole)) (FNode (k2, p2, s2)) rrest
-        | FSingle (rb, rn, rrest) ->
-          repair_packet_x (FBPairO (n, ll, rb)) rn rrest
-        | _ ->
-          Some
-            (let b = FHole in
-             match b with
-             | FHole -> let FNode (k, p, s) = n in FFlat (k, p, s, child)
-             | _ -> FSingle (b, n, child))))
-  | CR ->
-    let FNode (k, p1, s1) = n in
-    (match k with
-     | KOnly ->
-       if (<=) (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-            (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-            (Stdlib.Int.succ (Stdlib.Int.succ 0)))))))) (bsize s1)
-       then repair_front_x KOnly FHole p1 s1 child
-       else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                 (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
-                 (Stdlib.Int.succ (Stdlib.Int.succ 0)))))))) (bsize p1)
-            then repair_back_x KOnly FHole p1 s1 child
-            else repair_both_x FHole p1 s1 child
-     | KLeft -> repair_front_x KLeft FHole p1 s1 child
-     | KRight -> repair_back_x KRight FHole p1 s1 child)
-
 (** val cad_pop_x : 'a1 fchain -> ('a1 * 'a1 fchain) option **)
 
 let cad_pop_x d = match d with
@@ -2511,9 +2699,141 @@ let cad_pop_x d = match d with
      (match f with
       | FGround a ->
         (match rest with
-         | FEmpty -> Some (a, (rebuild_childless_x n'))
+         | FEmpty ->
+           Some (a,
+             (let FNode (k0, p2, s0) = n' in
+              if (&&) (bis_empty p2) (bis_empty s0)
+              then FEmpty
+              else (match k0 with
+                    | KOnly ->
+                      if (||) (bis_empty p2) (bis_empty s0)
+                      then FFlat (k0, p2, s0, FEmpty)
+                      else if (||)
+                                (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                           then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                           else FFlat (k0, p2, s0, FEmpty)
+                    | _ -> FFlat (k0, p2, s0, FEmpty))))
          | _ ->
-           (match tree_repair_x n' rest with
+           (match match if negb (match rest with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                        then CG
+                        else let FNode (k0, p2, s0) = n' in
+                             let m =
+                               match k0 with
+                               | KOnly -> Nat.min (bsize p2) (bsize s0)
+                               | KLeft -> bsize p2
+                               | KRight -> bsize s0
+                             in
+                             if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                  m
+                             then CG
+                             else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ 0)))))))
+                                  then CY
+                                  else if (=) m (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ 0))))))
+                                       then CO
+                                       else CR with
+                  | CG ->
+                    Some
+                      (let b = FHole in
+                       match b with
+                       | FHole ->
+                         let FNode (k0, p2, s0) = n' in
+                         FFlat (k0, p2, s0, rest)
+                       | _ -> FSingle (b, n', rest))
+                  | CY ->
+                    (match rest with
+                     | FEmpty ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (f0, rr) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, lrest) ->
+                          repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                            (k2, p2, s2)) lrest
+                        | FSingle (lb, ln, lrest) ->
+                          repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                        | _ ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))))
+                  | CO ->
+                    (match rest with
+                     | FEmpty ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (ll, f0) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                            (k2, p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                        | _ ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))))
+                  | CR ->
+                    let FNode (k0, p2, s1) = n' in
+                    (match k0 with
+                     | KOnly ->
+                       if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                            (bsize s1)
+                       then repair_front_x KOnly FHole p2 s1 rest
+                       else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                 (bsize p2)
+                            then repair_back_x KOnly FHole p2 s1 rest
+                            else repair_both_x FHole p2 s1 rest
+                     | KLeft -> repair_front_x KLeft FHole p2 s1 rest
+                     | KRight -> repair_back_x KRight FHole p2 s1 rest) with
             | Some d'' -> Some (a, d'')
             | None -> None))
       | _ -> None)
@@ -2526,9 +2846,145 @@ let cad_pop_x d = match d with
         (match f with
          | FGround a ->
            (match rest with
-            | FEmpty -> Some (a, (rebuild_childless_x n'))
+            | FEmpty ->
+              Some (a,
+                (let FNode (k0, p2, s0) = n' in
+                 if (&&) (bis_empty p2) (bis_empty s0)
+                 then FEmpty
+                 else (match k0 with
+                       | KOnly ->
+                         if (||) (bis_empty p2) (bis_empty s0)
+                         then FFlat (k0, p2, s0, FEmpty)
+                         else if (||)
+                                   (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                   (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                              else FFlat (k0, p2, s0, FEmpty)
+                       | _ -> FFlat (k0, p2, s0, FEmpty))))
             | _ ->
-              (match tree_repair_x n' rest with
+              (match match if negb
+                                (match rest with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                           then CG
+                           else let FNode (k0, p2, s0) = n' in
+                                let m =
+                                  match k0 with
+                                  | KOnly -> Nat.min (bsize p2) (bsize s0)
+                                  | KLeft -> bsize p2
+                                  | KRight -> bsize s0
+                                in
+                                if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     0)))))))) m
+                                then CG
+                                else if (=) m (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          0)))))))
+                                     then CY
+                                     else if (=) m (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ 0))))))
+                                          then CO
+                                          else CR with
+                     | CG ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | CY ->
+                       (match rest with
+                        | FEmpty ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (f0, rr) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, lrest) ->
+                             repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                               (k2, p2, s2)) lrest
+                           | FSingle (lb, ln, lrest) ->
+                             repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                           | _ ->
+                             Some
+                               (let b = FHole in
+                                match b with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, rest)
+                                | _ -> FSingle (b, n', rest))))
+                     | CO ->
+                       (match rest with
+                        | FEmpty ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (ll, f0) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                               (k2, p2, s2)) rrest
+                           | FSingle (rb, rn, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                           | _ ->
+                             Some
+                               (let b = FHole in
+                                match b with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, rest)
+                                | _ -> FSingle (b, n', rest))))
+                     | CR ->
+                       let FNode (k0, p2, s1) = n' in
+                       (match k0 with
+                        | KOnly ->
+                          if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                               (bsize s1)
+                          then repair_front_x KOnly FHole p2 s1 rest
+                          else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    0)))))))) (bsize p2)
+                               then repair_back_x KOnly FHole p2 s1 rest
+                               else repair_both_x FHole p2 s1 rest
+                        | KLeft -> repair_front_x KLeft FHole p2 s1 rest
+                        | KRight -> repair_back_x KRight FHole p2 s1 rest) with
                | Some d'' -> Some (a, d'')
                | None -> None))
          | _ -> None)
@@ -2544,9 +3000,141 @@ let cad_pop_x d = match d with
      (match f with
       | FGround a ->
         (match child with
-         | FEmpty -> Some (a, (rebuild_childless_x n'))
+         | FEmpty ->
+           Some (a,
+             (let FNode (k0, p2, s0) = n' in
+              if (&&) (bis_empty p2) (bis_empty s0)
+              then FEmpty
+              else (match k0 with
+                    | KOnly ->
+                      if (||) (bis_empty p2) (bis_empty s0)
+                      then FFlat (k0, p2, s0, FEmpty)
+                      else if (||)
+                                (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                           then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                           else FFlat (k0, p2, s0, FEmpty)
+                    | _ -> FFlat (k0, p2, s0, FEmpty))))
          | _ ->
-           (match tree_repair_x n' child with
+           (match match if negb (match child with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                        then CG
+                        else let FNode (k0, p2, s0) = n' in
+                             let m =
+                               match k0 with
+                               | KOnly -> Nat.min (bsize p2) (bsize s0)
+                               | KLeft -> bsize p2
+                               | KRight -> bsize s0
+                             in
+                             if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                  m
+                             then CG
+                             else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ 0)))))))
+                                  then CY
+                                  else if (=) m (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ 0))))))
+                                       then CO
+                                       else CR with
+                  | CG ->
+                    Some
+                      (let b0 = FHole in
+                       match b0 with
+                       | FHole ->
+                         let FNode (k0, p2, s0) = n' in
+                         FFlat (k0, p2, s0, child)
+                       | _ -> FSingle (b0, n', child))
+                  | CY ->
+                    (match child with
+                     | FEmpty ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (f0, rr) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, lrest) ->
+                          repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                            (k2, p2, s2)) lrest
+                        | FSingle (lb, ln, lrest) ->
+                          repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                        | _ ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))))
+                  | CO ->
+                    (match child with
+                     | FEmpty ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (ll, f0) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                            (k2, p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                        | _ ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))))
+                  | CR ->
+                    let FNode (k0, p2, s1) = n' in
+                    (match k0 with
+                     | KOnly ->
+                       if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                            (bsize s1)
+                       then repair_front_x KOnly FHole p2 s1 child
+                       else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                 (bsize p2)
+                            then repair_back_x KOnly FHole p2 s1 child
+                            else repair_both_x FHole p2 s1 child
+                     | KLeft -> repair_front_x KLeft FHole p2 s1 child
+                     | KRight -> repair_back_x KRight FHole p2 s1 child) with
             | Some d'' -> Some (a, d'')
             | None -> None))
       | _ -> None)
@@ -2559,9 +3147,145 @@ let cad_pop_x d = match d with
         (match f with
          | FGround a ->
            (match child with
-            | FEmpty -> Some (a, (rebuild_childless_x n'))
+            | FEmpty ->
+              Some (a,
+                (let FNode (k0, p2, s0) = n' in
+                 if (&&) (bis_empty p2) (bis_empty s0)
+                 then FEmpty
+                 else (match k0 with
+                       | KOnly ->
+                         if (||) (bis_empty p2) (bis_empty s0)
+                         then FFlat (k0, p2, s0, FEmpty)
+                         else if (||)
+                                   (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                   (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                              then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                              else FFlat (k0, p2, s0, FEmpty)
+                       | _ -> FFlat (k0, p2, s0, FEmpty))))
             | _ ->
-              (match tree_repair_x n' child with
+              (match match if negb
+                                (match child with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                           then CG
+                           else let FNode (k0, p2, s0) = n' in
+                                let m =
+                                  match k0 with
+                                  | KOnly -> Nat.min (bsize p2) (bsize s0)
+                                  | KLeft -> bsize p2
+                                  | KRight -> bsize s0
+                                in
+                                if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     0)))))))) m
+                                then CG
+                                else if (=) m (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          0)))))))
+                                     then CY
+                                     else if (=) m (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ 0))))))
+                                          then CO
+                                          else CR with
+                     | CG ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | CY ->
+                       (match child with
+                        | FEmpty ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (f0, rr) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, lrest) ->
+                             repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                               (k2, p2, s2)) lrest
+                           | FSingle (lb, ln, lrest) ->
+                             repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                           | _ ->
+                             Some
+                               (let b0 = FHole in
+                                match b0 with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, child)
+                                | _ -> FSingle (b0, n', child))))
+                     | CO ->
+                       (match child with
+                        | FEmpty ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (ll, f0) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                               (k2, p2, s2)) rrest
+                           | FSingle (rb, rn, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                           | _ ->
+                             Some
+                               (let b0 = FHole in
+                                match b0 with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, child)
+                                | _ -> FSingle (b0, n', child))))
+                     | CR ->
+                       let FNode (k0, p2, s1) = n' in
+                       (match k0 with
+                        | KOnly ->
+                          if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                               (bsize s1)
+                          then repair_front_x KOnly FHole p2 s1 child
+                          else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    0)))))))) (bsize p2)
+                               then repair_back_x KOnly FHole p2 s1 child
+                               else repair_both_x FHole p2 s1 child
+                        | KLeft -> repair_front_x KLeft FHole p2 s1 child
+                        | KRight -> repair_back_x KRight FHole p2 s1 child) with
                | Some d'' -> Some (a, d'')
                | None -> None))
          | _ -> None)
@@ -2591,9 +3315,142 @@ let cad_eject_x d = match d with
      (match f with
       | FGround a ->
         (match rest with
-         | FEmpty -> Some ((rebuild_childless_x n'), a)
+         | FEmpty ->
+           Some
+             ((let FNode (k0, p2, s0) = n' in
+               if (&&) (bis_empty p2) (bis_empty s0)
+               then FEmpty
+               else (match k0 with
+                     | KOnly ->
+                       if (||) (bis_empty p2) (bis_empty s0)
+                       then FFlat (k0, p2, s0, FEmpty)
+                       else if (||)
+                                 (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                 (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                            then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                            else FFlat (k0, p2, s0, FEmpty)
+                     | _ -> FFlat (k0, p2, s0, FEmpty))),
+             a)
          | _ ->
-           (match tree_repair_x n' rest with
+           (match match if negb (match rest with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                        then CG
+                        else let FNode (k0, p2, s0) = n' in
+                             let m =
+                               match k0 with
+                               | KOnly -> Nat.min (bsize p2) (bsize s0)
+                               | KLeft -> bsize p2
+                               | KRight -> bsize s0
+                             in
+                             if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                  m
+                             then CG
+                             else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ 0)))))))
+                                  then CY
+                                  else if (=) m (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ 0))))))
+                                       then CO
+                                       else CR with
+                  | CG ->
+                    Some
+                      (let b = FHole in
+                       match b with
+                       | FHole ->
+                         let FNode (k0, p2, s0) = n' in
+                         FFlat (k0, p2, s0, rest)
+                       | _ -> FSingle (b, n', rest))
+                  | CY ->
+                    (match rest with
+                     | FEmpty ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (f0, rr) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, lrest) ->
+                          repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                            (k2, p2, s2)) lrest
+                        | FSingle (lb, ln, lrest) ->
+                          repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                        | _ ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))))
+                  | CO ->
+                    (match rest with
+                     | FEmpty ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (ll, f0) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                            (k2, p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                        | _ ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))))
+                  | CR ->
+                    let FNode (k0, p2, s1) = n' in
+                    (match k0 with
+                     | KOnly ->
+                       if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                            (bsize s1)
+                       then repair_front_x KOnly FHole p2 s1 rest
+                       else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                 (bsize p2)
+                            then repair_back_x KOnly FHole p2 s1 rest
+                            else repair_both_x FHole p2 s1 rest
+                     | KLeft -> repair_front_x KLeft FHole p2 s1 rest
+                     | KRight -> repair_back_x KRight FHole p2 s1 rest) with
             | Some d'' -> Some (d'', a)
             | None -> None))
       | _ -> None)
@@ -2606,9 +3463,149 @@ let cad_eject_x d = match d with
         (match f with
          | FGround a ->
            (match rest with
-            | FEmpty -> Some ((rebuild_childless_x n'), a)
+            | FEmpty ->
+              Some
+                ((let FNode (k0, p2, s0) = n' in
+                  if (&&) (bis_empty p2) (bis_empty s0)
+                  then FEmpty
+                  else (match k0 with
+                        | KOnly ->
+                          if (||) (bis_empty p2) (bis_empty s0)
+                          then FFlat (k0, p2, s0, FEmpty)
+                          else if (||)
+                                    (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      0))))))
+                                    (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      0))))))
+                               then FFlat (KOnly, (bapp p2 s0), bempty,
+                                      FEmpty)
+                               else FFlat (k0, p2, s0, FEmpty)
+                        | _ -> FFlat (k0, p2, s0, FEmpty))),
+                a)
             | _ ->
-              (match tree_repair_x n' rest with
+              (match match if negb
+                                (match rest with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                           then CG
+                           else let FNode (k0, p2, s0) = n' in
+                                let m =
+                                  match k0 with
+                                  | KOnly -> Nat.min (bsize p2) (bsize s0)
+                                  | KLeft -> bsize p2
+                                  | KRight -> bsize s0
+                                in
+                                if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     0)))))))) m
+                                then CG
+                                else if (=) m (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          0)))))))
+                                     then CY
+                                     else if (=) m (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ 0))))))
+                                          then CO
+                                          else CR with
+                     | CG ->
+                       Some
+                         (let b = FHole in
+                          match b with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, rest)
+                          | _ -> FSingle (b, n', rest))
+                     | CY ->
+                       (match rest with
+                        | FEmpty ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (f0, rr) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, lrest) ->
+                             repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                               (k2, p2, s2)) lrest
+                           | FSingle (lb, ln, lrest) ->
+                             repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                           | _ ->
+                             Some
+                               (let b = FHole in
+                                match b with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, rest)
+                                | _ -> FSingle (b, n', rest))))
+                     | CO ->
+                       (match rest with
+                        | FEmpty ->
+                          Some
+                            (let b = FHole in
+                             match b with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, rest)
+                             | _ -> FSingle (b, n', rest))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (ll, f0) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                               (k2, p2, s2)) rrest
+                           | FSingle (rb, rn, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                           | _ ->
+                             Some
+                               (let b = FHole in
+                                match b with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, rest)
+                                | _ -> FSingle (b, n', rest))))
+                     | CR ->
+                       let FNode (k0, p2, s1) = n' in
+                       (match k0 with
+                        | KOnly ->
+                          if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                               (bsize s1)
+                          then repair_front_x KOnly FHole p2 s1 rest
+                          else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    0)))))))) (bsize p2)
+                               then repair_back_x KOnly FHole p2 s1 rest
+                               else repair_both_x FHole p2 s1 rest
+                        | KLeft -> repair_front_x KLeft FHole p2 s1 rest
+                        | KRight -> repair_back_x KRight FHole p2 s1 rest) with
                | Some d'' -> Some (d'', a)
                | None -> None))
          | _ -> None)
@@ -2624,9 +3621,142 @@ let cad_eject_x d = match d with
      (match f with
       | FGround a ->
         (match child with
-         | FEmpty -> Some ((rebuild_childless_x n'), a)
+         | FEmpty ->
+           Some
+             ((let FNode (k0, p2, s0) = n' in
+               if (&&) (bis_empty p2) (bis_empty s0)
+               then FEmpty
+               else (match k0 with
+                     | KOnly ->
+                       if (||) (bis_empty p2) (bis_empty s0)
+                       then FFlat (k0, p2, s0, FEmpty)
+                       else if (||)
+                                 (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                                 (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ
+                                   (Stdlib.Int.succ (Stdlib.Int.succ 0))))))
+                            then FFlat (KOnly, (bapp p2 s0), bempty, FEmpty)
+                            else FFlat (k0, p2, s0, FEmpty)
+                     | _ -> FFlat (k0, p2, s0, FEmpty))),
+             a)
          | _ ->
-           (match tree_repair_x n' child with
+           (match match if negb (match child with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                        then CG
+                        else let FNode (k0, p2, s0) = n' in
+                             let m =
+                               match k0 with
+                               | KOnly -> Nat.min (bsize p2) (bsize s0)
+                               | KLeft -> bsize p2
+                               | KRight -> bsize s0
+                             in
+                             if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ
+                                  (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                  m
+                             then CG
+                             else if (=) m (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ (Stdlib.Int.succ
+                                       (Stdlib.Int.succ 0)))))))
+                                  then CY
+                                  else if (=) m (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ (Stdlib.Int.succ
+                                            (Stdlib.Int.succ 0))))))
+                                       then CO
+                                       else CR with
+                  | CG ->
+                    Some
+                      (let b0 = FHole in
+                       match b0 with
+                       | FHole ->
+                         let FNode (k0, p2, s0) = n' in
+                         FFlat (k0, p2, s0, child)
+                       | _ -> FSingle (b0, n', child))
+                  | CY ->
+                    (match child with
+                     | FEmpty ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (f0, rr) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, lrest) ->
+                          repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                            (k2, p2, s2)) lrest
+                        | FSingle (lb, ln, lrest) ->
+                          repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                        | _ ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))))
+                  | CO ->
+                    (match child with
+                     | FEmpty ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | FFlat (k2, p2, s2, rrest) ->
+                       repair_packet_x (FBSingle (n', FHole)) (FNode (k2, p2,
+                         s2)) rrest
+                     | FSingle (rb, rn, rrest) ->
+                       repair_packet_x (FBSingle (n', rb)) rn rrest
+                     | FPair (ll, f0) ->
+                       (match f0 with
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                            (k2, p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                        | _ ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))))
+                  | CR ->
+                    let FNode (k0, p2, s1) = n' in
+                    (match k0 with
+                     | KOnly ->
+                       if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ
+                            (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                            (bsize s1)
+                       then repair_front_x KOnly FHole p2 s1 child
+                       else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ
+                                 (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                                 (bsize p2)
+                            then repair_back_x KOnly FHole p2 s1 child
+                            else repair_both_x FHole p2 s1 child
+                     | KLeft -> repair_front_x KLeft FHole p2 s1 child
+                     | KRight -> repair_back_x KRight FHole p2 s1 child) with
             | Some d'' -> Some (d'', a)
             | None -> None))
       | _ -> None)
@@ -2639,9 +3769,149 @@ let cad_eject_x d = match d with
         (match f with
          | FGround a ->
            (match child with
-            | FEmpty -> Some ((rebuild_childless_x n'), a)
+            | FEmpty ->
+              Some
+                ((let FNode (k0, p2, s0) = n' in
+                  if (&&) (bis_empty p2) (bis_empty s0)
+                  then FEmpty
+                  else (match k0 with
+                        | KOnly ->
+                          if (||) (bis_empty p2) (bis_empty s0)
+                          then FFlat (k0, p2, s0, FEmpty)
+                          else if (||)
+                                    (Nat.ltb (bsize p2) (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      0))))))
+                                    (Nat.ltb (bsize s0) (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      (Stdlib.Int.succ (Stdlib.Int.succ
+                                      0))))))
+                               then FFlat (KOnly, (bapp p2 s0), bempty,
+                                      FEmpty)
+                               else FFlat (k0, p2, s0, FEmpty)
+                        | _ -> FFlat (k0, p2, s0, FEmpty))),
+                a)
             | _ ->
-              (match tree_repair_x n' child with
+              (match match if negb
+                                (match child with
+                                 | FEmpty -> false
+                                 | _ -> true)
+                           then CG
+                           else let FNode (k0, p2, s0) = n' in
+                                let m =
+                                  match k0 with
+                                  | KOnly -> Nat.min (bsize p2) (bsize s0)
+                                  | KLeft -> bsize p2
+                                  | KRight -> bsize s0
+                                in
+                                if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     (Stdlib.Int.succ (Stdlib.Int.succ
+                                     0)))))))) m
+                                then CG
+                                else if (=) m (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          (Stdlib.Int.succ (Stdlib.Int.succ
+                                          0)))))))
+                                     then CY
+                                     else if (=) m (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ
+                                               (Stdlib.Int.succ 0))))))
+                                          then CO
+                                          else CR with
+                     | CG ->
+                       Some
+                         (let b0 = FHole in
+                          match b0 with
+                          | FHole ->
+                            let FNode (k0, p2, s0) = n' in
+                            FFlat (k0, p2, s0, child)
+                          | _ -> FSingle (b0, n', child))
+                     | CY ->
+                       (match child with
+                        | FEmpty ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (f0, rr) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, lrest) ->
+                             repair_packet_x (FBPairY (n', FHole, rr)) (FNode
+                               (k2, p2, s2)) lrest
+                           | FSingle (lb, ln, lrest) ->
+                             repair_packet_x (FBPairY (n', lb, rr)) ln lrest
+                           | _ ->
+                             Some
+                               (let b0 = FHole in
+                                match b0 with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, child)
+                                | _ -> FSingle (b0, n', child))))
+                     | CO ->
+                       (match child with
+                        | FEmpty ->
+                          Some
+                            (let b0 = FHole in
+                             match b0 with
+                             | FHole ->
+                               let FNode (k0, p2, s0) = n' in
+                               FFlat (k0, p2, s0, child)
+                             | _ -> FSingle (b0, n', child))
+                        | FFlat (k2, p2, s2, rrest) ->
+                          repair_packet_x (FBSingle (n', FHole)) (FNode (k2,
+                            p2, s2)) rrest
+                        | FSingle (rb, rn, rrest) ->
+                          repair_packet_x (FBSingle (n', rb)) rn rrest
+                        | FPair (ll, f0) ->
+                          (match f0 with
+                           | FFlat (k2, p2, s2, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, FHole)) (FNode
+                               (k2, p2, s2)) rrest
+                           | FSingle (rb, rn, rrest) ->
+                             repair_packet_x (FBPairO (n', ll, rb)) rn rrest
+                           | _ ->
+                             Some
+                               (let b0 = FHole in
+                                match b0 with
+                                | FHole ->
+                                  let FNode (k0, p2, s0) = n' in
+                                  FFlat (k0, p2, s0, child)
+                                | _ -> FSingle (b0, n', child))))
+                     | CR ->
+                       let FNode (k0, p2, s1) = n' in
+                       (match k0 with
+                        | KOnly ->
+                          if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ
+                               (Stdlib.Int.succ (Stdlib.Int.succ 0))))))))
+                               (bsize s1)
+                          then repair_front_x KOnly FHole p2 s1 child
+                          else if (<=) (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    (Stdlib.Int.succ (Stdlib.Int.succ
+                                    0)))))))) (bsize p2)
+                               then repair_back_x KOnly FHole p2 s1 child
+                               else repair_both_x FHole p2 s1 child
+                        | KLeft -> repair_front_x KLeft FHole p2 s1 child
+                        | KRight -> repair_back_x KRight FHole p2 s1 child) with
                | Some d'' -> Some (d'', a)
                | None -> None))
          | _ -> None)

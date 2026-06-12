@@ -105,8 +105,6 @@ val concat_small_right_x :
 
 val cad_concat_x : 'a1 fchain -> 'a1 fchain -> 'a1 fchain option
 
-val rebuild_childless_x : 'a1 fnode -> 'a1 fchain
-
 val pop_raw_x : 'a1 fchain -> ('a1 fstored * 'a1 fchain) option
 
 val eject_raw_x : 'a1 fchain -> ('a1 fchain * 'a1 fstored) option
@@ -132,8 +130,6 @@ val repair_packet_x :
 val repair_pop_side_x : 'a1 fchain -> 'a1 fchain option
 
 val repair_eject_side_x : 'a1 fchain -> 'a1 fchain option
-
-val tree_repair_x : 'a1 fnode -> 'a1 fchain -> 'a1 fchain option
 
 val cad_pop_x : 'a1 fchain -> ('a1 * 'a1 fchain) option
 
