@@ -68,23 +68,6 @@ Extraction "kTCadequeFast.ml"
     and push/inject return the chain bare (no result constructor). *)
 
 From KTDeque.DequePtr Require Import SizedChain.
-From KTDeque.Common Require Import Element.
-
-(* Level erasure for the element trees (the recursive-slowdown pairing).
-   The Rocq representation is a level-TAGGED sigma; the production
-   representation (ocaml/extracted/erased_tree.ml) erases it: unboxed
-   level-0 leaves (zero allocation per element) and level-carrying pair
-   blocks (so [level] — consulted by the op code at every pairing
-   site — stays O(1) and the WC O(1) bound is preserved).  The module
-   implements the six proven ElementTree laws; folding it into the
-   theorem-backed zone via conditional-naturality proofs is the
-   recorded next phase. *)
-Extract Constant ElementTree.t "'x" => "'x Erased_tree.t".
-Extract Constant ElementTree.base => "Erased_tree.base".
-Extract Constant ElementTree.level => "Erased_tree.level".
-Extract Constant ElementTree.pair => "Erased_tree.pair".
-Extract Constant ElementTree.unpair => "Erased_tree.unpair".
-Extract Constant ElementTree.to_list => "Erased_tree.to_list".
 
 Extraction "kTSizedChain.ml"
   SChain

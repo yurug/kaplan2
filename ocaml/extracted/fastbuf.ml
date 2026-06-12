@@ -19,10 +19,9 @@
        the regularity invariant J (the accounting audited in
        Catenable/Cost.v), so each reachable call is O(1).
 
-   Elements are LEVEL-ERASED trees (erased_tree.ml): a level-0 element
-   is the unboxed value itself, so [base]/[unbase] cost nothing.  The
-   fail arms of the sized ops return their input (a sentinel the §6
-   keystone proves unreachable on regular inputs). *)
+   Elements are stored as level-0 element trees; [base]/[unbase] are
+   the wrap/unwrap.  The fail arms of the sized ops return their input
+   (a sentinel the §6 keystone proves unreachable on regular inputs). *)
 
 open KTSizedChain
 
@@ -37,11 +36,12 @@ let size (b : 'a t) : int =
 
 let is_empty (b : 'a t) : bool = size b = 0
 
-(* level-erased elements: a level-0 element IS the value (zero alloc);
-   see erased_tree.ml for the representation invariant *)
-let base (x : 'a) : 'a Coq0_E.t = Erased_tree.base x
+(* a level-0 element tree is ExistT (0, x) — allocated in place *)
+let base (x : 'a) : 'a Coq0_E.t = ExistT (0, Obj.magic x)
 
-let unbase (t : 'a Coq0_E.t) : 'a = Erased_tree.unbase t
+let unbase (t : 'a Coq0_E.t) : 'a =
+  let ExistT (_, v) = t in
+  Obj.magic v
 
 let push (x : 'a) (b : 'a t) : 'a t = push_s (base x) b
 

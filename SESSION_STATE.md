@@ -55,6 +55,24 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12d (user request): level-erasure experiment — MEASURED, REVERTED
+- Implemented tag-checked zero-box ElementTree (erased_tree.ml +
+  Extract Constant remap of the 6 E members; self-check passed).
+- A/B under identical load: LOSES 10-25% to the sized-chain seam
+  (push 139 v 112, fork 57 v 42).  Mechanism: level/unpair tag checks
+  load the COLD leaf payload's header byte where projT1 read the hot
+  sigT box — the box doubles as a level cache.  Reverted (impl at
+  commit 4d774ab for reference); negative result recorded in the kb
+  report + page.
+- REFINED NEXT PHASE: erase the level CHECKS not the data — Rocq
+  mirror of the §4 ops with unchecked EPair / blind unpair +
+  conditional-naturality lemmas (op succeeds -> erased op computes the
+  erasure); extraction then needs no runtime discrimination at all
+  (the Viennot-equivalent, statically-justified form).  Week-scale.
+- Final standings (cadeque-compare-2026-06-12, 1M): 7/9 wins
+  (pop 74v83, eject 69v75, mixed 48v72, fold 597v987, tree 1903v2899,
+  interleave 122v268, fork 40v65); push 113v80, inject 109v91.
+
 ## 2026-06-12c (user request): SizedChain data-constructor fusion — DONE
 - DequePtr/SizedChain.v: SChain fuses the buffer size into the kt4
   top constructor; push_s/inject_s/pop_s/eject_s native mirrors with

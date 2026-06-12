@@ -169,19 +169,32 @@ kt4 op through the erasure), and Fastbuf becomes thin glue with no
 wrapper record and a field-read `size`.
 
 Result (`bench/results/cadeque-compare-2026-06-12.md`, n = 10^6,
-ns/op, KTf vs Vi): pop 65 vs 80, eject 58 vs 74, mixed 45 vs 72,
-concat-fold 604 vs 985, concat-tree 1789 vs 2819, concat+pop
-interleave 116 vs 273 (2.4×), persistent fork 42 vs 66 — **faster on
-7 of 9 workloads**; push 111 vs 81 and inject 104 vs 89 remain
-~1.2–1.4× behind at scale (they WIN at n=10^3: push 59 vs 66 — the
-residual large-n gap is the per-element level-tag box that Viennot's
-GADT-erased representation avoids, plus its cache pressure; removing
-it is the level-erasure data refinement, the identified next phase).
+ns/op, KTf vs Vi): pop 74 vs 83, eject 69 vs 75, mixed 48 vs 72,
+concat-fold 597 vs 987, concat-tree 1903 vs 2899, concat+pop
+interleave 122 vs 268 (2.2×), persistent fork 40 vs 65 — **faster on
+7 of 9 workloads**; push 113 vs 80 and inject 109 vs 91 remain
+~1.2–1.4× behind at scale (they WIN at n=10^3: push 49 vs 67).
 The fusion pass bought 20–30% on every removal path; the sized chain
-widened the mixed/fork margins to ~1.6×.  The model layer's quadratic
-cells are gone.  The web page
+removed the wrapper record and result constructor.  The model layer's
+quadratic cells are gone.  The web page
 ([`kb/viennot-comparison.html`](../viennot-comparison.html)) renders
 all three implementations.
+
+**Negative result, measured and reverted (level-erasure seam).**  A
+tag-checked zero-box element representation (leaves unboxed,
+level-carrying tag-3 pair blocks behind an `Extract Constant` remap of
+the six ElementTree members) was implemented and A/B-benchmarked under
+identical machine load: it LOST 10–25% across the board (push 139 vs
+the sized chain's 112; fork 57 vs 42).  Mechanism: `E.level`/`E.unpair`
+are consulted at every pairing site, and the tag check replaces a hot
+field read on the freshly-allocated sigT box with a header-byte load on
+the cold leaf payload — the box doubles as a level cache.  Conclusion:
+matching Viennot's build-side numbers requires erasing the level
+CHECKS, not the level data (unchecked `EPair`, blind `unpair` — sound
+exactly where their erased GADT indices are: statically).  That is the
+conditional-naturality mirror of the §4 ops in Rocq — the genuine
+next-phase project.  (The reverted implementation survives at commit
+`4d774ab` for reference.)
 
 ## Verdict
 
