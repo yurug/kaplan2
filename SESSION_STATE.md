@@ -47,9 +47,9 @@ cleanup of the warm-up module).
 0. (DONE) gate asserts 7/7 incl. cat_wc_o1.  Possible later hardening:
    an instrumented-monad cost version (Footprint-style) if extraction
    needs it.
-★ ALL AUTONOMOUS WORK IS DONE.  Outstanding items NEED THE USER:
-   (a) promote rebuild -> main and push (139+ commits, never push
-       autonomously); (b) decide whether to retire RBR Model.regular
+★ (a) DONE 2026-06-12: rebuild PROMOTED to main and pushed
+   (user-approved; origin/main = cd08d04, fast-forward, 312 commits).
+   Remaining user-gated item: (b) decide whether to retire RBR Model.regular
        in favour of kt_regular (breaking cleanup of the warm-up
        module); (c) run the full release gate / extraction profile if
        desired.  Loop iterations from here should only sanity-check
