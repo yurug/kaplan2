@@ -893,3 +893,360 @@ Proof.
        destruct (make_left_x _); cbn [option_map]; [|reflexivity];
        destruct (make_right_x _); cbn [option_map]; reflexivity ]).
 Qed.
+
+(* ========================================================================== *)
+(* Pop / eject with repair.                                                    *)
+(* ========================================================================== *)
+
+Definition node_pop_x {A : Type} (n : fnode A)
+  : option (fstored A * fnode A) :=
+  match n with
+  | FNode k p s =>
+      match bpop p with
+      | Some (x, p') => Some (x, FNode k p' s)
+      | None =>
+          match bpop s with
+          | Some (x, s') => Some (x, FNode k p s')
+          | None => None
+          end
+      end
+  end.
+
+Lemma node_pop_x_er : forall A (n : fnode A),
+    node_pop_f (fn_er n)
+    = option_map (fun '(x, n') => (fs_er x, fn_er n')) (node_pop_x n).
+Proof.
+  intros A [k p s].
+  unfold node_pop_f, node_pop_x.
+  rewrite fn_er_node, map_bpop.
+  destruct (bpop p) as [[x p']|]; cbn [option_map].
+  - rewrite fn_er_node. reflexivity.
+  - rewrite map_bpop.
+    destruct (bpop s) as [[x s']|]; cbn [option_map]; [|reflexivity].
+    rewrite fn_er_node. reflexivity.
+Qed.
+
+Definition node_eject_x {A : Type} (n : fnode A)
+  : option (fnode A * fstored A) :=
+  match n with
+  | FNode k p s =>
+      match beject s with
+      | Some (s', x) => Some (FNode k p s', x)
+      | None =>
+          match beject p with
+          | Some (p', x) => Some (FNode k p' bempty, x)
+          | None => None
+          end
+      end
+  end.
+
+Lemma node_eject_x_er : forall A (n : fnode A),
+    node_eject_f (fn_er n)
+    = option_map (fun '(n', x) => (fn_er n', fs_er x)) (node_eject_x n).
+Proof.
+  intros A [k p s].
+  unfold node_eject_f, node_eject_x.
+  rewrite fn_er_node, map_beject.
+  destruct (beject s) as [[s' x]|]; cbn [option_map].
+  - rewrite fn_er_node. reflexivity.
+  - rewrite map_beject.
+    destruct (beject p) as [[p' x]|]; cbn [option_map]; [|reflexivity].
+    rewrite fn_er_node. reflexivity.
+Qed.
+
+Definition rebuild_childless_x {A : Type} (n : fnode A) : fchain A :=
+  match n with
+  | FNode k p s =>
+      if bis_empty p && bis_empty s then FEmpty
+      else
+        match k with
+        | KOnly =>
+            if bis_empty p || bis_empty s
+            then FFlat k p s FEmpty
+            else if (bsize p <? 5) || (bsize s <? 5)
+                 then FFlat KOnly (bapp p s) bempty FEmpty
+                 else FFlat k p s FEmpty
+        | _ => FFlat k p s FEmpty
+        end
+  end.
+
+Lemma rebuild_childless_x_er : forall A (n : fnode A),
+    rebuild_childless_f (fn_er n) = fc_er (rebuild_childless_x n).
+Proof.
+  intros A [k p s].
+  unfold rebuild_childless_f, rebuild_childless_x.
+  rewrite fn_er_node, !map_bis_empty.
+  destruct (bis_empty p && bis_empty s); [reflexivity|].
+  destruct k;
+    [ destruct (bis_empty p || bis_empty s);
+      [ rewrite fc_er_flat; reflexivity |];
+      rewrite !map_bsize;
+      destruct ((bsize p <? 5) || (bsize s <? 5));
+      rewrite fc_er_flat, ?map_bapp; reflexivity
+    | rewrite fc_er_flat; reflexivity
+    | rewrite fc_er_flat; reflexivity ].
+Qed.
+
+Fixpoint pop_raw_x {A : Type} (c : fchain A)
+  : option (fstored A * fchain A) :=
+  match c with
+  | FEmpty => None
+  | FFlat k p s rest =>
+      match node_pop_x (FNode k p s) with
+      | Some (x, n') =>
+          match rest with
+          | FEmpty => Some (x, rebuild_childless_x n')
+          | _ => Some (x, tree_of_x n' rest)
+          end
+      | None => None
+      end
+  | FSingle b n rest =>
+      let '(n0, child) := root_and_child_x b n rest in
+      match node_pop_x n0 with
+      | Some (x, n') =>
+          match child with
+          | FEmpty => Some (x, rebuild_childless_x n')
+          | _ => Some (x, tree_of_x n' child)
+          end
+      | None => None
+      end
+  | FPair l r =>
+      match pop_raw_x l with
+      | Some (x, l') =>
+          match l' with
+          | FEmpty => Some (x, r)
+          | FFlat _ lp ls FEmpty =>
+              if bsize lp <? 5
+              then
+                match fcell r with
+                | Some (br, nr, rr) =>
+                    match root_and_child_x br nr rr with
+                    | (FNode _ p2 s2, d2) =>
+                        Some (x, tree_of_x
+                                   (FNode KOnly (bapp lp (bapp ls p2)) s2)
+                                   d2)
+                    end
+                | None => None
+                end
+              else Some (x, FPair l' r)
+          | FSingle FHole (FNode _ lp ls) FEmpty =>
+              if bsize lp <? 5
+              then
+                match fcell r with
+                | Some (br, nr, rr) =>
+                    match root_and_child_x br nr rr with
+                    | (FNode _ p2 s2, d2) =>
+                        Some (x, tree_of_x
+                                   (FNode KOnly (bapp lp (bapp ls p2)) s2)
+                                   d2)
+                    end
+                | None => None
+                end
+              else Some (x, FPair l' r)
+          | _ => Some (x, FPair l' r)
+          end
+      | None => None
+      end
+  end.
+
+Lemma pop_raw_x_er : forall A (c : fchain A),
+    pop_raw_f (fc_er c)
+    = option_map (fun '(x, c') => (fs_er x, fc_er c')) (pop_raw_x c).
+Proof.
+  intros A c.
+  induction c as [| k p s rest _ | b n rest _ | l IHl r _].
+  - reflexivity.
+  - rewrite fc_er_flat. cbn [pop_raw_f pop_raw_x root_and_child].
+    rewrite <- fn_er_node, node_pop_x_er.
+    destruct (node_pop_x (FNode k p s)) as [[x n']|]; cbn [option_map];
+      [|reflexivity].
+    destruct rest as [| ? ? ? ? | ? ? ? | ? ?];
+      [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
+      | cbn [option_map];
+        rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, tree_of_x_er;
+        reflexivity .. ].
+  - rewrite fc_er_single. cbn [pop_raw_f pop_raw_x].
+    rewrite (root_and_child_x_er b n rest).
+    destruct (root_and_child_x b n rest) as [n0 child].
+    cbn [fst snd].
+    rewrite node_pop_x_er.
+    destruct (node_pop_x n0) as [[x n']|]; cbn [option_map];
+      [|reflexivity].
+    destruct child as [| ? ? ? ? | ? ? ? | ? ?];
+      [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
+      | cbn [option_map];
+        rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, tree_of_x_er;
+        reflexivity .. ].
+  - rewrite fc_er_pair. cbn [pop_raw_f pop_raw_x].
+    rewrite IHl.
+    destruct (pop_raw_x l) as [[x l']|]; cbn [option_map]; [|reflexivity].
+    destruct l' as [| lk lp ls lrest | lb ln lrest | ll lr];
+      cbn [option_map].
+    + reflexivity.
+    + (* FFlat: degenerate iff lrest = FEmpty *)
+      rewrite fc_er_flat.
+      destruct lrest as [| ? ? ? ? | ? ? ? | ? ?];
+        [ rewrite map_bsize;
+          destruct (bsize lp <? 5);
+          [ destruct (fcell r) as [[[br nr] rr]|] eqn:Hr;
+            [ rewrite (fcell_er Hr), (root_and_child_x_er br nr rr);
+              destruct (root_and_child_x br nr rr) as [[k2 p2 s2] d2];
+              cbn [option_map fst snd];
+              rewrite fn_er_node, tree_of_x_er, fn_er_node, !map_bapp;
+              reflexivity
+            | destruct (fcell_none_er Hr) as [Hr' | (l2 & r2 & Hr')];
+              rewrite Hr'; reflexivity ]
+          | reflexivity ]
+        | rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair; reflexivity .. ].
+    + (* FSingle: degenerate iff body hole, rest empty *)
+      rewrite fc_er_single.
+      destruct lb as [| ? ? | ? ? ? | ? ? ?];
+        [ destruct ln as [lk lp ls]; rewrite fn_er_node; cbn [fb_er];
+          destruct lrest as [| ? ? ? ? | ? ? ? | ? ?];
+          [ rewrite map_bsize;
+            destruct (bsize lp <? 5);
+            [ destruct (fcell r) as [[[br nr] rr]|] eqn:Hr;
+              [ rewrite (fcell_er Hr), (root_and_child_x_er br nr rr);
+                destruct (root_and_child_x br nr rr) as [[k2 p2 s2] d2];
+                cbn [option_map fst snd];
+                rewrite fn_er_node, tree_of_x_er, fn_er_node, !map_bapp;
+                reflexivity
+              | destruct (fcell_none_er Hr) as [Hr' | (l2 & r2 & Hr')];
+                rewrite Hr'; reflexivity ]
+            | reflexivity ]
+          | rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, ?fn_er_node;
+            reflexivity .. ]
+        | rewrite ?fc_er_pair, ?fc_er_single; reflexivity .. ].
+    + rewrite !fc_er_pair. reflexivity.
+Qed.
+
+Fixpoint eject_raw_x {A : Type} (c : fchain A)
+  : option (fchain A * fstored A) :=
+  match c with
+  | FEmpty => None
+  | FFlat k p s rest =>
+      match node_eject_x (FNode k p s) with
+      | Some (n', x) =>
+          match rest with
+          | FEmpty => Some (rebuild_childless_x n', x)
+          | _ => Some (tree_of_x n' rest, x)
+          end
+      | None => None
+      end
+  | FSingle b n rest =>
+      let '(n0, child) := root_and_child_x b n rest in
+      match node_eject_x n0 with
+      | Some (n', x) =>
+          match child with
+          | FEmpty => Some (rebuild_childless_x n', x)
+          | _ => Some (tree_of_x n' child, x)
+          end
+      | None => None
+      end
+  | FPair l r =>
+      match eject_raw_x r with
+      | Some (r', x) =>
+          match r' with
+          | FEmpty => Some (l, x)
+          | FFlat _ rp rs FEmpty =>
+              if bsize rs <? 5
+              then
+                match fcell l with
+                | Some (bl, nl, rl) =>
+                    match root_and_child_x bl nl rl with
+                    | (FNode _ p1 s1, d1) =>
+                        Some (tree_of_x
+                                (FNode KOnly p1 (bapp s1 (bapp rp rs)))
+                                d1, x)
+                    end
+                | None => None
+                end
+              else Some (FPair l r', x)
+          | FSingle FHole (FNode _ rp rs) FEmpty =>
+              if bsize rs <? 5
+              then
+                match fcell l with
+                | Some (bl, nl, rl) =>
+                    match root_and_child_x bl nl rl with
+                    | (FNode _ p1 s1, d1) =>
+                        Some (tree_of_x
+                                (FNode KOnly p1 (bapp s1 (bapp rp rs)))
+                                d1, x)
+                    end
+                | None => None
+                end
+              else Some (FPair l r', x)
+          | _ => Some (FPair l r', x)
+          end
+      | None => None
+      end
+  end.
+
+Lemma eject_raw_x_er : forall A (c : fchain A),
+    eject_raw_f (fc_er c)
+    = option_map (fun '(c', x) => (fc_er c', fs_er x)) (eject_raw_x c).
+Proof.
+  intros A c.
+  induction c as [| k p s rest _ | b n rest _ | l _ r IHr].
+  - reflexivity.
+  - rewrite fc_er_flat. cbn [eject_raw_f eject_raw_x root_and_child].
+    rewrite <- fn_er_node, node_eject_x_er.
+    destruct (node_eject_x (FNode k p s)) as [[n' x]|]; cbn [option_map];
+      [|reflexivity].
+    destruct rest as [| ? ? ? ? | ? ? ? | ? ?];
+      [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
+      | cbn [option_map];
+        rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, tree_of_x_er;
+        reflexivity .. ].
+  - rewrite fc_er_single. cbn [eject_raw_f eject_raw_x].
+    rewrite (root_and_child_x_er b n rest).
+    destruct (root_and_child_x b n rest) as [n0 child].
+    cbn [fst snd].
+    rewrite node_eject_x_er.
+    destruct (node_eject_x n0) as [[n' x]|]; cbn [option_map];
+      [|reflexivity].
+    destruct child as [| ? ? ? ? | ? ? ? | ? ?];
+      [ cbn [option_map]; rewrite rebuild_childless_x_er; reflexivity
+      | cbn [option_map];
+        rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, tree_of_x_er;
+        reflexivity .. ].
+  - rewrite fc_er_pair. cbn [eject_raw_f eject_raw_x].
+    rewrite IHr.
+    destruct (eject_raw_x r) as [[r' x]|]; cbn [option_map]; [|reflexivity].
+    destruct r' as [| rk rp rs rrest | rb rn rrest | rl rr];
+      cbn [option_map].
+    + reflexivity.
+    + rewrite fc_er_flat.
+      destruct rrest as [| ? ? ? ? | ? ? ? | ? ?];
+        [ rewrite map_bsize;
+          destruct (bsize rs <? 5);
+          [ destruct (fcell l) as [[[bl nl] rl]|] eqn:Hl;
+            [ rewrite (fcell_er Hl), (root_and_child_x_er bl nl rl);
+              destruct (root_and_child_x bl nl rl) as [[k1 p1 s1] d1];
+              cbn [option_map fst snd];
+              rewrite fn_er_node, tree_of_x_er, fn_er_node, !map_bapp;
+              reflexivity
+            | destruct (fcell_none_er Hl) as [Hl' | (l2 & r2 & Hl')];
+              rewrite Hl'; reflexivity ]
+          | reflexivity ]
+        | rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair; reflexivity .. ].
+    + rewrite fc_er_single.
+      destruct rb as [| ? ? | ? ? ? | ? ? ?];
+        [ destruct rn as [rk rp rs]; rewrite fn_er_node; cbn [fb_er];
+          destruct rrest as [| ? ? ? ? | ? ? ? | ? ?];
+          [ rewrite map_bsize;
+            destruct (bsize rs <? 5);
+            [ destruct (fcell l) as [[[bl nl] rl]|] eqn:Hl;
+              [ rewrite (fcell_er Hl), (root_and_child_x_er bl nl rl);
+                destruct (root_and_child_x bl nl rl) as [[k1 p1 s1] d1];
+                cbn [option_map fst snd];
+                rewrite fn_er_node, tree_of_x_er, fn_er_node, !map_bapp;
+                reflexivity
+              | destruct (fcell_none_er Hl) as [Hl' | (l2 & r2 & Hl')];
+                rewrite Hl'; reflexivity ]
+            | reflexivity ]
+          | rewrite ?fc_er_flat, ?fc_er_single, ?fc_er_pair, ?fn_er_node;
+            reflexivity .. ]
+        | rewrite ?fc_er_pair, ?fc_er_single; reflexivity .. ].
+    + rewrite !fc_er_pair. reflexivity.
+Qed.
