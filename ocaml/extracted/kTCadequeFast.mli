@@ -39,6 +39,14 @@ type 'a cadeque = 'a cchain
 
 val cad_empty : 'a1 cadeque
 
+type gyor =
+| CG
+| CY
+| CO
+| CR
+
+val chain_has_node : 'a1 cchain -> bool
+
 val bempty : 'a1 buffer
 
 val b1 : 'a1 -> 'a1 buffer
@@ -71,34 +79,9 @@ val bfold_right : ('a1 -> 'a2 -> 'a2) -> 'a2 -> 'a1 buffer -> 'a2
 
 val bfold_left : ('a2 -> 'a1 -> 'a2) -> 'a1 buffer -> 'a2 -> 'a2
 
-type gyor =
-| CG
-| CY
-| CO
-| CR
-
-val chain_has_node : 'a1 cchain -> bool
-
-val root_and_child : 'a1 cpacket -> 'a1 cchain -> 'a1 cnode * 'a1 cchain
-
-val node_color_f : bool -> 'a1 cnode -> gyor
-
-val tree_of_f : 'a1 cnode -> 'a1 cchain -> 'a1 cchain
-
-val pkt_update_f :
-  ('a1 cnode -> 'a1 cnode) -> 'a1 cpacket -> 'a1 cchain -> 'a1 cchain
-
-val node_push_f : 'a1 stored -> 'a1 cnode -> 'a1 cnode
-
-val node_inject_f : 'a1 cnode -> 'a1 stored -> 'a1 cnode
-
 val push_chain_f : 'a1 stored -> 'a1 cchain -> 'a1 cchain
 
 val inject_chain_f : 'a1 cchain -> 'a1 stored -> 'a1 cchain
-
-val cad_push_f : 'a1 -> 'a1 cadeque -> 'a1 cadeque
-
-val cad_inject_f : 'a1 cadeque -> 'a1 -> 'a1 cadeque
 
 val degenerate_buf_f : 'a1 cchain -> 'a1 stored buffer option
 
@@ -118,12 +101,6 @@ val concat_small_right_f :
   'a1 cchain -> 'a1 stored buffer -> 'a1 cchain option
 
 val cad_concat_f : 'a1 cadeque -> 'a1 cadeque -> 'a1 cadeque option
-
-val node_pop_f : 'a1 cnode -> ('a1 stored * 'a1 cnode) option
-
-val node_eject_f : 'a1 cnode -> ('a1 cnode * 'a1 stored) option
-
-val rebuild_childless_f : 'a1 cnode -> 'a1 cchain
 
 val pop_raw_f : 'a1 cchain -> ('a1 stored * 'a1 cchain) option
 
@@ -150,6 +127,14 @@ val repair_pop_side_f : 'a1 cchain -> 'a1 cchain option
 
 val repair_eject_side_f : 'a1 cchain -> 'a1 cchain option
 
-val cad_pop_f : 'a1 cadeque -> ('a1 * 'a1 cadeque) option
+val push_chain_v2 : 'a1 stored -> 'a1 cchain -> 'a1 cchain
 
-val cad_eject_f : 'a1 cadeque -> ('a1 cadeque * 'a1) option
+val inject_chain_v2 : 'a1 cchain -> 'a1 stored -> 'a1 cchain
+
+val cad_push_v2 : 'a1 -> 'a1 cadeque -> 'a1 cadeque
+
+val cad_inject_v2 : 'a1 cadeque -> 'a1 -> 'a1 cadeque
+
+val cad_pop_v2 : 'a1 cadeque -> ('a1 * 'a1 cadeque) option
+
+val cad_eject_v2 : 'a1 cadeque -> ('a1 cadeque * 'a1) option

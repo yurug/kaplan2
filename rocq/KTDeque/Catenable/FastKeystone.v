@@ -1,11 +1,12 @@
 (** * KTDeque.Catenable.FastKeystone — the keystone, transferred to OpsFast.
 
-    The fast operation family (OpsFast.v) is pointwise EQUAL to the
-    frozen Ops.v family (the [_f_eq] lemmas), so KT99 §6 Theorem 6.1 —
-    the six [cat_keystone_*] theorems of CatKeystone.v — holds of it
-    verbatim.  This file states the transferred bundle so that the
-    extracted production artifact (Extract/ExtractionFast.v) has its
-    own named, axiom-audited theorems.
+    The fast operation family (OpsFast.v) and its fused optimization
+    (OpsFused.v) are pointwise EQUAL to the frozen Ops.v family (the
+    [_f_eq] / [_v2_eq] lemmas), so KT99 §6 Theorem 6.1 — the six
+    [cat_keystone_*] theorems of CatKeystone.v — holds of them
+    verbatim.  This file states the bundle for the ops the production
+    artifact actually extracts (Extract/ExtractionFast.v): the fused
+    [_v2] push/inject/pop/eject and [cad_concat_f].
 
     Cost: the fast ops perform exactly the buffer-primitive sequence
     that Cost.v's counters count (the mirror replaces each counted
@@ -17,7 +18,7 @@ From Stdlib Require Import List.
 Import ListNotations.
 From KTDeque.Common Require Import Prelude.
 From KTDeque.Catenable Require Import Model Color Ops BufPrims OpsFast
-  CatKeystone.
+  OpsFused CatKeystone.
 
 Set Implicit Arguments.
 
@@ -28,19 +29,19 @@ Proof. exact cat_keystone_empty. Qed.
 Theorem cat_keystone_fast_push :
   forall A (x : A) (d : cadeque A),
     J d ->
-    J (cad_push_f x d) /\
-    cad_to_list (cad_push_f x d) = x :: cad_to_list d.
+    J (cad_push_v2 x d) /\
+    cad_to_list (cad_push_v2 x d) = x :: cad_to_list d.
 Proof.
-  intros A x d HJ. rewrite cad_push_f_eq. apply cat_keystone_push, HJ.
+  intros A x d HJ. rewrite cad_push_v2_eq, cad_push_f_eq. apply cat_keystone_push, HJ.
 Qed.
 
 Theorem cat_keystone_fast_inject :
   forall A (d : cadeque A) (x : A),
     J d ->
-    J (cad_inject_f d x) /\
-    cad_to_list (cad_inject_f d x) = cad_to_list d ++ [x].
+    J (cad_inject_v2 d x) /\
+    cad_to_list (cad_inject_v2 d x) = cad_to_list d ++ [x].
 Proof.
-  intros A d x HJ. rewrite cad_inject_f_eq. apply cat_keystone_inject, HJ.
+  intros A d x HJ. rewrite cad_inject_v2_eq, cad_inject_f_eq. apply cat_keystone_inject, HJ.
 Qed.
 
 Theorem cat_keystone_fast_concat :
@@ -59,11 +60,11 @@ Theorem cat_keystone_fast_pop :
   forall A (d : cadeque A),
     J d -> cad_to_list d <> [] ->
     exists x d',
-      cad_pop_f d = Some (x, d') /\
+      cad_pop_v2 d = Some (x, d') /\
       J d' /\
       cad_to_list d = x :: cad_to_list d'.
 Proof.
-  intros A d HJ Hne. rewrite cad_pop_f_eq.
+  intros A d HJ Hne. rewrite cad_pop_v2_eq, cad_pop_f_eq.
   apply cat_keystone_pop; assumption.
 Qed.
 
@@ -71,11 +72,11 @@ Theorem cat_keystone_fast_eject :
   forall A (d : cadeque A),
     J d -> cad_to_list d <> [] ->
     exists d' x,
-      cad_eject_f d = Some (d', x) /\
+      cad_eject_v2 d = Some (d', x) /\
       J d' /\
       cad_to_list d = cad_to_list d' ++ [x].
 Proof.
-  intros A d HJ Hne. rewrite cad_eject_f_eq.
+  intros A d HJ Hne. rewrite cad_eject_v2_eq, cad_eject_f_eq.
   apply cat_keystone_eject; assumption.
 Qed.
 

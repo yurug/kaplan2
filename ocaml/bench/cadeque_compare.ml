@@ -53,17 +53,17 @@ end
 module KTF : CADEQUE = struct
   type 'a t = 'a KTCadequeFast.cadeque
   let empty = KTCadequeFast.cad_empty
-  let push = KTCadequeFast.cad_push_f
-  let inject = KTCadequeFast.cad_inject_f
-  let pop = KTCadequeFast.cad_pop_f
-  let eject = KTCadequeFast.cad_eject_f
+  let push = KTCadequeFast.cad_push_v2
+  let inject = KTCadequeFast.cad_inject_v2
+  let pop = KTCadequeFast.cad_pop_v2
+  let eject = KTCadequeFast.cad_eject_v2
   let concat a b =
     match KTCadequeFast.cad_concat_f a b with
     | Some c -> c
     | None -> failwith "cad_concat_f returned None on regular inputs"
   let to_list d =
     let rec go acc d =
-      match KTCadequeFast.cad_pop_f d with
+      match KTCadequeFast.cad_pop_v2 d with
       | Some (x, d') -> go (x :: acc) d'
       | None -> List.rev acc
     in

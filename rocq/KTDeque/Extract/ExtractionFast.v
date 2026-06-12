@@ -19,7 +19,7 @@ From Stdlib Require Import Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From Stdlib Require Import ExtrOcamlNatInt.
 
-From KTDeque.Catenable Require Import Model BufPrims OpsFast.
+From KTDeque.Catenable Require Import Model Color Ops BufPrims OpsFast OpsFused.
 
 Set Extraction Output Directory "kt_extracted".
 Extraction Language OCaml.
@@ -42,11 +42,20 @@ Extract Constant beject3 => "Fastbuf.eject3".
 Extract Constant bfold_right => "Fastbuf.fold_right".
 Extract Constant bfold_left => "Fastbuf.fold_left".
 
+(* Verified Coq-level fusion (OpsFused.v) plus extraction-time inlining
+   of the small helpers: the per-op call chain flattens into one
+   function body in the emitted OCaml. *)
+Extraction Inline
+  upd_pkt tree_repair
+  node_push_f node_inject_f node_pop_f node_eject_f
+  node_color_f tree_of_f pkt_update_f root_and_child
+  rebuild_childless_f.
+
 Extraction "kTCadequeFast.ml"
   cadeque
   cad_empty
-  cad_push_f
-  cad_inject_f
-  cad_pop_f
-  cad_eject_f
+  cad_push_v2
+  cad_inject_v2
+  cad_pop_v2
+  cad_eject_v2
   cad_concat_f.
