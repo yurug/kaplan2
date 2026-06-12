@@ -59,3 +59,23 @@ Extraction "kTCadequeFast.ml"
   cad_pop_v2
   cad_eject_v2
   cad_concat_f.
+
+(** ** The sized §4 chain (DequePtr/SizedChain.v) — the buffer storage.
+
+    Extracted as its own self-contained module: Fastbuf (the seam
+    implementation) is built directly on these ops, so the size field
+    lives fused inside the chain's top constructor (no wrapper record)
+    and push/inject return the chain bare (no result constructor). *)
+
+From KTDeque.DequePtr Require Import SizedChain.
+
+Extraction "kTSizedChain.ml"
+  SChain
+  spop_result
+  s_empty
+  s_size
+  s_to_list
+  push_s
+  inject_s
+  pop_s
+  eject_s.

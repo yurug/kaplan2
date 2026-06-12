@@ -5,74 +5,69 @@
    list semantics of the corresponding BufPrims.v primitive, with
 
      - all four end operations worst-case O(1): the storage is the
-       *verified* §4 Kaplan–Tarjan deque (KTDeque.push_kt4 family,
-       whose sequence-correctness and WC O(1) bounds are the deque
-       keystone, rocq/KTDeque/DequePtr/DequeKeystone.v);
-     - size O(1): an exact element count rides along, making the §6
-       colour tests an int compare;
+       SIZE-FUSED verified §4 Kaplan–Tarjan deque
+       (rocq/KTDeque/DequePtr/SizedChain.v, extracted at
+       kTSizedChain.ml).  [SChain] carries the element count fused
+       into its top constructor — verified data-constructor fusion —
+       so there is no wrapper record, push/inject return the chain
+       bare (no result constructor), and [size] is a field read.
+       Each sized op carries a [_spec] lemma in SizedChain.v reducing
+       it to the keystone-proven kt4 op, so the deque keystone
+       (sequence semantics + WC O(1)) describes this storage verbatim;
      - append O(min |a| |b|): the smaller side is folded into the
        larger — every §6 call site has a constant-bounded side under
        the regularity invariant J (the accounting audited in
        Catenable/Cost.v), so each reachable call is O(1).
 
-   Elements are stored as level-0 element trees ([ElementTree.base]);
-   [unbase] inverts that wrapping.  The [assert false] arms are
-   unreachable for buffers built through this interface: every Fastbuf
-   value originates from [empty] via kt4 operations, which preserve the
-   deque regularity invariant, under which the kt4 ops are total
-   (DequeKeystone). *)
+   Elements are stored as level-0 element trees; [base]/[unbase] are
+   the wrap/unwrap.  The fail arms of the sized ops return their input
+   (a sentinel the §6 keystone proves unreachable on regular inputs). *)
 
-type 'a t = { d : 'a KTDeque.kChain; n : int }
+open KTSizedChain
 
-let empty : 'a t = { d = KTDeque.empty_kchain; n = 0 }
+type 'a t = 'a sChain
 
-let size (b : 'a t) : int = b.n
+let empty : 'a t = s_empty
 
-let is_empty (b : 'a t) : bool = b.n = 0
+let size (b : 'a t) : int =
+  match b with
+  | SEnding (n, _) -> n
+  | SCons (n, _, _, _) -> n
 
-(* inlined ElementTree.base: a level-0 tree is ExistT (0, x) — avoids a
-   call + lets the constructor be allocated in place (no flambda here) *)
-let base (x : 'a) : 'a KTDeque.Coq_E.t = KTDeque.ExistT (0, Obj.magic x)
+let is_empty (b : 'a t) : bool = size b = 0
 
-let unbase (t : 'a KTDeque.Coq_E.t) : 'a =
-  let KTDeque.ExistT (_, v) = t in
+(* a level-0 element tree is ExistT (0, x) — allocated in place *)
+let base (x : 'a) : 'a Coq0_E.t = ExistT (0, Obj.magic x)
+
+let unbase (t : 'a Coq0_E.t) : 'a =
+  let ExistT (_, v) = t in
   Obj.magic v
 
-let push (x : 'a) (b : 'a t) : 'a t =
-  match KTDeque.push_kt4 (base x) b.d with
-  | KTDeque.PushOk d -> { d; n = b.n + 1 }
-  | KTDeque.PushFail -> assert false
+let push (x : 'a) (b : 'a t) : 'a t = push_s (base x) b
 
-let inject (b : 'a t) (x : 'a) : 'a t =
-  match KTDeque.inject_kt4 b.d (base x) with
-  | KTDeque.PushOk d -> { d; n = b.n + 1 }
-  | KTDeque.PushFail -> assert false
+let inject (b : 'a t) (x : 'a) : 'a t = inject_s b (base x)
 
 let pop (b : 'a t) : ('a * 'a t) option =
-  if b.n = 0 then None
-  else
-    match KTDeque.pop_kt4 b.d with
-    | KTDeque.PopOk (x, d) -> Some (unbase x, { d; n = b.n - 1 })
-    | KTDeque.PopFail -> assert false
+  match pop_s b with
+  | SPopOk (x, b') -> Some (unbase x, b')
+  | SPopFail -> None
 
 let eject (b : 'a t) : ('a t * 'a) option =
-  if b.n = 0 then None
-  else
-    match KTDeque.eject_kt4 b.d with
-    | KTDeque.PopOk (x, d) -> Some ({ d; n = b.n - 1 }, unbase x)
-    | KTDeque.PopFail -> assert false
+  match eject_s b with
+  | SPopOk (x, b') -> Some (b', unbase x)
+  | SPopFail -> None
 
 let b1 (x : 'a) : 'a t = push x empty
 let b2 (x : 'a) (y : 'a) : 'a t = push x (push y empty)
 let b3 (x : 'a) (y : 'a) (z : 'a) : 'a t = push x (push y (push z empty))
 
 (* front-to-back element list; O(n), used only by the bounded helpers *)
-let to_list (b : 'a t) : 'a list = KTDeque.kchain_to_list b.d
+let to_list (b : 'a t) : 'a list = s_to_list b
 
 let append (a : 'a t) (b : 'a t) : 'a t =
-  if a.n = 0 then b
-  else if b.n = 0 then a
-  else if a.n <= b.n then
+  if size a = 0 then b
+  else if size b = 0 then a
+  else if size a <= size b then
     (* fold a's elements, back to front, onto b's front *)
     List.fold_right (fun x acc -> push x acc) (to_list a) b
   else
