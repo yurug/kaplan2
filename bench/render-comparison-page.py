@@ -383,22 +383,24 @@ budget (quadratic regime). Raw dated output:
 <h3>3.3 Reading the results honestly</h3>
 <div class="win">
 <strong>KTf beats Viennot on 7 of 9 workloads, flat at every size.</strong>
-At n&nbsp;=&nbsp;10⁶: pop-drain 60&nbsp;vs&nbsp;80, eject-drain 55&nbsp;vs&nbsp;77,
-mixed 52&nbsp;vs&nbsp;75, concat-fold 594&nbsp;vs&nbsp;1001 (1.7×), concat-tree
-1903&nbsp;vs&nbsp;2759, concat+pop interleave 111&nbsp;vs&nbsp;270 (2.4×), and the
-persistent-fork rerun 41&nbsp;vs&nbsp;64&nbsp;ns/op (1.6×).  The model layer's
-quadratic cells are gone, and the verified fusion pass (OpsFused.v) bought a further
-20–30% on every removal path over the plain mirror.
+At n&nbsp;=&nbsp;10⁶: pop-drain 65&nbsp;vs&nbsp;80, eject-drain 58&nbsp;vs&nbsp;74,
+mixed 45&nbsp;vs&nbsp;72 (1.6×), concat-fold 604&nbsp;vs&nbsp;985, concat-tree
+1789&nbsp;vs&nbsp;2819, concat+pop interleave 116&nbsp;vs&nbsp;273 (2.4×), and the
+persistent-fork rerun 42&nbsp;vs&nbsp;66&nbsp;ns/op (1.6×).  Two verified
+optimization passes built this: the OpsFused.v fusion pass (case-of-case +
+deforestation, 20–30% on every removal path) and the SizedChain.v
+data-constructor fusion (the buffer size lives inside the §4 chain's top
+constructor — no wrapper record, no result constructor on push/inject).
 </div>
 <div class="honest">
-<strong>Where we still lose: the two build-side workloads.</strong> Steady push
-(113&nbsp;vs&nbsp;79) and steady inject (103&nbsp;vs&nbsp;86) trail by ~1.2–1.4×.
-Both are dominated by one verified §4-deque push per element (~81&nbsp;ns
-standalone); Viennot's hand-tuned buffer push is a few tens of ns cheaper inside
-their cadeque.  Closing this means applying the same verified-fusion treatment to
-the kt4 extraction's push path — a §4 concern, orthogonal to the catenable layer,
-and the identified next target (along with the level-erasure data refinement that
-would remove the per-element box).
+<strong>Where we still lose: the two build-side workloads at scale.</strong> Steady
+push (111&nbsp;vs&nbsp;81) and steady inject (104&nbsp;vs&nbsp;89) trail by
+~1.2–1.4× at n&nbsp;=&nbsp;10⁶ (at n&nbsp;=&nbsp;10³ they win: push 59&nbsp;vs&nbsp;66).
+The constructor-fusion passes removed the removable allocations; what remains at
+scale is the per-element level-tag box (<code>ExistT</code>) that our extraction
+carries and Viennot's GADT-erased representation does not, plus the cache pressure
+it induces.  Removing it is the level-erasure data refinement — the identified next
+phase, and a genuine week-scale verified-refinement project.
 </div>
 <p><strong>The model baseline (KT) tells the same story from the other side.</strong>
 Its cons-side cells (push/pop on a bare list) bound what any buffer can do, and its

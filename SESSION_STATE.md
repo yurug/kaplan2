@@ -55,6 +55,19 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12c (user request): SizedChain data-constructor fusion — DONE
+- DequePtr/SizedChain.v: SChain fuses the buffer size into the kt4
+  top constructor; push_s/inject_s/pop_s/eject_s native mirrors with
+  _spec lemmas to the kt4 ops (erasure s_erase/s_of).  No PushOk on
+  push/inject; fail = input sentinel (keystone-unreachable).
+- Extracted kTSizedChain.ml; Fastbuf rewritten on it (no record,
+  size = field read).  Bench: 7/9 wins hold with wider margins
+  (mixed 45v72, interleave 116v273, fork 42v66); push/inject WIN at
+  1k (59v66) but still ~1.2-1.4x behind at 1M (111v81, 104v89) —
+  residual = per-element ExistT box vs their GADT-erased elements.
+- NEXT (user-gated): level-erasure data refinement of E.t (the real
+  remaining lever; week-scale verified-refinement project).
+
 ## 2026-06-12b (user request): verified fusion pass (OpsFused.v) — DONE
 - Coq-level program transformations proved correct: upd_pkt
   (case-of-case fusion of pkt_update_f, deforests the Y/O child cell),

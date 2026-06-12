@@ -160,17 +160,26 @@ equality proof down to the frozen ops:
 - `cad_{push,inject,pop,eject}_v2` — the shipped ops; FastKeystone is
   stated over them; `Extraction Inline` flattens the helper chain.
 
+A second verified transformation, `DequePtr/SizedChain.v`, applies
+DATA-CONSTRUCTOR FUSION to the buffer storage itself: `SChain` carries
+the element count fused into the §4 chain's top constructor, the four
+ops are mirrored natively threading n±1 (push/inject return the chain
+bare — no result constructor; `_spec` lemmas reduce each to the proven
+kt4 op through the erasure), and Fastbuf becomes thin glue with no
+wrapper record and a field-read `size`.
+
 Result (`bench/results/cadeque-compare-2026-06-12.md`, n = 10^6,
-ns/op, KTf vs Vi): pop 60 vs 80, eject 55 vs 77, mixed 52 vs 75,
-concat-fold 594 vs 1001, concat-tree 1903 vs 2759, concat+pop
-interleave 111 vs 270 (2.4×), persistent fork 41 vs 64 — **faster on
-7 of 9 workloads**; push 113 vs 79 and inject 103 vs 86 remain
-~1.2–1.4× behind (both dominated by the kt4 buffer push; the next
-targets are the same verified-fusion treatment for the §4 extraction's
-push path, and the level-erasure data refinement that would remove the
-per-element box).  The fusion pass alone bought 20–30% on every
-removal-side workload over the plain mirror.  The model layer's
-quadratic cells are gone.  The web page
+ns/op, KTf vs Vi): pop 65 vs 80, eject 58 vs 74, mixed 45 vs 72,
+concat-fold 604 vs 985, concat-tree 1789 vs 2819, concat+pop
+interleave 116 vs 273 (2.4×), persistent fork 42 vs 66 — **faster on
+7 of 9 workloads**; push 111 vs 81 and inject 104 vs 89 remain
+~1.2–1.4× behind at scale (they WIN at n=10^3: push 59 vs 66 — the
+residual large-n gap is the per-element level-tag box that Viennot's
+GADT-erased representation avoids, plus its cache pressure; removing
+it is the level-erasure data refinement, the identified next phase).
+The fusion pass bought 20–30% on every removal path; the sized chain
+widened the mixed/fork margins to ~1.6×.  The model layer's quadratic
+cells are gone.  The web page
 ([`kb/viennot-comparison.html`](../viennot-comparison.html)) renders
 all three implementations.
 
