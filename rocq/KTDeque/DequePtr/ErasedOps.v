@@ -960,3 +960,217 @@ Proof.
         destruct k as [kb | kc kp kt]; reflexivity.
     + destruct p; discriminate.
 Qed.
+
+Definition epop_s {A : Type} (c : GSChain (etree A))
+    : gpop_result (etree A) :=
+  match c with
+  | GSEnding n b =>
+      match b with
+      | B0           => GPopFail
+      | B1 a         => GPopOk a (GSEnding (Nat.pred n) B0)
+      | B2 a b1      => GPopOk a (GSEnding (Nat.pred n) (B1 b1))
+      | B3 a b1 c1   => GPopOk a (GSEnding (Nat.pred n) (B2 b1 c1))
+      | B4 a b1 c1 d => GPopOk a (GSEnding (Nat.pred n) (B3 b1 c1 d))
+      | B5 a b1 c1 d e => GPopOk a (GSEnding (Nat.pred n) (B4 b1 c1 d e))
+      end
+  | GSCons n col p t =>
+      match col, p with
+      | Green, GPNode pre i suf =>
+          match pre with
+          | B2 a b1 =>
+              match t with
+              | GKCons Red _ _ =>
+                  match green_of_red_k_e t with
+                  | Some t' =>
+                      GPopOk a
+                        (GSCons (Nat.pred n) Yellow
+                                (GPNode (B1 b1) i suf) t')
+                  | None => GPopFail
+                  end
+              | _ =>
+                  GPopOk a
+                    (GSCons (Nat.pred n) Yellow (GPNode (B1 b1) i suf) t)
+              end
+          | B3 a b1 c1 =>
+              match t with
+              | GKCons Red _ _ =>
+                  match green_of_red_k_e t with
+                  | Some t' =>
+                      GPopOk a
+                        (GSCons (Nat.pred n) Yellow
+                                (GPNode (B2 b1 c1) i suf) t')
+                  | None => GPopFail
+                  end
+              | _ =>
+                  GPopOk a
+                    (GSCons (Nat.pred n) Yellow (GPNode (B2 b1 c1) i suf) t)
+              end
+          | _ => GPopFail
+          end
+      | Yellow, GPNode pre i suf =>
+          match pre with
+          | B1 a =>
+              match green_of_red_k_e (GKCons Red (GPNode B0 i suf) t) with
+              | Some d' => GPopOk a (gs_of (Nat.pred n) d')
+              | None    => GPopFail
+              end
+          | B2 a b1 =>
+              GPopOk a (GSCons (Nat.pred n) Yellow (GPNode (B1 b1) i suf) t)
+          | B3 a b1 c1 =>
+              GPopOk a
+                (GSCons (Nat.pred n) Yellow (GPNode (B2 b1 c1) i suf) t)
+          | B4 a b1 c1 d =>
+              GPopOk a
+                (GSCons (Nat.pred n) Yellow (GPNode (B3 b1 c1 d) i suf) t)
+          | _ => GPopFail
+          end
+      | _, _ => GPopFail
+      end
+  end.
+
+Lemma epop_s_nat : forall A (c : SChain A) (x : E.t A) (d : KChain A),
+    pop_kt4 (s_erase c) = PopOk x d ->
+    epop_s (er_schain c)
+    = GPopOk (er x) (gs_of (Nat.pred (s_size c)) (er_kchain d)).
+Proof.
+  intros A c x d H.
+  destruct c as [n b | n col p t].
+  - destruct b; cbn in H; [discriminate|injection H as <- <-; reflexivity..].
+  - destruct col.
+    + (* Green *)
+      destruct p as [| pre i suf]; [discriminate|].
+      destruct pre; try discriminate;
+        cbn [s_erase pop_kt4] in H; unfold yellow_wrap_pr in H;
+        cbn [er_schain er_packet er_buf buf5_map epop_s];
+        (destruct t as [b' | col' p' t']; cbn [er_kchain];
+         [injection H as <- <-; reflexivity|];
+         destruct col';
+         try (injection H as <- <-; reflexivity);
+         destruct (green_of_red_k (KCons Red p' t')) as [k|] eqn:Hg;
+         [|discriminate];
+         injection H as <- <-;
+         pose proof (green_of_red_k_nat Hg) as HG;
+         cbn [er_kchain er_packet] in HG; rewrite HG;
+         reflexivity).
+    + (* Yellow *)
+      destruct p as [| pre i suf]; [discriminate|].
+      destruct pre as [| a | a b1 | a b1 c1 | a b1 c1 d0 |];
+        cbn [s_erase pop_kt4] in H; try discriminate;
+        cbn [er_schain er_packet er_buf buf5_map epop_s].
+      * destruct (green_of_red_k (KCons Red (PNode B0 i suf) t))
+          as [k|] eqn:Hg; [|discriminate].
+        injection H as <- <-.
+        pose proof (green_of_red_k_nat Hg) as HG.
+        cbn [er_kchain er_packet er_buf buf5_map] in HG. rewrite HG.
+        destruct k as [kb | kc kp kt]; reflexivity.
+      * injection H as <- <-. reflexivity.
+      * injection H as <- <-. reflexivity.
+      * injection H as <- <-. reflexivity.
+    + destruct p; discriminate.
+Qed.
+
+Definition eeject_s {A : Type} (c : GSChain (etree A))
+    : gpop_result (etree A) :=
+  match c with
+  | GSEnding n b =>
+      match b with
+      | B0           => GPopFail
+      | B1 a         => GPopOk a (GSEnding (Nat.pred n) B0)
+      | B2 a b1      => GPopOk b1 (GSEnding (Nat.pred n) (B1 a))
+      | B3 a b1 c1   => GPopOk c1 (GSEnding (Nat.pred n) (B2 a b1))
+      | B4 a b1 c1 d => GPopOk d (GSEnding (Nat.pred n) (B3 a b1 c1))
+      | B5 a b1 c1 d e => GPopOk e (GSEnding (Nat.pred n) (B4 a b1 c1 d))
+      end
+  | GSCons n col p t =>
+      match col, p with
+      | Green, GPNode pre i suf =>
+          match suf with
+          | B2 a b1 =>
+              match t with
+              | GKCons Red _ _ =>
+                  match green_of_red_k_e t with
+                  | Some t' =>
+                      GPopOk b1
+                        (GSCons (Nat.pred n) Yellow
+                                (GPNode pre i (B1 a)) t')
+                  | None => GPopFail
+                  end
+              | _ =>
+                  GPopOk b1
+                    (GSCons (Nat.pred n) Yellow (GPNode pre i (B1 a)) t)
+              end
+          | B3 a b1 c1 =>
+              match t with
+              | GKCons Red _ _ =>
+                  match green_of_red_k_e t with
+                  | Some t' =>
+                      GPopOk c1
+                        (GSCons (Nat.pred n) Yellow
+                                (GPNode pre i (B2 a b1)) t')
+                  | None => GPopFail
+                  end
+              | _ =>
+                  GPopOk c1
+                    (GSCons (Nat.pred n) Yellow (GPNode pre i (B2 a b1)) t)
+              end
+          | _ => GPopFail
+          end
+      | Yellow, GPNode pre i suf =>
+          match suf with
+          | B1 a =>
+              match green_of_red_k_e (GKCons Red (GPNode pre i B0) t) with
+              | Some d' => GPopOk a (gs_of (Nat.pred n) d')
+              | None    => GPopFail
+              end
+          | B2 a b1 =>
+              GPopOk b1 (GSCons (Nat.pred n) Yellow (GPNode pre i (B1 a)) t)
+          | B3 a b1 c1 =>
+              GPopOk c1
+                (GSCons (Nat.pred n) Yellow (GPNode pre i (B2 a b1)) t)
+          | B4 a b1 c1 d =>
+              GPopOk d
+                (GSCons (Nat.pred n) Yellow (GPNode pre i (B3 a b1 c1)) t)
+          | _ => GPopFail
+          end
+      | _, _ => GPopFail
+      end
+  end.
+
+Lemma eeject_s_nat : forall A (c : SChain A) (x : E.t A) (d : KChain A),
+    eject_kt4 (s_erase c) = PopOk x d ->
+    eeject_s (er_schain c)
+    = GPopOk (er x) (gs_of (Nat.pred (s_size c)) (er_kchain d)).
+Proof.
+  intros A c x d H.
+  destruct c as [n b | n col p t].
+  - destruct b; cbn in H; [discriminate|injection H as <- <-; reflexivity..].
+  - destruct col.
+    + destruct p as [| pre i suf]; [discriminate|].
+      destruct suf; try discriminate;
+        cbn [s_erase eject_kt4] in H; unfold yellow_wrap_pr in H;
+        cbn [er_schain er_packet er_buf buf5_map eeject_s];
+        (destruct t as [b' | col' p' t']; cbn [er_kchain];
+         [injection H as <- <-; reflexivity|];
+         destruct col';
+         try (injection H as <- <-; reflexivity);
+         destruct (green_of_red_k (KCons Red p' t')) as [k|] eqn:Hg;
+         [|discriminate];
+         injection H as <- <-;
+         pose proof (green_of_red_k_nat Hg) as HG;
+         cbn [er_kchain er_packet] in HG; rewrite HG;
+         reflexivity).
+    + destruct p as [| pre i suf]; [discriminate|].
+      destruct suf as [| a | a b1 | a b1 c1 | a b1 c1 d0 |];
+        cbn [s_erase eject_kt4] in H; try discriminate;
+        cbn [er_schain er_packet er_buf buf5_map eeject_s].
+      * destruct (green_of_red_k (KCons Red (PNode pre i B0) t))
+          as [k|] eqn:Hg; [|discriminate].
+        injection H as <- <-.
+        pose proof (green_of_red_k_nat Hg) as HG.
+        cbn [er_kchain er_packet er_buf buf5_map] in HG. rewrite HG.
+        destruct k as [kb | kc kp kt]; reflexivity.
+      * injection H as <- <-. reflexivity.
+      * injection H as <- <-. reflexivity.
+      * injection H as <- <-. reflexivity.
+    + destruct p; discriminate.
+Qed.
