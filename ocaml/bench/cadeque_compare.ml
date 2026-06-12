@@ -1,15 +1,17 @@
 (* cadeque_compare.ml — head-to-head benchmark of the CATENABLE deques:
 
-     KT : our Rocq-extracted KT99 §6 cadeque (ocaml/extracted/kTCadeque.ml,
-          keystone closed 2026-06-11, `make cat-keystone-gate`).
-          MODEL-LAYER extraction: buffers are lists, colours recompute
-          [length] — wall-clock per op is O(root buffer size).  The
-          mechanized bound (Catenable/Cost.v:cat_wc_o1) counts buffer
-          PRIMITIVES; wall-clock O(1) requires instantiating buffers with
-          the proven §4 deque (future work).
-     Vi : Viennot/Wendling/Guéneau/Pottier hand-written OCaml cadeque
-          (vendored at ocaml/bench/viennot/, MIT), production-quality,
-          wall-clock WC O(1).
+     KT  : our Rocq-extracted KT99 §6 cadeque, MODEL layer
+           (ocaml/extracted/kTCadeque.ml): buffers are lists, colours
+           recompute [length] — wall-clock per op is O(root buffer
+           size); kept in the table as the honest baseline.
+     KTf : our PRODUCTION extraction (ocaml/extracted/kTCadequeFast.ml):
+           the OpsFast.v mirror (proved equal to the frozen ops;
+           keystone bundle in Catenable/FastKeystone.v) with buffers
+           remapped at extraction to Fastbuf = the verified §4 kt4
+           deque + O(1) size.  Wall-clock WC O(1) on every end.
+     Vi  : Viennot/Wendling/Guéneau/Pottier hand-written OCaml cadeque
+           (vendored at ocaml/bench/viennot/, MIT), production-quality,
+           wall-clock WC O(1).
 
    Driven by bench/cadeque-compare.sh.  Output: one markdown table of
    ns/op.  A per-cell time guard skips larger sizes for an (impl,
@@ -45,6 +47,27 @@ module KT : CADEQUE = struct
     | Some c -> c
     | None -> failwith "cad_concat returned None on regular inputs"
   let to_list = KTCadeque.cad_to_list
+end
+
+(* the production extraction: OpsFast mirror + Fastbuf (kt4 + size) *)
+module KTF : CADEQUE = struct
+  type 'a t = 'a KTCadequeFast.cadeque
+  let empty = KTCadequeFast.cad_empty
+  let push = KTCadequeFast.cad_push_f
+  let inject = KTCadequeFast.cad_inject_f
+  let pop = KTCadequeFast.cad_pop_f
+  let eject = KTCadequeFast.cad_eject_f
+  let concat a b =
+    match KTCadequeFast.cad_concat_f a b with
+    | Some c -> c
+    | None -> failwith "cad_concat_f returned None on regular inputs"
+  let to_list d =
+    let rec go acc d =
+      match KTCadequeFast.cad_pop_f d with
+      | Some (x, d') -> go (x :: acc) d'
+      | None -> List.rev acc
+    in
+    go [] d
 end
 
 module Vi : CADEQUE = struct
@@ -164,6 +187,7 @@ module Work (D : CADEQUE) = struct
 end
 
 module WKT = Work (KT)
+module WKTF = Work (KTF)
 module WVi = Work (Vi)
 
 (* ------------------------------------------------------------------ *)
@@ -220,11 +244,15 @@ let () =
   in
   (* correctness cross-check first *)
   let (k1, k2) = WKT.selfcheck () and (v1, v2) = WVi.selfcheck () in
-  if k1 <> v1 || k2 <> v2 then begin
+  let (f1, f2) = WKTF.selfcheck () in
+  if k1 <> v1 || k2 <> v2 || f1 <> v1 || f2 <> v2 then begin
     prerr_endline "SELF-CHECK FAILED: sequence semantics disagree";
     exit 1
   end;
-  Printf.printf "<!-- self-check OK: KT and Viennot agree on sequences -->\n";
+  Printf.printf
+    "<!-- self-check OK: KT, KTfast and Viennot agree on sequences -->\n";
+  (* warm code paths + minor heap before the first timed cell *)
+  guard := !guard + WKT.w_push 2000 + WKTF.w_push 2000 + WVi.w_push 2000;
   Printf.printf "\nAll cells are **ns per operation** (lower is better); \
                  \"(>cap)\" = a smaller size already exceeded the %.0f s \
                  cell budget (quadratic regime).\n\n" time_budget;
@@ -233,14 +261,19 @@ let () =
   let id n = n in
   (* push *)
   row "push n" "KT" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WKT.w_push n) ns);
+  row "push n" "KTf" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WKTF.w_push n) ns);
   row "push n" "Vi" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WVi.w_push n) ns);
   (* inject *)
   row "inject n" "KT" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WKT.w_inject n) ns);
+  row "inject n" "KTf" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WKTF.w_inject n) ns);
   row "inject n" "Vi" (run_cells ~ops_of:id ~mk_thunk:(fun n () -> WVi.w_inject n) ns);
   (* pop-all (prebuild untimed) *)
   row "pop all (after push n)" "KT"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WKT.build_push n in fun () -> WKT.w_pop_all d) ns);
+  row "pop all (after push n)" "KTf"
+    (run_cells ~ops_of:id
+       ~mk_thunk:(fun n -> let d = WKTF.build_push n in fun () -> WKTF.w_pop_all d) ns);
   row "pop all (after push n)" "Vi"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WVi.build_push n in fun () -> WVi.w_pop_all d) ns);
@@ -248,6 +281,9 @@ let () =
   row "eject all (after inject n)" "KT"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WKT.build_inject n in fun () -> WKT.w_eject_all d) ns);
+  row "eject all (after inject n)" "KTf"
+    (run_cells ~ops_of:id
+       ~mk_thunk:(fun n -> let d = WKTF.build_inject n in fun () -> WKTF.w_eject_all d) ns);
   row "eject all (after inject n)" "Vi"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WVi.build_inject n in fun () -> WVi.w_eject_all d) ns);
@@ -255,6 +291,8 @@ let () =
   let ops3 n = 3 * n in
   row "mixed push/push/pop (3n ops)" "KT"
     (run_cells ~ops_of:ops3 ~mk_thunk:(fun n () -> WKT.w_mixed n) ns);
+  row "mixed push/push/pop (3n ops)" "KTf"
+    (run_cells ~ops_of:ops3 ~mk_thunk:(fun n () -> WKTF.w_mixed n) ns);
   row "mixed push/push/pop (3n ops)" "Vi"
     (run_cells ~ops_of:ops3 ~mk_thunk:(fun n () -> WVi.w_mixed n) ns);
   (* concat fold: n/64 blocks of 64 elements *)
@@ -263,10 +301,15 @@ let () =
     List.init (max 1 (n / blocksz)) (fun _ -> WKT.build_push blocksz) in
   let mk_blocks_vi n =
     List.init (max 1 (n / blocksz)) (fun _ -> WVi.build_push blocksz) in
+  let mk_blocks_ktf n =
+    List.init (max 1 (n / blocksz)) (fun _ -> WKTF.build_push blocksz) in
   let opsk n = max 1 (n / blocksz) in
   row "concat fold (n/64 blocks of 64)" "KT"
     (run_cells ~ops_of:opsk
        ~mk_thunk:(fun n -> let bs = mk_blocks_kt n in fun () -> WKT.w_concat_fold bs) ns);
+  row "concat fold (n/64 blocks of 64)" "KTf"
+    (run_cells ~ops_of:opsk
+       ~mk_thunk:(fun n -> let bs = mk_blocks_ktf n in fun () -> WKTF.w_concat_fold bs) ns);
   row "concat fold (n/64 blocks of 64)" "Vi"
     (run_cells ~ops_of:opsk
        ~mk_thunk:(fun n -> let bs = mk_blocks_vi n in fun () -> WVi.w_concat_fold bs) ns);
@@ -274,6 +317,9 @@ let () =
   row "concat tree (n/64 blocks of 64)" "KT"
     (run_cells ~ops_of:opsk
        ~mk_thunk:(fun n -> let bs = mk_blocks_kt n in fun () -> WKT.w_concat_tree bs) ns);
+  row "concat tree (n/64 blocks of 64)" "KTf"
+    (run_cells ~ops_of:opsk
+       ~mk_thunk:(fun n -> let bs = mk_blocks_ktf n in fun () -> WKTF.w_concat_tree bs) ns);
   row "concat tree (n/64 blocks of 64)" "Vi"
     (run_cells ~ops_of:opsk
        ~mk_thunk:(fun n -> let bs = mk_blocks_vi n in fun () -> WVi.w_concat_tree bs) ns);
@@ -283,6 +329,10 @@ let () =
     (run_cells ~ops_of:opscp
        ~mk_thunk:(fun n ->
          let b8 = WKT.build_push 8 in fun () -> WKT.w_concat_pushpop (max 1 (n / 8)) b8) ns);
+  row "concat(8)+pop×4 interleave" "KTf"
+    (run_cells ~ops_of:opscp
+       ~mk_thunk:(fun n ->
+         let b8 = WKTF.build_push 8 in fun () -> WKTF.w_concat_pushpop (max 1 (n / 8)) b8) ns);
   row "concat(8)+pop×4 interleave" "Vi"
     (run_cells ~ops_of:opscp
        ~mk_thunk:(fun n ->
@@ -291,6 +341,9 @@ let () =
   row "persistent fork: n× pop(same d)" "KT"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WKT.build_push n in fun () -> WKT.w_fork_pop d n) ns);
+  row "persistent fork: n× pop(same d)" "KTf"
+    (run_cells ~ops_of:id
+       ~mk_thunk:(fun n -> let d = WKTF.build_push n in fun () -> WKTF.w_fork_pop d n) ns);
   row "persistent fork: n× pop(same d)" "Vi"
     (run_cells ~ops_of:id
        ~mk_thunk:(fun n -> let d = WVi.build_push n in fun () -> WVi.w_fork_pop d n) ns);

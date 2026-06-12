@@ -55,6 +55,23 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12 (user request): production cadeque (beat Viennot) — DONE
+- Verified mirror route (user-approved): BufPrims.v (15 primitives,
+  definitional list wrappers) + OpsFast.v (1:1 mirror of every frozen
+  op with op_f = op equality lemmas; the proofs ARE the port diff) +
+  FastKeystone.v (six theorems transferred, Print Assumptions closed;
+  gate now asserts 13/13).
+- Extraction seam: Extract/ExtractionFast.v remaps buffer+primitives
+  to Fastbuf (= verified kt4 + O(1) size; ocaml/extracted/fastbuf.ml).
+  17 one-line Extract Constant directives = the only trusted code.
+- Bench (cadeque-compare, now 3-way KT/KTf/Vi, self-check passes):
+  KTf beats Viennot on 6/9 workloads at 1M (eject 70v77, mixed 58v72,
+  fold 646v1154, tree 2649v3497, interleave 143v269, fork 53v64),
+  pop parity, push/inject ~1.4x behind (kt4-push-bound — the next
+  optimization target is the §4 extraction push path, NOT the §6
+  layer).  Model-layer quadratics eliminated.
+- Page + kb report updated for the three-way story.
+
 ## 2026-06-11 (user request): Viennot comparison + catenable benchmark — DONE
 - Catenable layer now EXTRACTED: Extract/Extraction.v emits
   kTCadeque.ml (model layer; honest-cost caveat in the header);

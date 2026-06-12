@@ -131,14 +131,41 @@ cell budget (quadratic regime).
   substituting kt4 buffers for lists turns every "(>cap)" cell into a
   flat one with the keystone proofs as the safety net for the swap.
 
+## Addendum (2026-06-12): the production artifact — KTf
+
+The buffer instantiation isolated above is DONE, the verified way:
+
+- `Catenable/BufPrims.v` names the ~15 buffer primitives the frozen ops
+  use (definitional wrappers over list buffers).
+- `Catenable/OpsFast.v` mirrors every operation against the primitives
+  with `op_f = op` equality lemmas — the machine-checked diff of the
+  port; `Catenable/FastKeystone.v` transfers the six keystone theorems
+  (all `Print Assumptions` closed; `make cat-keystone-gate` now asserts
+  13/13).
+- `Extract/ExtractionFast.v` remaps `buffer` + primitives to
+  `Fastbuf` (= the verified §4 kt4 deque + an O(1) size field,
+  `ocaml/extracted/fastbuf.ml`).  The 17 one-line `Extract Constant`
+  directives are the only trusted seam.
+
+Result (`bench/results/cadeque-compare-2026-06-12.md`, n = 10^6,
+ns/op, KTf vs Vi): eject 70 vs 77, mixed 58 vs 72, concat-fold 646 vs
+1154, concat-tree 2649 vs 3497, concat+pop interleave 143 vs 269,
+persistent fork 53 vs 64 — **faster on 6 of 9 workloads**, pop-drain at
+parity (83 vs 83), push 130 vs 89 and inject 128 vs 91 still ~1.4×
+behind (both dominated by the kt4 buffer push; optimizing the §4
+extraction's push path is the identified next target).  The model
+layer's quadratic cells are gone.  The web page
+([`kb/viennot-comparison.html`](../viennot-comparison.html)) renders
+all three implementations.
+
 ## Verdict
 
 - Functional verification: **parity** (same theorem shape, both closed).
 - Mechanized cost: **ours only** (buffer-primitive counter).
-- Production performance: **theirs only**, until we instantiate model
-  buffers with the proven §4 deque — the single work item this
-  benchmark isolates, and the natural next phase if the catenable
-  layer is to be shipped rather than only verified.
+- Production performance (2026-06-12): **ours on 6 of 9 workloads**
+  (eject, mixed, all three concat patterns, persistent forks; pop at
+  parity); theirs on build-side push/inject by ~1.4× — a §4 buffer
+  constant, not a §6 design gap.
 
 ## Web page
 

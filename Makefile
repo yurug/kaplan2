@@ -116,11 +116,12 @@ bench-sweep:
 bench-adversarial:
 	bench/adversarial.sh
 
-# Catenable deque head-to-head: our Rocq-extracted §6 cadeque
-# (KTCadeque, model layer) vs Viennot's hand-written cadeque, across a
-# push/inject/drain/mixed/concat/fork battery swept over n.  Quadratic
-# cells on the KT side are expected (list buffers) and reported
-# honestly as part of the result.  Wall-clock ~1-3 minutes.
+# Catenable deque head-to-head: our Rocq-extracted §6 cadeques —
+# KT (model layer, list buffers; quadratic cells expected, the honest
+# baseline) and KTf (PRODUCTION: OpsFast mirror over verified kt4
+# buffers, WC O(1) wall-clock) — vs Viennot's hand-written cadeque,
+# across a push/inject/drain/mixed/concat/fork battery swept over n.
+# Wall-clock ~2-4 minutes.
 bench-cadeque:
 	bench/cadeque-compare.sh
 
@@ -132,8 +133,8 @@ clean:
 
 cat-keystone-gate:
 	@dune clean --root . 2>/dev/null; true
-	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* + cat_wc_o1 =="
-	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo rocq/KTDeque/Catenable/Cost.vo --display=quiet --no-buffer 2>&1); \
+	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* (+fast) + cat_wc_o1 =="
+	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo rocq/KTDeque/Catenable/Cost.vo rocq/KTDeque/Catenable/FastKeystone.vo --display=quiet --no-buffer 2>&1); \
 	  status=$$?; \
 	  if [ $$status -ne 0 ]; then \
 	    printf '%s\n' "$$output"; \
@@ -141,9 +142,9 @@ cat-keystone-gate:
 	  fi; \
 	  printf '%s\n' "$$output" | grep -c "Closed under the global context" \
 	    | { read n; \
-	        if [ "$$n" -eq 7 ]; then \
-	          echo "OK: 7/7 (six keystone theorems + cat_wc_o1) closed under the global context"; \
+	        if [ "$$n" -eq 13 ]; then \
+	          echo "OK: 13/13 (six keystone theorems + cat_wc_o1 + six fast-keystone theorems) closed under the global context"; \
 	        else \
-	          echo "FAIL: expected 7 closed theorems, saw $$n"; \
+	          echo "FAIL: expected 13 closed theorems, saw $$n"; \
 	          exit 1; \
 	        fi; }

@@ -45,7 +45,7 @@ for line in text.splitlines():
     if line.startswith("| workload |"):
         sizes = [c.strip()[2:] for c in line.split("|")[3:-1]]
         continue
-    m = re.match(r"\| (.+?) \| (KT|Vi) \| (.+) \|$", line)
+    m = re.match(r"\| (.+?) \| (KT|KTf|Vi) \| (.+) \|$", line)
     if m:
         w, impl, cells = m.group(1).strip(), m.group(2), [c.strip() for c in m.group(3).split("|")]
         if w not in rows:
@@ -60,7 +60,8 @@ NS = [int(s) for s in sizes]
 
 # ---------------------------------------------------------------- charts
 
-KT_COL = "#0066cc"
+KT_COL = "#9db7d4"   # model layer: muted — the honest baseline
+KTF_COL = "#0066cc"  # production (verified kt4 buffers)
 VI_COL = "#d4731a"
 
 def chart(workload):
@@ -94,7 +95,7 @@ def chart(workload):
     s.append(f'<rect x="{x0}" y="{y0}" width="{x1-x0}" height="{y1-y0}" class="frame"/>')
 
     capped = False
-    for impl, col in (("KT", KT_COL), ("Vi", VI_COL)):
+    for impl, col in (("KT", KT_COL), ("KTf", KTF_COL), ("Vi", VI_COL)):
         pts = []
         for n, cell in zip(NS, rows[workload].get(impl, [])):
             if cell.startswith("("):
@@ -129,12 +130,15 @@ def fmt(cell):
 
 trs = []
 for w in order:
-    kt, vi = rows[w].get("KT", []), rows[w].get("Vi", [])
-    trs.append(
-        f'<tr><td rowspan="2" class="wl">{html.escape(w)}</td>'
-        f'<td class="impl kt">KT</td>' + "".join(fmt(c) for c in kt) + "</tr>")
-    trs.append(
-        f'<tr><td class="impl vi">Vi</td>' + "".join(fmt(c) for c in vi) + "</tr>")
+    impls = [i for i in ("KT", "KTf", "Vi") if i in rows[w]]
+    first = True
+    for impl in impls:
+        cls = {"KT": "kt", "KTf": "ktf", "Vi": "vi"}[impl]
+        lead = (f'<td rowspan="{len(impls)}" class="wl">{html.escape(w)}</td>'
+                if first else "")
+        first = False
+        trs.append(f'<tr>{lead}<td class="impl {cls}">{impl}</td>'
+                   + "".join(fmt(c) for c in rows[w][impl]) + "</tr>")
 table = "\n".join(trs)
 size_heads = "".join(f"<th>n = {n:,}</th>" for n in NS)
 
@@ -162,6 +166,7 @@ page = f"""<!DOCTYPE html>
     --bad-bd:    #c62828;
     --rule:      #ddd6c8;
     --kt:        {KT_COL};
+    --ktf:       {KTF_COL};
     --vi:        {VI_COL};
   }}
   html {{ background: var(--bg); color: var(--fg); }}
@@ -195,6 +200,7 @@ page = f"""<!DOCTYPE html>
   .results td.wl {{ text-align: left; }}
   .results td.impl {{ text-align: center; font-weight: 600; }}
   .results .kt {{ color: var(--kt); }}
+  .results .ktf {{ color: var(--ktf); font-weight: 700; }}
   .results .vi {{ color: var(--vi); }}
   .results .cap-cell {{ color: var(--bad-bd); background: var(--bad-bg); text-align: center; }}
   .grid-charts {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -224,12 +230,16 @@ page = f"""<!DOCTYPE html>
 Kaplan–Tarjan (JACM 1999, §6) catenable deques · {html.escape(meta["date"])}</p>
 
 <div class="tldr">
-<strong>TL;DR.</strong> Two complete mechanizations of KT99 §6 now exist side by side:
+<strong>TL;DR.</strong> Two complete mechanizations of KT99 §6 exist side by side:
 our extrinsic rebuild (<code>rocq/KTDeque/Catenable/</code>, keystone closed 2026-06-11)
 and Viennot/Wendling/Guéneau/Pottier's intrinsic development.
 <em>Functional verification: parity. Mechanized worst-case cost bound: ours only.
-Production wall-clock performance: theirs only — until we instantiate our model's
-list buffers with our already-verified §4 deque, the single gap this benchmark isolates.</em>
+Production wall-clock: our verified artifact (<strong>KTf</strong> — the OpsFast
+mirror over verified §4-deque buffers) is <strong>faster than Viennot's hand-written
+cadeque on 6 of the 9 workloads</strong> (eject-drain, mixed, all three concat
+patterns — up to 1.9× on concat-heavy — and persistent forks), at parity on
+pop-drain; their build-side push/inject remain ~1.4× ahead, a gap that lives inside
+the §4 buffer's push path.</em>
 </div>
 
 <h2>1 · The two contenders</h2>
@@ -260,12 +270,14 @@ regular deques; <code>Print Assumptions</code> closed</td>
 <td>Not mechanized — WC O(1) argued in the paper; the types enforce the structure
 the argument needs, but no cost theorem exists in the development</td></tr>
 <tr><td>Buffers</td>
-<td>Model layer: buffers = <code>list</code>; instantiation with our verified §4 deque
-is the named next step</td>
+<td>Model layer: buffers = <code>list</code>.  Production
+(<code>OpsFast.v</code>, proved equal to the frozen ops): buffers remapped at
+extraction to <code>Fastbuf</code> = our verified §4 deque + O(1) size</td>
 <td>Production: buffers = their §4 deque throughout, in theory and in
 <code>lib/</code></td></tr>
 <tr><td>OCaml artifact</td>
-<td>Extraction of the model (<code>ocaml/extracted/kTCadeque.ml</code>)</td>
+<td><code>kTCadequeFast.ml</code> (production, keystone-transferred via
+<code>FastKeystone.v</code>) + <code>kTCadeque.ml</code> (model baseline)</td>
 <td>Hand-written production <code>lib/cadeque*.ml</code> <em>and</em> a tuned extraction</td></tr>
 </table>
 
@@ -300,11 +312,23 @@ recorded in ADR-0004).</p>
 <p>The Kaplan–Tarjan hard rule (<em>worst-case</em>, not amortized) is a
 <strong>theorem</strong> here: <code>cat_wc_o1</code> counts buffer primitives along
 every branch of the frozen ops. VWGP's complexity claim lives in their paper's prose;
-their mechanization scope is functional correctness. Conversely, their
-buffer-ops-to-wall-clock link is real (buffers are their verified deque), while ours is
-still a pending instantiation — which the benchmark below makes brutally visible.</p>
+their mechanization scope is functional correctness.  And the
+buffer-primitives-to-wall-clock link is now real on our side too: the production
+artifact (<strong>KTf</strong>) implements every counted primitive with the verified
+§4 deque, so the mechanized constants translate directly into the flat lines in the
+charts below.</p>
 
-<h3>2.5 Statement-strength parity</h3>
+<h3>2.5 The port that proves itself</h3>
+<p>The production artifact is not a hand-written port: <code>OpsFast.v</code> mirrors
+every frozen operation against ~15 named buffer primitives, and each mirror carries an
+<code>op_f&nbsp;=&nbsp;op</code> equality lemma — the machine-checked diff of the
+port.  The keystone bundle transfers verbatim (<code>FastKeystone.v</code>, six
+theorems, <code>Print Assumptions</code> closed).  The only trusted seam is 17
+one-line <code>Extract Constant</code> directives mapping the primitives to
+<code>Fastbuf</code> (= <code>kt4</code> + a size field), each implementing a
+one-line list definition with an already-verified deque operation.</p>
+
+<h3>2.6 Statement-strength parity</h3>
 <p>Both developments state concat on two <em>arbitrary</em> regular deques (the clause
 our archived Cadeque9 could not even state), both close pop/eject with repair, and both
 have a clean axiom audit. At the level of "what is mechanically known about KT99 §6
@@ -320,17 +344,19 @@ prints <em>(&gt;cap)</em> instead of letting a quadratic cell run for minutes.</
 single thread, single process, no statistical post-processing.</p>
 
 <div class="honest">
-<strong>Honest-cost caveat, stated up front.</strong> KT is the extraction of the
-<em>model layer</em>: buffers are OCaml lists and colour tests recompute
-<code>length</code>, so the wall-clock cost of one operation is O(root&nbsp;buffer&nbsp;size).
-The mechanized bound counts buffer <em>primitives</em> — which is exactly the contract
-the model makes. The quadratic cells below are <em>predicted by that contract</em>, not
-discovered by the benchmark.
+<strong>Three implementations, one table.</strong>
+<strong>KT</strong> is the model-layer extraction (list buffers — quadratic
+inject/eject by contract; kept as the honest baseline).
+<strong>KTf</strong> is the production extraction: the verified OpsFast mirror with
+buffers remapped to the proven §4 deque + O(1) size — worst-case O(1) wall-clock on
+every operation.
+<strong>Vi</strong> is Viennot's hand-written cadeque.
 </div>
 
 <h3>3.1 Scaling charts</h3>
 <p class="legend">ns per operation (log) vs n (log) — lower is better.
-<span class="sw" style="background:var(--kt)"></span> KT (ours, extracted)
+<span class="sw" style="background:var(--kt)"></span> KT (ours, model layer — baseline)
+<span class="sw" style="background:var(--ktf)"></span> KTf (ours, production: verified kt4 buffers)
 <span class="sw" style="background:var(--vi)"></span> Vi (Viennot, hand-written)</p>
 
 <div class="grid-charts">
@@ -348,28 +374,27 @@ budget (quadratic regime). Raw dated output:
 
 <h3>3.3 Reading the results honestly</h3>
 <div class="win">
-<strong>Where the list-buffer model is O(1) per op, we win.</strong> Push, pop, mixed,
-and the persistent-fork rerun are 2–4× <em>faster</em> than Viennot at every size
-(cons/uncons on the front of a list buffer vs their full node machinery) — and flat
-across three orders of magnitude. These are real worst-case-O(1) cells.
+<strong>KTf beats Viennot on 6 of 9 workloads, flat at every size.</strong>
+At n&nbsp;=&nbsp;10⁶: eject-drain 70&nbsp;vs&nbsp;77, mixed 58&nbsp;vs&nbsp;72,
+concat-fold 646&nbsp;vs&nbsp;1154 (1.8×), concat-tree 2649&nbsp;vs&nbsp;3497,
+concat+pop interleave 143&nbsp;vs&nbsp;269 (1.9×), and the persistent-fork rerun
+53&nbsp;vs&nbsp;64&nbsp;ns/op; pop-drain sits at parity (83&nbsp;vs&nbsp;83).
+The model layer's quadratic cells are gone: the verified buffer swap turned every
+<em>(&gt;cap)</em> into a flat line.
 </div>
 <div class="honest">
-<strong>Where lists are the wrong data structure, we are quadratic — as predicted.</strong>
-<code>inject</code>/<code>eject</code> hit <code>buf&nbsp;++&nbsp;[x]</code> and the
-colour recomputation on an unbounded root buffer. The <em>(&gt;cap)</em> cells are the
-wall-clock price of not yet instantiating buffers with the verified §4 deque.
+<strong>Where we still lose: the two build-side workloads.</strong> Steady push
+(130&nbsp;vs&nbsp;89) and steady inject (128&nbsp;vs&nbsp;91) trail by ~1.4×.  Both
+are dominated by one verified §4-deque push per element (~81&nbsp;ns standalone);
+Viennot's hand-tuned buffer push is a few tens of ns cheaper inside their cadeque.
+Closing this means optimizing the kt4 extraction's push path — a §4 concern,
+orthogonal to the catenable layer, and the identified next target.
 </div>
-<p><strong>Concat sits in between.</strong> Balanced concat-trees stay flat
-(~10–11&nbsp;µs/op vs their ~0.3–2.7&nbsp;µs — a constant-factor gap from whole-buffer
-moves and length recomputation on mid-size buffers); left-folded concat degrades
-linearly as the accumulated root buffers grow; the interleaved concat+pop workload
-follows the same pattern.</p>
-<p><strong>Context: the gap is closable engineering, not proof work.</strong> Our §4
-deque extraction is already wall-clock-competitive with Viennot's deque (three-way
-2026-05-06: push 81.0 vs 84.8&nbsp;ns/op, pop 54.5 vs 54.3). The §6 ops perform a
-<em>verified-constant</em> number of buffer primitives, so substituting kt4 buffers for
-lists turns every <em>(&gt;cap)</em> cell into a flat one — with the keystone proofs as
-the safety net for the swap.</p>
+<p><strong>The model baseline (KT) tells the same story from the other side.</strong>
+Its cons-side cells (push/pop on a bare list) bound what any buffer can do, and its
+quadratic inject/eject cells are the price the production artifact was built to
+remove.  Both extremes bracket KTf exactly where the mechanized
+buffer-primitive counts say it should sit.</p>
 
 <h2>4 · Verdict</h2>
 <table>
@@ -379,8 +404,9 @@ the safety net for the swap.</p>
 <tr><td>Mechanized worst-case cost bound</td>
 <td><strong style="color:var(--kt)">Ours only</strong> (<code>cat_wc_o1</code>)</td></tr>
 <tr><td>Production wall-clock performance</td>
-<td><strong style="color:var(--vi)">Theirs only</strong> — until the §4-deque buffer
-instantiation lands</td></tr>
+<td><strong style="color:var(--ktf)">Ours on 6 of 9 workloads</strong> (eject, mixed,
+all concats, forks; pop at parity); <span style="color:var(--vi)">theirs</span> on
+build-side push/inject by ~1.4×</td></tr>
 <tr><td>Toolchain footprint</td>
 <td><strong style="color:var(--kt)">Ours</strong>: kernel + stdlib only ·
 <span style="color:var(--vi)">theirs</span>: 3 plugin dependencies</td></tr>
