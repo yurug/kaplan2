@@ -16,10 +16,13 @@ derived.  You typically want to be in here for one of:
   rebalance) and `green_of_red_k_seq` (the 3-case red-to-green fix)
   are the load-bearing artefacts.
 
-- **Closing the remaining preservation theorems.**  `OpsKTRegular.v`
-  states the regularity-preservation lemmas but does not yet prove
-  them all (see the `🚧 In progress` row in the table below).
-  Closing them is the next major project milestone.
+- **The keystone bundles.**  Both headline theorem sets are CLOSED:
+  [`DequePtr/DequeKeystone.v`](KTDeque/DequePtr/DequeKeystone.v)
+  (`deque_wc_o1_{push,inject,pop,eject}`) and
+  [`Catenable/CatKeystone.v`](KTDeque/Catenable/CatKeystone.v) (the
+  six `cat_keystone_*` theorems + `Cost.v`'s `cat_wc_o1`), all
+  *Closed under the global context*.  Re-check from a clean build
+  with `make deque-keystone-gate` / `make cat-keystone-gate`.
 
 - **Adding a new ELEMENT instance.**  The deque is parameterised
   over an abstract level-l element type
@@ -34,11 +37,14 @@ derived.  You typically want to be in here for one of:
   hand-written and need to be preserved across re-extractions.
 
 - **Catenation.**  Catenating two persistent deques in WC O(1) is
-  built and proven: see [`KTDeque/Cadeque8/`](KTDeque/Cadeque8/),
-  which implements KT99 §6's head/middle/tail mechanism with full
-  sequence-preservation proofs for all five ops (push, inject,
-  pop, eject, concat).  Buf6 ops route through the certified
-  KChain (`DequePtr/OpsKT.v`) for the WC O(1) primitive layer.
+  built and proven: [`KTDeque/Catenable/`](KTDeque/Catenable/)
+  implements KT99 §6 faithfully (triples, preferred paths,
+  compressed forests) under the invariant `J`, with the six keystone
+  theorems and the constant cost bound closed, and a chain of five
+  VERIFIED transformation passes (`OpsFast` → `OpsFused` →
+  `FlatChain`/`FlatOps`) carrying the theorems onto the extracted
+  production artifact (`FastKeystone.v`, `FlatKeystone.v`).
+  Buffers instantiate to the proven §4 deque at extraction.
 
 If you only want to *use* the deque (in C or OCaml application
 code), skip this tree — read `../c/README.md` or
@@ -48,14 +54,13 @@ code), skip this tree — read `../c/README.md` or
 
 | Property | Status | Where |
 | -------- | ------ | ----- |
-| Sequence preservation (push, inject, pop, eject)   | ✅ Done — kt2/kt3/kt4 variants | `KTDeque/DequePtr/OpsKTSeq.v` |
-| `make_small` (9-case rebalancing gateway)          | ✅ Done | `KTDeque/DequePtr/OpsKTSeq.v` |
-| `green_of_red_k` (Viennot's 3-case red→green fix)  | ✅ Done | `KTDeque/DequePtr/OpsKTSeq.v` |
-| Regularity invariant: definition + decidability    | ✅ Done | `KTDeque/DequePtr/OpsKTRegular.v` |
-| Regularity preservation (push/pop/inject/eject)    | ✅ Done — `push_kt2_preserves_regular_top` and analogues | `KTDeque/DequePtr/OpsKTRegular.v` |
-| Cost bound (≤ 6 heap ops per push)                 | ✅ Done (older `Chain` model) | `KTDeque/DequePtr/Footprint.v` |
-| Catenable Cadeque8 sequence preservation (all 5 ops, KT99 §6) | ✅ Done | `KTDeque/Cadeque8/Seq.v` |
-| Catenable Cadeque8 strict WC O(1) per call         | ✅ Bench-validated (~87 ns/op under adversarial concat mix) | `ocaml/bench/kc8_vs_vi.exe` |
+| §4 keystone: totality + sequence + invariant + WC O(1) cost, all four ops | ✅ Closed (`deque_wc_o1_*`) | `KTDeque/DequePtr/DequeKeystone.v` |
+| §6 keystone: the six catenable theorems under `J` (KT99 §6 Thm 6.1) | ✅ Closed (`cat_keystone_*`) | `KTDeque/Catenable/CatKeystone.v` |
+| §6 constant cost bound (push/inject ≤ 4, concat ≤ 43, pop/eject ≤ 145 buffer prims) | ✅ Closed (`cat_wc_o1`) | `KTDeque/Catenable/Cost.v` |
+| Keystone transfer to the extracted production ops (5 verified passes) | ✅ Closed, gate 19/19 | `KTDeque/Catenable/FastKeystone.v`, `FlatKeystone.v` |
+| §4 check-erased element representation (zero-box, blind unpair) | ✅ Naturality lemmas | `KTDeque/DequePtr/ErasedOps.v` |
+| Sequence preservation, `make_small`, `green_of_red_k` (the §4 op web) | ✅ Done | `KTDeque/DequePtr/OpsKTSeq.v` |
+| Regularity invariant: definition, decidability, preservation | ✅ Done | `KTDeque/DequePtr/OpsKTRegular.v` |
 
 **Zero admits** invariant: `grep -rn 'Admitted\|admit\.' KTDeque/`
 should always return empty.
@@ -72,19 +77,21 @@ rocq/
     │   ├── OpsKT.v           -- KChain with explicit color tags (the
     │   │                        Viennot-faithful encoding)
     │   ├── OpsKTSeq.v        -- sequence preservation theorems
-    │   ├── OpsKTRegular.v    -- regularity invariant (δ.3, in progress)
-    │   ├── Regularity.v      -- older Chain regularity (no colors)
-    │   ├── Footprint.v       -- cost-bounded imperative DSL
+    │   ├── OpsKTRegular.v    -- regularity invariant
+    │   ├── DequeKeystone.v   -- the §4 keystone (deque_wc_o1_*)
+    │   ├── SizedChain.v      -- size-fused chain (verified pass)
+    │   ├── ErasedOps.v       -- check-erased mirrors (verified pass)
     │   └── ...
-    ├── Cadeque6/             -- §12.4 imperative cadeque (KTCatenableDeque
-    │                            extraction); cad_normalize-based public API
-    ├── Cadeque7/             -- pure-functional packets+chains catenable
-    │                            (deprecated — Cadeque8 supersedes for WC)
-    ├── Cadeque8/             -- KT99 §6 strict WC O(1) catenable cadeque
-    │                            (current, all 5 seq theorems proven)
-    └── Extract/Extraction.v  -- emits _build/.../kt_extracted/kTDeque.ml;
-                                the snapshot in ../../ocaml/extracted/kTDeque.ml
-                                is updated by hand from that build output.
+    ├── Catenable/            -- KT99 §6 catenable deque: Model, Ops,
+    │                            invariant J (Color.v), CatKeystone.v,
+    │                            Cost.v, and the verified optimization
+    │                            passes (OpsFast/OpsFused/FlatChain/
+    │                            FlatOps + Fast/FlatKeystone)
+    ├── RBR/                  -- red-black warm-up module (Succ.v)
+    └── Extract/              -- Extraction.v + ExtractionFast.v emit
+                                _build/.../kt_extracted/*.ml; snapshots in
+                                ../../ocaml/extracted/ are updated by hand
+                                from that build output.
 ```
 
 ## Build
@@ -110,8 +117,9 @@ dune build rocq/KTDeque/DequePtr/OpsKTRegular.vo  # one file
 2. `KTDeque/DequePtr/OpsKT.v` — the four operations on `KChain`
    (the explicitly-colored version).
 3. `KTDeque/DequePtr/OpsKTSeq.v` — the sequence-preservation theorems.
-4. `KTDeque/DequePtr/OpsKTRegular.v` — work-in-progress regularity
-   invariant.
+4. `KTDeque/DequePtr/DequeKeystone.v` — the closed §4 keystone.
+5. `KTDeque/Catenable/Model.v`, `Color.v`, `CatKeystone.v` — the
+   catenable layer and its closed keystone.
 
 ## Project rules
 

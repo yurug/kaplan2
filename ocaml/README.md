@@ -1,27 +1,17 @@
 # ktdeque (OCaml) - Rocq-extracted persistent real-time deque
 
 This is the OCaml side of the kaplan2 deque project: a purely-functional,
-persistent double-ended queue extracted from the Rocq formalization in
-[`../rocq/`](../rocq/). The algorithm is the Kaplan-Tarjan real-time
-deque; the release gate is deliberately explicit about which parts of
-the proof spine are already closed and which parts are still open.
-
-The mechanically checked source proofs live in `../rocq/KTDeque/DequePtr/`.
-The single canonical
-public-theorem bundle for the extracted `push_kt4 / inject_kt4 /
-pop_kt4 / eject_kt4` family is
-[`../rocq/KTDeque/DequePtr/PublicTheorems.v`](../rocq/KTDeque/DequePtr/PublicTheorems.v) —
-it packages sequence correctness, regularity preservation, bounded
-`green_of_red_k` dispatch, sufficient totality preconditions per op, and a
-reusable `kt4_total_state` predicate that implies those preconditions.  It also
-documents what remains open: strengthening that state predicate with
-level/future-repair closure and completing the pure-to-imperative cost
-refinement.  Run
-`make wc-o1-kt4-assumptions`
-to print the axiom dependencies of every theorem in that bundle (current
-status: every theorem closed under the global context).  The extraction
-output is checked into `extracted/kTDeque.ml{,.mli}` so this tree
-builds standalone — no Rocq toolchain required.
+persistent, CATENABLE double-ended queue extracted from the Rocq
+formalization in [`../rocq/`](../rocq/). The algorithm is the
+Kaplan-Tarjan real-time deque, and both keystone theorem bundles are
+closed: the §4 deque
+([`DequeKeystone.v`](../rocq/KTDeque/DequePtr/DequeKeystone.v),
+`deque_wc_o1_*`) and the §6 catenable deque
+([`CatKeystone.v`](../rocq/KTDeque/Catenable/CatKeystone.v) +
+`cat_wc_o1`), each re-checkable from a clean build with
+`make deque-keystone-gate` / `make cat-keystone-gate` at the repo
+root.  The extraction output is checked into `extracted/*.ml{,i}` so
+this tree builds standalone — no Rocq toolchain required.
 
 For the C port (1.6×–2.9× faster on every workload at n=1M with arena
 compaction), see [`../c/`](../c/).
@@ -132,29 +122,33 @@ directly: `dune exec ocaml/examples/hello.exe`).  After
 ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello && ./hello
 ```
 
-### Catenable (cadeque) variants
+### Catenable (cadeque)
 
-The catenable modules are currently **experimental/reference** code and are
-not installed as part of the public `ktdeque` package. Do not use
-`KCadeque8`, `KCadeque9`, or their inline variants as a strict WC O(1)
-production API yet. In-tree benches and proof experiments can still link them
-through the private workspace library `ktdeque_experimental`.
+The PRODUCTION catenable deque is **`KTFlatCadeque`**
+(`extracted/kTFlatCadeque.ml`): the §6 chain on the fused spine
+(`FlatChain`/`FlatOps`, keystone in `FlatKeystone.v`), with buffers
+remapped at extraction to `Fastbuf` (the verified §4 deque + O(1)
+size), check-erased elements (`Eraw`), and zero-box stored cells
+(`Sraw`).  Ops: `fcad_empty`, `cad_push_x`, `cad_inject_x`,
+`cad_pop_x`, `cad_eject_x`, `cad_concat_x` — all WC O(1), all
+theorem-backed (gate 19/19).
 
-Current status:
+It is **faster than Viennot's hand-written OCaml cadeque on all 9
+benchmark workloads at every size** (36/36 cells; up to 8× on
+concat-fold), with identical retained memory (3.00 live
+words/element).  Reproduce with `make bench-cadeque`; analysis in
+[`../kb/reports/viennot-comparison-2026-06-11.md`](../kb/reports/viennot-comparison-2026-06-11.md)
+and the page [`../kb/viennot-comparison.html`](../kb/viennot-comparison.html).
 
-- `KCadeque8` no longer uses the public list-rebuild fallback in OCaml; the
-  former `(T+T)` eject drain shape is handled by structural normalization.
-- `KCadeque9` carries concatenated middle buffers through constant-shape stored
-  cells instead of `buf6_concat`.
-- Both remain experimental until the catenable proof/refinement story is
-  completed for the OCaml shim and middle-cell representations.
-- `KCadeque` (Cadeque7) and `KTCatenableDeque` (Cadeque6) remain
-  reference/legacy layers with known linear paths.
+`KTCadeque` (the model-layer extraction, list buffers) and
+`KTCadequeFast` (the previous production artifact) remain in the
+library as the honest baseline and for A/B comparison
+(`bench/flat_ab.ml`).  The pre-rebuild experimental variants
+(`KCadeque8`/`KCadeque9` etc.) were removed in the 2026-06 rebuild;
+they live on the `archive/pre-rebuild-2026-06-02` branch.
 
-The current audit is
-[`../kb/reports/wc-o1-verification-audit-2026-05-24.md`](../kb/reports/wc-o1-verification-audit-2026-05-24.md).
-The release plan is
-[`../kb/runbooks/minimum-release-gate.md`](../kb/runbooks/minimum-release-gate.md).
+The closure report is
+[`../kb/reports/catenable-keystone-closure-2026-06-11.md`](../kb/reports/catenable-keystone-closure-2026-06-11.md).
 
 ## Concurrency (OCaml 5 / Domain)
 
@@ -235,13 +229,12 @@ ocaml/
 │   └── dune
 ├── bench/               microbenchmarks
 │   ├── compare.exe          KT vs Deque4 vs Viennot OCaml (non-catenable)
-│   ├── kc_vs_vi.exe         Cadeque7 (KCadeque) vs Viennot catenable
-│   ├── kc_qcheck.exe        property-based equivalence test for Cadeque7
-│   ├── kc8_vs_vi.exe        Cadeque8 vs Viennot, includes adversarial
-│   │                        workloads that reproduce/track known blockers
-│   ├── kc8_qcheck.exe       property-based equivalence test for Cadeque8
-│   ├── k9_concat_cost.exe   operation-level Cadeque9 concat timing
-│   ├── catenable_compare.exe  Cadeque6 spec vs Cadeque7 vs Viennot catenable
+│   ├── cadeque_compare.exe  catenable 3-way: model / production (flat)
+│   │                        / Viennot, with sequence self-check
+│   ├── flat_ab.exe          paired interleaved A/B of production artifacts
+│   ├── push_prof.exe        single-workload profile target (ns + GC +
+│   │                        live-words modes)
+│   ├── viennot/             vendored Viennot OCaml cadeque (black-box)
 │   └── ...others
 ├── test_qcheck/         QCheck property tests against the bench-helpers
 ├── test_monolith/       Monolith model-based fuzzing against the bench-helpers
