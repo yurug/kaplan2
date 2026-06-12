@@ -695,3 +695,268 @@ Proof.
     rewrite HPE.
     destruct midopt; reflexivity.
 Qed.
+
+(* ========================================================================== *)
+(* Stage 4: green_of_red_k + the sized operations, check-erased.               *)
+(* ========================================================================== *)
+
+Fixpoint gchain_to_gkchain_g {X : Type} (c : GChain X) : GKChain X :=
+  match c with
+  | GEnding b => GKEnding b
+  | GChainCons p c' => GKCons Green p (gchain_to_gkchain_g c')
+  end.
+
+Lemma er_chain_to_kchain_g : forall A (c : Chain A),
+    er_kchain (chain_to_kchain_g c) = gchain_to_gkchain_g (er_chain c).
+Proof.
+  intros A c; induction c as [b | p c' IH]; cbn; [reflexivity|].
+  rewrite IH. reflexivity.
+Qed.
+
+Definition green_of_red_k_e {A : Type} (c : GKChain (etree A))
+    : option (GKChain (etree A)) :=
+  match c with
+  | GKCons Red (GPNode pre1 GHole suf1) (GKEnding b) =>
+      match make_small_e pre1 b suf1 with
+      | Some c'' => Some (gchain_to_gkchain_g c'')
+      | None     => None
+      end
+  | GKCons Red (GPNode pre1 GHole suf1)
+               (GKCons _ (GPNode pre2 child suf2) c2) =>
+      match green_prefix_concat_e pre1 pre2,
+            green_suffix_concat_e suf2 suf1 with
+      | Some (pre1', pre2'), Some (suf2', suf1') =>
+          Some (GKCons Green
+                       (GPNode pre1' (GPNode pre2' child suf2') suf1')
+                       c2)
+      | _, _ => None
+      end
+  | GKCons Red (GPNode pre1 (GPNode pre2 child suf2) suf1) c1 =>
+      match prefix_concat_e pre1 pre2, suffix_concat_e suf2 suf1 with
+      | Some (pre1', pre2'), Some (suf2', suf1') =>
+          Some (GKCons Green (GPNode pre1' GHole suf1')
+                             (GKCons Red (GPNode pre2' child suf2') c1))
+      | _, _ => None
+      end
+  | _ => None
+  end.
+
+Lemma green_of_red_k_nat : forall A (c r : KChain A),
+    green_of_red_k c = Some r ->
+    green_of_red_k_e (er_kchain c) = Some (er_kchain r).
+Proof.
+  intros A c r H.
+  unfold green_of_red_k in H; unfold green_of_red_k_e.
+  destruct c as [b | col p t]; [discriminate|].
+  destruct col; try discriminate.
+  destruct p as [| pre1 i suf1]; [discriminate|].
+  destruct i as [| pre2 child suf2].
+  - (* Hole inner *)
+    destruct t as [b | col2 p2 t2].
+    + (* Case 1 *)
+      destruct (make_small pre1 b suf1) as [c''|] eqn:Hm; [|discriminate].
+      injection H as <-.
+      cbn [er_kchain er_packet].
+      rewrite (make_small_nat Hm), er_chain_to_kchain_g.
+      reflexivity.
+    + (* Case 2 *)
+      destruct p2 as [| pre2 child suf2]; [discriminate|].
+      destruct (green_prefix_concat pre1 pre2) as [[pre1' pre2']|] eqn:H1;
+        [|discriminate].
+      destruct (green_suffix_concat suf2 suf1) as [[suf2' suf1']|] eqn:H2;
+        [|discriminate].
+      injection H as <-.
+      cbn [er_kchain er_packet].
+      rewrite (green_prefix_concat_nat H1), (green_suffix_concat_nat H2).
+      reflexivity.
+  - (* PNode inner: Case 3 *)
+    destruct (prefix_concat pre1 pre2) as [[pre1' pre2']|] eqn:H1;
+      [|discriminate].
+    destruct (suffix_concat suf2 suf1) as [[suf2' suf1']|] eqn:H2;
+      [|discriminate].
+    injection H as <-.
+    cbn [er_kchain er_packet].
+    rewrite (prefix_concat_nat H1), (suffix_concat_nat H2).
+    reflexivity.
+Qed.
+
+Definition gs_of {X : Type} (n : nat) (c : GKChain X) : GSChain X :=
+  match c with
+  | GKEnding b => GSEnding n b
+  | GKCons col p t => GSCons n col p t
+  end.
+
+Definition eyellow_wrap {A : Type} (fb : GSChain (etree A)) (n' : nat)
+    (pre : Buf5 (etree A)) (i : GPacket (etree A)) (suf : Buf5 (etree A))
+    (t : GKChain (etree A)) : GSChain (etree A) :=
+  match t with
+  | GKCons Red _ _ =>
+      match green_of_red_k_e t with
+      | Some t' => GSCons n' Yellow (GPNode pre i suf) t'
+      | None    => fb
+      end
+  | _ => GSCons n' Yellow (GPNode pre i suf) t
+  end.
+
+Definition epush_s {A : Type} (x : etree A) (c : GSChain (etree A))
+    : GSChain (etree A) :=
+  match c with
+  | GSEnding n b =>
+      match b with
+      | B0           => GSEnding (S n) (B1 x)
+      | B1 a         => GSEnding (S n) (B2 x a)
+      | B2 a b1      => GSEnding (S n) (B3 x a b1)
+      | B3 a b1 c1   => GSEnding (S n) (B4 x a b1 c1)
+      | B4 a b1 c1 d => GSEnding (S n) (B5 x a b1 c1 d)
+      | B5 a b1 c1 d e =>
+          GSCons (S n) Green (GPNode (B3 x a b1) GHole (B3 c1 d e))
+            (GKEnding B0)
+      end
+  | GSCons n col p t =>
+      match col, p with
+      | Green, GPNode pre i suf =>
+          match pre with
+          | B2 a b1    => eyellow_wrap c (S n) (B3 x a b1) i suf t
+          | B3 a b1 c1 => eyellow_wrap c (S n) (B4 x a b1 c1) i suf t
+          | _          => c
+          end
+      | Yellow, GPNode pre i suf =>
+          match pre with
+          | B1 a         => GSCons (S n) Yellow (GPNode (B2 x a) i suf) t
+          | B2 a b1      => GSCons (S n) Yellow (GPNode (B3 x a b1) i suf) t
+          | B3 a b1 c1   =>
+              GSCons (S n) Yellow (GPNode (B4 x a b1 c1) i suf) t
+          | B4 a b1 c1 d =>
+              match green_of_red_k_e
+                      (GKCons Red (GPNode (B5 x a b1 c1 d) i suf) t) with
+              | Some d' => gs_of (S n) d'
+              | None    => c
+              end
+          | _ => c
+          end
+      | _, _ => c
+      end
+  end.
+
+Lemma epush_s_nat : forall A (x : E.t A) (c : SChain A) (d : KChain A),
+    push_kt4 x (s_erase c) = PushOk d ->
+    epush_s (er x) (er_schain c) = gs_of (S (s_size c)) (er_kchain d).
+Proof.
+  intros A x c d H.
+  destruct c as [n b | n col p t].
+  - destruct b; cbn in H; injection H as <-; reflexivity.
+  - destruct col.
+    + (* Green *)
+      destruct p as [| pre i suf]; [discriminate|].
+      destruct pre; try discriminate;
+        cbn in H; unfold yellow_wrap_pr in H;
+        cbn [er_schain er_packet er_buf buf5_map epush_s];
+        unfold eyellow_wrap;
+        (destruct t as [b' | col' p' t']; cbn [er_kchain];
+         [injection H as <-; reflexivity|];
+         destruct col';
+         try (injection H as <-; reflexivity);
+         destruct (green_of_red_k (KCons Red p' t')) as [k|] eqn:Hg;
+         [|discriminate];
+         injection H as <-;
+         pose proof (green_of_red_k_nat Hg) as HG;
+         cbn [er_kchain er_packet] in HG; rewrite HG;
+         reflexivity).
+    + (* Yellow *)
+      destruct p as [| pre i suf]; [discriminate|].
+      destruct pre as [| a | a b1 | a b1 c1 | a b1 c1 d0 |];
+        cbn [s_erase push_kt4] in H; try discriminate;
+        cbn [er_schain er_packet er_buf buf5_map epush_s].
+      * injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+      * destruct (green_of_red_k
+            (KCons Red (PNode (B5 x a b1 c1 d0) i suf) t))
+          as [k|] eqn:Hg; [|discriminate].
+        injection H as <-.
+        pose proof (green_of_red_k_nat Hg) as HG.
+        cbn [er_kchain er_packet er_buf buf5_map] in HG. rewrite HG.
+        destruct k as [kb | kc kp kt]; reflexivity.
+    + (* Red *)
+      destruct p; discriminate.
+Qed.
+
+Definition einject_s {A : Type} (c : GSChain (etree A)) (x : etree A)
+    : GSChain (etree A) :=
+  match c with
+  | GSEnding n b =>
+      match b with
+      | B0           => GSEnding (S n) (B1 x)
+      | B1 a         => GSEnding (S n) (B2 a x)
+      | B2 a b1      => GSEnding (S n) (B3 a b1 x)
+      | B3 a b1 c1   => GSEnding (S n) (B4 a b1 c1 x)
+      | B4 a b1 c1 d => GSEnding (S n) (B5 a b1 c1 d x)
+      | B5 a b1 c1 d e =>
+          GSCons (S n) Green (GPNode (B3 a b1 c1) GHole (B3 d e x))
+            (GKEnding B0)
+      end
+  | GSCons n col p t =>
+      match col, p with
+      | Green, GPNode pre i suf =>
+          match suf with
+          | B2 a b1    => eyellow_wrap c (S n) pre i (B3 a b1 x) t
+          | B3 a b1 c1 => eyellow_wrap c (S n) pre i (B4 a b1 c1 x) t
+          | _          => c
+          end
+      | Yellow, GPNode pre i suf =>
+          match suf with
+          | B1 a         => GSCons (S n) Yellow (GPNode pre i (B2 a x)) t
+          | B2 a b1      => GSCons (S n) Yellow (GPNode pre i (B3 a b1 x)) t
+          | B3 a b1 c1   =>
+              GSCons (S n) Yellow (GPNode pre i (B4 a b1 c1 x)) t
+          | B4 a b1 c1 d =>
+              match green_of_red_k_e
+                      (GKCons Red (GPNode pre i (B5 a b1 c1 d x)) t) with
+              | Some d' => gs_of (S n) d'
+              | None    => c
+              end
+          | _ => c
+          end
+      | _, _ => c
+      end
+  end.
+
+Lemma einject_s_nat : forall A (c : SChain A) (x : E.t A) (d : KChain A),
+    inject_kt4 (s_erase c) x = PushOk d ->
+    einject_s (er_schain c) (er x) = gs_of (S (s_size c)) (er_kchain d).
+Proof.
+  intros A c x d H.
+  destruct c as [n b | n col p t].
+  - destruct b; cbn in H; injection H as <-; reflexivity.
+  - destruct col.
+    + destruct p as [| pre i suf]; [discriminate|].
+      destruct suf; try discriminate;
+        cbn in H; unfold yellow_wrap_pr in H;
+        cbn [er_schain er_packet er_buf buf5_map einject_s];
+        unfold eyellow_wrap;
+        (destruct t as [b' | col' p' t']; cbn [er_kchain];
+         [injection H as <-; reflexivity|];
+         destruct col';
+         try (injection H as <-; reflexivity);
+         destruct (green_of_red_k (KCons Red p' t')) as [k|] eqn:Hg;
+         [|discriminate];
+         injection H as <-;
+         pose proof (green_of_red_k_nat Hg) as HG;
+         cbn [er_kchain er_packet] in HG; rewrite HG;
+         reflexivity).
+    + destruct p as [| pre i suf]; [discriminate|].
+      destruct suf as [| a | a b1 | a b1 c1 | a b1 c1 d0 |];
+        cbn [s_erase inject_kt4] in H; try discriminate;
+        cbn [er_schain er_packet er_buf buf5_map einject_s].
+      * injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+      * injection H as <-. reflexivity.
+      * destruct (green_of_red_k
+            (KCons Red (PNode pre i (B5 a b1 c1 d0 x)) t))
+          as [k|] eqn:Hg; [|discriminate].
+        injection H as <-.
+        pose proof (green_of_red_k_nat Hg) as HG.
+        cbn [er_kchain er_packet er_buf buf5_map] in HG. rewrite HG.
+        destruct k as [kb | kc kp kt]; reflexivity.
+    + destruct p; discriminate.
+Qed.
