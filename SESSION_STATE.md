@@ -55,6 +55,34 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12g (user request): §6 element unboxing — DONE, 9/9 vs Viennot
+- DIAGNOSIS (perf + Gc stats, push loop): retained 5.0 live w/element
+  vs Vi's 3.0 — the FGround box (2-word block per element) = the whole
+  push/inject deficit via promotion/major-GC tax (instructions outside
+  GC were par).
+- FIX (blind seam, one layer up from Eraw): chain_leveled 0 (in J)
+  means level-0 cells are ALWAYS ground and child cells NEVER are, so
+  no §6 site has both arms live.  FlatChain cell_case_ground /
+  cell_case_struct wrappers; all FlatOps cell matches routed through
+  them (proofs unchanged in substance; gate 19/19).  Extract Inductive
+  fstored => Sraw.t (ocaml/extracted/sraw.ml): ground = Obj.repr (cell
+  IS payload), small/big ordinary tagged blocks, carrier match fn
+  traps (and provably never appears: zero raw matches extracted).
+  Justification = FlatKeystone on fJ inputs.  Plus: Nat.min Extract
+  Constant (was Peano-recursive over int); bench Gc.compact between
+  cells (heap-history contamination fixed — full-bench cells now agree
+  with the paired A/B harness).
+- RESULT: live words/element 3.00 = Viennot exactly.  KTf beats Vi on
+  ALL 36 CELLS (every workload, every size).  1M: push 89v96, inject
+  89v97, pop 61v78, eject 59v75, mixed 46v76, fold 146v1174 (8x),
+  tree 1425v3166, interleave 91v277 (3x), fork 42v67.  A/B vs prior
+  artifact: push 97->80, inject 95->79, fold 7->2.
+- Tools: ocaml/bench/push_prof.ml (ns + GC + live-words modes),
+  flat_ab.ml / flat_ab_ext.ml (paired interleaved A/B).
+- THE OPTIMIZATION CAMPAIGN GOAL IS MET: faster than Viennot's
+  hand-written OCaml on every benchmarked operation, with every pass
+  theorem-backed (gate 19/19, zero admits).
+
 ## 2026-06-12f (user request): §6 spine fusion (FlatChain) — DONE, measured NEUTRAL
 - Catenable/FlatChain.v: fused mutual family (FFlat = CSingle∘Pkt
   BHole∘Node in ONE block; FSingle = CSingle∘Pkt; total erasure fc_er;

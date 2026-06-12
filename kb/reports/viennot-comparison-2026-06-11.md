@@ -257,15 +257,49 @@ pop 63 vs 80, eject 61 vs 76, mixed 47 vs 72, concat-fold 476 vs 1079
 (2.3×), concat-tree 1523 vs 2881 (1.9×), interleave 116 vs 265 (2.3×),
 fork 51 vs 66 — 7/9; push 117 vs 87, inject 105 vs 89.
 
+## Addendum (2026-06-12, element unboxing): the fifth pass — 9/9
+
+Profiling the push loop head-to-head (perf + GC stats) located the
+residual exactly: **we retained 5.0 live words per element vs their
+3.0** — one `FGround` box (a 2-word block) around EVERY element in the
+§6 buffers, the §6 analogue of the §4 `sigT` box.  The extra 2 w/el
+drove 60% more promotion and the major-GC tax (marking + sweep) that
+was the whole push/inject deficit; instruction counts outside GC were
+already comparable.
+
+The erasure reuses the blind-seam recipe one layer up.  Under `J`,
+`chain_leveled 0` stratifies cells perfectly: level-0 cells are always
+ground, child-level cells never are — so no §6 site discriminates
+ground-vs-structural with both arms live.  The two match disciplines
+became named wrappers (`cell_case_ground` / `cell_case_struct` in
+FlatChain.v), and `fstored` extracts to the zero-box carrier `Sraw.t`
+(`ground = Obj.repr` — the cell IS its payload; small/big = ordinary
+tagged blocks).  No raw `fstored` match survives extraction (the
+carrier match function traps), the fallback continuations are dropped
+blindly, and FlatKeystone.v is the static justification that they are
+unreachable on `fJ` inputs.  Gate stays 19/19; the Coq proofs are
+unchanged in substance.  Two harness fixes landed alongside: `Nat.min`
+extraction (was recursive Peano over int) and per-cell `Gc.compact` in
+the bench (cells no longer inherit the model layer's quadratic
+allocation history).
+
+Result: retained memory **equals Viennot's exactly** (3.00 w/el), and
+KTf now beats Viennot on **all 36 cells** of the sweep.  At 10⁶:
+push 89 vs 96, inject 89 vs 97, pop 61 vs 78, eject 59 vs 75, mixed
+46 vs 76, concat-fold 146 vs 1174 (8×), concat-tree 1425 vs 3166
+(2.2×), interleave 91 vs 277 (3×), fork 42 vs 67.  Paired A/B vs the
+previous artifact: push 97→80, inject 95→79, mixed 47→43, fold 7→2
+ns/op.
+
 ## Verdict
 
 - Functional verification: **parity** (same theorem shape, both closed).
 - Mechanized cost: **ours only** (buffer-primitive counter).
-- Production performance (2026-06-12, after the verified fusion pass):
-  **ours on 7 of 9 workloads** (both drains, mixed, all three concat
-  patterns, persistent forks — up to 2.4×); theirs on build-side
-  push/inject by ~1.2–1.4× — a §4 buffer constant, not a §6 design
-  gap.
+- Production performance (2026-06-12, after the element-unboxing
+  pass): **ours on 9 of 9 workloads, every size** — up to 8× on
+  concat-fold, 3× on interleave, ~1.3–1.7× on drains/mixed/fork, and
+  ~1.1× on push/inject; retained memory identical (3.00 live
+  words/element).
 
 ## Web page
 
