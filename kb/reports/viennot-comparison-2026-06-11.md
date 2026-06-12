@@ -221,6 +221,42 @@ spine's allocation count (CSingle∘Pkt∘Node = three nested blocks per
 op vs their flatter cells) under large-heap GC pressure — a §6
 representation-fusion data refinement is the next candidate phase.
 
+## Addendum (2026-06-12, spine fusion): the fourth verified pass — a measured neutral
+
+`Catenable/FlatChain.v` + `FlatOps.v` + `FlatKeystone.v`: data-constructor
+fusion of the §6 spine.  The dominant cell `CSingle (Pkt BHole (Node k p s))
+rest` (three nested blocks, rebuilt by every push/inject and every green/red
+rebundle) becomes the single constructor `FFlat k p s rest`; the general
+packet cell fuses `CSingle∘Pkt` into `FSingle`.  Correctness is by a TOTAL
+erasure `fc_er : fchain -> cchain` with an unconditional commutation lemma
+per operation (`op_f (erased args) = option_map fc_er (op_x args)`) across
+the entire production web — push/inject, the concat builders, raw pop/eject,
+and the full repair web including `drain_both` (a 169-leaf shape analysis
+closed by one uniform tactic).  The six keystone theorems transfer
+(`FlatKeystone.v`; gate now 19/19), and extraction ships the fused ops
+(`kTFlatCadeque.ml`).
+
+**The measured verdict is NEUTRAL** (same-binary interleaved A/B,
+`ocaml/bench/flat_ab*.ml`, taskset-pinned, medians of 9 at 10⁶):
+pop 63→61, eject 63→59, push 103→105, inject 103→103, mixed 48→49,
+concat-fold parity, fork 43→49.  The working hypothesis — that the §6
+spine's allocation count drives the residual 10⁶ push/inject gap — is
+**refuted**: spine cells are replaced on every operation, so they die in
+the minor heap, and OCaml's bump-allocated young garbage costs ~nothing;
+fusing three young blocks into one is invisible at this scale.  The
+artifact is kept as production (strictly fewer allocations, full theorem
+backing, no net regression), and the residual diagnosis moves DOWN a
+layer: the remaining push/inject constant lives in the per-operation §4
+buffer work (the Fastbuf push path itself) versus Viennot's flat
+steady-state buffer cells — i.e. in retained structure and instruction
+count, not in §6 garbage volume.
+
+Final standings with the fused artifact
+(`bench/results/cadeque-compare-2026-06-12.md`, KTf vs Vi at 10⁶):
+pop 63 vs 80, eject 61 vs 76, mixed 47 vs 72, concat-fold 476 vs 1079
+(2.3×), concat-tree 1523 vs 2881 (1.9×), interleave 116 vs 265 (2.3×),
+fork 51 vs 66 — 7/9; push 117 vs 87, inject 105 vs 89.
+
 ## Verdict
 
 - Functional verification: **parity** (same theorem shape, both closed).

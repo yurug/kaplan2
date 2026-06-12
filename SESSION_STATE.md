@@ -55,6 +55,36 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12f (user request): §6 spine fusion (FlatChain) — DONE, measured NEUTRAL
+- Catenable/FlatChain.v: fused mutual family (FFlat = CSingle∘Pkt
+  BHole∘Node in ONE block; FSingle = CSingle∘Pkt; total erasure fc_er;
+  fsingle smart constructor; buffer-map toolkit).  FlatOps.v (~2k
+  lines): the ENTIRE production op web mirrored with unconditional
+  fc_er commutation lemmas (push/inject, concat builders, raw
+  pop/eject, full repair web; drain_both = 169-leaf shape analysis via
+  one drain_close tactic).  FlatKeystone.v: six theorems transferred;
+  gate asserts 19/19.  Zero admits.  Extraction: kTFlatCadeque.ml
+  (3.9k lines; upd_*/tree_repair_x/rebuild_childless_x inlined —
+  inlining tree_of_x/root_and_child_x blows it to 47k, kept out).
+  Bench KTf = the fused artifact now; self-check passes.
+- A/B VERDICT (flat_ab/flat_ab_ext, same-binary interleaved, taskset,
+  medians of 9, 1M): pop 63→61, eject 63→59, push 103→105, inject
+  103→103, mixed 48→49, fold parity, fork 43→49 — NET NEUTRAL.
+  HYPOTHESIS REFUTED: §6 spine blocks are young garbage (replaced
+  every op); OCaml minor-GC bump allocation makes them ~free, so the
+  3→1 block fusion is invisible.  Kept as production (fewer allocs,
+  full theorem backing, no net regression).
+- Standings vs Vi unchanged 7/9 (1M: pop 63v80, eject 61v76, mixed
+  47v72, fold 476v1079, tree 1523v2881, interleave 116v265, fork
+  51v66; push 117v87, inject 105v89).
+- RESIDUAL (re-diagnosed): the push/inject 1M gap lives in the §4
+  Fastbuf push path's per-op constant (retained buffer structure +
+  instruction count) vs Viennot's flat steady-state buffer cells —
+  NOT in §6 garbage volume.  Next candidate lever (user-gated): §4
+  buffer-layer work, e.g. Buf5 representation/specialization of the
+  hot push/pop transitions, measured against a per-op instruction
+  budget rather than allocation count.
+
 ## 2026-06-12e (user request): check-erasure naturality mirror — DONE
 - ErasedTree.v (etree + er + laws), ErasedOps.v (~900 lines): generic
   GPacket/GKChain/GSChain + erasure maps + buf5_map commutation
