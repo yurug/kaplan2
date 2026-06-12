@@ -234,12 +234,12 @@ Kaplan–Tarjan (JACM 1999, §6) catenable deques · {html.escape(meta["date"])}
 our extrinsic rebuild (<code>rocq/KTDeque/Catenable/</code>, keystone closed 2026-06-11)
 and Viennot/Wendling/Guéneau/Pottier's intrinsic development.
 <em>Functional verification: parity. Mechanized worst-case cost bound: ours only.
-Production wall-clock: our verified artifact (<strong>KTf</strong> — the OpsFast
-mirror plus the verified fusion pass of OpsFused.v, over verified §4-deque buffers)
-is <strong>faster than Viennot's hand-written cadeque on 7 of the 9 workloads</strong>
-(both drains, mixed, all three concat patterns, persistent forks — up to 2.4× on
-the concat+pop interleave); their build-side push/inject remain ~1.3× ahead, a gap
-that lives inside the §4 buffer's push path.</em>
+Production wall-clock: our verified artifact (<strong>KTf</strong> — the fused-spine
+mirror of FlatChain/FlatOps over verified §4-deque buffers, with check-erased
+elements and zero-box stored cells) is <strong>faster than Viennot's hand-written
+cadeque on all 9 workloads at every size</strong> — up to 8× on concat-fold and 3×
+on the concat+pop interleave — with identical retained memory
+(3.00&nbsp;live&nbsp;words/element).</em>
 </div>
 
 <h2>1 · The two contenders</h2>
@@ -382,32 +382,34 @@ budget (quadratic regime). Raw dated output:
 
 <h3>3.3 Reading the results honestly</h3>
 <div class="win">
-<strong>KTf beats Viennot on 7 of 9 workloads, flat at every size.</strong>
-At n&nbsp;=&nbsp;10⁶: pop-drain 65&nbsp;vs&nbsp;81, eject-drain 61&nbsp;vs&nbsp;75,
-mixed 48&nbsp;vs&nbsp;73 (1.5×), concat-fold 549&nbsp;vs&nbsp;1078 (2×), concat-tree
-1414&nbsp;vs&nbsp;3023 (2.1×), concat+pop interleave 116&nbsp;vs&nbsp;271 (2.3×), and
-the persistent-fork rerun 44&nbsp;vs&nbsp;65&nbsp;ns/op (1.5×) — and the build-side
-ops now win at small/mid sizes too (push 51&nbsp;vs&nbsp;57 at 10³,
-96&nbsp;vs&nbsp;102 at 10⁴).  Three verified optimization passes built this:
-the OpsFused.v fusion pass (case-of-case + deforestation, 20–30% on every
-removal path), the SizedChain.v data-constructor fusion (the buffer size lives
-inside the §4 chain's top constructor), and the ErasedOps.v CHECK ERASURE —
-mirrors of the §4 ops with no runtime level discipline at all (unchecked
-pairing, blind unpairing, zero-box leaves), each carrying a success-conditional
-naturality proof down to the keystone-proven kt4 ops.
+<strong>KTf beats Viennot on all 9 workloads, at every size — 36 cells of 36.</strong>
+At n&nbsp;=&nbsp;10⁶: push 89&nbsp;vs&nbsp;96, inject 89&nbsp;vs&nbsp;97, pop-drain
+61&nbsp;vs&nbsp;78, eject-drain 59&nbsp;vs&nbsp;75, mixed 46&nbsp;vs&nbsp;76 (1.7×),
+concat-fold 146&nbsp;vs&nbsp;1174 (8×), concat-tree 1425&nbsp;vs&nbsp;3166 (2.2×),
+concat+pop interleave 91&nbsp;vs&nbsp;277 (3×), persistent-fork rerun
+42&nbsp;vs&nbsp;67&nbsp;ns/op.  Five verified optimization passes built this:
+the OpsFused.v fusion pass (case-of-case + deforestation), the SizedChain.v
+data-constructor fusion (the buffer size lives inside the §4 chain's top
+constructor), the ErasedOps.v CHECK ERASURE (§4 ops with no runtime level
+discipline — unchecked pairing, blind unpairing, zero-box leaves, each mirror
+carrying a success-conditional naturality proof), the FlatChain/FlatOps SPINE
+FUSION (the dominant three-block §6 spine cell becomes one constructor,
+keystone transferred by erasure commutation), and the §6 ELEMENT UNBOXING
+(a ground cell IS its payload — <code>Sraw.t</code>).
 </div>
 <div class="honest">
-<strong>Where we still lose: the two build-side workloads at 10⁶ only.</strong>
-Steady push (112&nbsp;vs&nbsp;84) and steady inject (103&nbsp;vs&nbsp;90) trail by
-~1.2–1.3× at the largest size.  The journey here was empirical: a tag-checked
-zero-box representation was measured and <em>reverted</em> (the tag test loaded
-the cold payload's header byte — the sigT box doubles as a level cache); the
-check-erasure phase then removed the checks themselves, statically justified by
-naturality proofs, exactly as Viennot's erased GADT indices are.  With element
-representation now cost-free, the remaining 10⁶-scale gap is the §6 spine's
-allocation count (three nested blocks per operation vs their flatter cells)
-under large-heap GC pressure — a §6 representation-fusion refinement, recorded
-as the next candidate phase.
+<strong>How the last gap fell: measurement, not theory.</strong>
+Two hypotheses died on the way.  A tag-checked zero-box element representation
+was measured and <em>reverted</em> (the tag test loaded the cold payload's
+header byte); the spine-fusion pass was measured <em>neutral</em> (spine cells
+are young garbage, which OCaml's minor GC makes nearly free).  Profiling then
+located the build-side deficit exactly: 5.0 retained words per element vs
+their 3.0 — one <code>FGround</code> box around every element, the §6 analogue
+of the §4 sigT box, taxing every major collection.  Under the invariant
+<code>J</code>, level-0 cells are always ground and child-level cells never
+are, so the box erases blindly (two FlatChain wrappers; fallback arms
+unreachable by FlatKeystone.v).  Retained memory is now identical to
+Viennot's, and the build-side ops win at every size.
 </div>
 <p><strong>The model baseline (KT) tells the same story from the other side.</strong>
 Its cons-side cells (push/pop on a bare list) bound what any buffer can do, and its
@@ -423,9 +425,9 @@ buffer-primitive counts say it should sit.</p>
 <tr><td>Mechanized worst-case cost bound</td>
 <td><strong style="color:var(--kt)">Ours only</strong> (<code>cat_wc_o1</code>)</td></tr>
 <tr><td>Production wall-clock performance</td>
-<td><strong style="color:var(--ktf)">Ours on 7 of 9 workloads</strong> (both drains,
-mixed, all concats, forks — up to 2.4×); <span style="color:var(--vi)">theirs</span>
-on build-side push/inject by ~1.2–1.4×</td></tr>
+<td><strong style="color:var(--ktf)">Ours on 9 of 9 workloads, every size</strong>
+(up to 8× on concat-fold, 3× on interleave, ~1.1–1.7× elsewhere); retained
+memory identical at 3.00 live words/element</td></tr>
 <tr><td>Toolchain footprint</td>
 <td><strong style="color:var(--kt)">Ours</strong>: kernel + stdlib only ·
 <span style="color:var(--vi)">theirs</span>: 3 plugin dependencies</td></tr>
