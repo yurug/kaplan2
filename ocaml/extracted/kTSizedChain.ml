@@ -11,16 +11,6 @@ let rec app l m =
 type ('a, 'p) sigT =
 | ExistT of 'a * 'p
 
-(** val projT1 : ('a1, 'a2) sigT -> 'a1 **)
-
-let projT1 = function
-| ExistT (a, _) -> a
-
-(** val projT2 : ('a1, 'a2) sigT -> 'a2 **)
-
-let projT2 = function
-| ExistT (_, h) -> h
-
 
 
 module Nat =
@@ -36,48 +26,29 @@ module Nat =
 
 type 'a xpow = __
 
-(** val xflat : int -> 'a1 xpow -> 'a1 list **)
-
-let rec xflat l a =
-  (fun fO fS n -> if n=0 then fO () else fS (n-1))
-    (fun _ -> (Obj.magic a) :: [])
-    (fun l' -> let (x, y) = Obj.magic a in app (xflat l' x) (xflat l' y))
-    l
-
 module ElementTree =
  struct
-  type 'a t = (int, 'a xpow) sigT
+  type 'x t = 'x Erased_tree.t
 
   (** val to_list : 'a1 t -> 'a1 list **)
 
-  let to_list e =
-    xflat (projT1 e) (projT2 e)
+  let to_list = Erased_tree.to_list
 
   (** val level : 'a1 t -> int **)
 
-  let level =
-    projT1
+  let level = Erased_tree.level
 
   (** val base : 'a1 -> 'a1 t **)
 
-  let base a =
-    ExistT (0, (Obj.magic a))
+  let base = Erased_tree.base
 
   (** val pair : 'a1 t -> 'a1 t -> 'a1 t **)
 
-  let pair x y =
-    ExistT ((Stdlib.Int.succ (level x)),
-      (let ExistT (_, x0) = x in let ExistT (_, x1) = y in Obj.magic (x0, x1)))
+  let pair = Erased_tree.pair
 
   (** val unpair : 'a1 t -> ('a1 t * 'a1 t) option **)
 
-  let unpair = function
-  | ExistT (x, p) ->
-    ((fun fO fS n -> if n=0 then fO () else fS (n-1))
-       (fun _ -> None)
-       (fun l' ->
-       let (x0, y) = Obj.magic p in Some ((ExistT (l', x0)), (ExistT (l', y))))
-       x)
+  let unpair = Erased_tree.unpair
  end
 
 type 'x buf5 =
