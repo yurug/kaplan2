@@ -133,8 +133,8 @@ clean:
 
 cat-keystone-gate:
 	@dune clean --root . 2>/dev/null; true
-	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* (+fast) + cat_wc_o1 =="
-	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo rocq/KTDeque/Catenable/Cost.vo rocq/KTDeque/Catenable/FastKeystone.vo --display=quiet --no-buffer 2>&1); \
+	@echo "== Catenable keystone: Print Assumptions for cat_keystone_* (+fast +flat) + cat_wc_o1 =="
+	@output=$$(dune build rocq/KTDeque/Catenable/CatKeystone.vo rocq/KTDeque/Catenable/Cost.vo rocq/KTDeque/Catenable/FastKeystone.vo rocq/KTDeque/Catenable/FlatKeystone.vo --display=quiet --no-buffer 2>&1); \
 	  status=$$?; \
 	  if [ $$status -ne 0 ]; then \
 	    printf '%s\n' "$$output"; \
@@ -142,9 +142,9 @@ cat-keystone-gate:
 	  fi; \
 	  printf '%s\n' "$$output" | grep -c "Closed under the global context" \
 	    | { read n; \
-	        if [ "$$n" -eq 13 ]; then \
-	          echo "OK: 13/13 (six keystone theorems + cat_wc_o1 + six fast-keystone theorems) closed under the global context"; \
+	        if [ "$$n" -eq 19 ]; then \
+	          echo "OK: 19/19 (six keystone theorems + cat_wc_o1 + six fast + six flat) closed under the global context"; \
 	        else \
-	          echo "FAIL: expected 13 closed theorems, saw $$n"; \
+	          echo "FAIL: expected 19 closed theorems, saw $$n"; \
 	          exit 1; \
 	        fi; }
