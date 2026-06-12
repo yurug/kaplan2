@@ -4,10 +4,11 @@
 #
 #   1. KT  — our Rocq extraction, MODEL layer (list buffers; quadratic
 #      inject/eject cells expected — kept as the honest baseline).
-#   2. KTf — our Rocq extraction, PRODUCTION (OpsFast.v mirror, proved
-#      equal to the frozen ops, with buffers extraction-remapped to
-#      Fastbuf = the verified §4 kt4 deque + O(1) size; wall-clock
-#      WC O(1) on every end).  See Extract/ExtractionFast.v.
+#   2. KTf — our Rocq extraction, PRODUCTION (fused-spine mirror,
+#      FlatChain/FlatOps + FlatKeystone, with buffers
+#      extraction-remapped to Fastbuf = the verified §4 kt4 deque +
+#      O(1) size; wall-clock WC O(1) on every end).  See
+#      Extract/ExtractionFast.v.
 #   3. Vi  — Viennot OCaml cadeque (vendored at ocaml/bench/viennot/,
 #      hand-written, wall-clock WC O(1)).
 #
@@ -47,10 +48,10 @@ mkdir -p "$ROOT/bench/results"
   echo "- ocaml: $(ocamlfind ocamlopt -version 2>/dev/null || ocaml -version)"
   echo "- sizes: $SIZES"
   echo "- KT  = ocaml/extracted/kTCadeque.ml (model layer; list buffers)"
-  echo "- KTf = ocaml/extracted/kTCadequeFast.ml (production; verified kt4 buffers)"
+  echo "- KTf = ocaml/extracted/kTFlatCadeque.ml (production; fused spine + verified kt4 buffers)"
   echo "- Vi  = ocaml/bench/viennot/cadeque*.ml (VWGP, hand-written)"
   echo
-  "$BIN" $SIZES
+  ${TASKSET:-} "$BIN" $SIZES
 } | tee "$OUT"
 
 echo

@@ -7,7 +7,12 @@
 ;                           (deque_wc_o1_*) is proven in
 ;                           rocq/KTDeque/DequePtr/DequeKeystone.v
 ;                           (see `make deque-keystone-gate`).
-; - [KTCadequeFast]      -- the PRODUCTION §6 catenable deque: the
+; - [KTFlatCadeque]      -- the PRODUCTION §6 catenable deque: the
+;                           fused-spine mirror (FlatChain/FlatOps,
+;                           keystone in FlatKeystone.v) — one heap
+;                           block per spine cell — with buffers
+;                           remapped at extraction to [Fastbuf].
+; - [KTCadequeFast]      -- the previous production artifact: the
 ;                           OpsFast.v mirror (equal to the frozen ops,
 ;                           FastKeystone.v) with buffers remapped at
 ;                           extraction to [Fastbuf] = verified kt4
@@ -42,7 +47,7 @@
  (public_name ktdeque)
  (synopsis "Kaplan-Tarjan persistent real-time deque (Rocq-extracted)")
  (wrapped false)
- (modules kTDeque kTCadeque kTCadequeFast kTSizedChain kTErasedChain eraw fastbuf))
+ (modules kTDeque kTCadeque kTCadequeFast kTFlatCadeque kTSizedChain kTErasedChain eraw fastbuf))
 
 (executable
  (name test_ktdeque)

@@ -4,11 +4,12 @@
            (ocaml/extracted/kTCadeque.ml): buffers are lists, colours
            recompute [length] — wall-clock per op is O(root buffer
            size); kept in the table as the honest baseline.
-     KTf : our PRODUCTION extraction (ocaml/extracted/kTCadequeFast.ml):
-           the OpsFast.v mirror (proved equal to the frozen ops;
-           keystone bundle in Catenable/FastKeystone.v) with buffers
-           remapped at extraction to Fastbuf = the verified §4 kt4
-           deque + O(1) size.  Wall-clock WC O(1) on every end.
+     KTf : our PRODUCTION extraction (ocaml/extracted/kTFlatCadeque.ml):
+           the fused-spine mirror (FlatChain/FlatOps: one heap block
+           per spine cell; keystone bundle in Catenable/FlatKeystone.v
+           via erasure commutation) with buffers remapped at
+           extraction to Fastbuf = the verified §4 kt4 deque + O(1)
+           size.  Wall-clock WC O(1) on every end.
      Vi  : Viennot/Wendling/Guéneau/Pottier hand-written OCaml cadeque
            (vendored at ocaml/bench/viennot/, MIT), production-quality,
            wall-clock WC O(1).
@@ -49,21 +50,21 @@ module KT : CADEQUE = struct
   let to_list = KTCadeque.cad_to_list
 end
 
-(* the production extraction: OpsFast mirror + Fastbuf (kt4 + size) *)
+(* the production extraction: fused-spine mirror + Fastbuf (kt4 + size) *)
 module KTF : CADEQUE = struct
-  type 'a t = 'a KTCadequeFast.cadeque
-  let empty = KTCadequeFast.cad_empty
-  let push = KTCadequeFast.cad_push_v2
-  let inject = KTCadequeFast.cad_inject_v2
-  let pop = KTCadequeFast.cad_pop_v2
-  let eject = KTCadequeFast.cad_eject_v2
+  type 'a t = 'a KTFlatCadeque.fchain
+  let empty = KTFlatCadeque.fcad_empty
+  let push = KTFlatCadeque.cad_push_x
+  let inject = KTFlatCadeque.cad_inject_x
+  let pop = KTFlatCadeque.cad_pop_x
+  let eject = KTFlatCadeque.cad_eject_x
   let concat a b =
-    match KTCadequeFast.cad_concat_f a b with
+    match KTFlatCadeque.cad_concat_x a b with
     | Some c -> c
-    | None -> failwith "cad_concat_f returned None on regular inputs"
+    | None -> failwith "cad_concat_x returned None on regular inputs"
   let to_list d =
     let rec go acc d =
-      match KTCadequeFast.cad_pop_v2 d with
+      match KTFlatCadeque.cad_pop_x d with
       | Some (x, d') -> go (x :: acc) d'
       | None -> List.rev acc
     in

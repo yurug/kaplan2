@@ -110,3 +110,29 @@ Extraction "kTErasedChain.ml"
   einject_s
   epop_s
   eeject_s.
+
+(** ** The fused-spine §6 cadeque (Catenable/FlatChain.v, FlatOps.v).
+
+    The fourth verified pass: the dominant spine shape
+    [CSingle (Pkt BHole (Node k p s)) rest] is one constructor
+    ([FFlat]), so every push/inject and every green/red rebundle
+    allocates ONE spine block where the previous artifact allocated
+    three.  Keystone bundle: Catenable/FlatKeystone.v (via the [_x_er]
+    erasure commutations). *)
+
+From KTDeque.Catenable Require Import FlatChain FlatOps.
+
+Extraction Inline
+  fsingle fcell fdegen
+  upd_flat_x upd_single_x
+  node_push_x node_inject_x node_pop_x node_eject_x
+  node_color_x fchain_has_node.
+
+Extraction "kTFlatCadeque.ml"
+  fchain
+  fcad_empty
+  cad_push_x
+  cad_inject_x
+  cad_pop_x
+  cad_eject_x
+  cad_concat_x.
