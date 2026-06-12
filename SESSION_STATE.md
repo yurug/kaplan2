@@ -55,6 +55,61 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-12e (user request, IN PROGRESS): check-erasure naturality mirror
+THE PLAN (continue here; audit DONE, design FROZEN):
+- AUDIT RESULT: every `E.unpair = None` arm in OpsKT.v (helpers
+  green/prefix/suffix_concat ~l.408-510, pair_one l.604, make_small
+  l.608-740, green_of_red_k l.1084) propagates None (pure failure) —
+  NO unpair-as-leaf-test on success paths => blind unpair extraction
+  is sound under success-conditional naturality.  All Buf5 shufflers
+  (green/yellow push/pop/inject/eject, prefix/suffix_decompose,
+  prefix23/suffix23, buffer_unsandwich, prefix_rot/suffix_rot,
+  buf5_*_naive, mk_ending_from_options?) are {X}-polymorphic — REUSE
+  at (etree A); only EChain-typed wrappers need mirrors.
+- FILES TO BUILD:
+  1. rocq/KTDeque/Common/ErasedTree.v: `Inductive etree A := ELeaf A
+     | EPair (etree A) (etree A)`; `er : E.t A -> etree A` via
+     Fixpoint on the level index (xpow); laws: er_base, er_pair
+     (er (E.pair x y e) = EPair (er x) (er y)), unpair_er (E.unpair t
+     = Some (x,y) -> er t = EPair (er x) (er y)).
+  2. rocq/KTDeque/DequePtr/ErasedOps.v: EPacket/EKChain/ESChain
+     (mirror Packet/KChain/SChain with Buf5 (etree A) fields);
+     erasures er_buf (Buf5 map er), er_packet, er_kchain, er_chain
+     (Chain->EKChain? make_small returns Chain — mirror returns
+     E-Chain-analog: add EChain mirroring Chain (Ending/ChainCons) +
+     er_chain), er_schain.  Mirror (dropping Nat.eq_dec + E.pair =>
+     EPair, match E.unpair => match etree with EPair/ELeaf=>None-arm):
+     green_prefix_concat_e, green_suffix_concat_e, prefix_concat_e,
+     suffix_concat_e, pair_one_e?? (pair_each_buf cone — check use),
+     buffer_push_chain_e, buffer_inject_chain_e, make_small_e,
+     green_of_red_k_e (read l.1084-1119 first!), ensure_green_k_e,
+     yellow_wrap_e, then the 4 sized ops (epush_s etc. mirroring
+     SizedChain.v over ESChain).
+     NATURALITY (success-conditional), bottom-up, proof style =
+     destruct the case tree; at eq_dec sites destruct, right-case
+     contradicts success hyp; at unpair sites destruct (E.unpair ..)
+     eqn + rewrite unpair_er.  Form:
+       f args = Some r -> f_e (er args) = Some (er r)
+     (for total fns: f_e (er c) = er (f c) conditional on the
+     underlying kt4 op success per SizedChain _spec shape).
+  3. Extract/ExtractionFast.v: extract the erased sized ops to
+     kTErased.ml with `Extract Inductive etree => "Obj.t"
+     ["(fun x -> Obj.repr x)" "(fun (a,b) -> Obj.repr (a,b))"]
+     "(fun fl fp t -> fp (Obj.field t 0) (Obj.field t 1))"` — the
+     BLIND match (sound per audit: ELeaf arms of erased mirrors are
+     only reachable where the original failed).  ELeaf unboxed =>
+     zero per-element allocation AND zero runtime level checks
+     (the eq_dec sites are GONE from the mirrors, fixing the
+     negative result of 2026-06-12d).  Fastbuf on the erased ops.
+  4. bench; expect push/inject to drop toward Vi's 80/90ns.
+- PITFALLS: green_of_red_k body not yet read in this pass (l.1084+,
+  uses make_small + the concat helpers + chain_to_kchain_g);
+  mk_ending_from_options at l.~615 — check polymorphism (takes
+  option X / option (X*X) — likely polymorphic ✓ reuse).
+- Naturality direction note: state lemmas as
+  `f args = Some r -> f_e (mapped args) = Some (er r)`; do NOT
+  attempt unconditional equality (eq_dec mismatch arms differ).
+
 ## 2026-06-12d (user request): level-erasure experiment — MEASURED, REVERTED
 - Implemented tag-checked zero-box ElementTree (erased_tree.ml +
   Extract Constant remap of the 6 E members; self-check passed).
