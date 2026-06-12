@@ -219,16 +219,186 @@ Section MapCommute.
          buf5_map fpair (snd (buffer_halve b))).
   Proof. intros b; destruct b; reflexivity. Qed.
 
-  Lemma map_prefix23 : forall o p,
-      prefix23 (option_map f o) (fpair p) = fb (prefix23 o p).
-  Proof. intros o [x y]; destruct o; reflexivity. Qed.
+  Lemma map_prefix23 : forall o x y,
+      prefix23 (option_map f o) (f x, f y) = fb (prefix23 o (x, y)).
+  Proof. intros o x y; destruct o; reflexivity. Qed.
 
-  Lemma map_suffix23 : forall p o,
-      suffix23 (fpair p) (option_map f o) = fb (suffix23 p o).
-  Proof. intros [x y] o; destruct o; reflexivity. Qed.
+  Lemma map_suffix23 : forall x y o,
+      suffix23 (f x, f y) (option_map f o) = fb (suffix23 (x, y) o).
+  Proof. intros x y o; destruct o; reflexivity. Qed.
 
   Lemma map_suffix12 : forall x o,
       suffix12 (f x) (option_map f o) = fb (suffix12 x o).
   Proof. intros x o; destruct o; reflexivity. Qed.
 
 End MapCommute.
+
+(* ========================================================================== *)
+(* Stage 2: the cross-buffer concat helpers, check-erased.                     *)
+(* ========================================================================== *)
+
+Definition green_prefix_concat_e {A : Type}
+    (b1 b2 : Buf5 (etree A)) : option (Buf5 (etree A) * Buf5 (etree A)) :=
+  match prefix_decompose b1 with
+  | BD_pre_underflow opt =>
+      match green_pop b2 with
+      | Some (EPair a b, b2') => Some (prefix23 opt (a, b), b2')
+      | _ => None
+      end
+  | BD_pre_ok b1' => Some (b1', b2)
+  | BD_pre_overflow b1' c d =>
+      match green_push (EPair c d) b2 with
+      | Some b2' => Some (b1', b2')
+      | None     => None
+      end
+  end.
+
+Definition green_suffix_concat_e {A : Type}
+    (b1 b2 : Buf5 (etree A)) : option (Buf5 (etree A) * Buf5 (etree A)) :=
+  match suffix_decompose b2 with
+  | BD_suf_underflow opt =>
+      match green_eject b1 with
+      | Some (b1', EPair a b) => Some (b1', suffix23 (a, b) opt)
+      | _ => None
+      end
+  | BD_suf_ok b2' => Some (b1, b2')
+  | BD_suf_overflow b2' a b =>
+      match green_inject b1 (EPair a b) with
+      | Some b1' => Some (b1', b2')
+      | None     => None
+      end
+  end.
+
+Definition prefix_concat_e {A : Type}
+    (b1 b2 : Buf5 (etree A)) : option (Buf5 (etree A) * Buf5 (etree A)) :=
+  match prefix_decompose b1 with
+  | BD_pre_underflow opt =>
+      match yellow_pop b2 with
+      | Some (EPair a b, b2') => Some (prefix23 opt (a, b), b2')
+      | _ => None
+      end
+  | BD_pre_ok b1' => Some (b1', b2)
+  | BD_pre_overflow b1' c d =>
+      match yellow_push (EPair c d) b2 with
+      | Some b2' => Some (b1', b2')
+      | None     => None
+      end
+  end.
+
+Definition suffix_concat_e {A : Type}
+    (b1 b2 : Buf5 (etree A)) : option (Buf5 (etree A) * Buf5 (etree A)) :=
+  match suffix_decompose b2 with
+  | BD_suf_underflow opt =>
+      match yellow_eject b1 with
+      | Some (b1', EPair a b) => Some (b1', suffix23 (a, b) opt)
+      | _ => None
+      end
+  | BD_suf_ok b2' => Some (b1, b2')
+  | BD_suf_overflow b2' a b =>
+      match yellow_inject b1 (EPair a b) with
+      | Some b1' => Some (b1', b2')
+      | None     => None
+      end
+  end.
+
+Lemma green_prefix_concat_nat : forall A (b1 b2 r1 r2 : Buf5 (E.t A)),
+    green_prefix_concat b1 b2 = Some (r1, r2) ->
+    green_prefix_concat_e (er_buf b1) (er_buf b2)
+    = Some (er_buf r1, er_buf r2).
+Proof.
+  intros A b1 b2 r1 r2 H.
+  unfold green_prefix_concat in H; unfold green_prefix_concat_e, er_buf.
+  rewrite map_prefix_decompose.
+  destruct (prefix_decompose b1) as [opt | b1' | b1' c d]; cbn [bd_pre_map].
+  - rewrite map_green_pop.
+    destruct (green_pop b2) as [[ab b2']|] eqn:Hp; cbn [option_map];
+      [|discriminate].
+    destruct (E.unpair A ab) as [[a b]|] eqn:Hu; [|discriminate].
+    injection H as <- <-.
+    rewrite (unpair_er Hu), (map_prefix23 (@er A) opt a b).
+    reflexivity.
+  - injection H as <- <-. reflexivity.
+  - destruct (Nat.eq_dec (E.level A c) (E.level A d)) as [e|];
+      [|discriminate].
+    destruct (green_push (E.pair A c d e) b2) as [b2'|] eqn:Hg;
+      [|discriminate].
+    injection H as <- <-.
+    rewrite <- (er_pair e), map_green_push, Hg.
+    reflexivity.
+Qed.
+
+Lemma green_suffix_concat_nat : forall A (b1 b2 r1 r2 : Buf5 (E.t A)),
+    green_suffix_concat b1 b2 = Some (r1, r2) ->
+    green_suffix_concat_e (er_buf b1) (er_buf b2)
+    = Some (er_buf r1, er_buf r2).
+Proof.
+  intros A b1 b2 r1 r2 H.
+  unfold green_suffix_concat in H; unfold green_suffix_concat_e, er_buf.
+  rewrite map_suffix_decompose.
+  destruct (suffix_decompose b2) as [opt | b2' | b2' a b]; cbn [bd_suf_map].
+  - rewrite map_green_eject.
+    destruct (green_eject b1) as [[b1' ab]|] eqn:Hp; cbn [option_map];
+      [|discriminate].
+    destruct (E.unpair A ab) as [[a b]|] eqn:Hu; [|discriminate].
+    injection H as <- <-.
+    rewrite (unpair_er Hu), (map_suffix23 (@er A) a b opt).
+    reflexivity.
+  - injection H as <- <-. reflexivity.
+  - destruct (Nat.eq_dec (E.level A a) (E.level A b)) as [e|];
+      [|discriminate].
+    destruct (green_inject b1 (E.pair A a b e)) as [b1'|] eqn:Hg;
+      [|discriminate].
+    injection H as <- <-.
+    rewrite <- (er_pair e), map_green_inject, Hg.
+    reflexivity.
+Qed.
+
+Lemma prefix_concat_nat : forall A (b1 b2 r1 r2 : Buf5 (E.t A)),
+    prefix_concat b1 b2 = Some (r1, r2) ->
+    prefix_concat_e (er_buf b1) (er_buf b2) = Some (er_buf r1, er_buf r2).
+Proof.
+  intros A b1 b2 r1 r2 H.
+  unfold prefix_concat in H; unfold prefix_concat_e, er_buf.
+  rewrite map_prefix_decompose.
+  destruct (prefix_decompose b1) as [opt | b1' | b1' c d]; cbn [bd_pre_map].
+  - rewrite map_yellow_pop.
+    destruct (yellow_pop b2) as [[ab b2']|] eqn:Hp; cbn [option_map];
+      [|discriminate].
+    destruct (E.unpair A ab) as [[a b]|] eqn:Hu; [|discriminate].
+    injection H as <- <-.
+    rewrite (unpair_er Hu), (map_prefix23 (@er A) opt a b).
+    reflexivity.
+  - injection H as <- <-. reflexivity.
+  - destruct (Nat.eq_dec (E.level A c) (E.level A d)) as [e|];
+      [|discriminate].
+    destruct (yellow_push (E.pair A c d e) b2) as [b2'|] eqn:Hg;
+      [|discriminate].
+    injection H as <- <-.
+    rewrite <- (er_pair e), map_yellow_push, Hg.
+    reflexivity.
+Qed.
+
+Lemma suffix_concat_nat : forall A (b1 b2 r1 r2 : Buf5 (E.t A)),
+    suffix_concat b1 b2 = Some (r1, r2) ->
+    suffix_concat_e (er_buf b1) (er_buf b2) = Some (er_buf r1, er_buf r2).
+Proof.
+  intros A b1 b2 r1 r2 H.
+  unfold suffix_concat in H; unfold suffix_concat_e, er_buf.
+  rewrite map_suffix_decompose.
+  destruct (suffix_decompose b2) as [opt | b2' | b2' a b]; cbn [bd_suf_map].
+  - rewrite map_yellow_eject.
+    destruct (yellow_eject b1) as [[b1' ab]|] eqn:Hp; cbn [option_map];
+      [|discriminate].
+    destruct (E.unpair A ab) as [[a b]|] eqn:Hu; [|discriminate].
+    injection H as <- <-.
+    rewrite (unpair_er Hu), (map_suffix23 (@er A) a b opt).
+    reflexivity.
+  - injection H as <- <-. reflexivity.
+  - destruct (Nat.eq_dec (E.level A a) (E.level A b)) as [e|];
+      [|discriminate].
+    destruct (yellow_inject b1 (E.pair A a b e)) as [b1'|] eqn:Hg;
+      [|discriminate].
+    injection H as <- <-.
+    rewrite <- (er_pair e), map_yellow_inject, Hg.
+    reflexivity.
+Qed.
