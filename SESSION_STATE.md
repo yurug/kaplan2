@@ -55,6 +55,32 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-13d (user "we should be able to optimize further"): C now ~Viennot
+- The lever was reclaiming the §4-buffer garbage.  kc_arena_compact's
+  collection was O(live elements) (kt_walk'd every buffer to find nested
+  §4 deques in SSmall/SBig) -> early compaction a NET LOSS on pure-push.
+  FIX: per-buffer "holds a boxed cell" flag (high bit of the count, set
+  when a box handle is stored); collection skips the element-walk for
+  all-ground buffers (every buffer in push/inject/pop/eject).  Collection
+  -> O(spine + live buffers); §4 link copy = the §4 deque's cheap pass.
+- RESULT (caller-driven compaction every 4096 ops = recommended config,
+  mirrors §4's K=4096; 1M, taskset, median 3): push 217->96, inject
+  213->96, mixed 130->76 ns/op; peak RSS 5.9GB->~0.1GB.  C MATCHES
+  Viennot on push/inject/mixed/interleave (96v96,96v97,76v76,282v277),
+  BEATS 2-5.5x on concat (fold 215v1174, tree 1418v3166); trails only
+  pop/eject (~1.1-1.2x) and fork (1.5x, read-only repeated pop, no
+  garbage to reclaim).  commit 06f82af, pushed.
+- Bench reworked: each build immediately followed by its drain so at
+  most one large deque is live -> single compaction root (the
+  all-live-roots contract; the bench's transient crashes during dev were
+  that contract violated by helpers compacting while other deques live,
+  NOT a code bug).  Validated: differential 24/24 +/- compaction, ASan
+  clean, §4 regression passes.
+- REMAINING (small): pop/eject/fork still ~1.1-1.5x behind (less
+  reclaimable garbage + one malloc'd kc_chain spine node/op).  Closing
+  fully = unified-arena §6 collector (spine+cells+buffers, one Cheney
+  pass) — larger rewrite, left as future work.
+
 ## 2026-06-13c (user "optimize further"): profile + unbox ground cells
 - PROFILE (perf, pure-push): ~40% of time in kernel page-fault/malloc
   (clear_page_rep, do_anonymous_page, _int_malloc) from the
