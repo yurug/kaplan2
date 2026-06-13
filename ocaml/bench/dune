@@ -52,3 +52,10 @@
  (name push_prof)
  (modules push_prof)
  (libraries unix viennot_deque ktdeque))
+
+; diff_cadeque.ml: deterministic catenable workload vs the C port
+; (c/tests/diff_cadeque.c); same PRNG -> diff the outputs.
+(executable
+ (name diff_cadeque)
+ (modules diff_cadeque)
+ (libraries ktdeque))

@@ -26,6 +26,11 @@ BENCHDIR:= benches
 
 KT_C_SRC ?= $(SRCDIR)/ktdeque_dequeptr.c
 KT_HDR   := $(INCDIR)/ktdeque.h
+KT_CAD_SRC ?= $(SRCDIR)/ktcadeque.c
+KT_CAD_HDR := $(INCDIR)/ktcadeque.h
+# Catenable (§6) layer is built on top of the §4 deque source.
+KT_ALL_SRC := $(KT_C_SRC) $(KT_CAD_SRC)
+KT_ALL_HDR := $(KT_HDR) $(KT_CAD_HDR)
 LIBNAME  := ktdeque
 LIBFILE  := lib$(LIBNAME).a
 
@@ -47,7 +52,7 @@ CFLAGS_SAN   = -O1 -g -DNDEBUG $(CFLAGS_COMMON)
         check-persistence-stress check-all
 
 # Default goal: library + tests + bench.
-all: lib test test_debug bench wc_test fuzz diff_workload test_threads test_persistence_stress
+all: lib test test_debug bench wc_test fuzz diff_workload test_threads test_persistence_stress cadeque_test diff_cadeque
 
 # ---------------------------------------------------------------------
 # Library archive — linkable, installable.
@@ -94,6 +99,20 @@ fuzz: $(KT_C_SRC) $(TESTDIR)/fuzz.c $(KT_HDR)
 diff_workload: $(KT_C_SRC) $(TESTDIR)/diff_workload.c $(KT_HDR)
 	$(CC) $(CFLAGS) -o $@ $(KT_C_SRC) $(TESTDIR)/diff_workload.c $(LDFLAGS)
 
+# cadeque_test: the §6 catenable port self-check (mixed push/inject/pop/
+# eject + randomized concat-fold + full drain vs a deque oracle).
+cadeque_test: $(KT_ALL_SRC) $(KT_ALL_HDR)
+	$(CC) $(CFLAGS_DEBUG) -DKC_PHASE3_SMOKE -o $@ $(KT_ALL_SRC) $(LDFLAGS)
+
+# diff_cadeque: deterministic catenable workload trace, paired with
+# ocaml/bench/diff_cadeque.ml against the verified KTFlatCadeque.
+diff_cadeque: $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(KT_ALL_HDR)
+	$(CC) $(CFLAGS) -o $@ $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(LDFLAGS)
+
+# cadeque_asan: catenable port under ASan + UBSan for the fuzz/diff runs.
+cadeque_asan: $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(KT_ALL_HDR)
+	$(CC) $(CFLAGS_SAN) $(SAN_ASAN) -o $@ $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(LDFLAGS)
+
 # test_threads: 4 threads × independent deques in TLS arenas.
 test_threads: $(KT_C_SRC) $(TESTDIR)/test_threads.c $(KT_HDR)
 	$(CC) $(CFLAGS_DEBUG) -pthread -o $@ $(KT_C_SRC) $(TESTDIR)/test_threads.c $(LDFLAGS)
@@ -127,6 +146,29 @@ run-wc: wc_test
 
 run-fuzz: fuzz
 	ASAN_OPTIONS=detect_leaks=0 ./fuzz 1000
+
+run-cadeque: cadeque_test
+	./cadeque_test 200000
+
+# catenable differential: C vs the verified OCaml extraction.  Generates
+# the same deterministic workload on both sides and diffs the sequences.
+# Requires the OCaml exe built first:
+#   dune build --profile release ocaml/bench/diff_cadeque.exe
+OCAML_DIFF_CAD ?= ../_build/default/ocaml/bench/diff_cadeque.exe
+run-diff-cadeque: diff_cadeque
+	@for seed in 1 2 deadbeef cafef00d 99; do \
+	  for N in 20000 200000; do \
+	    ./diff_cadeque $$N $$seed > /tmp/kc_c.$$$$ ; \
+	    $(OCAML_DIFF_CAD) $$N $$seed > /tmp/kc_o.$$$$ ; \
+	    if diff -q /tmp/kc_c.$$$$ /tmp/kc_o.$$$$ >/dev/null; then \
+	      echo "cadeque diff seed=$$seed N=$$N: MATCH"; \
+	    else \
+	      echo "cadeque diff seed=$$seed N=$$N: DIVERGE"; \
+	      rm -f /tmp/kc_c.$$$$ /tmp/kc_o.$$$$ ; exit 1; \
+	    fi; \
+	    rm -f /tmp/kc_c.$$$$ /tmp/kc_o.$$$$ ; \
+	  done; \
+	done
 
 run-threads: test_threads
 	./test_threads 100000
@@ -261,6 +303,7 @@ clean:
 	rm -f *.o $(LIBFILE)
 	@for f in test test_debug wc_test fuzz fuzz_afl diff_workload \
 	          test_threads test_persistence_stress test_asan \
-	          test_threads_tsan bench bench_perf bench_K0 bench_K4096 prof; do \
+	          test_threads_tsan bench bench_perf bench_K0 bench_K4096 prof \
+	          cadeque_test diff_cadeque cadeque_asan; do \
 	    [ -f "$$f" ] && rm -f "$$f" || true; \
 	done
