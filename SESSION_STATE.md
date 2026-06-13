@@ -55,6 +55,32 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-13b (user "do 1 and 2"): push main + §6 arena tuning
+- (1) Pushed the C-port batch to origin/main (e8c7ca0).
+- (2) DIAGNOSIS: §6 push 250ns = ~155ns (§4 buffer push, never
+  compacted) + ~95ns (§6 box/spine malloc + tree_of/colour work).  push
+  ns/op is FLAT in N (not cache-thrash) but max RSS at 8M push = 5.9GB
+  (pure-push buffer grows to size N; all intermediate §4-link versions
+  retained).  §4 push alone: 155ns no-compact -> 61ns with compact 4096.
+- ADDED kc_arena_compact (commit 89c2f26): §6-aware trace of all live §4
+  buffers (outer + nested in SSmall/SBig + SBig sub-chain) -> §4
+  kt_arena_compact -> scatter back.  Sequence-preserving (differential
+  with KC_COMPACT_EVERY matches OCaml, ASan clean).
+- MEASURED, HONEST (negative for microbench, positive for real use):
+  * realistic churn (bounded 256-elt deque, 2M push/pop turnover),
+    compact every 8192: RSS 689->441MB (-36%) AND time 0.50->0.36s
+    (-28%, cache residency) — its intended long-running role.
+  * pathological pure-push microbench: compaction is a NET LOSS
+    (246->2432 ns/op) because collection is O(live elements)/call and
+    the malloc'd §6 spine+boxes (O(N)) aren't reclaimed.  That
+    per-element regime should use the §4 deque (fast); §6 is for
+    concat-heavy workloads, where C is already competitive/winning.
+- REMAINING per-element ~3x gap: bounded by malloc'd §6 spine + O(elem)
+  collection.  Fully closing needs a UNIFIED-ARENA §6 collector (spine
+  + stored cells + §4 buffers in one space, one Cheney pass) — a larger
+  rewrite, documented as future work in c/COMPARISON.md.  NOT pursued
+  further (diminishing practical return given the §4-deque alternative).
+
 ## 2026-06-13 (user request): port §6 catenation to C — DONE (5 phases)
 - User asked "should we update the C version?" -> chose "port §6
   catenation to C" (the C was §4-only).  Decision fork: stored-cell
