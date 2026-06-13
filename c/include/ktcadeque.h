@@ -80,4 +80,21 @@ size_t kc_length(kc_cadeque d);
 typedef void (*kc_walk_cb)(kt_elem e, void* ctx);
 void kc_walk(kc_cadeque d, kc_walk_cb cb, void* ctx);
 
+/* ====================================================================== *
+ * Arena compaction.                                                        *
+ * ====================================================================== *
+ *
+ * The §6 prefix/suffix buffers are §4 deques in a bump arena that is
+ * never reclaimed automatically (a pure-push cadeque retains every
+ * intermediate buffer version — O(N) arena links).  Like the §4 deque's
+ * kt_arena_compact, call kc_arena_compact periodically to copy-forward
+ * the live buffer structure and release the rest.
+ *
+ * SAFETY CONTRACT (same as kt_arena_compact): roots[] MUST list EVERY
+ * currently-live kc_cadeque value; any persistent old version not in
+ * roots[] becomes dangling.  After the call, roots[] still point at the
+ * same §6 spine nodes (those are not relocated), but their embedded §4
+ * buffers have been copied forward.  Returns bytes reclaimed. */
+size_t kc_arena_compact(kc_cadeque* roots, size_t n_roots);
+
 #endif /* KT_CADEQUE_H */

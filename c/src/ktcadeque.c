@@ -1167,6 +1167,96 @@ size_t kc_length(kc_cadeque d) {
 }
 
 /* ====================================================================== *
+ * Arena compaction: copy-forward all live §4 buffers (the §6 analogue of  *
+ * kt_arena_compact).  Collect the address of every kc_buf.d field         *
+ * reachable from the roots — outer node buffers plus the buffers nested   *
+ * inside SSmall/SBig stored cells (recursively, and the SBig sub-chain)   *
+ * — hand the §4-deque values to kt_arena_compact (which relocates them    *
+ * and rewrites the array), then scatter the relocated pointers back into  *
+ * the .d fields in place.  The §6 spine nodes (malloc) are not relocated; *
+ * only their embedded §4 buffers move.                                    *
+ * ====================================================================== */
+
+typedef struct { kt_deque** a; size_t n, cap; } fldvec;
+static void fv_add(fldvec* v, kt_deque* f) {
+    if (v->n == v->cap) {
+        v->cap = v->cap ? 2 * v->cap : 256;
+        v->a = (kt_deque**)realloc(v->a, v->cap * sizeof(kt_deque*));
+    }
+    v->a[v->n++] = f;
+}
+
+static void collect_chain(kc_chain* c, fldvec* v);
+static void collect_buf(kc_buf* b, fldvec* v);
+
+static void collect_stored_cb(kt_elem e, void* ctx) {
+    kc_stored* s = (kc_stored*)e;
+    fldvec* v = (fldvec*)ctx;
+    switch (s->kind) {
+        case SK_GROUND: break;
+        case SK_SMALL: collect_buf(&s->u.small, v); break;
+        case SK_BIG:
+            collect_buf(&s->u.big.p, v);
+            collect_chain(s->u.big.c, v);
+            collect_buf(&s->u.big.q, v);
+            break;
+        default: assert(0);
+    }
+}
+
+static void collect_buf(kc_buf* b, fldvec* v) {
+    fv_add(v, &b->d);
+    /* recurse into the stored cells held by this buffer: nested §4
+     * deques live there as "user data" the §4 compactor won't follow */
+    kt_walk(b->d, collect_stored_cb, v);
+}
+
+static void collect_body(kc_body* b, fldvec* v) {
+    if (b == NULL) return;  /* FHole: no node, no buffers */
+    collect_buf(&b->node.pre, v);
+    collect_buf(&b->node.suf, v);
+    switch (b->tag) {
+        case CB_BSINGLE: collect_body(b->u.bsingle.body, v); break;
+        case CB_BPAIRY:
+            collect_body(b->u.bpairy.body, v);
+            collect_chain(b->u.bpairy.rc, v);
+            break;
+        case CB_BPAIRO:
+            collect_chain(b->u.bpairo.lc, v);
+            collect_body(b->u.bpairo.body, v);
+            break;
+        default: assert(0);
+    }
+}
+
+static void collect_chain(kc_chain* c, fldvec* v) {
+    if (c == NULL) return;
+    if (c->tag == CC_CELL) {
+        collect_buf(&c->u.cell.node.pre, v);
+        collect_buf(&c->u.cell.node.suf, v);
+        if (c->u.cell.body != NULL) collect_body(c->u.cell.body, v);
+        collect_chain(c->u.cell.rest, v);
+    } else {  /* CC_PAIR */
+        collect_chain(c->u.pair.left, v);
+        collect_chain(c->u.pair.right, v);
+    }
+}
+
+size_t kc_arena_compact(kc_cadeque* roots, size_t n_roots) {
+    fldvec v = { NULL, 0, 0 };
+    for (size_t i = 0; i < n_roots; i++)
+        collect_chain((kc_chain*)roots[i], &v);
+    if (v.n == 0) { free(v.a); return 0; }
+    kt_deque* vals = (kt_deque*)malloc(v.n * sizeof(kt_deque));
+    for (size_t i = 0; i < v.n; i++) vals[i] = *v.a[i];
+    size_t reclaimed = kt_arena_compact(vals, v.n);
+    for (size_t i = 0; i < v.n; i++) *v.a[i] = vals[i];
+    free(vals);
+    free(v.a);
+    return reclaimed;
+}
+
+/* ====================================================================== *
  * Phase-2 smoke test (compiled only under KC_PHASE2_SMOKE): push/inject/  *
  * concat against a plain dynamic-array oracle.                            *
  * ====================================================================== */

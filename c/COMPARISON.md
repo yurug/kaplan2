@@ -180,11 +180,38 @@ Reading the numbers honestly:
   bump-arena + Cheney-compaction tuning that makes the standalone §4 C
   deque 1.5–2.9× *faster* than Viennot.  The §4 numbers above show that
   compaction is a 4–5× swing; the §6 layer does not yet get it.
-- **Future work**: extend the arena/compaction integration to the §6
-  spine and stored cells (the `KC_MALLOC` seam in `ktcadeque.c` is the
-  hook).  This is the catenable analogue of the §4 deque's
-  `kt_arena_compact`; closing it should bring per-element ops into the
-  same regime as §4 (and the concat numbers are already there).
+### Compaction (`kc_arena_compact`)
+
+The §6 prefix/suffix buffers are §4 deques in a bump arena that is never
+reclaimed automatically, so a long-running program retains dead buffer
+versions.  `kc_arena_compact(roots, n)` (same root-enumeration contract
+as `kt_arena_compact`) traces every live §4 buffer — outer node buffers
+plus those nested in `SSmall`/`SBig` stored cells — copies them forward,
+and releases the rest.  It is **sequence-preserving and verified by the
+differential** (the C-with-periodic-compaction workload matches the
+OCaml extraction exactly, ASan/UBSan clean).
+
+On a realistic long-running workload (a bounded ~256-element deque with
+2×10⁶ push/pop version turnover), compacting every 8192 ops both
+**reduces peak RSS ~36%** (689 → 441 MB) and **runs ~28% faster**
+(0.50 → 0.36 s) — the working set stays cache-resident, exactly as for
+the §4 deque.
+
+It is *not* a microbench throughput trick: on the pathological pure-push
+case (one buffer growing to size N, no nested cells), the collection
+pass is O(live elements) per call and compaction is a net loss — but
+that per-element-heavy regime is better served by the §4 deque
+(`ktdeque.h`), which is fast; the §6 layer earns its keep on the
+concat-heavy workloads, where it is already competitive.
+
+- **Remaining gap / future work**: the per-element microbench ops stay
+  ~3× behind because (a) the §6 spine nodes and stored boxes are
+  `malloc`'d (O(N), never reclaimed — the `KC_MALLOC`/`KC_BUMP` seam in
+  `ktcadeque.c` is the hook) and (b) the buffer-tracing collection is
+  O(elements).  Fully closing it needs a *unified-arena* §6 collector
+  that holds the spine, the stored cells, and the §4 buffers in one
+  space and relocates them in a single Cheney pass — a larger rewrite
+  than the per-buffer compaction above.
 
 ## How to reproduce
 

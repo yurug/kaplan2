@@ -51,6 +51,9 @@ int main(int argc, char** argv) {
             case 2: { kt_elem e; int ok; slot[i] = kc_pop(slot[i], &e, &ok); break; }
             case 3: { kt_elem e; int ok; slot[i] = kc_eject(slot[i], &e, &ok); break; }
             case 4: {
+#ifdef KC_COMPACT_EVERY
+                if ((step % KC_COMPACT_EVERY) == 0) kc_arena_compact(slot, K);
+#endif
                 /* j != i: self-concat would double the sequence length
                  * (exponential blow-up over many steps) — exclude it so the
                  * workload stays linear-sized.  One PRNG draw, K-1 choices. */
