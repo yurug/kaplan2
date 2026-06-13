@@ -635,17 +635,17 @@ while per-element ops are allocation-bound (the §6 buffers ride the §4 deque's
 untuned arena path — see <code>c/COMPARISON.md</code>).</p>
 <table class="results">
 <tr><th>workload</th><th>C (§6)</th><th>KTf OCaml</th><th>Viennot OCaml</th><th>C vs Viennot</th></tr>
-<tr><td class="wl">push</td><td class="impl">255</td><td>89</td><td>96</td><td><span style="color:var(--bad-bd)">2.7× behind</span></td></tr>
-<tr><td class="wl">inject</td><td class="impl">244</td><td>89</td><td>97</td><td><span style="color:var(--bad-bd)">2.5× behind</span></td></tr>
-<tr><td class="wl">pop drain</td><td class="impl">203</td><td>61</td><td>78</td><td><span style="color:var(--bad-bd)">2.6× behind</span></td></tr>
-<tr><td class="wl">eject drain</td><td class="impl">202</td><td>59</td><td>75</td><td><span style="color:var(--bad-bd)">2.7× behind</span></td></tr>
-<tr><td class="wl">mixed</td><td class="impl">152</td><td>46</td><td>76</td><td><span style="color:var(--bad-bd)">2.0× behind</span></td></tr>
-<tr><td class="wl">concat-fold</td><td class="impl">302</td><td>146</td><td>1,174</td><td><span style="color:var(--ok-bd);font-weight:700">3.9× faster</span></td></tr>
-<tr><td class="wl">concat-tree</td><td class="impl">1,422</td><td>1,425</td><td>3,166</td><td><span style="color:var(--ok-bd);font-weight:700">2.2× faster</span></td></tr>
-<tr><td class="wl">interleave</td><td class="impl">523</td><td>91</td><td>277</td><td><span style="color:var(--bad-bd)">1.9× behind</span></td></tr>
-<tr><td class="wl">fork</td><td class="impl">255</td><td>42</td><td>67</td><td><span style="color:var(--bad-bd)">3.8× behind</span></td></tr>
+<tr><td class="wl">push</td><td class="impl">217</td><td>89</td><td>96</td><td><span style="color:var(--bad-bd)">2.3× behind</span></td></tr>
+<tr><td class="wl">inject</td><td class="impl">213</td><td>89</td><td>97</td><td><span style="color:var(--bad-bd)">2.2× behind</span></td></tr>
+<tr><td class="wl">pop drain</td><td class="impl">206</td><td>61</td><td>78</td><td><span style="color:var(--bad-bd)">2.6× behind</span></td></tr>
+<tr><td class="wl">eject drain</td><td class="impl">207</td><td>59</td><td>75</td><td><span style="color:var(--bad-bd)">2.8× behind</span></td></tr>
+<tr><td class="wl">mixed</td><td class="impl">130</td><td>46</td><td>76</td><td><span style="color:var(--bad-bd)">1.7× behind</span></td></tr>
+<tr><td class="wl">concat-fold</td><td class="impl">308</td><td>146</td><td>1,174</td><td><span style="color:var(--ok-bd);font-weight:700">3.8× faster</span></td></tr>
+<tr><td class="wl">concat-tree</td><td class="impl">1,443</td><td>1,425</td><td>3,166</td><td><span style="color:var(--ok-bd);font-weight:700">2.2× faster</span></td></tr>
+<tr><td class="wl">interleave</td><td class="impl">456</td><td>91</td><td>277</td><td><span style="color:var(--bad-bd)">1.6× behind</span></td></tr>
+<tr><td class="wl">fork</td><td class="impl">248</td><td>42</td><td>67</td><td><span style="color:var(--bad-bd)">3.7× behind</span></td></tr>
 </table>
-<p class="meta">ns/op, n&nbsp;=&nbsp;1000000, median of 3, taskset-pinned · Sat, 13 Jun 2026 16:12:24 +0200
+<p class="meta">ns/op, n&nbsp;=&nbsp;1000000, median of 3, taskset-pinned · Sat, 13 Jun 2026 17:09:39 +0200
 · gcc (Debian 15.2.0-17) 15.2.0. Regenerate with <code>bench/cadeque-c.sh</code>.</p>
 
 <h3>3.4 Reading the results honestly</h3>

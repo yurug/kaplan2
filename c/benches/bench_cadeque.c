@@ -7,10 +7,11 @@
  *
  * Args: ./bench_cadeque [N]    (default 1000000)
  *
- * Note: the catenable spine and stored cells use malloc (no arena
- * compaction yet — see c/COMPARISON.md), so these numbers are an
- * honest first-cut, not the compaction-tuned regime the §4 C deque
- * reports. */
+ * Note: ground elements are unboxed (no per-element malloc); the spine
+ * nodes and the rarer small/big cells use malloc with no arena
+ * compaction on this path, so these numbers are an honest first-cut,
+ * not the compaction-tuned regime the §4 C deque reports.  Elements
+ * are 8-byte aligned (<<3) per the §6 contract. */
 #include "ktcadeque.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,17 +25,17 @@ static double now(void) {
 
 static kc_cadeque build_push(long n) {
     kc_cadeque d = kc_empty();
-    for (long i = 0; i < n; i++) d = kc_push((kt_elem)(intptr_t)(i+1), d);
+    for (long i = 0; i < n; i++) d = kc_push((kt_elem)(intptr_t)(((long)i+1)<<3), d);
     return d;
 }
 static kc_cadeque build_inject(long n) {
     kc_cadeque d = kc_empty();
-    for (long i = 0; i < n; i++) d = kc_inject(d, (kt_elem)(intptr_t)(i+1));
+    for (long i = 0; i < n; i++) d = kc_inject(d, (kt_elem)(intptr_t)(((long)i+1)<<3));
     return d;
 }
 static kc_cadeque block(int len) {
     kc_cadeque b = kc_empty();
-    for (int i = 0; i < len; i++) b = kc_inject(b, (kt_elem)(intptr_t)(i+1));
+    for (int i = 0; i < len; i++) b = kc_inject(b, (kt_elem)(intptr_t)(((long)i+1)<<3));
     return b;
 }
 
@@ -69,8 +70,8 @@ int main(int argc, char** argv) {
     t0 = now();
     { kc_cadeque d = kc_empty();
       for (long i = 0; i < N; i++) {
-          d = kc_push((kt_elem)(intptr_t)i, d);
-          d = kc_push((kt_elem)(intptr_t)i, d);
+          d = kc_push((kt_elem)(intptr_t)((long)i<<3), d);
+          d = kc_push((kt_elem)(intptr_t)((long)i<<3), d);
           kt_elem e; int ok; d = kc_pop(d, &e, &ok); sink += (intptr_t)e;
       } }
     t1 = now();

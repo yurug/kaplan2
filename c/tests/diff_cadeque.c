@@ -46,8 +46,8 @@ int main(int argc, char** argv) {
         int op = (int)(xnext() % 5);
         int i  = (int)(xnext() % (uint64_t)K);
         switch (op) {
-            case 0: slot[i] = kc_push((kt_elem)(intptr_t)(ctr++), slot[i]); break;
-            case 1: slot[i] = kc_inject(slot[i], (kt_elem)(intptr_t)(ctr++)); break;
+            case 0: slot[i] = kc_push((kt_elem)(intptr_t)((ctr++)<<3), slot[i]); break;
+            case 1: slot[i] = kc_inject(slot[i], (kt_elem)(intptr_t)((ctr++)<<3)); break;
             case 2: { kt_elem e; int ok; slot[i] = kc_pop(slot[i], &e, &ok); break; }
             case 3: { kt_elem e; int ok; slot[i] = kc_eject(slot[i], &e, &ok); break; }
             case 4: {
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
             kt_elem e; int ok;
             d = kc_pop(d, &e, &ok);
             if (!ok) break;
-            printf(" %ld", (long)(intptr_t)e);
+            printf(" %ld", (long)(intptr_t)e >> 3);  /* unshift: §6 elems are 8-aligned */
             total++;
         }
         printf("\n");

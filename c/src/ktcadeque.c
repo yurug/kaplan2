@@ -5,14 +5,14 @@
  * Mirrors rocq/KTDeque/Catenable/FlatChain.v + FlatOps.v branch for
  * branch.  Naming map (Rocq -> C):
  *
- *   fstored        -> kc_stored   (FGround/FSmall/FBig = SK_GROUND/SMALL/BIG)
+ *   fstored        -> kc_sh handle (ground unboxed; small/big boxed)   (FGround/FSmall/FBig = SK_GROUND/SMALL/BIG)
  *   fnode          -> kc_node     (FNode k pre suf)
  *   fbody          -> kc_body     (FHole = NULL; FBSingle/FBPairY/FBPairO)
  *   fchain         -> kc_chain    (FEmpty/FFlat/FSingle/FPair)
  *   buffer (Buf5)  -> kc_buf      (size-tracked §4 deque, = OCaml Fastbuf)
  *
  * The §6 prefix/suffix buffers are §4 deques (ktdeque.h) storing
- * kc_stored* handles, exactly as the extracted OCaml artifact's buffers
+ * kc_sh handles, exactly as the extracted OCaml artifact's buffers
  * are the verified §4 chain (ocaml/extracted/fastbuf.ml).
  *
  * Allocation: spine nodes and stored cells use malloc for now; the
@@ -59,7 +59,7 @@ static void*  kc_alloc(size_t sz) {
  * ====================================================================== */
 
 typedef struct {
-    kt_deque d;   /* §4 deque of kc_stored* handles */
+    kt_deque d;   /* §4 deque of kc_sh handles */
     uint32_t n;   /* element count (O(1)) */
 } kc_buf;
 
@@ -130,37 +130,49 @@ static kc_buf cbuf_append(kc_buf a, kc_buf b) {
 }
 
 /* ====================================================================== *
- * Stored cells (kc_stored): the uniform 2-word box.                       *
- *   SK_GROUND a       -> a user element                                   *
- *   SK_SMALL  b       -> one §6 buffer of stored cells                    *
- *   SK_BIG    p c q   -> buffer, chain, buffer                            *
+ * Stored cells: a tagged handle [kc_sh] (the §6 analogue of the OCaml      *
+ * Sraw zero-box carrier).                                                  *
+ *   ground a   -> the user element ITSELF, unboxed (no allocation)         *
+ *   small  b   -> a malloc'd kc_box, tagged in bit 63                      *
+ *   big  p c q -> a malloc'd kc_box, tagged in bit 63                      *
+ *                                                                          *
+ * Ground is the common, hot case (every pushed element); it carries no box *
+ * and no per-element malloc.  The "boxed" tag rides in bit 63 — NOT the    *
+ * low bits — so it survives the §4 buffer's slot-0 size tag (which masks   *
+ * the low 3 bits).  User elements must be canonical low-half pointers /    *
+ * 8-aligned scalars (the same contract as the §4 deque), so bit 63 is free.*
  * ====================================================================== */
 
 typedef struct kc_chain kc_chain;   /* forward */
 
-enum { SK_GROUND = 0, SK_SMALL = 1, SK_BIG = 2 };
+enum { SK_SMALL = 1, SK_BIG = 2 };  /* box kinds (ground is never boxed) */
 
-typedef struct kc_stored {
-    uint8_t kind;
+typedef struct kc_box {
+    uint8_t kind;                       /* SK_SMALL | SK_BIG */
     union {
-        kt_elem ground;
         kc_buf  small;
         struct { kc_buf p; kc_chain* c; kc_buf q; } big;
     } u;
-} kc_stored;
+} kc_box;
 
-static kc_stored* mk_ground(kt_elem a) {
-    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
-    s->kind = SK_GROUND; s->u.ground = a; return s;
+typedef void* kc_sh;   /* stored handle: ground element, or box | bit 63 */
+
+#define KC_BOXBIT  ((uintptr_t)1 << 63)
+#define sh_is_ground(h)  (((uintptr_t)(h) & KC_BOXBIT) == 0)
+#define sh_ground(h)     ((kt_elem)(h))
+#define sh_box(h)        ((kc_box*)((uintptr_t)(h) & ~KC_BOXBIT))
+#define sh_kind(h)       (sh_box(h)->kind)
+
+static inline kc_sh mk_ground(kt_elem a) { return (kc_sh)a; }  /* no malloc */
+static kc_sh mk_small(kc_buf b) {
+    kc_box* s = (kc_box*)KC_MALLOC(sizeof(kc_box));
+    s->kind = SK_SMALL; s->u.small = b;
+    return (kc_sh)((uintptr_t)s | KC_BOXBIT);
 }
-static kc_stored* mk_small(kc_buf b) {
-    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
-    s->kind = SK_SMALL; s->u.small = b; return s;
-}
-static kc_stored* mk_big(kc_buf p, kc_chain* c, kc_buf q) {
-    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
+static kc_sh mk_big(kc_buf p, kc_chain* c, kc_buf q) {
+    kc_box* s = (kc_box*)KC_MALLOC(sizeof(kc_box));
     s->kind = SK_BIG; s->u.big.p = p; s->u.big.c = c; s->u.big.q = q;
-    return s;
+    return (kc_sh)((uintptr_t)s | KC_BOXBIT);
 }
 
 /* ====================================================================== *
@@ -360,19 +372,19 @@ static kc_chain* tree_of_x(kc_node n, kc_chain* child) {
  * Push / inject.                                                          *
  * ====================================================================== */
 
-static kc_node node_push_x(kc_stored* s, kc_node n) {
+static kc_node node_push_x(kc_sh s, kc_node n) {
     if (cbuf_is_empty(n.pre))
         return node_make(n.k, n.pre, cbuf_push(s, n.suf));
     return node_make(n.k, cbuf_push(s, n.pre), n.suf);
 }
-static kc_node node_inject_x(kc_node n, kc_stored* s) {
+static kc_node node_inject_x(kc_node n, kc_sh s) {
     if (cbuf_is_empty(n.suf))
         return node_make(n.k, cbuf_inject(n.pre, s), n.suf);
     return node_make(n.k, n.pre, cbuf_inject(n.suf, s));
 }
 
 /* upd kind: 0 = push s ; 1 = inject s.  (No closures in C.) */
-typedef struct { int op; kc_stored* s; } updspec;
+typedef struct { int op; kc_sh s; } updspec;
 static kc_node upd_apply(updspec u, kc_node n) {
     return u.op == 0 ? node_push_x(u.s, n) : node_inject_x(n, u.s);
 }
@@ -431,7 +443,7 @@ static kc_chain* upd_single_x(updspec u, kc_body* b, kc_node n,
     }
 }
 
-static kc_chain* push_chain_x(kc_stored* s, kc_chain* c) {
+static kc_chain* push_chain_x(kc_sh s, kc_chain* c) {
     if (c == NULL)  /* FEmpty */
         return chain_flat(CK_ONLY, cbuf_b1(s), cbuf_empty(), NULL);
     if (c->tag == CC_PAIR)
@@ -444,7 +456,7 @@ static kc_chain* push_chain_x(kc_stored* s, kc_chain* c) {
     return upd_single_x(u, c->u.cell.body, c->u.cell.node, c->u.cell.rest);
 }
 
-static kc_chain* inject_chain_x(kc_chain* c, kc_stored* s) {
+static kc_chain* inject_chain_x(kc_chain* c, kc_sh s) {
     if (c == NULL)
         return chain_flat(CK_ONLY, cbuf_empty(), cbuf_b1(s), NULL);
     if (c->tag == CC_PAIR)
@@ -581,7 +593,7 @@ static kc_chain* fold_push(kc_chain* e, kc_buf p) {
     kc_chain* acc = e;
     kc_buf rest = p; void* x;
     while (cbuf_eject(rest, &rest, &x))
-        acc = push_chain_x((kc_stored*)x, acc);
+        acc = push_chain_x((kc_sh)x, acc);
     return acc;
 }
 /* bfold_left inject_chain_x s d : inject each element of s onto d (leftmost
@@ -590,7 +602,7 @@ static kc_chain* fold_inject(kc_buf s, kc_chain* d) {
     kc_chain* acc = d;
     kc_buf rest = s; void* x;
     while (cbuf_pop(rest, &x, &rest))
-        acc = inject_chain_x(acc, (kc_stored*)x);
+        acc = inject_chain_x(acc, (kc_sh)x);
     return acc;
 }
 
@@ -671,24 +683,24 @@ static kc_chain* cad_concat_x(kc_chain* d, kc_chain* e) {
  * ====================================================================== */
 
 /* node_pop_x: pop from pre, else suf.  1 + (cell, node') / 0. */
-static int node_pop_x(kc_node n, kc_stored** cell, kc_node* out) {
+static int node_pop_x(kc_node n, kc_sh* cell, kc_node* out) {
     void* x; kc_buf rest;
     if (cbuf_pop(n.pre, &x, &rest)) {
-        *cell = (kc_stored*)x; *out = node_make(n.k, rest, n.suf); return 1;
+        *cell = (kc_sh)x; *out = node_make(n.k, rest, n.suf); return 1;
     }
     if (cbuf_pop(n.suf, &x, &rest)) {
-        *cell = (kc_stored*)x; *out = node_make(n.k, n.pre, rest); return 1;
+        *cell = (kc_sh)x; *out = node_make(n.k, n.pre, rest); return 1;
     }
     return 0;
 }
 /* node_eject_x: eject from suf, else pre (then suffix becomes empty). */
-static int node_eject_x(kc_node n, kc_node* out, kc_stored** cell) {
+static int node_eject_x(kc_node n, kc_node* out, kc_sh* cell) {
     void* x; kc_buf rest;
     if (cbuf_eject(n.suf, &rest, &x)) {
-        *out = node_make(n.k, n.pre, rest); *cell = (kc_stored*)x; return 1;
+        *out = node_make(n.k, n.pre, rest); *cell = (kc_sh)x; return 1;
     }
     if (cbuf_eject(n.pre, &rest, &x)) {
-        *out = node_make(n.k, rest, cbuf_empty()); *cell = (kc_stored*)x;
+        *out = node_make(n.k, rest, cbuf_empty()); *cell = (kc_sh)x;
         return 1;
     }
     return 0;
@@ -718,7 +730,7 @@ static int is_degenerate(kc_chain* c, kc_buf* lp, kc_buf* ls) {
 /* forward */
 static kc_chain* cad_concat_internal(kc_chain* d, kc_chain* e);
 
-static int pop_raw_x(kc_chain* c, kc_stored** cell, kc_chain** out) {
+static int pop_raw_x(kc_chain* c, kc_sh* cell, kc_chain** out) {
     if (c == NULL) return 0;
     if (c->tag == CC_CELL) {
         kc_node n0; kc_chain* child;
@@ -748,7 +760,7 @@ static int pop_raw_x(kc_chain* c, kc_stored** cell, kc_chain** out) {
     return 1;
 }
 
-static int eject_raw_x(kc_chain* c, kc_chain** out, kc_stored** cell) {
+static int eject_raw_x(kc_chain* c, kc_chain** out, kc_sh* cell) {
     if (c == NULL) return 0;
     if (c->tag == CC_CELL) {
         kc_node n0; kc_chain* child;
@@ -780,35 +792,35 @@ static int eject_raw_x(kc_chain* c, kc_chain** out, kc_stored** cell) {
 
 static kc_chain* repair_front_x(uint8_t k, kc_body* body, kc_buf p1, kc_buf s1,
                                 kc_chain* rest) {
-    kc_stored* cell; kc_chain* d1p;
+    kc_sh cell; kc_chain* d1p;
     if (!pop_raw_x(rest, &cell, &d1p)) return KC_NONE;
-    if (cell->kind == SK_SMALL)
+    if ((!sh_is_ground(cell) && sh_kind(cell) == SK_SMALL))
         return chain_single(body,
-                   node_make(k, cbuf_append(p1, cell->u.small), s1), d1p);
-    if (cell->kind == SK_BIG) {
-        kc_chain* d3 = cad_concat_internal(cell->u.big.c,
-                           push_chain_x(mk_small(cell->u.big.q), d1p));
+                   node_make(k, cbuf_append(p1, sh_box(cell)->u.small), s1), d1p);
+    if ((!sh_is_ground(cell) && sh_kind(cell) == SK_BIG)) {
+        kc_chain* d3 = cad_concat_internal(sh_box(cell)->u.big.c,
+                           push_chain_x(mk_small(sh_box(cell)->u.big.q), d1p));
         if (d3 == KC_NONE) return KC_NONE;
         return chain_single(body,
-                   node_make(k, cbuf_append(p1, cell->u.big.p), s1), d3);
+                   node_make(k, cbuf_append(p1, sh_box(cell)->u.big.p), s1), d3);
     }
     return KC_NONE;  /* ground: cell_case_struct's None arm */
 }
 
 static kc_chain* repair_back_x(uint8_t k, kc_body* body, kc_buf p1, kc_buf s1,
                                kc_chain* rest) {
-    kc_stored* cell; kc_chain* d1p;
+    kc_sh cell; kc_chain* d1p;
     if (!eject_raw_x(rest, &d1p, &cell)) return KC_NONE;
-    if (cell->kind == SK_SMALL)
+    if ((!sh_is_ground(cell) && sh_kind(cell) == SK_SMALL))
         return chain_single(body,
-                   node_make(k, p1, cbuf_append(cell->u.small, s1)), d1p);
-    if (cell->kind == SK_BIG) {
+                   node_make(k, p1, cbuf_append(sh_box(cell)->u.small, s1)), d1p);
+    if ((!sh_is_ground(cell) && sh_kind(cell) == SK_BIG)) {
         kc_chain* d3 = cad_concat_internal(
-                           inject_chain_x(d1p, mk_small(cell->u.big.p)),
-                           cell->u.big.c);
+                           inject_chain_x(d1p, mk_small(sh_box(cell)->u.big.p)),
+                           sh_box(cell)->u.big.c);
         if (d3 == KC_NONE) return KC_NONE;
         return chain_single(body,
-                   node_make(k, p1, cbuf_append(cell->u.big.q, s1)), d3);
+                   node_make(k, p1, cbuf_append(sh_box(cell)->u.big.q, s1)), d3);
     }
     return KC_NONE;
 }
@@ -816,9 +828,9 @@ static kc_chain* repair_back_x(uint8_t k, kc_body* body, kc_buf p1, kc_buf s1,
 /* drain_both result: ok=0 means the whole option is None. */
 typedef struct {
     int ok;
-    kc_stored* cellF;
+    kc_sh cellF;
     int has_back;
-    kc_stored* cellB;
+    kc_sh cellB;
     kc_chain* mid;
 } drain_res;
 
@@ -826,7 +838,7 @@ static drain_res drain_both_x(kc_chain* rest) {
     drain_res R = { 0, NULL, 0, NULL, NULL };
     if (rest == NULL) return R;
     if (rest->tag == CC_PAIR) {
-        kc_stored *cellF, *cellB; kc_chain *lp, *rp;
+        kc_sh cellF, cellB; kc_chain *lp, *rp;
         if (!pop_raw_x(rest->u.pair.left, &cellF, &lp)) return R;
         if (!eject_raw_x(rest->u.pair.right, &rp, &cellB)) return R;
         R.ok = 1; R.cellF = cellF; R.has_back = 1; R.cellB = cellB;
@@ -865,9 +877,9 @@ static drain_res drain_both_x(kc_chain* rest) {
     kc_body* b; kc_node n; kc_chain* r0;
     if (!fcell(rest, &b, &n, &r0)) return R;
     kc_node n0; kc_chain* dd = root_and_child_x(b, n, r0, &n0);
-    kc_stored* cellF; kc_node n1;
+    kc_sh cellF; kc_node n1;
     if (!node_pop_x(n0, &cellF, &n1)) return R;
-    kc_node n2; kc_stored* cellB;
+    kc_node n2; kc_sh cellB;
     if (node_eject_x(n1, &n2, &cellB)) {
         R.ok = 1; R.cellF = cellF; R.has_back = 1; R.cellB = cellB;
         R.mid = (dd == NULL) ? rebuild_childless_x(n2) : tree_of_x(n2, dd);
@@ -885,40 +897,40 @@ static kc_chain* repair_both_x(kc_body* body, kc_buf p1, kc_buf s1,
     drain_res R = drain_both_x(rest);
     if (!R.ok) return KC_NONE;
     if (!R.has_back) {
-        kc_stored* cF = R.cellF;
-        if (cF->kind == SK_SMALL)
+        kc_sh cF = R.cellF;
+        if ((!sh_is_ground(cF) && sh_kind(cF) == SK_SMALL))
             return chain_single(body,
-                node_make(CK_ONLY, cbuf_append(p1, cF->u.small), s1), NULL);
-        if (cF->kind == SK_BIG)
+                node_make(CK_ONLY, cbuf_append(p1, sh_box(cF)->u.small), s1), NULL);
+        if ((!sh_is_ground(cF) && sh_kind(cF) == SK_BIG))
             return chain_single(body,
-                node_make(CK_ONLY, cbuf_append(p1, cF->u.big.p),
-                          cbuf_append(cF->u.big.q, s1)), cF->u.big.c);
+                node_make(CK_ONLY, cbuf_append(p1, sh_box(cF)->u.big.p),
+                          cbuf_append(sh_box(cF)->u.big.q, s1)), sh_box(cF)->u.big.c);
         return KC_NONE;
     }
     /* front (pf, d4) from cellF */
     kc_buf pf; kc_chain* d4;
-    kc_stored* cF = R.cellF;
-    if (cF->kind == SK_SMALL) { pf = cF->u.small; d4 = R.mid; }
-    else if (cF->kind == SK_BIG) {
-        kc_chain* tmp = cad_concat_internal(cF->u.big.c,
-                            push_chain_x(mk_small(cF->u.big.q), R.mid));
+    kc_sh cF = R.cellF;
+    if ((!sh_is_ground(cF) && sh_kind(cF) == SK_SMALL)) { pf = sh_box(cF)->u.small; d4 = R.mid; }
+    else if ((!sh_is_ground(cF) && sh_kind(cF) == SK_BIG)) {
+        kc_chain* tmp = cad_concat_internal(sh_box(cF)->u.big.c,
+                            push_chain_x(mk_small(sh_box(cF)->u.big.q), R.mid));
         if (tmp == KC_NONE) return KC_NONE;
-        pf = cF->u.big.p; d4 = tmp;
+        pf = sh_box(cF)->u.big.p; d4 = tmp;
     } else return KC_NONE;
     /* back from cellB */
-    kc_stored* cB = R.cellB;
-    if (cB->kind == SK_SMALL)
+    kc_sh cB = R.cellB;
+    if ((!sh_is_ground(cB) && sh_kind(cB) == SK_SMALL))
         return chain_single(body,
             node_make(CK_ONLY, cbuf_append(p1, pf),
-                      cbuf_append(cB->u.small, s1)), d4);
-    if (cB->kind == SK_BIG) {
+                      cbuf_append(sh_box(cB)->u.small, s1)), d4);
+    if ((!sh_is_ground(cB) && sh_kind(cB) == SK_BIG)) {
         kc_chain* d5 = cad_concat_internal(
-                           inject_chain_x(d4, mk_small(cB->u.big.p)),
-                           cB->u.big.c);
+                           inject_chain_x(d4, mk_small(sh_box(cB)->u.big.p)),
+                           sh_box(cB)->u.big.c);
         if (d5 == KC_NONE) return KC_NONE;
         return chain_single(body,
             node_make(CK_ONLY, cbuf_append(p1, pf),
-                      cbuf_append(cB->u.big.q, s1)), d5);
+                      cbuf_append(sh_box(cB)->u.big.q, s1)), d5);
     }
     return KC_NONE;
 }
@@ -997,21 +1009,21 @@ static int cad_pop_x(kc_chain* d, kt_elem* out_x, kc_chain** out) {
         if (d->u.cell.body == NULL) { n0 = d->u.cell.node; child = d->u.cell.rest; }
         else child = root_and_child_x(d->u.cell.body, d->u.cell.node,
                                       d->u.cell.rest, &n0);
-        kc_stored* cell; kc_node n2;
+        kc_sh cell; kc_node n2;
         if (!node_pop_x(n0, &cell, &n2)) return 0;
-        if (cell->kind != SK_GROUND) return 0;
-        *out_x = cell->u.ground;
+        if (!sh_is_ground(cell)) return 0;
+        *out_x = sh_ground(cell);
         if (child == NULL) { *out = rebuild_childless_x(n2); return 1; }
         kc_chain* dd = tree_repair_x(n2, child);
         if (dd == KC_NONE) return 0;
         *out = dd; return 1;
     }
-    kc_stored* cell; kc_chain* dp;
+    kc_sh cell; kc_chain* dp;
     if (!pop_raw_x(d, &cell, &dp)) return 0;
-    if (cell->kind != SK_GROUND) return 0;
+    if (!sh_is_ground(cell)) return 0;
     kc_chain* dd = repair_pop_side_x(dp);
     if (dd == KC_NONE) return 0;
-    *out_x = cell->u.ground; *out = dd; return 1;
+    *out_x = sh_ground(cell); *out = dd; return 1;
 }
 
 static int cad_eject_x(kc_chain* d, kc_chain** out, kt_elem* out_x) {
@@ -1021,20 +1033,20 @@ static int cad_eject_x(kc_chain* d, kc_chain** out, kt_elem* out_x) {
         if (d->u.cell.body == NULL) { n0 = d->u.cell.node; child = d->u.cell.rest; }
         else child = root_and_child_x(d->u.cell.body, d->u.cell.node,
                                       d->u.cell.rest, &n0);
-        kc_node n2; kc_stored* cell;
+        kc_node n2; kc_sh cell;
         if (!node_eject_x(n0, &n2, &cell)) return 0;
-        if (cell->kind != SK_GROUND) return 0;
-        if (child == NULL) { *out = rebuild_childless_x(n2); *out_x = cell->u.ground; return 1; }
+        if (!sh_is_ground(cell)) return 0;
+        if (child == NULL) { *out = rebuild_childless_x(n2); *out_x = sh_ground(cell); return 1; }
         kc_chain* dd = tree_repair_x(n2, child);
         if (dd == KC_NONE) return 0;
-        *out = dd; *out_x = cell->u.ground; return 1;
+        *out = dd; *out_x = sh_ground(cell); return 1;
     }
-    kc_chain* dp; kc_stored* cell;
+    kc_chain* dp; kc_sh cell;
     if (!eject_raw_x(d, &dp, &cell)) return 0;
-    if (cell->kind != SK_GROUND) return 0;
+    if (!sh_is_ground(cell)) return 0;
     kc_chain* dd = repair_eject_side_x(dp);
     if (dd == KC_NONE) return 0;
-    *out = dd; *out_x = cell->u.ground; return 1;
+    *out = dd; *out_x = sh_ground(cell); return 1;
 }
 
 /* ====================================================================== *
@@ -1048,24 +1060,24 @@ static int cad_eject_x(kc_chain* d, kc_chain** out, kt_elem* out_x) {
 
 typedef struct { kc_walk_cb cb; void* ctx; } walk_env;
 
-static void stored_emit(kc_stored* s, walk_env* w);
+static void stored_emit(kc_sh s, walk_env* w);
 static void chain_emit(kc_chain* c, walk_env* w);
 
 /* emit every stored cell of a buffer, front to back */
 static void buf_emit(kc_buf b, walk_env* w) {
-    /* walk the §4 deque in order; each element is a kc_stored* */
+    /* walk the §4 deque in order; each element is a kc_sh */
     void* x; kc_buf rest = b;
-    while (cbuf_pop(rest, &x, &rest)) stored_emit((kc_stored*)x, w);
+    while (cbuf_pop(rest, &x, &rest)) stored_emit((kc_sh)x, w);
 }
 
-static void stored_emit(kc_stored* s, walk_env* w) {
-    switch (s->kind) {
-        case SK_GROUND: w->cb(s->u.ground, w->ctx); break;
-        case SK_SMALL:  buf_emit(s->u.small, w); break;
+static void stored_emit(kc_sh s, walk_env* w) {
+    if (sh_is_ground(s)) { w->cb(sh_ground(s), w->ctx); return; }
+    switch (sh_kind(s)) {
+        case SK_SMALL:  buf_emit(sh_box(s)->u.small, w); break;
         case SK_BIG:
-            buf_emit(s->u.big.p, w);
-            chain_emit(s->u.big.c, w);
-            buf_emit(s->u.big.q, w);
+            buf_emit(sh_box(s)->u.big.p, w);
+            chain_emit(sh_box(s)->u.big.c, w);
+            buf_emit(sh_box(s)->u.big.q, w);
             break;
         default: assert(0);
     }
@@ -1190,15 +1202,15 @@ static void collect_chain(kc_chain* c, fldvec* v);
 static void collect_buf(kc_buf* b, fldvec* v);
 
 static void collect_stored_cb(kt_elem e, void* ctx) {
-    kc_stored* s = (kc_stored*)e;
+    kc_sh s = (kc_sh)e;
     fldvec* v = (fldvec*)ctx;
-    switch (s->kind) {
-        case SK_GROUND: break;
-        case SK_SMALL: collect_buf(&s->u.small, v); break;
+    if (sh_is_ground(s)) return;
+    switch (sh_kind(s)) {
+        case SK_SMALL: collect_buf(&sh_box(s)->u.small, v); break;
         case SK_BIG:
-            collect_buf(&s->u.big.p, v);
-            collect_chain(s->u.big.c, v);
-            collect_buf(&s->u.big.q, v);
+            collect_buf(&sh_box(s)->u.big.p, v);
+            collect_chain(sh_box(s)->u.big.c, v);
+            collect_buf(&sh_box(s)->u.big.q, v);
             break;
         default: assert(0);
     }
@@ -1270,7 +1282,7 @@ static void vpush(vec* v, long x) {
         v->a = realloc(v->a, v->cap*sizeof(long)); }
     v->a[v->n++] = x;
 }
-static void collect_cb(kt_elem e, void* ctx) { vpush((vec*)ctx, (long)(intptr_t)e); }
+static void collect_cb(kt_elem e, void* ctx) { vpush((vec*)ctx, ((long)(intptr_t)e>>3)); }
 #endif  /* shared smoke helpers */
 
 #ifdef KC_PHASE2_SMOKE
@@ -1299,13 +1311,13 @@ int main(void) {
     int fails = 0;
     /* push 1..20 -> [20,19,...,1] */
     kc_cadeque d = kc_empty();
-    for (int i = 1; i <= 20; i++) d = kc_push((kt_elem)(intptr_t)i, d);
+    for (int i = 1; i <= 20; i++) d = kc_push((kt_elem)(intptr_t)((long)i<<3), d);
     long exp1[20]; for (int i=0;i<20;i++) exp1[i] = 20-i;
     fails += !check("push 1..20", d, exp1, 20);
 
     /* inject 1..20 -> [1,2,...,20] */
     kc_cadeque e = kc_empty();
-    for (int i = 1; i <= 20; i++) e = kc_inject(e, (kt_elem)(intptr_t)i);
+    for (int i = 1; i <= 20; i++) e = kc_inject(e, (kt_elem)(intptr_t)((long)i<<3));
     long exp2[20]; for (int i=0;i<20;i++) exp2[i] = i+1;
     fails += !check("inject 1..20", e, exp2, 20);
 
@@ -1323,7 +1335,7 @@ int main(void) {
         kc_cadeque b = kc_empty();
         for (int i = 0; i < 64; i++) {
             long v = blk*64 + i;
-            b = kc_inject(b, (kt_elem)(intptr_t)v);
+            b = kc_inject(b, (kt_elem)(intptr_t)((long)v<<3));
             expf[fn++] = v;
         }
         acc = kc_concat(acc, b);
@@ -1379,13 +1391,13 @@ int main(int argc, char** argv) {
     dq o = dq_new();
     for (long i=0;i<N;i++){
         int op = xnext()%4;
-        if (op==0){ long x=ctr++; c=kc_push((kt_elem)(intptr_t)x,c); dq_push(&o,x); }
-        else if (op==1){ long x=ctr++; c=kc_inject(c,(kt_elem)(intptr_t)x); dq_inject(&o,x); }
+        if (op==0){ long x=ctr++; c=kc_push((kt_elem)(intptr_t)((long)x<<3),c); dq_push(&o,x); }
+        else if (op==1){ long x=ctr++; c=kc_inject(c,(kt_elem)(intptr_t)((long)x<<3)); dq_inject(&o,x); }
         else if (op==2){ kt_elem e;int ok; c=kc_pop(c,&e,&ok);
-            if (o.lo<o.hi){ assert(ok && (long)(intptr_t)e==o.a[o.lo]); o.lo++; }
+            if (o.lo<o.hi){ assert(ok && ((long)(intptr_t)e>>3)==o.a[o.lo]); o.lo++; }
             else assert(!ok); }
         else { kt_elem e;int ok; c=kc_eject(c,&e,&ok);
-            if (o.lo<o.hi){ assert(ok && (long)(intptr_t)e==o.a[o.hi-1]); o.hi--; }
+            if (o.lo<o.hi){ assert(ok && ((long)(intptr_t)e>>3)==o.a[o.hi-1]); o.hi--; }
             else assert(!ok); }
     }
     int ok1 = cmp_seq(c, &o, "mixed-final");
@@ -1398,9 +1410,9 @@ int main(int argc, char** argv) {
         int blen = 1 + (int)(xnext()%40);
         kc_cadeque b = kc_empty();
         for (int i=0;i<blen;i++){ long x=ctr++;
-            if (xnext()&1){ b=kc_push((kt_elem)(intptr_t)x,b);
+            if (xnext()&1){ b=kc_push((kt_elem)(intptr_t)((long)x<<3),b);
                 /* prepend to a temp then... easier: track via temp deque */ }
-            else b=kc_inject(b,(kt_elem)(intptr_t)x);
+            else b=kc_inject(b,(kt_elem)(intptr_t)((long)x<<3));
         }
         /* recompute block's true sequence by walking b */
         vec bv={0,0,0}; kc_walk(b, collect_cb, &bv);
@@ -1420,9 +1432,9 @@ int main(int argc, char** argv) {
     while (acc != NULL) {
         kt_elem e; int ok;
         if (xnext()&1){ acc=kc_pop(acc,&e,&ok);
-            if(!(ok && (long)(intptr_t)e==oa.a[oa.lo])){ok3=0;break;} oa.lo++; }
+            if(!(ok && ((long)(intptr_t)e>>3)==oa.a[oa.lo])){ok3=0;break;} oa.lo++; }
         else { acc=kc_eject(acc,&e,&ok);
-            if(!(ok && (long)(intptr_t)e==oa.a[oa.hi-1])){ok3=0;break;} oa.hi--; }
+            if(!(ok && ((long)(intptr_t)e>>3)==oa.a[oa.hi-1])){ok3=0;break;} oa.hi--; }
         if (++guard > 1000000) { ok3=0; break; }
     }
     if (oa.lo!=oa.hi) ok3=0;

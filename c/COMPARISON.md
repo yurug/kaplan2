@@ -157,15 +157,15 @@ from `bench/results/cadeque-compare-*.md`):
 
 | Workload    | **C (§6)** | KTf OCaml | Viennot OCaml |
 |-------------|-----------:|----------:|--------------:|
-| push        |    **251** |     89    |      96       |
-| inject      |    **252** |     89    |      97       |
-| pop drain   |    **209** |     61    |      78       |
-| eject drain |    **211** |     59    |      75       |
-| mixed       |    **154** |     46    |      76       |
+| push        |    **217** |     89    |      96       |
+| inject      |    **213** |     89    |      97       |
+| pop drain   |    **206** |     61    |      78       |
+| eject drain |    **207** |     59    |      75       |
+| mixed       |    **130** |     46    |      76       |
 | concat-fold |    **308** |    146    |    1174       |
-| concat-tree |   **1437** |   1425    |    3166       |
-| interleave  |    **526** |     91    |     277       |
-| fork        |    **247** |     42    |      67       |
+| concat-tree |   **1443** |   1425    |    3166       |
+| interleave  |    **456** |     91    |     277       |
+| fork        |    **248** |     42    |      67       |
 
 Reading the numbers honestly:
 
@@ -173,13 +173,27 @@ Reading the numbers honestly:
   (308) and concat-tree (1437) match the tuned OCaml KTf and **beat
   Viennot by 2–4×** — the §6 catenation is genuinely worst-case O(1)
   with a small constant.
-- **Per-element ops are ~3× behind** (push/pop/inject/eject/fork).  The
+- **Per-element ops are ~2–2.8× behind** (push/pop/inject/eject/fork).  The
   cause is *not* the algorithm and *not* the spine `malloc` (a bump
   arena via `-DKC_BUMP` recovers only ~18%): it is that the §6 layer
   rides the §4 deque's *untuned* allocation path, with none of the
   bump-arena + Cheney-compaction tuning that makes the standalone §4 C
   deque 1.5–2.9× *faster* than Viennot.  The §4 numbers above show that
   compaction is a 4–5× swing; the §6 layer does not yet get it.
+### Optimization: unboxed ground cells
+
+Stored cells use a tagged handle (the §6 analogue of the OCaml `Sraw`
+zero-box carrier): a ground element is stored **unboxed — the element
+itself, with no per-element allocation** — while the rarer `small`/`big`
+cells are heap boxes tagged in bit&nbsp;63 (which survives the §4
+buffer's low-3-bit size tag).  This removed one `malloc` per pushed
+element and ~14% of retained bytes/element (462&nbsp;→&nbsp;398&nbsp;B/elt),
+buying ~15–20% on the per-element and mixed workloads (push
+255&nbsp;→&nbsp;217, mixed 152&nbsp;→&nbsp;130&nbsp;ns/op).  It tightens
+the §6 element contract to match the §4 deque's: **stored elements must
+be 8-byte aligned** (low 3 bits zero) — already the documented contract
+in `ktcadeque.h`.
+
 ### Compaction (`kc_arena_compact`)
 
 The §6 prefix/suffix buffers are §4 deques in a bump arena that is never
@@ -204,14 +218,18 @@ that per-element-heavy regime is better served by the §4 deque
 (`ktdeque.h`), which is fast; the §6 layer earns its keep on the
 concat-heavy workloads, where it is already competitive.
 
-- **Remaining gap / future work**: the per-element microbench ops stay
-  ~3× behind because (a) the §6 spine nodes and stored boxes are
-  `malloc`'d (O(N), never reclaimed — the `KC_MALLOC`/`KC_BUMP` seam in
-  `ktcadeque.c` is the hook) and (b) the buffer-tracing collection is
-  O(elements).  Fully closing it needs a *unified-arena* §6 collector
-  that holds the spine, the stored cells, and the §4 buffers in one
-  space and relocates them in a single Cheney pass — a larger rewrite
-  than the per-buffer compaction above.
+- **Remaining gap / future work**: after unboxing, the dominant retained
+  cost is the §4 buffer arena (~340&nbsp;B/elt) plus one `malloc`'d
+  `kc_chain` spine node per push.  A profile of pure-push shows ~40% of
+  the time in kernel page-fault / `malloc` handling from the
+  never-reclaimed growth — i.e. the gap to the OCaml artifact is largely
+  that OCaml's GC reclaims dead versions for free while the C arena does
+  not.  Fully closing it needs a *unified-arena* §6 collector (spine +
+  stored cells + §4 buffers in one space, one Cheney pass) so per-element
+  ops reach the §4-compacted regime — a larger rewrite than the
+  per-buffer `kc_arena_compact` above.  In practice, per-element-heavy
+  work should use the §4 deque (`ktdeque.h`); §6 earns its keep on
+  concat-heavy workloads, where it already beats Viennot.
 
 ## How to reproduce
 
