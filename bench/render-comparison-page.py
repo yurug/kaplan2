@@ -142,6 +142,66 @@ for w in order:
 table = "\n".join(trs)
 size_heads = "".join(f"<th>n = {n:,}</th>" for n in NS)
 
+# ---------------------------------------------------------------- C table
+# The §6 catenable C port (c/src/ktcadeque.c) benchmarked by
+# bench/cadeque-c.sh; paired with the OCaml KTf / Viennot columns at the
+# largest size for the same workloads.
+c_cands = sorted(glob.glob("bench/results/cadeque-c-*.md"))
+c_table = ""
+c_meta = {}
+if c_cands:
+    c_text = open(c_cands[-1]).read()
+    for key in ("date", "gcc", "n"):
+        m = re.search(rf"^- {key}: (.+)$", c_text, re.M)
+        c_meta[key] = m.group(1).strip() if m else "?"
+    c_rows = {}
+    for line in c_text.splitlines():
+        m = re.match(r"\| (.+?) \| ([0-9.]+) \|$", line)
+        if m and m.group(1).strip() != "workload":
+            c_rows[m.group(1).strip()] = float(m.group(2))
+    # C label -> (display, OCaml workload name in `rows`)
+    cmap = [
+        ("push n",          "push",         "push n"),
+        ("inject n",        "inject",       "inject n"),
+        ("pop drain",       "pop drain",    "pop all (after push n)"),
+        ("eject drain",     "eject drain",  "eject all (after inject n)"),
+        ("mixed (3n ops)",  "mixed",        "mixed push/push/pop (3n ops)"),
+        ("concat fold",     "concat-fold",  "concat fold (n/64 blocks of 64)"),
+        ("concat tree",     "concat-tree",  "concat tree (n/64 blocks of 64)"),
+        ("interleave",      "interleave",   "concat(8)+pop×4 interleave"),
+        ("persistent fork", "fork",         "persistent fork: n× pop(same d)"),
+    ]
+    def oc(name, impl):
+        try:
+            return f"{float(rows[name][impl][-1]):,.0f}"
+        except Exception:
+            return "—"
+    crs = []
+    for clabel, disp, ocname in cmap:
+        if clabel not in c_rows:
+            continue
+        cval = c_rows[clabel]
+        ktf = oc(ocname, "KTf"); vi = oc(ocname, "Vi")
+        # C vs Viennot ratio (×faster if >1)
+        try:
+            ratio = float(vi.replace(",", "")) / cval
+            rcell = (f'<span style="color:var(--ok-bd);font-weight:700">{ratio:.1f}× faster</span>'
+                     if ratio >= 1.0
+                     else f'<span style="color:var(--bad-bd)">{1/ratio:.1f}× behind</span>')
+        except Exception:
+            rcell = "—"
+        crs.append(
+            f'<tr><td class="wl">{html.escape(disp)}</td>'
+            f'<td class="impl">{cval:,.0f}</td>'
+            f'<td>{ktf}</td><td>{vi}</td><td>{rcell}</td></tr>')
+    c_table = "\n".join(crs)
+
+if not c_table:
+    c_table = '<tr><td colspan="5">(run bench/cadeque-c.sh to populate)</td></tr>'
+c_n = c_meta.get("n", "?").split()[0] if c_meta.get("n") else "10⁶"
+c_date = html.escape(c_meta.get("date", "?"))
+c_gcc = html.escape(c_meta.get("gcc", "?"))
+
 # ---------------------------------------------------------------- page
 
 page = f"""<!DOCTYPE html>
@@ -400,7 +460,21 @@ every operation.
 budget (quadratic regime). Raw dated output:
 <code>{html.escape(src)}</code>.</p>
 
-<h3>3.3 Reading the results honestly</h3>
+<h3>3.3 The C port — n&nbsp;=&nbsp;10⁶ (cross-language)</h3>
+<p>The §6 catenable C port (<code>c/src/ktcadeque.c</code>) on the same workloads,
+median of 3 runs, vs the OCaml columns above.  The C is cross-language so the
+comparison is wall-clock, not same-runtime; the honest split is that
+concat-dominated workloads already match the verified OCaml and beat Viennot,
+while per-element ops are allocation-bound (the §6 buffers ride the §4 deque's
+untuned arena path — see <code>c/COMPARISON.md</code>).</p>
+<table class="results">
+<tr><th>workload</th><th>C (§6)</th><th>KTf OCaml</th><th>Viennot OCaml</th><th>C vs Viennot</th></tr>
+{c_table}
+</table>
+<p class="meta">ns/op, n&nbsp;=&nbsp;{c_n}, median of 3, taskset-pinned · {c_date}
+· {c_gcc}. Regenerate with <code>bench/cadeque-c.sh</code>.</p>
+
+<h3>3.4 Reading the results honestly</h3>
 <div class="win">
 <strong>KTf beats Viennot on all 9 workloads, at every size — 36 cells of 36.</strong>
 At n&nbsp;=&nbsp;10⁶: push 89&nbsp;vs&nbsp;96, inject 89&nbsp;vs&nbsp;97, pop-drain
