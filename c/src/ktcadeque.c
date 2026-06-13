@@ -642,6 +642,379 @@ static kc_chain* cad_concat_x(kc_chain* d, kc_chain* e) {
 }
 
 /* ====================================================================== *
+ * Pop / eject + repair web (mirror FlatOps Phase-3 functions).            *
+ * Cells are the uniform box, so cell_case_ground/cell_case_struct become  *
+ * plain kind inspections.                                                 *
+ * ====================================================================== */
+
+/* node_pop_x: pop from pre, else suf.  1 + (cell, node') / 0. */
+static int node_pop_x(kc_node n, kc_stored** cell, kc_node* out) {
+    void* x; kc_buf rest;
+    if (cbuf_pop(n.pre, &x, &rest)) {
+        *cell = (kc_stored*)x; *out = node_make(n.k, rest, n.suf); return 1;
+    }
+    if (cbuf_pop(n.suf, &x, &rest)) {
+        *cell = (kc_stored*)x; *out = node_make(n.k, n.pre, rest); return 1;
+    }
+    return 0;
+}
+/* node_eject_x: eject from suf, else pre (then suffix becomes empty). */
+static int node_eject_x(kc_node n, kc_node* out, kc_stored** cell) {
+    void* x; kc_buf rest;
+    if (cbuf_eject(n.suf, &rest, &x)) {
+        *out = node_make(n.k, n.pre, rest); *cell = (kc_stored*)x; return 1;
+    }
+    if (cbuf_eject(n.pre, &rest, &x)) {
+        *out = node_make(n.k, rest, cbuf_empty()); *cell = (kc_stored*)x;
+        return 1;
+    }
+    return 0;
+}
+
+static kc_chain* rebuild_childless_x(kc_node n) {
+    if (cbuf_is_empty(n.pre) && cbuf_is_empty(n.suf)) return NULL;  /* FEmpty */
+    if (n.k == CK_ONLY) {
+        if (cbuf_is_empty(n.pre) || cbuf_is_empty(n.suf))
+            return chain_flat(n.k, n.pre, n.suf, NULL);
+        if (cbuf_size(n.pre) < 5 || cbuf_size(n.suf) < 5)
+            return chain_flat(CK_ONLY, cbuf_append(n.pre, n.suf),
+                              cbuf_empty(), NULL);
+        return chain_flat(n.k, n.pre, n.suf, NULL);
+    }
+    return chain_flat(n.k, n.pre, n.suf, NULL);
+}
+
+/* A cell is the degenerate childless-flat shape iff CC_CELL with no body
+ * and empty rest (the smart constructor keeps both Rocq forms here). */
+static int is_degenerate(kc_chain* c, kc_buf* lp, kc_buf* ls) {
+    if (c == NULL || c->tag != CC_CELL) return 0;
+    if (c->u.cell.body != NULL || c->u.cell.rest != NULL) return 0;
+    *lp = c->u.cell.node.pre; *ls = c->u.cell.node.suf; return 1;
+}
+
+/* forward */
+static kc_chain* cad_concat_internal(kc_chain* d, kc_chain* e);
+
+static int pop_raw_x(kc_chain* c, kc_stored** cell, kc_chain** out) {
+    if (c == NULL) return 0;
+    if (c->tag == CC_CELL) {
+        kc_node n0; kc_chain* child;
+        if (c->u.cell.body == NULL) { n0 = c->u.cell.node; child = c->u.cell.rest; }
+        else child = root_and_child_x(c->u.cell.body, c->u.cell.node,
+                                      c->u.cell.rest, &n0);
+        kc_node n2;
+        if (!node_pop_x(n0, cell, &n2)) return 0;
+        *out = (child == NULL) ? rebuild_childless_x(n2) : tree_of_x(n2, child);
+        return 1;
+    }
+    /* CC_PAIR */
+    kc_chain* lp;
+    if (!pop_raw_x(c->u.pair.left, cell, &lp)) return 0;
+    kc_chain* r = c->u.pair.right;
+    kc_buf lpb, lsb;
+    if (lp == NULL) { *out = r; return 1; }
+    if (is_degenerate(lp, &lpb, &lsb) && cbuf_size(lpb) < 5) {
+        kc_body* br; kc_node nr; kc_chain* rr;
+        if (!fcell(r, &br, &nr, &rr)) return 0;
+        kc_node n2; kc_chain* d2 = root_and_child_x(br, nr, rr, &n2);
+        *out = tree_of_x(node_make(CK_ONLY,
+                   cbuf_append(lpb, cbuf_append(lsb, n2.pre)), n2.suf), d2);
+        return 1;
+    }
+    *out = chain_pair(lp, r);
+    return 1;
+}
+
+static int eject_raw_x(kc_chain* c, kc_chain** out, kc_stored** cell) {
+    if (c == NULL) return 0;
+    if (c->tag == CC_CELL) {
+        kc_node n0; kc_chain* child;
+        if (c->u.cell.body == NULL) { n0 = c->u.cell.node; child = c->u.cell.rest; }
+        else child = root_and_child_x(c->u.cell.body, c->u.cell.node,
+                                      c->u.cell.rest, &n0);
+        kc_node n2;
+        if (!node_eject_x(n0, &n2, cell)) return 0;
+        *out = (child == NULL) ? rebuild_childless_x(n2) : tree_of_x(n2, child);
+        return 1;
+    }
+    /* CC_PAIR */
+    kc_chain* rp;
+    if (!eject_raw_x(c->u.pair.right, &rp, cell)) return 0;
+    kc_chain* l = c->u.pair.left;
+    kc_buf rpb, rsb;
+    if (rp == NULL) { *out = l; return 1; }
+    if (is_degenerate(rp, &rpb, &rsb) && cbuf_size(rsb) < 5) {
+        kc_body* bl; kc_node nl; kc_chain* rl;
+        if (!fcell(l, &bl, &nl, &rl)) return 0;
+        kc_node n1; kc_chain* d1 = root_and_child_x(bl, nl, rl, &n1);
+        *out = tree_of_x(node_make(CK_ONLY, n1.pre,
+                   cbuf_append(n1.suf, cbuf_append(rpb, rsb))), d1);
+        return 1;
+    }
+    *out = chain_pair(l, rp);
+    return 1;
+}
+
+static kc_chain* repair_front_x(uint8_t k, kc_body* body, kc_buf p1, kc_buf s1,
+                                kc_chain* rest) {
+    kc_stored* cell; kc_chain* d1p;
+    if (!pop_raw_x(rest, &cell, &d1p)) return KC_NONE;
+    if (cell->kind == SK_SMALL)
+        return chain_single(body,
+                   node_make(k, cbuf_append(p1, cell->u.small), s1), d1p);
+    if (cell->kind == SK_BIG) {
+        kc_chain* d3 = cad_concat_internal(cell->u.big.c,
+                           push_chain_x(mk_small(cell->u.big.q), d1p));
+        if (d3 == KC_NONE) return KC_NONE;
+        return chain_single(body,
+                   node_make(k, cbuf_append(p1, cell->u.big.p), s1), d3);
+    }
+    return KC_NONE;  /* ground: cell_case_struct's None arm */
+}
+
+static kc_chain* repair_back_x(uint8_t k, kc_body* body, kc_buf p1, kc_buf s1,
+                               kc_chain* rest) {
+    kc_stored* cell; kc_chain* d1p;
+    if (!eject_raw_x(rest, &d1p, &cell)) return KC_NONE;
+    if (cell->kind == SK_SMALL)
+        return chain_single(body,
+                   node_make(k, p1, cbuf_append(cell->u.small, s1)), d1p);
+    if (cell->kind == SK_BIG) {
+        kc_chain* d3 = cad_concat_internal(
+                           inject_chain_x(d1p, mk_small(cell->u.big.p)),
+                           cell->u.big.c);
+        if (d3 == KC_NONE) return KC_NONE;
+        return chain_single(body,
+                   node_make(k, p1, cbuf_append(cell->u.big.q, s1)), d3);
+    }
+    return KC_NONE;
+}
+
+/* drain_both result: ok=0 means the whole option is None. */
+typedef struct {
+    int ok;
+    kc_stored* cellF;
+    int has_back;
+    kc_stored* cellB;
+    kc_chain* mid;
+} drain_res;
+
+static drain_res drain_both_x(kc_chain* rest) {
+    drain_res R = { 0, NULL, 0, NULL, NULL };
+    if (rest == NULL) return R;
+    if (rest->tag == CC_PAIR) {
+        kc_stored *cellF, *cellB; kc_chain *lp, *rp;
+        if (!pop_raw_x(rest->u.pair.left, &cellF, &lp)) return R;
+        if (!eject_raw_x(rest->u.pair.right, &rp, &cellB)) return R;
+        R.ok = 1; R.cellF = cellF; R.has_back = 1; R.cellB = cellB;
+        kc_buf lpb, lsb, rpb, rsb;
+        int dl = is_degenerate(lp, &lpb, &lsb);
+        int dr = is_degenerate(rp, &rpb, &rsb);
+        if (dl && dr) {
+            if (cbuf_size(lpb) < 5 || cbuf_size(rsb) < 5)
+                R.mid = chain_flat(CK_ONLY, cbuf_append(lpb, lsb),
+                                   cbuf_append(rpb, rsb), NULL);
+            else R.mid = chain_pair(lp, rp);
+        } else if (dl) {
+            if (cbuf_size(lpb) < 5) {
+                kc_body* br; kc_node nr; kc_chain* rr;
+                if (fcell(rp, &br, &nr, &rr)) {
+                    kc_node n2; kc_chain* d2 = root_and_child_x(br, nr, rr, &n2);
+                    R.mid = tree_of_x(node_make(CK_ONLY,
+                        cbuf_append(lpb, cbuf_append(lsb, n2.pre)), n2.suf), d2);
+                } else R.mid = chain_pair(lp, rp);
+            } else R.mid = chain_pair(lp, rp);
+        } else if (dr) {
+            if (cbuf_size(rsb) < 5) {
+                kc_body* bl; kc_node nl; kc_chain* rl;
+                if (fcell(lp, &bl, &nl, &rl)) {
+                    kc_node n2; kc_chain* d2 = root_and_child_x(bl, nl, rl, &n2);
+                    R.mid = tree_of_x(node_make(CK_ONLY, n2.pre,
+                        cbuf_append(n2.suf, cbuf_append(rpb, rsb))), d2);
+                } else R.mid = chain_pair(lp, rp);
+            } else R.mid = chain_pair(lp, rp);
+        } else {
+            R.mid = chain_pair(lp, rp);
+        }
+        return R;
+    }
+    /* single cell */
+    kc_body* b; kc_node n; kc_chain* r0;
+    if (!fcell(rest, &b, &n, &r0)) return R;
+    kc_node n0; kc_chain* dd = root_and_child_x(b, n, r0, &n0);
+    kc_stored* cellF; kc_node n1;
+    if (!node_pop_x(n0, &cellF, &n1)) return R;
+    kc_node n2; kc_stored* cellB;
+    if (node_eject_x(n1, &n2, &cellB)) {
+        R.ok = 1; R.cellF = cellF; R.has_back = 1; R.cellB = cellB;
+        R.mid = (dd == NULL) ? rebuild_childless_x(n2) : tree_of_x(n2, dd);
+        return R;
+    }
+    if (dd == NULL) {
+        R.ok = 1; R.cellF = cellF; R.has_back = 0; R.cellB = NULL; R.mid = NULL;
+        return R;
+    }
+    return R;  /* None */
+}
+
+static kc_chain* repair_both_x(kc_body* body, kc_buf p1, kc_buf s1,
+                               kc_chain* rest) {
+    drain_res R = drain_both_x(rest);
+    if (!R.ok) return KC_NONE;
+    if (!R.has_back) {
+        kc_stored* cF = R.cellF;
+        if (cF->kind == SK_SMALL)
+            return chain_single(body,
+                node_make(CK_ONLY, cbuf_append(p1, cF->u.small), s1), NULL);
+        if (cF->kind == SK_BIG)
+            return chain_single(body,
+                node_make(CK_ONLY, cbuf_append(p1, cF->u.big.p),
+                          cbuf_append(cF->u.big.q, s1)), cF->u.big.c);
+        return KC_NONE;
+    }
+    /* front (pf, d4) from cellF */
+    kc_buf pf; kc_chain* d4;
+    kc_stored* cF = R.cellF;
+    if (cF->kind == SK_SMALL) { pf = cF->u.small; d4 = R.mid; }
+    else if (cF->kind == SK_BIG) {
+        kc_chain* tmp = cad_concat_internal(cF->u.big.c,
+                            push_chain_x(mk_small(cF->u.big.q), R.mid));
+        if (tmp == KC_NONE) return KC_NONE;
+        pf = cF->u.big.p; d4 = tmp;
+    } else return KC_NONE;
+    /* back from cellB */
+    kc_stored* cB = R.cellB;
+    if (cB->kind == SK_SMALL)
+        return chain_single(body,
+            node_make(CK_ONLY, cbuf_append(p1, pf),
+                      cbuf_append(cB->u.small, s1)), d4);
+    if (cB->kind == SK_BIG) {
+        kc_chain* d5 = cad_concat_internal(
+                           inject_chain_x(d4, mk_small(cB->u.big.p)),
+                           cB->u.big.c);
+        if (d5 == KC_NONE) return KC_NONE;
+        return chain_single(body,
+            node_make(CK_ONLY, cbuf_append(p1, pf),
+                      cbuf_append(cB->u.big.q, s1)), d5);
+    }
+    return KC_NONE;
+}
+
+static kc_chain* repair_packet_x(kc_body* body, kc_node n, kc_chain* rest) {
+    int col = node_color_x(rest != NULL, n);
+    if (col != CR) return chain_single(body, n, rest);
+    if (n.k == CK_LEFT)  return repair_front_x(CK_LEFT, body, n.pre, n.suf, rest);
+    if (n.k == CK_RIGHT) return repair_back_x(CK_RIGHT, body, n.pre, n.suf, rest);
+    if (cbuf_size(n.suf) >= 8) return repair_front_x(CK_ONLY, body, n.pre, n.suf, rest);
+    if (cbuf_size(n.pre) >= 8) return repair_back_x(CK_ONLY, body, n.pre, n.suf, rest);
+    return repair_both_x(body, n.pre, n.suf, rest);
+}
+
+static kc_chain* repair_pop_side_x(kc_chain* c) {
+    if (c == NULL) return NULL;  /* Some FEmpty */
+    if (c->tag == CC_CELL)
+        return repair_packet_x(c->u.cell.body, c->u.cell.node, c->u.cell.rest);
+    /* CC_PAIR: repair left */
+    kc_body* bl; kc_node nl; kc_chain* rl;
+    if (!fcell(c->u.pair.left, &bl, &nl, &rl)) return KC_NONE;
+    kc_chain* lp = repair_packet_x(bl, nl, rl);
+    if (lp == KC_NONE) return KC_NONE;
+    return chain_pair(lp, c->u.pair.right);
+}
+
+static kc_chain* repair_eject_side_x(kc_chain* c) {
+    if (c == NULL) return NULL;
+    if (c->tag == CC_CELL)
+        return repair_packet_x(c->u.cell.body, c->u.cell.node, c->u.cell.rest);
+    kc_body* br; kc_node nr; kc_chain* rr;
+    if (!fcell(c->u.pair.right, &br, &nr, &rr)) return KC_NONE;
+    kc_chain* rp = repair_packet_x(br, nr, rr);
+    if (rp == KC_NONE) return KC_NONE;
+    return chain_pair(c->u.pair.left, rp);
+}
+
+/* fused removal + repair (mirror tree_repair_x). */
+static kc_chain* tree_repair_x(kc_node n, kc_chain* child) {
+    int col = node_color_x(child != NULL, n);
+    if (col == CG) return chain_single(NULL, n, child);
+    if (col == CR) {
+        if (n.k == CK_LEFT)  return repair_front_x(CK_LEFT, NULL, n.pre, n.suf, child);
+        if (n.k == CK_RIGHT) return repair_back_x(CK_RIGHT, NULL, n.pre, n.suf, child);
+        if (cbuf_size(n.suf) >= 8) return repair_front_x(CK_ONLY, NULL, n.pre, n.suf, child);
+        if (cbuf_size(n.pre) >= 8) return repair_back_x(CK_ONLY, NULL, n.pre, n.suf, child);
+        return repair_both_x(NULL, n.pre, n.suf, child);
+    }
+    kc_body* cb; kc_node cn; kc_chain* cr;
+    if (col == CY) {
+        if (fcell(child, &cb, &cn, &cr))
+            return repair_packet_x(body_bsingle(n, cb), cn, cr);
+        if (child != NULL && child->tag == CC_PAIR &&
+            fcell(child->u.pair.left, &cb, &cn, &cr))
+            return repair_packet_x(body_bpairy(n, cb, child->u.pair.right), cn, cr);
+        return chain_single(NULL, n, child);
+    }
+    /* CO */
+    if (fcell(child, &cb, &cn, &cr))
+        return repair_packet_x(body_bsingle(n, cb), cn, cr);
+    if (child != NULL && child->tag == CC_PAIR &&
+        fcell(child->u.pair.right, &cb, &cn, &cr))
+        return repair_packet_x(body_bpairo(n, child->u.pair.left, cb), cn, cr);
+    return chain_single(NULL, n, child);
+}
+
+/* expose concat to the repair web (defined above as cad_concat_x). */
+static kc_chain* cad_concat_internal(kc_chain* d, kc_chain* e) {
+    return cad_concat_x(d, e);
+}
+
+static int cad_pop_x(kc_chain* d, kt_elem* out_x, kc_chain** out) {
+    if (d == NULL) return 0;
+    if (d->tag == CC_CELL) {
+        kc_node n0; kc_chain* child;
+        if (d->u.cell.body == NULL) { n0 = d->u.cell.node; child = d->u.cell.rest; }
+        else child = root_and_child_x(d->u.cell.body, d->u.cell.node,
+                                      d->u.cell.rest, &n0);
+        kc_stored* cell; kc_node n2;
+        if (!node_pop_x(n0, &cell, &n2)) return 0;
+        if (cell->kind != SK_GROUND) return 0;
+        *out_x = cell->u.ground;
+        if (child == NULL) { *out = rebuild_childless_x(n2); return 1; }
+        kc_chain* dd = tree_repair_x(n2, child);
+        if (dd == KC_NONE) return 0;
+        *out = dd; return 1;
+    }
+    kc_stored* cell; kc_chain* dp;
+    if (!pop_raw_x(d, &cell, &dp)) return 0;
+    if (cell->kind != SK_GROUND) return 0;
+    kc_chain* dd = repair_pop_side_x(dp);
+    if (dd == KC_NONE) return 0;
+    *out_x = cell->u.ground; *out = dd; return 1;
+}
+
+static int cad_eject_x(kc_chain* d, kc_chain** out, kt_elem* out_x) {
+    if (d == NULL) return 0;
+    if (d->tag == CC_CELL) {
+        kc_node n0; kc_chain* child;
+        if (d->u.cell.body == NULL) { n0 = d->u.cell.node; child = d->u.cell.rest; }
+        else child = root_and_child_x(d->u.cell.body, d->u.cell.node,
+                                      d->u.cell.rest, &n0);
+        kc_node n2; kc_stored* cell;
+        if (!node_eject_x(n0, &n2, &cell)) return 0;
+        if (cell->kind != SK_GROUND) return 0;
+        if (child == NULL) { *out = rebuild_childless_x(n2); *out_x = cell->u.ground; return 1; }
+        kc_chain* dd = tree_repair_x(n2, child);
+        if (dd == KC_NONE) return 0;
+        *out = dd; *out_x = cell->u.ground; return 1;
+    }
+    kc_chain* dp; kc_stored* cell;
+    if (!eject_raw_x(d, &dp, &cell)) return 0;
+    if (cell->kind != SK_GROUND) return 0;
+    kc_chain* dd = repair_eject_side_x(dp);
+    if (dd == KC_NONE) return 0;
+    *out = dd; *out_x = cell->u.ground; return 1;
+}
+
+/* ====================================================================== *
  * Sequence read (kc_to_list / kc_walk): mirror cchain_seq from Model.v.   *
  *   cnode_seq (Node _ p q) mid = buf(p) ++ mid ++ buf(q)                  *
  *   cbody_seq threads the inner through the preferred path                *
@@ -738,6 +1111,25 @@ kc_cadeque kc_concat(kc_cadeque d, kc_cadeque e) {
     return (kc_cadeque)r;
 }
 
+kc_cadeque kc_pop(kc_cadeque d, kt_elem* out, int* out_was_nonempty) {
+    kt_elem x; kc_chain* r;
+    if (cad_pop_x((kc_chain*)d, &x, &r)) {
+        *out = x; *out_was_nonempty = 1; return (kc_cadeque)r;
+    }
+    /* on regular inputs, failure happens only for the empty deque */
+    assert(d == NULL);
+    *out_was_nonempty = 0; return d;
+}
+
+kc_cadeque kc_eject(kc_cadeque d, kt_elem* out, int* out_was_nonempty) {
+    kt_elem x; kc_chain* r;
+    if (cad_eject_x((kc_chain*)d, &r, &x)) {
+        *out = x; *out_was_nonempty = 1; return (kc_cadeque)r;
+    }
+    assert(d == NULL);
+    *out_was_nonempty = 0; return d;
+}
+
 void kc_walk(kc_cadeque d, kc_walk_cb cb, void* ctx) {
     walk_env w = { cb, ctx };
     chain_emit((kc_chain*)d, &w);
@@ -755,7 +1147,7 @@ size_t kc_length(kc_cadeque d) {
  * Phase-2 smoke test (compiled only under KC_PHASE2_SMOKE): push/inject/  *
  * concat against a plain dynamic-array oracle.                            *
  * ====================================================================== */
-#ifdef KC_PHASE2_SMOKE
+#if defined(KC_PHASE2_SMOKE) || defined(KC_PHASE3_SMOKE)
 #include <stdio.h>
 
 /* collect into a vector */
@@ -766,11 +1158,16 @@ static void vpush(vec* v, long x) {
     v->a[v->n++] = x;
 }
 static void collect_cb(kt_elem e, void* ctx) { vpush((vec*)ctx, (long)(intptr_t)e); }
+#endif  /* shared smoke helpers */
+
+#ifdef KC_PHASE2_SMOKE
 static int vec_eq(vec* v, long* exp, size_t n) {
     if (v->n != n) return 0;
     for (size_t i = 0; i < n; i++) if (v->a[i] != exp[i]) return 0;
     return 1;
 }
+#endif
+#ifdef KC_PHASE2_SMOKE
 static int check(const char* name, kc_cadeque d, long* exp, size_t n) {
     vec v = {0,0,0};
     kc_walk(d, collect_cb, &v);
@@ -822,5 +1219,104 @@ int main(void) {
 
     printf(fails ? "SMOKE FAILED (%d)\n" : "ALL OK\n", fails);
     return fails ? 1 : 0;
+}
+#endif
+
+#ifdef KC_PHASE3_SMOKE
+/* Deterministic mixed workload (push/inject/pop/eject/concat) against a
+ * doubly-ended array oracle.  Checks the full sequence after each op. */
+typedef struct { long* a; size_t lo, hi, cap; } dq;  /* elements in [lo,hi) */
+static dq dq_new(void) { dq d; d.cap=1024; d.a=malloc(d.cap*sizeof(long));
+    d.lo=d.hi=d.cap/2; return d; }
+static void dq_grow(dq* d) {
+    size_t n=d->hi-d->lo, ncap=d->cap*4;
+    long* na=malloc(ncap*sizeof(long));
+    size_t nlo=ncap/2 - n/2;
+    memcpy(na+nlo, d->a+d->lo, n*sizeof(long));
+    free(d->a); d->a=na; d->cap=ncap; d->lo=nlo; d->hi=nlo+n;
+}
+static void dq_push(dq* d, long x){ if(d->lo==0) dq_grow(d); d->a[--d->lo]=x; }
+static void dq_inject(dq* d, long x){ if(d->hi==d->cap) dq_grow(d); d->a[d->hi++]=x; }
+
+static uint64_t xs;
+static uint64_t xnext(void){ uint64_t x=xs; x^=x<<13; x^=x>>7; x^=x<<17; xs=x; return x; }
+
+static int cmp_seq(kc_cadeque c, dq* o, const char* where) {
+    vec v={0,0,0}; kc_walk(c, collect_cb, &v);
+    size_t n=o->hi-o->lo;
+    int ok = (v.n==n);
+    for (size_t i=0; ok && i<n; i++) if (v.a[i]!=o->a[o->lo+i]) ok=0;
+    if (!ok) {
+        printf("MISMATCH at %s: clen=%zu olen=%zu\n", where, v.n, n);
+        printf(" c: "); for(size_t i=0;i<v.n && i<30;i++) printf("%ld ",v.a[i]);
+        printf("\n o: "); for(size_t i=0;i<n && i<30;i++) printf("%ld ",o->a[o->lo+i]);
+        printf("\n");
+    }
+    free(v.a);
+    return ok;
+}
+
+int main(int argc, char** argv) {
+    long N = argc>1 ? atol(argv[1]) : 200000;
+    xs = argc>2 ? strtoull(argv[2],0,16) : 0x9e3779b97f4a7c15ULL;
+    long ctr = 1;
+
+    /* single-deque mixed workload */
+    kc_cadeque c = kc_empty();
+    dq o = dq_new();
+    for (long i=0;i<N;i++){
+        int op = xnext()%4;
+        if (op==0){ long x=ctr++; c=kc_push((kt_elem)(intptr_t)x,c); dq_push(&o,x); }
+        else if (op==1){ long x=ctr++; c=kc_inject(c,(kt_elem)(intptr_t)x); dq_inject(&o,x); }
+        else if (op==2){ kt_elem e;int ok; c=kc_pop(c,&e,&ok);
+            if (o.lo<o.hi){ assert(ok && (long)(intptr_t)e==o.a[o.lo]); o.lo++; }
+            else assert(!ok); }
+        else { kt_elem e;int ok; c=kc_eject(c,&e,&ok);
+            if (o.lo<o.hi){ assert(ok && (long)(intptr_t)e==o.a[o.hi-1]); o.hi--; }
+            else assert(!ok); }
+    }
+    int ok1 = cmp_seq(c, &o, "mixed-final");
+    printf("mixed N=%ld: %s (len=%zu)\n", N, ok1?"OK":"FAIL", o.hi-o.lo);
+
+    /* concat workload: build many blocks, concat-fold, then drain-check */
+    kc_cadeque acc = kc_empty();
+    dq oa = dq_new();
+    for (int blk=0; blk<300; blk++){
+        int blen = 1 + (int)(xnext()%40);
+        kc_cadeque b = kc_empty();
+        for (int i=0;i<blen;i++){ long x=ctr++;
+            if (xnext()&1){ b=kc_push((kt_elem)(intptr_t)x,b);
+                /* prepend to a temp then... easier: track via temp deque */ }
+            else b=kc_inject(b,(kt_elem)(intptr_t)x);
+        }
+        /* recompute block's true sequence by walking b */
+        vec bv={0,0,0}; kc_walk(b, collect_cb, &bv);
+        if (xnext()&1){ acc=kc_concat(acc,b); for(size_t i=0;i<bv.n;i++) dq_inject(&oa,bv.a[i]); }
+        else { acc=kc_concat(b,acc);
+            /* prepend block before acc: shift — rebuild oa */
+            dq no=dq_new(); for(size_t i=0;i<bv.n;i++) dq_inject(&no,bv.a[i]);
+            for(size_t i=oa.lo;i<oa.hi;i++) dq_inject(&no,oa.a[i]);
+            free(oa.a); oa=no; }
+        free(bv.a);
+    }
+    int ok2 = cmp_seq(acc, &oa, "concat-final");
+    printf("concat blocks: %s (len=%zu)\n", ok2?"OK":"FAIL", oa.hi-oa.lo);
+
+    /* drain acc front and back alternately, checking each element */
+    int ok3=1; size_t guard=0;
+    while (acc != NULL) {
+        kt_elem e; int ok;
+        if (xnext()&1){ acc=kc_pop(acc,&e,&ok);
+            if(!(ok && (long)(intptr_t)e==oa.a[oa.lo])){ok3=0;break;} oa.lo++; }
+        else { acc=kc_eject(acc,&e,&ok);
+            if(!(ok && (long)(intptr_t)e==oa.a[oa.hi-1])){ok3=0;break;} oa.hi--; }
+        if (++guard > 1000000) { ok3=0; break; }
+    }
+    if (oa.lo!=oa.hi) ok3=0;
+    printf("drain: %s\n", ok3?"OK":"FAIL");
+
+    int fails = !ok1 + !ok2 + !ok3;
+    printf(fails ? "PHASE3 FAILED (%d)\n" : "PHASE3 ALL OK\n", fails);
+    return fails?1:0;
 }
 #endif
