@@ -412,15 +412,18 @@ a deterministic differential runs an identical multi-register workload
 (push/inject/pop/eject/<strong>concat</strong>) on the C port and the Coq-extracted
 <code>KTFlatCadeque</code> and diffs the sequences — <strong>zero divergence across 24
 seed/size runs to n&nbsp;=&nbsp;2×10⁵</strong> plus register-count variations, ASan/UBSan
-clean.  Performance is honest: on concat-dominated workloads the C already matches the
-tuned OCaml and beats Viennot 2–4× (concat-fold 308&nbsp;vs&nbsp;1174&nbsp;ns/op;
-concat-tree 1437&nbsp;vs&nbsp;3166), while per-element ops run ~3× behind because the §6
-layer rides the §4 deque's <em>untuned</em> allocation path.  A §6-aware
-<code>kc_arena_compact</code> (verified sequence-preserving by the same differential)
-delivers its intended long-running role — on a bounded-deque churn workload it cuts
-peak RSS ~36% and runs ~28% faster — but does not close the pure-push microbench gap,
-which is bounded by the <code>malloc</code>'d spine and would need a unified-arena
-collector.  Numbers and reproduce steps in <code>c/COMPARISON.md</code>.</p>
+clean.  Two optimizations close most of the per-element gap: ground cells are stored
+<strong>unboxed</strong> (the element itself, no per-element allocation — the §6 analogue
+of the OCaml <code>Sraw</code> carrier; the box tag rides in bit&nbsp;63, surviving the §4
+buffer's low-bit size tag), and a §6-aware <code>kc_arena_compact</code> reclaims the dead
+intermediate versions — its collection skips the element-walk for buffers known to hold
+only unboxed ground cells (a per-buffer flag), which is what makes periodic compaction
+cheap.  Both are verified sequence-preserving by the differential.  With caller-driven
+compaction every 4096 ops (the recommended config, mirroring the §4 deque's
+<code>K=4096</code>), the C at n&nbsp;=&nbsp;10⁶ <strong>matches Viennot on
+push/inject/mixed/interleave, beats it 2–5.5× on the concat workloads, and trails only on
+pop/eject/fork</strong> (see §3.3).  Numbers and reproduce steps in
+<code>c/COMPARISON.md</code>.</p>
 
 <h2>3 · Benchmark</h2>
 <p>Harness: <code>ocaml/bench/cadeque_compare.ml</code> via
@@ -462,17 +465,19 @@ budget (quadratic regime). Raw dated output:
 
 <h3>3.3 The C port — n&nbsp;=&nbsp;10⁶ (cross-language)</h3>
 <p>The §6 catenable C port (<code>c/src/ktcadeque.c</code>) on the same workloads,
-median of 3 runs, vs the OCaml columns above.  The C is cross-language so the
-comparison is wall-clock, not same-runtime; the honest split is that
-concat-dominated workloads already match the verified OCaml and beat Viennot,
-while per-element ops are allocation-bound (the §6 buffers ride the §4 deque's
-untuned arena path — see <code>c/COMPARISON.md</code>).</p>
+median of 3 runs, vs the OCaml columns above — with unboxed ground cells and
+caller-driven compaction every 4096 ops (the recommended config, mirroring the §4
+deque).  The comparison is cross-language (wall-clock, not same-runtime).  The C
+<strong>matches Viennot on push/inject/mixed/interleave and beats it 2–5.5× on the
+concat workloads</strong>; it trails only on pop/eject (~1.1–1.2×) and the persistent
+fork (1.5×), where the read-only repeated-pop pattern doesn't benefit from reclamation.
+See <code>c/COMPARISON.md</code> for the K=0 (no-compaction) contrast and the method.</p>
 <table class="results">
 <tr><th>workload</th><th>C (§6)</th><th>KTf OCaml</th><th>Viennot OCaml</th><th>C vs Viennot</th></tr>
 {c_table}
 </table>
-<p class="meta">ns/op, n&nbsp;=&nbsp;{c_n}, median of 3, taskset-pinned · {c_date}
-· {c_gcc}. Regenerate with <code>bench/cadeque-c.sh</code>.</p>
+<p class="meta">ns/op, n&nbsp;=&nbsp;{c_n}, median of 3, taskset-pinned, compaction K=4096 ·
+{c_date} · {c_gcc}. Regenerate with <code>bench/cadeque-c.sh</code>.</p>
 
 <h3>3.4 Reading the results honestly</h3>
 <div class="win">

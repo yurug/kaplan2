@@ -58,22 +58,39 @@ static void*  kc_alloc(size_t sz) {
  * Fastbuf's fused size field (DequePtr/SizedChain.v).                     *
  * ====================================================================== */
 
+/* A buffer caches its element count AND a "contains a boxed cell" flag in
+ * the high bit of [n].  The flag lets arena compaction skip the
+ * element-walk that hunts for nested §4 deques (inside SSmall/SBig boxes)
+ * whenever a buffer is known to hold only unboxed ground elements — which
+ * is every buffer in a push/inject/pop/eject-only workload.  It is a
+ * conservative over-approximation: pop/eject keep the flag set even if the
+ * last box leaves (safe — at worst an unnecessary walk). */
+#define CBUF_BOXED  0x80000000u
+#define CBUF_CNT    0x7fffffffu
+/* boxed-handle test (bit 63 of the stored handle; see kc_box below) */
+#define HANDLE_IS_BOX(x)  (((uintptr_t)(x) >> 63) != 0)
+
 typedef struct {
     kt_deque d;   /* §4 deque of kc_sh handles */
-    uint32_t n;   /* element count (O(1)) */
+    uint32_t n;   /* low 31 bits: element count; bit 31: holds a boxed cell */
 } kc_buf;
 
 static inline kc_buf cbuf_empty(void) {
     kc_buf b; b.d = kt_empty(); b.n = 0; return b;
 }
-static inline uint32_t cbuf_size(kc_buf b) { return b.n; }
-static inline int cbuf_is_empty(kc_buf b) { return b.n == 0; }
+static inline uint32_t cbuf_size(kc_buf b) { return b.n & CBUF_CNT; }
+static inline int cbuf_is_empty(kc_buf b) { return (b.n & CBUF_CNT) == 0; }
+static inline int cbuf_has_boxed(kc_buf b) { return (b.n & CBUF_BOXED) != 0; }
 
 static inline kc_buf cbuf_push(void* x, kc_buf b) {
-    kc_buf r; r.d = kt_push((kt_elem)x, b.d); r.n = b.n + 1; return r;
+    kc_buf r; r.d = kt_push((kt_elem)x, b.d);
+    r.n = (b.n + 1) | (HANDLE_IS_BOX(x) ? CBUF_BOXED : 0);
+    return r;
 }
 static inline kc_buf cbuf_inject(kc_buf b, void* x) {
-    kc_buf r; r.d = kt_inject(b.d, (kt_elem)x); r.n = b.n + 1; return r;
+    kc_buf r; r.d = kt_inject(b.d, (kt_elem)x);
+    r.n = (b.n + 1) | (HANDLE_IS_BOX(x) ? CBUF_BOXED : 0);
+    return r;
 }
 /* pop: returns 1 and writes *out_x, *out_rest on nonempty; else 0. */
 static inline int cbuf_pop(kc_buf b, void** out_x, kc_buf* out_rest) {
@@ -81,7 +98,8 @@ static inline int cbuf_pop(kc_buf b, void** out_x, kc_buf* out_rest) {
     kt_deque d2 = kt_pop(b.d, &x, &ok);
     if (!ok) return 0;
     *out_x = (void*)x;
-    out_rest->d = d2; out_rest->n = b.n - 1;
+    out_rest->d = d2;
+    out_rest->n = ((b.n & CBUF_CNT) - 1) | (b.n & CBUF_BOXED);
     return 1;
 }
 static inline int cbuf_eject(kc_buf b, kc_buf* out_rest, void** out_x) {
@@ -89,7 +107,8 @@ static inline int cbuf_eject(kc_buf b, kc_buf* out_rest, void** out_x) {
     kt_deque d2 = kt_eject(b.d, &x, &ok);
     if (!ok) return 0;
     *out_x = (void*)x;
-    out_rest->d = d2; out_rest->n = b.n - 1;
+    out_rest->d = d2;
+    out_rest->n = ((b.n & CBUF_CNT) - 1) | (b.n & CBUF_BOXED);
     return 1;
 }
 
@@ -106,9 +125,9 @@ static inline kc_buf cbuf_b3(void* x, void* y, void* z) {
  * §6 call site has a constant-bounded side under the invariant J
  * (Catenable/Cost.v), so each reachable call is O(1). */
 static kc_buf cbuf_append(kc_buf a, kc_buf b) {
-    if (a.n == 0) return b;
-    if (b.n == 0) return a;
-    if (a.n <= b.n) {
+    if (cbuf_is_empty(a)) return b;
+    if (cbuf_is_empty(b)) return a;
+    if (cbuf_size(a) <= cbuf_size(b)) {
         /* inject each of a (front->back) onto the front of b: eject a
          * back-to-front and push onto b. */
         kc_buf acc = b;
@@ -1218,9 +1237,13 @@ static void collect_stored_cb(kt_elem e, void* ctx) {
 
 static void collect_buf(kc_buf* b, fldvec* v) {
     fv_add(v, &b->d);
-    /* recurse into the stored cells held by this buffer: nested §4
-     * deques live there as "user data" the §4 compactor won't follow */
-    kt_walk(b->d, collect_stored_cb, v);
+    /* Recurse into the stored cells only if this buffer is known to hold a
+     * boxed cell (SSmall/SBig) — those nest §4 deques the §4 compactor
+     * won't follow.  A buffer of only unboxed ground elements (every
+     * buffer in a push/inject/pop/eject workload) needs no element walk,
+     * which is what makes periodic compaction cheap there. */
+    if (cbuf_has_boxed(*b))
+        kt_walk(b->d, collect_stored_cb, v);
 }
 
 static void collect_body(kc_body* b, fldvec* v) {

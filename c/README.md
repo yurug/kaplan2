@@ -23,12 +23,13 @@ joins two persistent deques in worst-case O(1) — in
 production op web (`rocq/KTDeque/Catenable/FlatChain.v` + `FlatOps.v`),
 with its prefix/suffix buffers being §4 deques.  Correctness is
 established by a deterministic differential against the Coq-extracted
-`KTFlatCadeque` (`make run-diff-cadeque`, zero divergence).  On
-concat-dominated workloads it already matches the verified OCaml
-artifact and beats Viennot's hand-written OCaml by 2–4×; per-element
-ops are currently ~3× behind pending the arena/compaction tuning that
-the §4 deque uses (see [COMPARISON.md](COMPARISON.md) for the numbers
-and the future-work hook).
+`KTFlatCadeque` (`make run-diff-cadeque`, zero divergence).  With
+unboxed ground cells and caller-driven `kc_arena_compact` (the
+recommended config, mirroring the §4 deque's periodic compaction), at
+n=10⁶ it **matches Viennot's hand-written OCaml on push/inject/mixed/
+interleave and beats it 2–5.5× on the concat workloads**, trailing only
+on pop/eject (~1.1–1.2×) and the persistent fork (1.5×).  See
+[COMPARISON.md](COMPARISON.md) for the full table and method.
 
 ## When you'd reach for this in a C codebase
 

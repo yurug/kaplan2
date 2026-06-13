@@ -23,6 +23,7 @@ for r in $(seq 1 "$REPS"); do $TASKSET "$BIN" "$N" >> "$tmp"; done
   echo "- kernel: $(uname -srm)"
   echo "- gcc: $(gcc --version | head -1)"
   echo "- n: $N   reps: $REPS (median)   pinning: ${TASKSET:-none}"
+  echo "- compaction: kc_arena_compact every 4096 ops (caller-driven, the recommended config; mirrors the §4 deque's K=4096)"
   echo
   echo "| workload | C ns/op |"
   echo "|---|---:|"
