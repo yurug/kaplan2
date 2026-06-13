@@ -151,7 +151,7 @@ language:
 | ------------ | ---------------------------------------------------------------------------- | -------------------- |
 | [`rocq/`](rocq/) | Rocq 9.1 formalization: spec, abstract operations, sequence preservation. | `dune build rocq`    |
 | [`ocaml/`](ocaml/) | Code extracted from Rocq (including the production catenable deque, faster than Viennot's hand-written OCaml on every workload), plus the benchmark harness. | `dune build ocaml` |
-| [`c/`](c/)   | A hand-translated C port of the Rocq algorithm. Faster than Viennot's OCaml on every workload. | `cd c && make` |
+| [`c/`](c/)   | A hand-translated C port: the §4 deque (faster than Viennot's OCaml on every workload) plus a §6 catenable port (`kc_concat`, WC O(1)), differentially validated against the verified extraction. | `cd c && make` |
 | [`rust/`](rust/) | Rust port (work in progress).                                            | `cd rust && cargo build` |
 | [`kb/`](kb/) | Knowledge base: design docs, ADRs, session notes, audits.                    | (text, no build)     |
 

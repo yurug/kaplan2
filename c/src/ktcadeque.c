@@ -26,6 +26,29 @@
 #include <string.h>
 #include <assert.h>
 
+/* Allocation seam.  Default: malloc (persistent, never freed mid-run —
+ * see the header).  KC_BUMP: a simple never-compacting bump arena, used
+ * only to MEASURE the malloc overhead (it leaks unboundedly, so it is
+ * not a production allocator — the real arena/compaction integration is
+ * tracked as future work in c/COMPARISON.md). */
+#ifdef KC_BUMP
+static char*  kc_bump_ptr = NULL;
+static char*  kc_bump_end = NULL;
+static void*  kc_alloc(size_t sz) {
+    sz = (sz + 15) & ~(size_t)15;
+    if (kc_bump_ptr + sz > kc_bump_end) {
+        size_t chunk = 1u << 26;            /* 64 MiB chunks */
+        if (sz > chunk) chunk = sz;
+        kc_bump_ptr = (char*)malloc(chunk);
+        kc_bump_end = kc_bump_ptr + chunk;
+    }
+    void* p = kc_bump_ptr; kc_bump_ptr += sz; return p;
+}
+#define KC_MALLOC(sz) kc_alloc(sz)
+#else
+#define KC_MALLOC(sz) malloc(sz)
+#endif
+
 /* ====================================================================== *
  * Size-tracked buffer (kc_buf) = §4 deque + O(1) element count.           *
  *                                                                          *
@@ -127,15 +150,15 @@ typedef struct kc_stored {
 } kc_stored;
 
 static kc_stored* mk_ground(kt_elem a) {
-    kc_stored* s = (kc_stored*)malloc(sizeof(kc_stored));
+    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
     s->kind = SK_GROUND; s->u.ground = a; return s;
 }
 static kc_stored* mk_small(kc_buf b) {
-    kc_stored* s = (kc_stored*)malloc(sizeof(kc_stored));
+    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
     s->kind = SK_SMALL; s->u.small = b; return s;
 }
 static kc_stored* mk_big(kc_buf p, kc_chain* c, kc_buf q) {
-    kc_stored* s = (kc_stored*)malloc(sizeof(kc_stored));
+    kc_stored* s = (kc_stored*)KC_MALLOC(sizeof(kc_stored));
     s->kind = SK_BIG; s->u.big.p = p; s->u.big.c = c; s->u.big.q = q;
     return s;
 }
@@ -187,23 +210,23 @@ static kc_node node_make(uint8_t k, kc_buf pre, kc_buf suf) {
 }
 
 static kc_body* body_bsingle(kc_node n, kc_body* b) {
-    kc_body* r = (kc_body*)malloc(sizeof(kc_body));
+    kc_body* r = (kc_body*)KC_MALLOC(sizeof(kc_body));
     r->tag = CB_BSINGLE; r->node = n; r->u.bsingle.body = b; return r;
 }
 static kc_body* body_bpairy(kc_node n, kc_body* b, kc_chain* rc) {
-    kc_body* r = (kc_body*)malloc(sizeof(kc_body));
+    kc_body* r = (kc_body*)KC_MALLOC(sizeof(kc_body));
     r->tag = CB_BPAIRY; r->node = n; r->u.bpairy.body = b; r->u.bpairy.rc = rc;
     return r;
 }
 static kc_body* body_bpairo(kc_node n, kc_chain* lc, kc_body* b) {
-    kc_body* r = (kc_body*)malloc(sizeof(kc_body));
+    kc_body* r = (kc_body*)KC_MALLOC(sizeof(kc_body));
     r->tag = CB_BPAIRO; r->node = n; r->u.bpairo.lc = lc; r->u.bpairo.body = b;
     return r;
 }
 
 /* chain cell with explicit body (NULL = FFlat) */
 static kc_chain* chain_cell(kc_body* body, kc_node node, kc_chain* rest) {
-    kc_chain* c = (kc_chain*)malloc(sizeof(kc_chain));
+    kc_chain* c = (kc_chain*)KC_MALLOC(sizeof(kc_chain));
     c->tag = CC_CELL;
     c->u.cell.body = body; c->u.cell.node = node; c->u.cell.rest = rest;
     return c;
@@ -213,7 +236,7 @@ static kc_chain* chain_flat(uint8_t k, kc_buf p, kc_buf s, kc_chain* rest) {
     return chain_cell(NULL, node_make(k, p, s), rest);
 }
 static kc_chain* chain_pair(kc_chain* l, kc_chain* r) {
-    kc_chain* c = (kc_chain*)malloc(sizeof(kc_chain));
+    kc_chain* c = (kc_chain*)KC_MALLOC(sizeof(kc_chain));
     c->tag = CC_PAIR; c->u.pair.left = l; c->u.pair.right = r;
     return c;
 }

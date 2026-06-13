@@ -15,6 +15,21 @@ running both against the same fuzz workload and diffing the outputs
 The package depends only on a C11 compiler and `libc`.  No external
 libraries.  Building, testing, and benchmarking are all standalone.
 
+**Catenation (§6).**  Beyond the four §4 deque operations, this tree
+also ships a port of the KT99 §6 **catenable** deque — `kc_concat`
+joins two persistent deques in worst-case O(1) — in
+[`include/ktcadeque.h`](include/ktcadeque.h) /
+[`src/ktcadeque.c`](src/ktcadeque.c).  It mirrors the machine-checked
+production op web (`rocq/KTDeque/Catenable/FlatChain.v` + `FlatOps.v`),
+with its prefix/suffix buffers being §4 deques.  Correctness is
+established by a deterministic differential against the Coq-extracted
+`KTFlatCadeque` (`make run-diff-cadeque`, zero divergence).  On
+concat-dominated workloads it already matches the verified OCaml
+artifact and beats Viennot's hand-written OCaml by 2–4×; per-element
+ops are currently ~3× behind pending the arena/compaction tuning that
+the §4 deque uses (see [COMPARISON.md](COMPARISON.md) for the numbers
+and the future-work hook).
+
 ## When you'd reach for this in a C codebase
 
 C already has plenty of double-ended-queue options (singly/doubly
@@ -80,8 +95,10 @@ When you'd NOT use this:
 
 ```
 c/
-├── include/ktdeque.h           public header — the entire API
-├── src/ktdeque_dequeptr.c      the production source (single file)
+├── include/ktdeque.h           public header — the §4 deque API
+├── include/ktcadeque.h         public header — the §6 catenable API
+├── src/ktdeque_dequeptr.c      the §4 production source (single file)
+├── src/ktcadeque.c             the §6 catenable port (built on the §4 deque)
 ├── tests/                      correctness + fuzz drivers
 ├── benches/                    microbenchmarks
 ├── examples/                   minimal hello-world (in-tree + pkg-config build modes)

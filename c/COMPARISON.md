@@ -134,6 +134,58 @@ The structural choices that make the C worst-case O(1) and (mostly) fast:
   `pcell_inner = Some _` and re-proving the refinement theorems
   (see ADR-0012).
 
+## Catenable (§6) C port — `c/src/ktcadeque.c`
+
+The catenable deque (`kc_push/inject/pop/eject/concat`, header
+`include/ktcadeque.h`) is a hand-written C port of the KT99 §6 algorithm
+in the form of the machine-checked production op web
+`rocq/KTDeque/Catenable/FlatChain.v` + `FlatOps.v` (six keystone
+theorems + the constant cost bound closed under the global context).
+Its prefix/suffix buffers are §4 C deques (`ktdeque.h`), exactly as the
+extracted OCaml artifact's buffers are the verified §4 chain.
+
+**Correctness** is established by a deterministic differential
+(`make run-diff-cadeque`): the C port and the Coq-extracted
+`KTFlatCadeque` run an identical multi-register workload
+(push/inject/pop/eject/concat) and their per-slot sequences are
+`diff`'d — **zero divergence across 24 seed/size runs to n = 2×10⁵ plus
+register-count variations**, ASan/UBSan clean.  The port is validated
+against the verified artifact, not formally refined from it.
+
+**Performance — n = 1,000,000, ns/op** (taskset-pinned; OCaml columns
+from `bench/results/cadeque-compare-*.md`):
+
+| Workload    | **C (§6)** | KTf OCaml | Viennot OCaml |
+|-------------|-----------:|----------:|--------------:|
+| push        |    **251** |     89    |      96       |
+| inject      |    **252** |     89    |      97       |
+| pop drain   |    **209** |     61    |      78       |
+| eject drain |    **211** |     59    |      75       |
+| mixed       |    **154** |     46    |      76       |
+| concat-fold |    **308** |    146    |    1174       |
+| concat-tree |   **1437** |   1425    |    3166       |
+| interleave  |    **526** |     91    |     277       |
+| fork        |    **247** |     42    |      67       |
+
+Reading the numbers honestly:
+
+- **Concat-dominated workloads are already competitive**: concat-fold
+  (308) and concat-tree (1437) match the tuned OCaml KTf and **beat
+  Viennot by 2–4×** — the §6 catenation is genuinely worst-case O(1)
+  with a small constant.
+- **Per-element ops are ~3× behind** (push/pop/inject/eject/fork).  The
+  cause is *not* the algorithm and *not* the spine `malloc` (a bump
+  arena via `-DKC_BUMP` recovers only ~18%): it is that the §6 layer
+  rides the §4 deque's *untuned* allocation path, with none of the
+  bump-arena + Cheney-compaction tuning that makes the standalone §4 C
+  deque 1.5–2.9× *faster* than Viennot.  The §4 numbers above show that
+  compaction is a 4–5× swing; the §6 layer does not yet get it.
+- **Future work**: extend the arena/compaction integration to the §6
+  spine and stored cells (the `KC_MALLOC` seam in `ktcadeque.c` is the
+  hook).  This is the catenable analogue of the §4 deque's
+  `kt_arena_compact`; closing it should bring per-element ops into the
+  same regime as §4 (and the concat numbers are already there).
+
 ## How to reproduce
 
 ```sh
@@ -152,4 +204,17 @@ _build/default/ocaml/bench/compare.exe
 # Or use the top-level reproducible bench harnesses:
 make bench-three-way      # all three side-by-side at n=1M
 make bench-canonical      # KT vs Vi vs handwritten Deque4 vs list ref
+```
+
+For the catenable (§6) C port:
+
+```sh
+cd c
+make cadeque_test && ./cadeque_test 200000      # self-check vs deque oracle
+# differential vs the verified OCaml extraction:
+cd .. && dune build --profile release ocaml/bench/diff_cadeque.exe
+cd c && make run-diff-cadeque
+# microbench:
+gcc -O3 -DNDEBUG -Iinclude -o /tmp/bc benches/bench_cadeque.c \
+    src/ktcadeque.c src/ktdeque_dequeptr.c && /tmp/bc 1000000
 ```
