@@ -342,6 +342,26 @@ our archived Cadeque9 could not even state), both close pop/eject with repair, a
 have a clean axiom audit. At the level of "what is mechanically known about KT99 §6
 functional behaviour", the two developments are equivalent.</p>
 
+<h3>2.7 A C port, differentially validated against the prover</h3>
+<p>The §6 catenable deque is also ported to C
+(<code>c/src/ktcadeque.c</code>, <code>kc_push/inject/pop/eject/concat</code>),
+branch-for-branch from the verified <code>FlatChain.v</code>&nbsp;+&nbsp;<code>FlatOps.v</code>,
+with its prefix/suffix buffers being the §4 C deque (just as the OCaml artifact's
+buffers are the verified §4 chain).  It is not formally refined from the Rocq; instead
+a deterministic differential runs an identical multi-register workload
+(push/inject/pop/eject/<strong>concat</strong>) on the C port and the Coq-extracted
+<code>KTFlatCadeque</code> and diffs the sequences — <strong>zero divergence across 24
+seed/size runs to n&nbsp;=&nbsp;2×10⁵</strong> plus register-count variations, ASan/UBSan
+clean.  Performance is honest: on concat-dominated workloads the C already matches the
+tuned OCaml and beats Viennot 2–4× (concat-fold 308&nbsp;vs&nbsp;1174&nbsp;ns/op;
+concat-tree 1437&nbsp;vs&nbsp;3166), while per-element ops run ~3× behind because the §6
+layer rides the §4 deque's <em>untuned</em> allocation path.  A §6-aware
+<code>kc_arena_compact</code> (verified sequence-preserving by the same differential)
+delivers its intended long-running role — on a bounded-deque churn workload it cuts
+peak RSS ~36% and runs ~28% faster — but does not close the pure-push microbench gap,
+which is bounded by the <code>malloc</code>'d spine and would need a unified-arena
+collector.  Numbers and reproduce steps in <code>c/COMPARISON.md</code>.</p>
+
 <h2>3 · Benchmark</h2>
 <p>Harness: <code>ocaml/bench/cadeque_compare.ml</code> via
 <code>make bench-cadeque</code>. Both implementations run the same nine workloads in one
@@ -428,6 +448,11 @@ buffer-primitive counts say it should sit.</p>
 <td><strong style="color:var(--ktf)">Ours on 9 of 9 workloads, every size</strong>
 (up to 8× on concat-fold, 3× on interleave, ~1.1–1.7× elsewhere); retained
 memory identical at 3.00 live words/element</td></tr>
+<tr><td>C port of the §6 deque</td>
+<td><strong style="color:var(--kt)">Ours</strong>: <code>c/src/ktcadeque.c</code>,
+differentially validated against the verified extraction (zero divergence);
+concat-competitive, per-element ops allocation-bound ·
+<span style="color:var(--vi)">theirs</span>: OCaml only</td></tr>
 <tr><td>Toolchain footprint</td>
 <td><strong style="color:var(--kt)">Ours</strong>: kernel + stdlib only ·
 <span style="color:var(--vi)">theirs</span>: 3 plugin dependencies</td></tr>
