@@ -55,6 +55,30 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-13c (user "optimize further"): profile + unbox ground cells
+- PROFILE (perf, pure-push): ~40% of time in kernel page-fault/malloc
+  (clear_page_rep, do_anonymous_page, _int_malloc) from the
+  never-reclaimed 5.9GB growth; real deque work (green_of_red, kt_push)
+  a minority.  push ns/op FLAT in N (not thrash) — per-op cost.  Byte
+  breakdown: 462 B/elt = §4 buffer ~340 + §6 box ~48 + spine ~64.
+  Root cause of the gap to OCaml: OCaml's GC reclaims dead versions
+  free; C's arena doesn't.
+- OPTIMIZATION (commit e4d3321): unbox ground cells (Sraw analogue).
+  Ground = the element itself (no per-element malloc); small/big = heap
+  box tagged in BIT 63 (survives the §4 buffer's low-3-bit slot-0 size
+  tag, so §4 buffer reused verbatim).  Measured (1M, taskset, median 3):
+  push 255->217, inject 244->213, mixed 152->130, interleave 523->456;
+  retained 462->398 B/elt.  concat-fold/tree unchanged.  Tightens §6
+  element contract to 8-aligned (already documented; boxed impl
+  tolerated violations).  Validated: differential 16/16 + compaction
+  6/6 zero divergence, ASan clean, §4 regression passes.  Page + docs
+  refreshed.  Pushed to main.
+- STILL ~1.6-2.8x behind OCaml/Viennot.  Remaining lever = unified-arena
+  §6 collector (spine + cells + §4 buffers, one Cheney pass) so
+  per-element reaches the §4-compacted regime — large rewrite, NOT
+  pursued (per-element work should use the §4 deque; §6 wins on
+  concat-heavy, where it beats Viennot 2-4x).
+
 ## 2026-06-13b (user "do 1 and 2"): push main + §6 arena tuning
 - (1) Pushed the C-port batch to origin/main (e8c7ca0).
 - (2) DIAGNOSIS: §6 push 250ns = ~155ns (§4 buffer push, never
