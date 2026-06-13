@@ -55,6 +55,40 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-13 (user request): port §6 catenation to C — DONE (5 phases)
+- User asked "should we update the C version?" -> chose "port §6
+  catenation to C" (the C was §4-only).  Decision fork: stored-cell
+  representation -> user chose "uniform 2-word box" (reuse §4 deque
+  verbatim as the §6 buffer).
+- c/include/ktcadeque.h + c/src/ktcadeque.c: full port of FlatChain.v +
+  FlatOps.v branch-for-branch.  §6 buffers = size-tracked §4 deques
+  (kc_buf, the C analogue of OCaml Fastbuf); stored cells boxed
+  (ground/small/big); spine cnode/cbody/cchain mirror FFlat/FSingle/
+  FPair with the fsingle smart constructor; push/inject/concat web
+  (Phase 2) + pop/eject/repair web incl. drain_both/tree_repair
+  (Phase 3).
+- VALIDATION (Phase 4): c/tests/diff_cadeque.c + ocaml/bench/
+  diff_cadeque.ml run an identical deterministic multi-register
+  workload (push/inject/pop/eject/concat) vs the verified
+  KTFlatCadeque; per-slot sequences diff'd.  ZERO divergence across 24
+  seed/size runs to N=2e5 + register-count variations; ASan/UBSan
+  clean.  Makefile: cadeque_test / diff_cadeque / cadeque_asan +
+  run-cadeque / run-diff-cadeque (dash-safe, temp-file diff).
+  WORKLOAD GOTCHA found+fixed: self-concat (concat slot with itself)
+  doubles the SEQUENCE each time -> exponential emit blow-up in BOTH C
+  and OCaml (structure builds O(1) via sharing); fixed by j!=i.  Not a
+  port bug.
+- BENCH (Phase 5): concat-dominated workloads already match OCaml KTf
+  and beat Viennot 2-4x (concat-fold 308 v 1174, concat-tree 1437 v
+  3166); per-element ops ~3x behind (push 251 v 89/96).  Cause = §6
+  rides the §4 deque's UNTUNED allocation path (bump arena recovers
+  only ~18%; the §4 deque's 4-5x compaction lever isn't extended to
+  the §6 spine/cells).  FUTURE WORK (user-gated): arena/compaction
+  integration for the §6 layer (KC_MALLOC seam in ktcadeque.c is the
+  hook).  NOT the algorithm, NOT malloc.
+- Docs: c/COMPARISON.md catenable section, c/README.md, root README.
+  Commits e13a4b7(P1) b5e17d6(P2) 206337f(P3) cd4a2f6(P4) 0798457(P5).
+
 ## 2026-06-12g (user request): §6 element unboxing — DONE, 9/9 vs Viennot
 - DIAGNOSIS (perf + Gc stats, push loop): retained 5.0 live w/element
   vs Vi's 3.0 — the FGround box (2-word block per element) = the whole
