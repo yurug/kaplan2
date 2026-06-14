@@ -60,11 +60,16 @@ all: lib test test_debug bench wc_test fuzz diff_workload test_threads test_pers
 
 lib: $(LIBFILE)
 
-$(LIBFILE): ktdeque.o
+# The installed archive bundles BOTH the §4 deque and the §6 catenable
+# deque, so kt_* and kc_* are linkable from one -lktdeque.
+$(LIBFILE): ktdeque.o ktcadeque.o
 	$(AR) rcs $@ $^
 
 ktdeque.o: $(KT_C_SRC) $(KT_HDR)
 	$(CC) $(CFLAGS) -c -o $@ $(KT_C_SRC)
+
+ktcadeque.o: $(KT_CAD_SRC) $(KT_ALL_HDR)
+	$(CC) $(CFLAGS) -c -o $@ $(KT_CAD_SRC)
 
 # ---------------------------------------------------------------------
 # Test / bench / fuzz drivers — each rebuilt with the appropriate
@@ -312,7 +317,8 @@ install: lib
 	install -d $(DESTDIR)$(PREFIX)/include
 	install -d $(DESTDIR)$(PREFIX)/lib
 	install -d $(DESTDIR)$(PREFIX)/lib/pkgconfig
-	install -m 644 $(KT_HDR)  $(DESTDIR)$(PREFIX)/include/ktdeque.h
+	install -m 644 $(KT_HDR)     $(DESTDIR)$(PREFIX)/include/ktdeque.h
+	install -m 644 $(KT_CAD_HDR) $(DESTDIR)$(PREFIX)/include/ktcadeque.h
 	install -m 644 $(LIBFILE) $(DESTDIR)$(PREFIX)/lib/$(LIBFILE)
 	@echo 'prefix=$(PREFIX)'                       >  ktdeque.pc.tmp
 	@echo 'exec_prefix=$${prefix}'                 >> ktdeque.pc.tmp
@@ -320,17 +326,18 @@ install: lib
 	@echo 'includedir=$${prefix}/include'          >> ktdeque.pc.tmp
 	@echo ''                                       >> ktdeque.pc.tmp
 	@echo 'Name: ktdeque'                    >> ktdeque.pc.tmp
-	@echo 'Description: Kaplan-Tarjan persistent real-time deque, empirical C port' >> ktdeque.pc.tmp
-	@echo 'Version: 0.1.0'                         >> ktdeque.pc.tmp
+	@echo 'Description: Kaplan-Tarjan persistent real-time deque (§4) + O(1)-catenable deque (§6), C port' >> ktdeque.pc.tmp
+	@echo 'Version: 0.2.0'                         >> ktdeque.pc.tmp
 	@echo 'Libs: -L$${libdir} -l$(LIBNAME)'        >> ktdeque.pc.tmp
 	@echo 'Cflags: -I$${includedir}'               >> ktdeque.pc.tmp
 	install -m 644 ktdeque.pc.tmp $(DESTDIR)$(PREFIX)/lib/pkgconfig/ktdeque.pc
 	@rm -f ktdeque.pc.tmp
-	@echo "Installed to $(DESTDIR)$(PREFIX) — header, $(LIBFILE), ktdeque.pc"
+	@echo "Installed to $(DESTDIR)$(PREFIX) — ktdeque.h, ktcadeque.h, $(LIBFILE), ktdeque.pc"
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/include/ktdeque.h
 	rm -f $(DESTDIR)$(PREFIX)/lib/$(LIBFILE)
+	rm -f $(DESTDIR)$(PREFIX)/include/ktcadeque.h
 	rm -f $(DESTDIR)$(PREFIX)/lib/pkgconfig/ktdeque.pc
 
 clean:

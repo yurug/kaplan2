@@ -3,12 +3,12 @@
  (name test_deque4)
  (libraries ktdeque_bench_helpers qcheck))
 
-; QCheck tests against the verified extracted library (ktdeque).
-; This is the property suite that exercises the public ``ktdeque``
+; QCheck tests against the verified extracted library (ktdeque_extracted).
+; This is the property suite that exercises the public ``ktdeque_extracted``
 ; package — the one we ship via opam.
 (test
  (name test_ktdeque)
- (libraries ktdeque qcheck))
+ (libraries ktdeque_extracted qcheck))
 
 ; (test_ktcatenable was removed in the 2026-06 re-curation along with the
 ;  experimental catenable modules; see archive/pre-rebuild-2026-06-02.)

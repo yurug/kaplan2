@@ -81,37 +81,39 @@ dune install ktdeque
 
 ## Use
 
+The public interface is `open Ktdeque` and the two modules **`Deque`**
+(the §4 real-time deque) and **`Cadeque`** (the same operations plus
+worst-case O(1) `concat`).  Both present an idiomatic, documented
+signature — `empty`, `is_empty`, `push`, `inject`, `pop`, `eject`,
+`peek_front`/`peek_back`, `length`, `to_list`/`of_list`,
+`iter`/`fold_left`/`fold_right`, `to_seq`/`of_seq` — over the
+Rocq-extracted implementation.
+
 ```ocaml
-open KTDeque
+open Ktdeque
 
 let () =
-  (* push 1, inject 2, then pop the front. *)
-  let d = empty_kchain in
-  let d = match push_kt2 (Coq_E.base 1) d with
-          | Some d' -> d' | None -> assert false in
-  let d = match inject_kt2 d (Coq_E.base 2) with
-          | Some d' -> d' | None -> assert false in
-  match pop_kt2 d with
-  | Some (e, _d') ->
-      (match Coq_E.to_list e with
-       | [x] -> Printf.printf "popped %d\n" x      (* prints "popped 1" *)
-       | _   -> assert false)
-  | None -> assert false
+  (* Deque: O(1) ends *)
+  let d = Deque.of_list [1; 2; 3] in
+  let d = Deque.push 0 d in                  (* [0; 1; 2; 3] *)
+  (match Deque.pop d with
+   | Some (x, _) -> Printf.printf "front %d\n" x   (* "front 0" *)
+   | None -> ());
+
+  (* Cadeque: O(1) ends AND O(1) concat *)
+  let a = Cadeque.of_list [1; 2; 3] in
+  let b = Cadeque.of_list [4; 5; 6] in
+  assert (Cadeque.to_list (Cadeque.concat a b) = [1; 2; 3; 4; 5; 6])
 ```
 
-`Coq_E.base` wraps a value as a base element; `Coq_E.to_list e` flattens
-an element back to a list of base values (depth-1 elements become
-singletons).  The `kt2` family (`push_kt2 / inject_kt2 / pop_kt2 /
-eject_kt2`) is the clarity-oriented public operation family; the
-`kt4` family is the allocation-lean variant covered by the public
-theorem bundle. Both are the bounded-cascade real-time design, and
-the release gate tracks the remaining invariant-strengthening/preservation and
-pure-to-imperative cost-refinement theorems before advertising the WC O(1) claim
-as fully packaged.
-The library also exports
-`push_chain_rec / pop_chain_rec / ...` (recursive, O(log n) cascade);
-those are proof-artifact variants kept for the Rocq refinement
-theorems and not recommended for new code.
+Every operation is purely functional and worst-case O(1) (`length` and
+the list/seq conversions are O(n)).  Use `Deque` when you only push/pop
+at the ends; use `Cadeque` when you also need catenation.
+
+The raw Rocq extraction (the `KTDeque` / `KTFlatCadeque` modules and the
+`kt2`/`kt4`/`cad_*_x` operation families) remains available as the
+internal sub-library **`ktdeque.extracted`** for benchmarking and
+advanced use, but new code should prefer `Ktdeque.Deque` / `Cadeque`.
 
 A full runnable example lives in [`examples/hello.ml`](examples/hello.ml).
 Build it in-tree with `dune build ocaml/examples/hello.exe` (or run

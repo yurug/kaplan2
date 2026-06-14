@@ -15,9 +15,9 @@
 ; Public package: the Rocq-extracted KT-deque.
 (package
  (name ktdeque)
- (synopsis "Kaplan-Tarjan persistent real-time deque (Rocq-extracted)")
+ (synopsis "Kaplan-Tarjan persistent real-time deque, with O(1) catenation")
  (description
-   "A purely-functional, persistent, double-ended queue extracted from the Rocq formalization in the kaplan2 repository.  The current public theorem bundle packages sequence correctness and regularity preservation for the extracted push, pop, inject, and eject family; the repository release gate tracks the remaining totality and chain-level cost theorems before making an unqualified mechanically verified worst-case O(1) claim.  Catenable experiments remain in a private workspace library and are not part of the installable public package.  Performance is competitive with Viennot et al.'s hand-written real-time deque (within ~15% on standard workloads at n=1M).")
+   "A purely-functional, persistent double-ended queue with worst-case O(1) push, pop, inject and eject, plus worst-case O(1) catenation.  The implementation is extracted from a Rocq (Coq 9.1) formalization whose keystone theorems are closed with zero admits: totality, sequence preservation, the regularity invariant, and a constant per-operation cost bound, for both the section-4 deque (deque_wc_o1_*) and the section-6 catenable deque (cat_keystone_* + cat_wc_o1).  The package exposes an idiomatic interface -- open Ktdeque and use the Deque module (push/inject/pop/eject) or Cadeque (the same, plus concat) -- over the extracted code (the raw extraction is available as the internal sub-library ktdeque.extracted).  On the benchmark suite the extracted artifact is faster than Viennot et al.'s hand-written OCaml cadeque on every workload at n=1M.")
  (depends
   (ocaml (>= 4.14))
   dune

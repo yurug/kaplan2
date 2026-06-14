@@ -1,0 +1,13 @@
+; The public ktdeque library: an idiomatic, documented interface
+; (Deque, Cadeque) over the Rocq-extracted implementation, which lives
+; in the internal sub-library ktdeque.extracted.  This is the module a
+; consumer of the `ktdeque` opam package is meant to use:
+;
+;     open Ktdeque
+;     let d = Cadeque.of_list [1;2;3]
+(library
+ (name ktdeque)
+ (public_name ktdeque)
+ (synopsis "Kaplan-Tarjan persistent real-time deque — idiomatic interface")
+ (libraries ktdeque_extracted)
+ (modules deque cadeque))

@@ -1,67 +1,42 @@
-(** hello.ml — minimal example of using the ktdeque OCaml library.
- *
- * Walks through the four core operations (push / inject / pop / eject)
- * plus a brief persistence demonstration.
- *
- * For the algorithm intuition (why this deque is worst-case O(1) per
- * op when the natural "spill on overflow" approach would be O(log n)),
- * read the why-bounded-cascade note in the project monorepo:
- *
- *     https://github.com/yurug/kaplan2/blob/main/kb/spec/why-bounded-cascade.md
- *
- * For the public OCaml surface, see the {1 KTDeque} module-level
- * docstring of [KTDeque] (i.e. the .mli file shipped with the
- * [ktdeque] opam package).
- *
- * Build (after `opam install .` from the repo root):
- *
- *     ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello
- *
- * Or in the same opam switch via dune (see this directory's dune file).
- *
- * Then: ./hello
- *)
+(** hello.ml — minimal example of the ktdeque OCaml library.
 
-open KTDeque
+    Shows the idiomatic public interface: [Ktdeque.Deque] (the §4
+    real-time deque) and [Ktdeque.Cadeque] (adds O(1) concatenation).
+    Every operation is purely functional and worst-case O(1); values are
+    persistent, so a deque can be "forked" and both branches used.
 
-let push_or_fail x d = match push_kt2 (Coq_E.base x) d with
-  | Some d' -> d'
-  | None -> failwith "push_kt2: regularity violated"
+    Build (after `opam install .` from the repo root):
 
-let inject_or_fail d x = match inject_kt2 d (Coq_E.base x) with
-  | Some d' -> d'
-  | None -> failwith "inject_kt2: regularity violated"
+        ocamlfind ocamlopt -package ktdeque -linkpkg hello.ml -o hello
 
-let pop_or_none d = match pop_kt2 d with
-  | None -> None
-  | Some (e, d') -> (match Coq_E.to_list e with [x] -> Some (x, d') | _ -> assert false)
+    Or in-tree: `dune exec ocaml/examples/hello.exe`. *)
 
-let eject_or_none d = match eject_kt2 d with
-  | None -> None
-  | Some (d', e) -> (match Coq_E.to_list e with [x] -> Some (d', x) | _ -> assert false)
+open Ktdeque
 
-let to_list d = kchain_to_list d
-
-let print_deque label d =
+let show label xs =
   Printf.printf "%s = [%s]\n" label
-    (String.concat "; " (List.map string_of_int (to_list d)))
+    (String.concat "; " (List.map string_of_int xs))
 
 let () =
-  (* Build [10; 20] by push 10 then inject 20. *)
-  let d = empty_kchain in
-  let d = push_or_fail   10 d in
-  let d = inject_or_fail d 20 in
-  let d = push_or_fail   30 d in
-  print_deque "d" d;
+  (* ---- Deque: push at front, inject at back, pop/eject the ends ---- *)
+  let d = Deque.of_list [10; 20] in     (* front = 10, back = 20 *)
+  let d = Deque.push 30 d in            (* [30; 10; 20] *)
+  show "d" (Deque.to_list d);
 
-  (* Persistence: branching d gives independent derivatives. *)
-  let branch = inject_or_fail d 40 in
-  print_deque "branch" branch;
-  print_deque "d (still)" d;
+  (* Persistence: a derived deque leaves the original intact. *)
+  let branch = Deque.inject d 40 in     (* [30; 10; 20; 40] *)
+  show "branch" (Deque.to_list branch);
+  show "d (still)" (Deque.to_list d);
 
-  (* Drain d via pop+eject. *)
-  let d = match pop_or_none   d with Some (x, d') -> Printf.printf "pop:   %d\n" x; d' | None -> d in
-  let d = match eject_or_none d with Some (d', x) -> Printf.printf "eject: %d\n" x; d' | None -> d in
-  let d = match pop_or_none   d with Some (x, d') -> Printf.printf "pop:   %d\n" x; d' | None -> d in
-  let _ = match pop_or_none   d with None -> Printf.printf "empty? true\n" | Some _ -> Printf.printf "empty? false\n" in
-  ()
+  (match Deque.pop d with
+   | Some (x, _) -> Printf.printf "front of d: %d\n" x
+   | None -> ());
+  (match Deque.eject d with
+   | Some (_, x) -> Printf.printf "back of d:  %d\n" x
+   | None -> ());
+
+  (* ---- Cadeque: the same, plus worst-case O(1) concat ---- *)
+  let a = Cadeque.of_list [1; 2; 3] in
+  let b = Cadeque.of_list [4; 5; 6] in
+  let c = Cadeque.concat a b in         (* O(1), regardless of size *)
+  show "concat a b" (Cadeque.to_list c)

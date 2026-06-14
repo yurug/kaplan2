@@ -42,19 +42,25 @@
 ; rocq/KTDeque/Extract/Extraction.v, then copy
 ; _build/default/kt_extracted/kTDeque.{ml,mli} over, preserving the
 ; hand-written .mli header.
+; The raw Rocq-extraction, exposed as the INTERNAL sub-library
+; ktdeque.extracted.  The public, documented interface is the `ktdeque`
+; library (ocaml/api/, modules Deque/Cadeque), which wraps these.  This
+; sub-library is kept public so the in-tree benches/tests can drive the
+; raw extracted ops (KTFlatCadeque.cad_*_x etc.) directly; external code
+; should prefer Ktdeque.Deque / Ktdeque.Cadeque.
 (library
- (name ktdeque)
- (public_name ktdeque)
- (synopsis "Kaplan-Tarjan persistent real-time deque (Rocq-extracted)")
+ (name ktdeque_extracted)
+ (public_name ktdeque.extracted)
+ (synopsis "Kaplan-Tarjan deque — raw Rocq extraction (internal; use ktdeque)")
  (wrapped false)
  (modules kTDeque kTCadeque kTCadequeFast kTFlatCadeque kTSizedChain kTErasedChain eraw sraw fastbuf))
 
 (executable
  (name test_ktdeque)
  (modules test_ktdeque)
- (libraries unix ktdeque))
+ (libraries unix ktdeque_extracted))
 
 (executable
  (name diff_workload)
  (modules diff_workload)
- (libraries ktdeque))
+ (libraries ktdeque_extracted))

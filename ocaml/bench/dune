@@ -1,14 +1,14 @@
 (executable
  (name compare)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque_extracted ktdeque_bench_helpers))
 
 (executable
  (name crossover)
- (libraries unix viennot_deque ktdeque))
+ (libraries unix viennot_deque ktdeque_extracted))
 
 (executable
  (name diag_inject)
- (libraries ktdeque))
+ (libraries ktdeque_extracted))
 
 (executable
  (name viennot_alloc)
@@ -19,14 +19,14 @@
 ; Driven from bench/canonical.sh.
 (executable
  (name canonical)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque_extracted ktdeque_bench_helpers))
 
 ; adversarial.ml: persistent-fork microbench — re-run a single op from
 ; a saved state M times to defeat the amortized analysis on D4.  Driven
 ; from bench/adversarial.sh.
 (executable
  (name adversarial)
- (libraries unix viennot_deque ktdeque ktdeque_bench_helpers))
+ (libraries unix viennot_deque ktdeque_extracted ktdeque_bench_helpers))
 
 ; cadeque_compare.ml: our Rocq-extracted §6 CATENABLE deque (KTCadeque,
 ; model-layer) vs Viennot's hand-written cadeque.  Driven from
@@ -34,28 +34,28 @@
 (executable
  (name cadeque_compare)
  (modules cadeque_compare)
- (libraries unix viennot_deque ktdeque))
+ (libraries unix viennot_deque ktdeque_extracted))
 
 ; flat_ab.ml: interleaved A/B of the previous production artifact
 ; (KTCadequeFast) vs the fused-spine artifact (KTFlatCadeque).
 (executable
  (name flat_ab)
  (modules flat_ab)
- (libraries unix ktdeque))
+ (libraries unix ktdeque_extracted))
 
 (executable
  (name flat_ab_ext)
  (modules flat_ab_ext)
- (libraries unix ktdeque))
+ (libraries unix ktdeque_extracted))
 
 (executable
  (name push_prof)
  (modules push_prof)
- (libraries unix viennot_deque ktdeque))
+ (libraries unix viennot_deque ktdeque_extracted))
 
 ; diff_cadeque.ml: deterministic catenable workload vs the C port
 ; (c/tests/diff_cadeque.c); same PRNG -> diff the outputs.
 (executable
  (name diff_cadeque)
  (modules diff_cadeque)
- (libraries ktdeque))
+ (libraries ktdeque_extracted))
