@@ -55,6 +55,28 @@ cleanup of the warm-up module).
        desired.  Loop iterations from here should only sanity-check
        (build green, zero admits, gate 7/7) and idle.
 
+## 2026-06-14 (user: release readiness; OCaml had no high-level interface)
+- ASSESSMENT: neither package was release-ready.  OCaml exposed raw
+  Coq-extraction (cad_push_x, 'a fchain, Sraw.t, dozens of internal
+  helpers, seam modules) under (wrapped false) — no idiomatic API; opam
+  metadata stale (said catenable private/unproven, "~15% of Viennot").
+  C: clean headers BUT libktdeque.a + install were §4-ONLY (ktcadeque
+  not shipped).
+- FIX (commit 833c392, pushed):
+  * OCaml: new PUBLIC lib `ktdeque` (ocaml/api/) = hand-written
+    Ktdeque.Deque (§4) + Ktdeque.Cadeque (§6) with documented .mli
+    (empty/is_empty/push/inject/pop/eject/peek/concat/length/to_list/
+    of_list/iter/fold_left/fold_right/to_seq/of_seq).  Raw extraction
+    demoted to internal sub-lib `ktdeque.extracted`; benches/tests
+    repointed; hello.ml shows the clean API; opam desc refreshed.
+    Validated: dune build, dune runtest (6 suites), wrapper assertion
+    test (order/persistence/concat-incl-self/fold/seq).
+  * C: libktdeque.a bundles ktcadeque.o; install ships ktcadeque.h;
+    .pc -> v0.2.0; verified install+pkg-config consumer using kc_concat.
+- REMAINING for a tagged 1.0 (minor): version tag + CHANGELOG; optionally
+  publish to opam-repository; C users must heed the kc_arena_compact
+  all-live-roots contract (documented).  No code/API blockers left.
+
 ## 2026-06-13d (user "we should be able to optimize further"): C now ~Viennot
 - The lever was reclaiming the §4-buffer garbage.  kc_arena_compact's
   collection was O(live elements) (kt_walk'd every buffer to find nested
