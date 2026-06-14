@@ -22,6 +22,12 @@
 /diff_workload
 /fuzz
 /fuzz_afl
+/cadeque_test
+/diff_cadeque
+/cadeque_asan
+/fuzz_cadeque
+/fuzz_cadeque_afl
+/fuzz_cadeque_lf
 
 # Profiling / debugging output
 core
@@ -36,6 +42,7 @@ prof
 
 # AFL run outputs
 afl_findings/
+afl_findings_cadeque/
 
 # Built example binary
 examples/hello

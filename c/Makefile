@@ -46,13 +46,13 @@ CFLAGS_SAN   = -O1 -g -DNDEBUG $(CFLAGS_COMMON)
 
 .PHONY: all clean lib install uninstall \
         run-test run-test-debug run-bench run-wc \
-        run-fuzz run-diff run-diff-deep run-diff-multi run-threads \
+        run-fuzz run-fuzz-cadeque run-fuzz-cadeque-afl run-diff run-diff-deep run-diff-multi run-threads \
         check check-asan check-tsan check-fuzz \
-        check-diff check-diff-deep check-diff-multi check-static \
+        check-diff check-diff-deep check-diff-multi check-static check-fuzz-cadeque \
         check-persistence-stress check-all
 
 # Default goal: library + tests + bench.
-all: lib test test_debug bench wc_test fuzz diff_workload test_threads test_persistence_stress cadeque_test diff_cadeque
+all: lib test test_debug bench wc_test fuzz diff_workload test_threads test_persistence_stress cadeque_test diff_cadeque fuzz_cadeque
 
 # ---------------------------------------------------------------------
 # Library archive — linkable, installable.
@@ -113,6 +113,25 @@ diff_cadeque: $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(KT_ALL_HDR)
 cadeque_asan: $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(KT_ALL_HDR)
 	$(CC) $(CFLAGS_SAN) $(SAN_ASAN) -o $@ $(KT_ALL_SRC) $(TESTDIR)/diff_cadeque.c $(LDFLAGS)
 
+# fuzz_cadeque: §6 catenable bug hunter (register bank + concat + compaction
+# vs a reference model), deterministic seed-sweep under ASan + UBSan.
+fuzz_cadeque: $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(KT_ALL_HDR)
+	$(CC) $(CFLAGS_SAN) $(SAN_ASAN) -o $@ $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(LDFLAGS)
+
+# fuzz_cadeque_afl: coverage-guided AFL harness (forkserver = fresh state
+# per input).  Requires afl-cc on PATH; not built by `all`/`check-all`.
+AFL_CC ?= afl-cc
+fuzz_cadeque_afl: $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(KT_ALL_HDR)
+	AFL_USE_ASAN=1 $(AFL_CC) -O2 -DAFL_HARNESS -DNDEBUG $(CFLAGS_COMMON) \
+	    -o $@ $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(LDFLAGS)
+
+# fuzz_cadeque_lf: in-process libFuzzer harness.  Requires clang; not in
+# `all`/`check-all`.
+FUZZ_CLANG ?= clang
+fuzz_cadeque_lf: $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(KT_ALL_HDR)
+	$(FUZZ_CLANG) -O1 -g -fsanitize=fuzzer,address,undefined -DFUZZ_LIBFUZZER \
+	    -DNDEBUG $(CFLAGS_COMMON) -o $@ $(KT_ALL_SRC) $(TESTDIR)/fuzz_cadeque.c $(LDFLAGS)
+
 # test_threads: 4 threads × independent deques in TLS arenas.
 test_threads: $(KT_C_SRC) $(TESTDIR)/test_threads.c $(KT_HDR)
 	$(CC) $(CFLAGS_DEBUG) -pthread -o $@ $(KT_C_SRC) $(TESTDIR)/test_threads.c $(LDFLAGS)
@@ -149,6 +168,17 @@ run-fuzz: fuzz
 
 run-cadeque: cadeque_test
 	./cadeque_test 200000
+
+# §6 catenable fuzzer (deterministic seed-sweep under ASan + UBSan).
+run-fuzz-cadeque: fuzz_cadeque
+	ASAN_OPTIONS=detect_leaks=0 ./fuzz_cadeque 2000
+
+# Coverage-guided AFL campaign (runs until interrupted).  Manual.
+run-fuzz-cadeque-afl: fuzz_cadeque_afl
+	AFL_SKIP_CPUFREQ=1 AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
+	  ASAN_OPTIONS=abort_on_error=1:symbolize=0:detect_leaks=0 \
+	  afl-fuzz -i $(TESTDIR)/afl_seeds_cadeque -o $(TESTDIR)/afl_findings_cadeque \
+	  -- ./fuzz_cadeque_afl
 
 # catenable differential: C vs the verified OCaml extraction.  Generates
 # the same deterministic workload on both sides and diffs the sequences.
@@ -225,6 +255,10 @@ check-fuzz: fuzz
 	@echo "=== fuzz: 1000 seeds × random workloads ==="
 	ASAN_OPTIONS=detect_leaks=0 ./fuzz 1000
 
+check-fuzz-cadeque: fuzz_cadeque
+	@echo "=== fuzz_cadeque: §6 catenable, 2000 seeds × random programs (ASan+UBSan) ==="
+	ASAN_OPTIONS=detect_leaks=0 ./fuzz_cadeque 2000
+
 check-diff:
 	@$(MAKE) run-diff N=100000
 
@@ -264,7 +298,7 @@ check-static:
 	    $(KT_C_SRC)
 	@echo "=== check-static passed ==="
 
-check-all: check check-static check-asan check-tsan check-fuzz check-diff \
+check-all: check check-static check-asan check-tsan check-fuzz check-fuzz-cadeque check-diff \
            check-diff-deep check-diff-multi check-persistence-stress
 	@echo
 	@echo "=== check-all passed: every test layer is green ==="
@@ -304,6 +338,6 @@ clean:
 	@for f in test test_debug wc_test fuzz fuzz_afl diff_workload \
 	          test_threads test_persistence_stress test_asan \
 	          test_threads_tsan bench bench_perf bench_K0 bench_K4096 prof \
-	          cadeque_test diff_cadeque cadeque_asan; do \
+	          cadeque_test diff_cadeque cadeque_asan fuzz_cadeque fuzz_cadeque_afl fuzz_cadeque_lf; do \
 	    [ -f "$$f" ] && rm -f "$$f" || true; \
 	done

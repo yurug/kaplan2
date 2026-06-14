@@ -91,6 +91,16 @@ When you'd NOT use this:
 - **Persistent and thread-safe to read** — every op returns a new
   deque that shares structure with the input.  Independent deques in
   thread-local arenas are race-free under TSan.
+- **§6 catenable bug hunter** — `tests/fuzz_cadeque.c` drives a bank of
+  catenable deques (push/inject/pop/eject/**concat**/**compact**)
+  against a reference model, aborting on any sequence divergence or
+  (under ASan/UBSan) memory error.  Three modes: a deterministic
+  seed-sweep CI gate (`make check-fuzz-cadeque`, 2000 seeds), an AFL
+  coverage-guided campaign (`make run-fuzz-cadeque-afl`), and an
+  in-process libFuzzer harness (`make fuzz_cadeque_lf`).  The harness is
+  self-validated: deliberately breaking the unboxed-cell flag or
+  swapping concat operands is caught within seconds (ASan
+  use-after-free / model divergence).
 
 ## Layout
 
