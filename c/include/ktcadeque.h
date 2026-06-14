@@ -24,7 +24,13 @@
  *
  *   Same as ktdeque.h: elements are opaque kt_elem (= void*); the deque
  *   stores the pointer-sized values you pass in and never owns user
- *   data.  Stored elements must be 8-byte aligned (low 3 bits zero).
+ *   data.  Stored elements must be 8-byte aligned (low 3 bits zero) AND
+ *   have bit 63 clear (canonical low-half pointers / scalars < 2^63).
+ *   The §6 layer stores ground elements UNBOXED and uses bit 63 to tag
+ *   its internal boxed cells, so an element with bit 63 set would be
+ *   misread.  All malloc/stack pointers and ordinary integer keys on
+ *   x86-64/AArch64 user space satisfy this; only deliberately
+ *   high-half-tagged pointers would not.
  *
  *   --------------------------------------------------------------------
  *   OPERATIONS (all worst-case O(1))

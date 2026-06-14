@@ -1151,11 +1151,19 @@ static void chain_emit(kc_chain* c, walk_env* w) {
 
 kc_cadeque kc_empty(void) { return (kc_cadeque)NULL; }  /* FEmpty */
 
+/* Elements are stored unboxed with bit 63 reserved for the box tag (see
+ * the ELEMENT MODEL in ktcadeque.h); a high-half element would be
+ * misread.  Caught here in debug builds, compiled out under NDEBUG. */
+#define KC_CHECK_ELEM(x) assert(((uintptr_t)(x) >> 63) == 0 && \
+    "kc element must have bit 63 clear (canonical low-half pointer/scalar)")
+
 kc_cadeque kc_push(kt_elem x, kc_cadeque d) {
+    KC_CHECK_ELEM(x);
     return (kc_cadeque)push_chain_x(mk_ground(x), (kc_chain*)d);
 }
 
 kc_cadeque kc_inject(kc_cadeque d, kt_elem x) {
+    KC_CHECK_ELEM(x);
     return (kc_cadeque)inject_chain_x((kc_chain*)d, mk_ground(x));
 }
 
