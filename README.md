@@ -213,38 +213,37 @@ See each tree's README for the full instructions and details.
 
 ## Benchmarks
 
-Our Rocq-extracted **catenable** deque (`Ktdeque.Cadeque`, the
-`KTFlatCadeque` artifact) versus Viennot et al.'s hand-written OCaml
-cadeque, at **n = 1,000,000** elements — nanoseconds per operation,
-lower is better (OCaml 5.4.1, pinned to one core):
+The **catenable** deque (`Ktdeque.Cadeque`) versus Viennot et al.'s
+hand-written OCaml cadeque, at **n = 1,000,000** elements — nanoseconds
+per operation, lower is better. *ours (OCaml)* is the Rocq-extracted
+production artifact; *ours (C)* is the hand-written C port:
 
-| workload | ours | Viennot | speedup |
+| workload | ours (OCaml) | ours (C) | Viennot |
 |---|---:|---:|---:|
-| `push` ×n | 89 | 96 | 1.08× |
-| `inject` ×n | 89 | 97 | 1.09× |
-| `pop` ×n | 61 | 78 | 1.28× |
-| `eject` ×n | 59 | 75 | 1.27× |
-| mixed push/push/pop (3n ops) | 46 | 76 | 1.65× |
-| `concat` fold (n/64 blocks of 64) | 146 | 1174 | 8.0× |
-| `concat` tree (n/64 blocks of 64) | 1425 | 3166 | 2.2× |
-| `concat`+`pop` interleave | 91 | 277 | 3.0× |
-| persistent fork (n× pop of one deque) | 42 | 67 | 1.6× |
+| `push` ×n | 89 | 96 | 96 |
+| `inject` ×n | 89 | 96 | 97 |
+| `pop` ×n | 61 | 89 | 78 |
+| `eject` ×n | 59 | 91 | 75 |
+| mixed push/push/pop | 46 | 76 | 76 |
+| `concat` fold (n/64 blocks of 64) | 146 | 215 | 1174 |
+| `concat` tree (n/64 blocks of 64) | 1425 | 1418 | 3166 |
+| `concat`+`pop` interleave | 91 | 282 | 277 |
+| persistent fork (n× pop of one deque) | 42 | 100 | 67 |
 
-Faster on every workload: by a small margin on the single-element
-operations — the constant factor is competitive with a hand-tuned
-implementation — and by a wide margin on catenation, where the §6
-structure earns its keep. Retained memory is identical (3.00 live
-words per element).
+The extracted **OCaml** artifact is faster than Viennot on every
+workload — a small margin on the single-element operations (its constant
+factor is competitive with a hand-tuned implementation), up to 8× on
+catenation — with identical retained memory (3.00 live words/element).
+The **C** port matches Viennot on push/inject/mixed/interleave and beats
+it 2–5.5× on the `concat` workloads, but trails ~1.1–1.5× on pop/eject
+and the persistent fork (less reclaimable garbage there, and a per-op
+spine node is still malloc'd). On the *non-catenable* §4 deque the C
+wins across the board, ~1.5×–2.9× over Viennot.
 
-The hand-written **C port** of the §4 deque is a further ~1.5×–2.9×
-faster than Viennot's OCaml on the non-catenable workloads
-([`c/COMPARISON.md`](c/COMPARISON.md)).
-
-Full tables across all four sizes, the methodology, and a side-by-side
-proof-engineering comparison with VWGP are in
-[`kb/reports/viennot-comparison-2026-06-11.md`](kb/reports/viennot-comparison-2026-06-11.md)
-(self-contained HTML: [`kb/viennot-comparison.html`](kb/viennot-comparison.html)).
-Reproduce locally with `make bench-cadeque`.
+**Full tables (all sizes, both the §4 and §6 layers), methodology, the
+worst-case-O(1) adversarial fingerprint, and reproduction commands:
+[`BENCHMARKS.md`](BENCHMARKS.md).** Reproduce the headline numbers with
+`make bench-cadeque`.
 
 ## License
 
