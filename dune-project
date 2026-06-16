@@ -2,7 +2,7 @@
 (using rocq 0.12)
 (name ktdeque)
 (license MIT)
-(authors "Yann Régis-Gianas and contributors")
+(authors "Yann Régis-Gianas")
 (maintainers "yann.regis-gianas@nomadic-labs.com")
 (source (uri "git+https://github.com/yurug/kaplan2"))
 (homepage "https://github.com/yurug/kaplan2")
