@@ -15,6 +15,7 @@
 /wc_test
 /bench
 /bench_adversarial
+/bench_wcet
 /bench_K0
 /bench_K4096
 /bench_arena_*

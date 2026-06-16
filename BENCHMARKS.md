@@ -186,10 +186,27 @@ and Viennot never exceed ~52 ns on any state. Bounded vs unbounded worst
 case — the whole reason the WC-O(1) machinery exists — here measured, not
 only proven.
 
-*(Coverage so far: the §4 deque in OCaml. The §4 C port and the §6
-catenable operations — including `concat` — are being added; for §6 the
-worst-case states are derived from the proof's case analysis rather than
-sampled.)*
+### C (§4)
+
+`make bench-wcet` runs the same probe against the C port. The
+deterministic allocation bound is established by `tests/wc_test.c`:
+**≤ 8 alloc objects/op** (4 packets + 4 pairs; 0 links, 0 bufs), flat
+across n = 1k/10k/100k. Worst-case timing over the same state battery:
+
+| op (C) | worst-case ns/op | median ns/op |
+|---|---:|---:|
+| `push` | 52 | 19 |
+| `inject` | 49 | 8 |
+| `pop` | 37 | 7 |
+| `eject` | 37 | 8 |
+
+The C is faster in the median; its worst-case ns shows up at the
+*smallest* states (per-op fixed costs / cold cache, not cascade work)
+and, like the allocation bound, does not grow with n.
+
+*(Coverage: the §4 deque, OCaml and C. The §6 catenable operations —
+including `concat` — are next; there the worst-case states will be
+derived from the proof's case analysis rather than only sampled.)*
 
 ---
 
