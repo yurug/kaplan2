@@ -1,5 +1,31 @@
 # SESSION_STATE — rebuild (Phase 4b: functional keystone CLOSED)
 
+## CHECKPOINT 2026-06-16 — worst-case (WCET) probe, §4 done
+Building a measurement-based worst-case per-op probe (user asked: "find
+the worst-case execution time for all implementations and all ops").
+Design: per (impl, op), over a battery of reachable states (op-histories
++ seeded random walk), measure (a) allocation/op — DETERMINISTIC (pure
+op, same alloc at a state every call) → exact worst-case *work*,
+comparable to the proven constant bound; (b) worst-case ns/op = max over
+states of min-over-trials mean (persistent re-execution).  NOT a sound
+hardware WCET (OOO x86 + GC) — measurement-based over an adversarial
+battery; honest framing in BENCHMARKS.md.
+DONE & pushed to main:
+- §4 OCaml: ocaml/bench/wcet.ml (KT/Viennot/D4) → commit a9c8a68.
+- §4 C: c/benches/bench_wcet.c (timing) + reuse tests/wc_test.c (alloc
+  bound <=8 objects/op) → commit 847bd78.
+- bench/wcet.sh (runs OCaml+C+wc_test), `make bench-wcet`, BENCHMARKS.md
+  "Worst-case per operation (§4)" section.
+KEY FINDING: alloc/op is FLAT for KT/Viennot (~80-104 words/op any
+state/size) but GROWS for amortized D4 (60->216 words/op on pop/eject at
+n~=130k) - bounded vs unbounded worst case, measured not just proven.
+NEXT STEP: §6 catenable (the harder phase). Extend to KTFlatCadeque ops
+(cad_push/inject/pop/eject_x + cad_concat_x) and the C §6 port (kc_*).
+concat needs operand-PAIR batteries; worst-case states for concat/pop
+should be DERIVED from FlatOps.v's case analysis, not only sampled. Add
+Viennot cadeque as the reference. The §4 PoC was the agreed first
+deliverable; check with user before the §6 push.
+
 ## ★★★ MISSION ACCOMPLISHED (2026-06-11) ★★★
 THE CATENABLE KEYSTONE IS CLOSED: zero admits across rocq/; all six
 cat_keystone_{empty,push,inject,concat,pop,eject} report "Closed under
