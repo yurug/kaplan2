@@ -10,7 +10,12 @@
  * sharing structure with the old one.  You can fork a deque, mutate one
  * branch, and the other branch is unaffected.
  *
- * Algorithm: KT99 / Viennot-Wendling-Guéneau-Pottier "packets and chains".
+ * Algorithm: the Kaplan-Tarjan real-time deque --
+ *   Kaplan & Tarjan, "Purely Functional, Real-Time Deques with
+ *   Catenation", Journal of the ACM 46(5), 1999 --
+ * in the "packets and chains" presentation of
+ *   Viennot, Wendling, Guéneau & Pottier, "Verified Purely Functional
+ *   Catenable Real-Time Deques", preprint (LMCS), 2025.
  *
  * For the *intuition* — why "no two reds adjacent" delivers worst-case
  * O(1), why packets aggregate yellow runs into a single allocation —
@@ -53,10 +58,10 @@
  *     - You want a small inline scalar: cast to (kt_elem) (size_t).
  *
  *   The low 3 bits of every kt_elem stored in the deque must be zero
- *   (the buffer's size is encoded in those bits — see the "Buffer
- *   (Buf5)" section of ktdeque_dequeptr.c in the project monorepo
- *   for why).  All malloc-aligned pointers and 8-byte-aligned scalars
- *   satisfy this.
+ *   (the buffer encodes its element count in those bits — see the
+ *   "Buffer (Buf5)" section of c/src/ktdeque_dequeptr.c in the project
+ *   repository, https://github.com/yurug/kaplan2 , for why).  All
+ *   malloc-aligned pointers and 8-byte-aligned scalars satisfy this.
  *
  *   --------------------------------------------------------------------
  *   THREADING
@@ -169,7 +174,8 @@ size_t kt_length(kt_deque d);
 
 /* Returns 0 if the chain satisfies the C's K-T regularity invariant —
  * the per-packet analogue of the abstract `regular_chain` predicate
- * from KTDeque/DequePtr/Regularity.v.  Checked invariants:
+ * from the Rocq model (rocq/KTDeque/DequePtr/Regularity.v in the
+ * repository named above).  Checked invariants:
  *
  *   1. Every link's depth is in [1, MAX_PACKET_DEPTH].
  *   2. Every buffer's encoded size is <= 5.
@@ -182,12 +188,12 @@ size_t kt_length(kt_deque d);
  *      is GREEN.  Mirrors the assert(0) calls in green_of_red Cases
  *      2 & 3.
  *
- * Not enforced (the C uses flat packets that aggregate yellow runs;
- * see Phase S10 audit and the project memory entry "D4Cell vs
- * packets-and-chains tradeoff"):
- *   - per-link absorbability of deeper buffers (`buf_can_absorb_one`
- *     in Regularity.v).  Deeper buffers can transiently be B4 or B5
- *     between operations; the cascade fires on the next op that
+ * Not enforced: the C uses flat packets that aggregate a whole yellow
+ * run into a single allocation, so it does not track the abstract
+ * model's per-link absorbability —
+ *   - per-link absorbability of deeper buffers (the `buf_can_absorb_one`
+ *     predicate in the Rocq model).  Deeper buffers can transiently be
+ *     B4 or B5 between operations; the cascade fires on the next op that
  *     touches them.
  *
  * Negative return codes (distinct per violation, all non-zero):

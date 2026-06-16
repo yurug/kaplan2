@@ -1,20 +1,24 @@
 # ktdeque (OCaml) - Rocq-extracted persistent real-time deque
 
 This is the OCaml side of the kaplan2 deque project: a purely-functional,
-persistent, CATENABLE double-ended queue extracted from the Rocq
-formalization in [`../rocq/`](../rocq/). The algorithm is the
-Kaplan-Tarjan real-time deque, and both keystone theorem bundles are
-closed: the §4 deque
-([`DequeKeystone.v`](../rocq/KTDeque/DequePtr/DequeKeystone.v),
-`deque_wc_o1_*`) and the §6 catenable deque
-([`CatKeystone.v`](../rocq/KTDeque/Catenable/CatKeystone.v) +
-`cat_wc_o1`), each re-checkable from a clean build with
-`make deque-keystone-gate` / `make cat-keystone-gate` at the repo
-root.  The extraction output is checked into `extracted/*.ml{,i}` so
-this tree builds standalone — no Rocq toolchain required.
+persistent, **catenable** double-ended queue.  Every push / pop / inject /
+eject runs in worst-case — not amortised — O(1), and any two deques can be
+concatenated in O(1) regardless of their sizes.  The algorithm is the
+Kaplan–Tarjan real-time deque:
+
+> Haim Kaplan and Robert E. Tarjan, *Purely Functional, Real-Time Deques
+> with Catenation*, Journal of the ACM 46(5), 1999.
+
+The implementation is not hand-written.  It is extracted from a
+machine-checked proof in the Rocq proof assistant (formerly Coq) —
+[`rocq/`](https://github.com/yurug/kaplan2/tree/main/rocq) — that verifies
+the worst-case-O(1) bound for both the non-catenable (paper §4) and the
+catenable (paper §6) deque.  The extraction output is checked into
+`extracted/*.ml{,i}`, so this OCaml tree builds standalone, with no Rocq
+toolchain required.
 
 For the C port (1.6×–2.9× faster on every workload at n=1M with arena
-compaction), see [`../c/`](../c/).
+compaction), see [`c/`](https://github.com/yurug/kaplan2/tree/main/c).
 
 ## When you'd reach for this in an OCaml codebase
 
@@ -33,14 +37,14 @@ specifically when one of these matches your situation:
 - **You need worst-case latency, not amortised.**  Many functional
   deque encodings (banker's deque, Hood-Melville variants) achieve
   O(1) only on average.  Their amortised analysis falls apart in
-  the persistent setting where one state may be re-used by many
-  forks (see `bench/adversarial.sh` for the empirical demonstration
-  of exactly this failure on our hand-written D4).  This package is
-  the current Rocq-extracted implementation of the real-time design;
-  the theorem bundle now derives all three `green_of_red_k` structural
-  red-repair witnesses from shape and levels, and the release gate keeps the
-  remaining invariant-strengthening/preservation and pure-to-imperative
-  cost-refinement theorems visible until the WC O(1) claim is fully packaged.
+  the persistent setting where one state is re-used by many forks
+  (the script
+  [`bench/adversarial.sh`](https://github.com/yurug/kaplan2/blob/main/bench/adversarial.sh)
+  demonstrates exactly this failure empirically, on a hand-written
+  amortised deque).  This package is the Rocq-extracted real-time
+  design, whose worst-case-O(1) bound is mechanically proved — so the
+  latency guarantee holds under arbitrary persistent re-use, not merely
+  on average.
 
 - **You're building branching computations** — beam search,
   planners, persistent search trees, IDE-style cursors with undo.
@@ -115,7 +119,7 @@ The raw Rocq extraction (the `KTDeque` / `KTFlatCadeque` modules and the
 internal sub-library **`ktdeque.extracted`** for benchmarking and
 advanced use, but new code should prefer `Ktdeque.Deque` / `Cadeque`.
 
-A full runnable example lives in [`examples/hello.ml`](examples/hello.ml).
+A full runnable example lives in [`ocaml/examples/hello.ml`](https://github.com/yurug/kaplan2/blob/main/ocaml/examples/hello.ml).
 Build it in-tree with `dune build ocaml/examples/hello.exe` (or run
 directly: `dune exec ocaml/examples/hello.exe`).  After
 `opam install .`, the same source compiles via ocamlfind:
@@ -139,8 +143,8 @@ It is **faster than Viennot's hand-written OCaml cadeque on all 9
 benchmark workloads at every size** (36/36 cells; up to 8× on
 concat-fold), with identical retained memory (3.00 live
 words/element).  Reproduce with `make bench-cadeque`; analysis in
-[`../kb/reports/viennot-comparison-2026-06-11.md`](../kb/reports/viennot-comparison-2026-06-11.md)
-and the page [`../kb/viennot-comparison.html`](../kb/viennot-comparison.html).
+[`kb/reports/viennot-comparison-2026-06-11.md`](https://github.com/yurug/kaplan2/blob/main/kb/reports/viennot-comparison-2026-06-11.md)
+and the page [`kb/viennot-comparison.html`](https://github.com/yurug/kaplan2/blob/main/kb/viennot-comparison.html).
 
 `KTCadeque` (the model-layer extraction, list buffers) and
 `KTCadequeFast` (the previous production artifact) remain in the
@@ -150,7 +154,7 @@ library as the honest baseline and for A/B comparison
 they live on the `archive/pre-rebuild-2026-06-02` branch.
 
 The closure report is
-[`../kb/reports/catenable-keystone-closure-2026-06-11.md`](../kb/reports/catenable-keystone-closure-2026-06-11.md).
+[`kb/reports/catenable-keystone-closure-2026-06-11.md`](https://github.com/yurug/kaplan2/blob/main/kb/reports/catenable-keystone-closure-2026-06-11.md).
 
 ## Concurrency (OCaml 5 / Domain)
 
@@ -281,7 +285,7 @@ Rocq surface API, also update `ocaml/extracted/kTDeque.mli`.
 The differential test (`make check-diff*` from the C side) runs the
 extracted OCaml and the C side against the same xorshift workload and
 diffs their outputs byte-for-byte; any disagreement is treated as a
-bug.  See [`../kb/reports/c-ocaml-equivalence.md`](../kb/reports/c-ocaml-equivalence.md)
+bug.  See [`kb/reports/c-ocaml-equivalence.md`](https://github.com/yurug/kaplan2/blob/main/kb/reports/c-ocaml-equivalence.md)
 for a critical reading of how convincing that evidence is.
 
 ## Tests
@@ -327,8 +331,8 @@ dune build ocaml/bench/compare.exe
 _build/default/ocaml/bench/compare.exe
 ```
 
-For cross-language perf vs the C, see [`../c/COMPARISON.md`](../c/COMPARISON.md).
+For cross-language perf vs the C, see [`c/COMPARISON.md`](https://github.com/yurug/kaplan2/blob/main/c/COMPARISON.md).
 
 ## License
 
-MIT.  See [`../LICENSE`](../LICENSE).
+MIT.  See [`LICENSE`](https://github.com/yurug/kaplan2/blob/main/LICENSE).

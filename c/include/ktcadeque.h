@@ -2,21 +2,26 @@
  * ktcadeque.h - Kaplan-Tarjan persistent CATENABLE deque, C port.         *
  * ====================================================================== *
  *
- * A hand-written C port of the KT99 §6 catenable deque, layered on the
- * §4 deque of ktdeque.h.  Like that deque, every kc_cadeque value is an
- * immutable persistent snapshot; an operation returns a new snapshot
- * sharing structure with the old one.  The headline over the §4 deque
- * is catenation: kc_concat joins two catenable deques in worst-case
- * O(1).
+ * A hand-written C port of the catenable deque of section 6 of
+ *   Kaplan & Tarjan, "Purely Functional, Real-Time Deques with
+ *   Catenation", Journal of the ACM 46(5), 1999,
+ * layered on the section-4 deque of ktdeque.h.  Like that deque, every
+ * kc_cadeque value is an immutable persistent snapshot; an operation
+ * returns a new snapshot sharing structure with the old one.  The
+ * headline over the §4 deque is catenation: kc_concat joins two
+ * catenable deques in worst-case O(1).
  *
  * This C port mirrors, branch for branch, the machine-checked Rocq
- * development rocq/KTDeque/Catenable/ (the production op web
- * FlatChain.v / FlatOps.v, whose six keystone theorems + constant cost
- * bound are closed under the global context — `make cat-keystone-gate`).
- * The §6 prefix/suffix buffers are §4 deques (ktdeque.h), exactly as the
+ * development under rocq/KTDeque/Catenable/ (the production op web
+ * FlatChain.v / FlatOps.v, whose six keystone theorems and constant
+ * cost bound are closed under the global context).  The §6
+ * prefix/suffix buffers are §4 deques (ktdeque.h), exactly as the
  * extracted OCaml artifact's buffers are the verified §4 chain.  This C
  * is validated against that extracted artifact by a deterministic
  * differential workload, not formally refined from it.
+ *
+ * Project repository (sources, proofs, benchmarks, design notes):
+ *   https://github.com/yurug/kaplan2
  *
  *   --------------------------------------------------------------------
  *   ELEMENT MODEL
