@@ -1,12 +1,14 @@
 # kaplan2
 
-> **Not yet released as a package** — no semver, no versioned tags;
-> the opam package `ktdeque` is buildable from a clone but not yet on
-> the official opam-repository. The proof story, however, is closed:
-> both keystone theorem bundles (non-catenable §4 and catenable §6)
-> are proven with zero admits, and the extracted artifact outperforms
-> the hand-written reference implementation on every benchmarked
-> workload. See [Status](#status).
+> **Released: `0.2.0`** — tagged, with a
+> [GitHub release](https://github.com/yurug/kaplan2/releases/tag/0.2.0),
+> and submitted to the official opam-repository
+> ([ocaml/opam-repository#30060](https://github.com/ocaml/opam-repository/pull/30060),
+> under review). The proof story is closed: both keystone theorem
+> bundles (non-catenable §4 and catenable §6) are proven with zero
+> admits, and the extracted artifact outperforms the hand-written
+> reference implementation on every benchmarked workload. See
+> [Status](#status).
 
 A Rocq-developed persistent real-time **catenable** deque, with
 extracted OCaml, hand-written ports, and a microbenchmark suite.
@@ -181,9 +183,10 @@ _build/default/ocaml/bench/compare.exe
 # Build and test the C port
 cd c && make && ./test
 
-# Or install the Rocq-extracted OCaml library locally (opam package
-# ktdeque; ships only the extracted code from rocq/).
-opam install .
+# Install the OCaml library (opam package `ktdeque` — the idiomatic
+# Deque / Cadeque modules over the Rocq-extracted code):
+opam install ktdeque   # once ocaml/opam-repository#30060 is merged
+opam install .         # or from a clone of this repo
 ```
 
 The full correctness suite runs across all three layers (Rocq proofs,
@@ -259,6 +262,18 @@ See each tree's README for the full instructions and details.
 - The C port is hand-translated from the §4 algorithm and is
   ~1.5×–2.9× faster than Viennot's OCaml on the non-catenable
   workloads ([`c/COMPARISON.md`](c/COMPARISON.md)).
+
+### Packaging — `0.2.0` released
+
+- Tagged [`0.2.0`](https://github.com/yurug/kaplan2/releases/tag/0.2.0);
+  changelog in [`CHANGES.md`](CHANGES.md). The OCaml library is the opam
+  package `ktdeque` — the idiomatic `Deque` / `Cadeque` interface over
+  the extraction, with the raw extraction kept available as the internal
+  sub-library `ktdeque.extracted`.
+- opam-repository submission:
+  [ocaml/opam-repository#30060](https://github.com/ocaml/opam-repository/pull/30060)
+  (under review). Until it merges, install by pinning the release tarball
+  or from a clone (`opam install .`).
 
 The pre-rebuild development (with its honest audit of what was then
 conditional) is preserved at the branch/tag
