@@ -214,32 +214,44 @@ battery of operand pairs.
 
 | impl | op | max alloc (words/op) | worst-case ns/op | median ns/op |
 |---|---|---:|---:|---:|
-| KTf (verified) | `push` | 75 | 52 | 45 |
-| | `inject` | 80 | 53 | 47 |
+| KTf (verified) | `push` | 75 | 51 | 43 |
+| | `inject` | 80 | 50 | 43 |
 | | `pop` | 97 | 48 | 22 |
-| | `eject` | 98 | 53 | 22 |
-| | `concat` | 640 | **357** | **18** |
-| Viennot | `push` | 99 | 51 | 49 |
-| | `inject` | 93 | 57 | 50 |
-| | `pop` | 137 | 69 | 59 |
-| | `eject` | 132 | 66 | 60 |
-| | `concat` | 404 | **198** | **184** |
+| | `eject` | 98 | 53 | 23 |
+| | `concat` | **640** | **352** | 110 |
+| Viennot | `push` | 99 | 49 | 44 |
+| | `inject` | 93 | 53 | 48 |
+| | `pop` | 137 | 68 | 59 |
+| | `eject` | 132 | 68 | 55 |
+| | `concat` | **968** | **513** | 181 |
 
 Two things stand out. First, on the four single-element operations the
 verified **KTf wins the worst case outright** — lower allocation (75–98
-vs 93–137 words/op) and lower worst-case ns (48–53 vs 51–69) than the
-hand-written Viennot cadeque — and, crucially, every column is *bounded*:
-none grows with operand size.
+vs 93–137 words/op) and lower worst-case ns (48–53 vs 49–68) than the
+hand-written Viennot cadeque — and every column is *bounded*: none grows
+with operand size.
 
-Second, `concat` is the interesting one. KTf's `concat` is **bimodal** —
-median 18 ns but worst-case ~357 ns — while Viennot's is **uniform**
-(median 184 ≈ worst 198). So KTf wins *average* concatenation by a wide
-margin (this is the 8× concat-fold throughput win above) yet has a
-*higher worst-case single concat* than Viennot. Both are bounded (WC
-O(1)); they just spend their constant differently — KTf is cheap in the
-common case and occasionally does a larger bounded repair, Viennot pays a
-flatter cost every time. This is precisely the kind of trade-off an
-average-throughput benchmark hides and a worst-case probe exposes.
+Second, `concat`. Both implementations make catenation O(1) the same
+way: join the two spines directly when both operands are large, and
+**absorb a small operand element-by-element** (bounded by a fixed
+threshold) when one side is tiny — so the worst case lives just *below*
+that threshold, not at large sizes.
+
+- **Common case** (both operands ≥ 8): KTf does the spine join in
+  **16 ns / 11 words**; Viennot in **185 ns / 404 words** — KTf's O(1)
+  join is ~11× faster and allocates ~37× less.
+- **Worst case** (one operand at the threshold): KTf peaks at small-side
+  7 (**352 ns / 640 words**); Viennot peaks at small-side 6
+  (**513 ns / 968 words**).
+
+So **KTf beats Viennot on `concat` across the board** — common case,
+worst case, and worst-case allocation. (An earlier version of this probe
+reported the opposite for the worst case; that was a *battery artifact* —
+its smallest operand was 7, which is exactly Viennot's flat regime, so it
+caught KTf's size-7 peak but missed Viennot's size-6 peak. Probing the
+full small range 1–7 fixes it. The `concat` median above is
+battery-dependent — it counts mostly small-operand pairs — so read the
+common-case and worst-case figures, not the median.)
 
 ### §6 — C
 
@@ -250,22 +262,25 @@ proven primitive count: push/inject ≤ 4, `concat` ≤ 43, pop/eject ≤ 145).
 
 | op (C §6) | worst-case ns/op | median ns/op |
 |---|---:|---:|
-| `push` | 86 | 51 |
-| `inject` | 78 | 46 |
-| `pop` | 77 | 50 |
-| `eject` | 75 | 52 |
-| `concat` | 522 | 15 |
+| `push` | 84 | 48 |
+| `inject` | 75 | 43 |
+| `pop` | 67 | 45 |
+| `eject` | 76 | 53 |
+| `concat` | 410 | 105 |
 
-The C mirrors the OCaml shape: bounded basic ops, and a bimodal `concat`
-(median 15 ns, worst ~522 ns).
+The C mirrors the OCaml shape: bounded basic ops, and a `concat` whose
+worst case (~410 ns, again at a small-side operand) sits below KTf
+OCaml's — though the C §6 per-op cost includes a `malloc` (the
+unified-arena gap), which the OCaml side avoids via its GC.
 
-> **Honesty about the §6 worst case.** The §6 worst-case states here are
-> *sampled* (op-histories + random walk + operand pairs), not yet
-> *derived* from the proof's case analysis, so the reported worst is a
-> strong empirical worst, not a certified maximum. Boundedness itself is
-> guaranteed by the mechanized cost theorem (`cat_wc_o1`); deriving the
-> exact worst-case operand configuration for `concat`/`pop` from
-> `FlatOps.v` is the natural next step.
+> **Honesty about the §6 worst case.** The worst-case `concat` is now
+> *located* — it is the small-operand absorption path just below the
+> threshold, exactly where the algorithm's structure predicts it — but
+> the states are still *sampled*, so the reported worst is a strong
+> empirical worst, not a certified maximum. Boundedness itself is
+> guaranteed by the mechanized cost theorem (`cat_wc_o1`); a fully
+> proof-derived worst-case operand configuration from `FlatOps.v` would
+> turn the empirical peak into a certified one.
 
 ---
 

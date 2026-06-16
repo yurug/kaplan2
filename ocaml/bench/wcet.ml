@@ -262,10 +262,15 @@ module Build6 (C : CADEQUE) = struct
           [ 1; 2 ]) [ 127; 4095; 131071 ]
     in
     det @ rnd
-  (* operands for the concat pair battery *)
+  (* Operands for the concat pair battery.  Crucially includes the SMALL
+     sizes 1..7: §6 concat absorbs a small operand element-by-element
+     (bounded by a threshold), so the worst case lives just below that
+     threshold, NOT at large sizes (large++large is the cheap O(1)
+     spine-join).  Probing only large operands misses the real worst. *)
   let operands () =
-    List.map (fun n -> Printf.sprintf "p%d" n, push n) [ 7; 127; 4095; 131071 ]
-    @ [ "rand4095", random ~seed:1 4095; "churn4095", churn 4095 ]
+    List.map (fun n -> Printf.sprintf "p%d" n, push n)
+      [ 1; 2; 3; 4; 5; 6; 7; 4095 ]
+    @ [ "rand4095", random ~seed:1 4095 ]
 end
 
 let run6 (module C : CADEQUE) ~m ~trials ~k =

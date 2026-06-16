@@ -161,22 +161,22 @@ static void run6(long m, int trials) {
     long rs[]={127,4095,131071};
     for(int ri=0;ri<3;ri++) for(unsigned s=1;s<=2;s++){ kc_cadeque d=b6_random(s,rs[ri]);
         snprintf(lab,sizeof lab,"rand%u~%ld",s,rs[ri]); probe6(lab,d,m6,trials); }
-    /* concat: operand-pair battery */
-    const char* onames[6]={"p7","p127","p4095","p131071","rand4095","churn4095"};
-    kc_cadeque ops[6];
-    for(int p=0;p<6;p++){
-        kc_cadeque a, b;
-        for(int q=0;q<6;q++){
-            /* rebuild both operands fresh (arena was flushed) */
-            switch(p){case 0:a=b6_push(7);break;case 1:a=b6_push(127);break;case 2:a=b6_push(4095);break;
-                case 3:a=b6_push(131071);break;case 4:a=b6_random(1,4095);break;default:a=b6_churn(4095);}
-            switch(q){case 0:b=b6_push(7);break;case 1:b=b6_push(127);break;case 2:b=b6_push(4095);break;
-                case 3:b=b6_push(131071);break;case 4:b=b6_random(1,4095);break;default:b=b6_churn(4095);}
+    /* concat: operand-pair battery.  Include SMALL sizes 1..7 — §6 concat
+       absorbs a small operand element-wise (bounded threshold), so the
+       worst case is just below the threshold, not at large sizes. */
+    struct { const char* name; int kind; long n; } OPS6[9] = {
+        {"p1",0,1},{"p2",0,2},{"p3",0,3},{"p4",0,4},{"p5",0,5},
+        {"p6",0,6},{"p7",0,7},{"p4095",0,4095},{"rand4095",1,4095}
+    };
+    for(int p=0;p<9;p++){
+        for(int q=0;q<9;q++){
+            /* rebuild both operands fresh (arena flushed between pairs) */
+            kc_cadeque a = (OPS6[p].kind==0) ? b6_push(OPS6[p].n) : b6_random(1,OPS6[p].n);
+            kc_cadeque b = (OPS6[q].kind==0) ? b6_push(OPS6[q].n) : b6_random(1,OPS6[q].n);
             double ns=time6_concat(&a,&b,m6,trials);
-            snprintf(lab,sizeof lab,"%s++%s",onames[p],onames[q]); rec(&g6[4],ns,lab);
+            snprintf(lab,sizeof lab,"%s++%s",OPS6[p].name,OPS6[q].name); rec(&g6[4],ns,lab);
             kc_cadeque none=kc_empty(); kc_arena_compact(&none,0);
         }
-        (void)ops;
     }
     printf("\n### §6 catenable (C)\n\n");
     printf("| op | worst-case ns/op | median ns/op | worst-case state |\n|---|---:|---:|---|\n");

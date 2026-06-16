@@ -23,14 +23,22 @@ n~=130k) - bounded vs unbounded worst case, measured not just proven.
 §6 cadeque too (KTf/Viennot OCaml, C kc_*), concat over operand-pair
 battery; BENCHMARKS.md has §4+§6 OCaml+C worst-case tables.
 §6 FINDINGS: both bounded (WC O(1)). KTf beats Viennot on worst case of
-all 4 single-element §6 ops. concat is BIMODAL for KTf (median 18ns /
-worst ~357ns) but UNIFORM for Viennot (184~=198) — KTf wins avg concat
-but higher worst-case single concat. C §6 mirrors (concat median 15 /
-worst ~522; per-op includes a malloc, the unified-arena gap).
+all 4 single-element §6 ops.
+CONCAT WORST CASE INVESTIGATED (user request): KTf concat is O(1)
+spine-join (16ns/11 words) when both operands >=8; below a threshold it
+absorbs the small side element-by-element, so the WORST case is at
+small-side size 7 (KTf 352ns/640w), NOT at large sizes. Viennot does the
+same with threshold 7, peaking at small-side 6 (513ns/968w) with a
+costlier O(1) regime (185ns/404w). => KTf WINS concat across the board:
+common (16 vs 185), worst (352 vs 513), worst-alloc (640 vs 968).
+The earlier "Viennot wins concat worst" was a BATTERY ARTIFACT (smallest
+operand was 7 = Viennot's flat regime; missed its size-6 peak). FIX:
+operand battery now includes sizes 1..7 (wcet.ml Build6.operands +
+bench_wcet.c). Corrected tables in BENCHMARKS.md. C §6 concat worst ~410.
 REMAINING (optional refinements, not started):
-- §6 worst-case states are SAMPLED, not derived from FlatOps.v case
-  analysis → deriving the exact worst concat/pop operand configuration
-  is the natural next step (boundedness already guaranteed by cat_wc_o1).
+- §6 worst case is now LOCATED (small-side absorption at the threshold)
+  but states still SAMPLED; a proof-derived (FlatOps.v) worst operand
+  config would make the peak certified, not just empirical.
 - C §6 has no alloc counters (kc_*); only timing measured for §6 C.
 - could add a `make`-level wcet gate / commit a wcet result snapshot.
 
