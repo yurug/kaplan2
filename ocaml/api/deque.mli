@@ -1,26 +1,62 @@
 (** Persistent real-time double-ended queue (Kaplan–Tarjan §4).
 
-    A purely-functional deque: every operation returns a new deque and
-    leaves its argument untouched, so a value can be shared and "forked"
-    freely.  Each of {!push}, {!inject}, {!pop}, {!eject} runs in
-    worst-case O(1) — not amortised — which is the property this
-    structure exists for; it is the Rocq-verified [push_kt4] family
-    (keystone [deque_wc_o1_*] in [rocq/KTDeque/DequePtr/DequeKeystone.v]),
-    extracted to OCaml and wrapped here in an idiomatic interface.
+    A {e deque} ("double-ended queue", pronounced "deck") is a sequence
+    you can grow and shrink at {b both} ends: {!push} / {!pop} act on the
+    front, {!inject} / {!eject} on the back.  Picture an OCaml list that
+    is just as cheap to extend or peel off on the right as on the left.
 
-    If you also need O(1) {b concatenation} of two deques, use
-    {!Cadeque} instead.
+    Two properties make this particular implementation worth having.
 
-    {2 Element convention}
+    {2 Persistent (purely functional)}
 
-    Elements are ordinary OCaml values of any type; the deque stores
-    them by reference and never inspects them.
+    No operation mutates its argument.  Each returns a {e new} deque and
+    leaves the old one fully valid, so you may keep, share, and reuse any
+    past version freely.  For example, pushing two different elements onto
+    the same [d] yields two independent deques that transparently share
+    their common structure:
+
+    {[
+      let d  = Deque.of_list [1; 2] in
+      let d1 = Deque.push 0 d in          (* [0; 1; 2]              *)
+      let d2 = Deque.push 9 d in          (* [9; 1; 2] — d untouched *)
+    ]}
+
+    {2 Real-time (worst-case O(1))}
+
+    Every individual {!push}, {!inject}, {!pop} and {!eject} costs a
+    bounded, constant number of steps — {b worst case}, not amortised.
+
+    The distinction matters.  An {e amortised}-O(1) structure is allowed
+    the occasional expensive operation as long as the long-run average
+    stays constant (a dynamic array doubling its backing store, say).
+    Here there is no such operation: no call ever stalls to "catch up" on
+    deferred work.  That makes the structure safe for latency-sensitive
+    code — interactive loops, real-time systems, anything where a single
+    slow call is unacceptable.  Achieving this {e and} persistence
+    {e and} O(1) at once is the hard result Kaplan and Tarjan's design
+    delivers, and the reason this structure exists.
+
+    The implementation is not hand-written: it is extracted from a
+    machine-checked Rocq proof.  The [push_kt4] family carries a
+    worst-case-O(1) keystone, [deque_wc_o1_*], verified in
+    [rocq/KTDeque/DequePtr/DequeKeystone.v]; this module is a thin,
+    idiomatic OCaml wrapper around that extraction.
+
+    Need O(1) {b concatenation} of two whole deques as well?  Use
+    {!Cadeque}; it adds [concat] at the price of a slightly larger
+    constant factor on the other operations.
+
+    {2 Elements}
+
+    Elements are arbitrary OCaml values of any type.  The deque stores
+    them by reference and never inspects, compares, or copies them.
 
     {2 Example}
 
     {[
-      let d = Deque.of_list [1; 2; 3] in        (* front = 1, back = 3 *)
-      let d = Deque.push 0 d in                  (* [0; 1; 2; 3] *)
+      let d = Deque.of_list [1; 2; 3] in   (* front = 1, back = 3      *)
+      let d = Deque.push 0 d in            (* front: [0; 1; 2; 3]      *)
+      let d = Deque.inject d 4 in          (* back:  [0; 1; 2; 3; 4]   *)
       match Deque.pop d with
       | Some (x, d') -> assert (x = 0); ignore d'
       | None -> assert false

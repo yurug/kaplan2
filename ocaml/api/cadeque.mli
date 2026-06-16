@@ -1,22 +1,40 @@
-(** Persistent real-time {b catenable} double-ended queue (Kaplan–Tarjan §6).
+(** Persistent real-time {b catenable} double-ended queue
+    (Kaplan–Tarjan §6).
 
-    Everything {!Deque} offers — purely-functional, worst-case O(1)
-    {!push} / {!inject} / {!pop} / {!eject} — {b plus} worst-case O(1)
-    {!concat}: joining two deques of any sizes is a constant-time
-    operation, not O(n).  This is the Rocq-verified §6 structure
-    (keystone [cat_keystone_*] + cost bound [cat_wc_o1] in
-    [rocq/KTDeque/Catenable/]), extracted to OCaml and wrapped here.
+    A {!Deque} that can also be {e concatenated} in constant time.  It
+    keeps every guarantee of {!Deque} — purely functional, and worst-case
+    (not amortised) O(1) for {!push}, {!inject}, {!pop} and {!eject} — and
+    adds one more operation:
 
-    Use this when you need catenation; if you only ever push/pop at the
-    ends, {!Deque} has a smaller constant factor.
+    {2 O(1) {!concat}}
+
+    Joining two deques end-to-end is a constant-time operation, {e
+    independent of how many elements either one holds}.  The obvious way
+    to append two sequences is O(n) — copy or relink one onto the other.
+    Doing it in O(1) while every other operation stays O(1) worst case
+    {e and} the structure stays persistent (the two inputs remain valid
+    afterwards) is exactly what the §6 construction buys, and the
+    difficult theorem Kaplan and Tarjan prove.
+
+    Like {!Deque}, this is not hand-written: it is extracted from a
+    machine-checked Rocq proof — the §6 [cad_*] family, whose keystone
+    [cat_keystone_*] and cost bound [cat_wc_o1] are verified in
+    [rocq/KTDeque/Catenable/] — and wrapped here in the same idiomatic
+    interface as {!Deque}.
+
+    {2 Cadeque or Deque?}
+
+    Reach for {!Cadeque} when you genuinely concatenate deques.  If you
+    only ever add and remove at the ends, {!Deque} does the same job with
+    a smaller constant factor.
 
     {2 Example}
 
     {[
       let a = Cadeque.of_list [1; 2; 3] in
       let b = Cadeque.of_list [4; 5; 6] in
-      let c = Cadeque.concat a b in              (* O(1), [1;2;3;4;5;6] *)
-      assert (Cadeque.to_list c = [1;2;3;4;5;6])
+      let c = Cadeque.concat a b in        (* O(1) — a and b untouched *)
+      assert (Cadeque.to_list c = [1; 2; 3; 4; 5; 6])
     ]} *)
 
 type 'a t
