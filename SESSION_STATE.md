@@ -19,12 +19,20 @@ DONE & pushed to main:
 KEY FINDING: alloc/op is FLAT for KT/Viennot (~80-104 words/op any
 state/size) but GROWS for amortized D4 (60->216 words/op on pop/eject at
 n~=130k) - bounded vs unbounded worst case, measured not just proven.
-NEXT STEP: §6 catenable (the harder phase). Extend to KTFlatCadeque ops
-(cad_push/inject/pop/eject_x + cad_concat_x) and the C §6 port (kc_*).
-concat needs operand-PAIR batteries; worst-case states for concat/pop
-should be DERIVED from FlatOps.v's case analysis, not only sampled. Add
-Viennot cadeque as the reference. The §4 PoC was the agreed first
-deliverable; check with user before the §6 push.
+§6 DONE & pushed (commit 3dd2625): wcet.ml + bench_wcet.c now probe the
+§6 cadeque too (KTf/Viennot OCaml, C kc_*), concat over operand-pair
+battery; BENCHMARKS.md has §4+§6 OCaml+C worst-case tables.
+§6 FINDINGS: both bounded (WC O(1)). KTf beats Viennot on worst case of
+all 4 single-element §6 ops. concat is BIMODAL for KTf (median 18ns /
+worst ~357ns) but UNIFORM for Viennot (184~=198) — KTf wins avg concat
+but higher worst-case single concat. C §6 mirrors (concat median 15 /
+worst ~522; per-op includes a malloc, the unified-arena gap).
+REMAINING (optional refinements, not started):
+- §6 worst-case states are SAMPLED, not derived from FlatOps.v case
+  analysis → deriving the exact worst concat/pop operand configuration
+  is the natural next step (boundedness already guaranteed by cat_wc_o1).
+- C §6 has no alloc counters (kc_*); only timing measured for §6 C.
+- could add a `make`-level wcet gate / commit a wcet result snapshot.
 
 ## ★★★ MISSION ACCOMPLISHED (2026-06-11) ★★★
 THE CATENABLE KEYSTONE IS CLOSED: zero admits across rocq/; all six
