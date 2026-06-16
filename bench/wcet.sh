@@ -59,17 +59,17 @@ MD="$OUTDIR/wcet-$DATE.md"
   echo "min-over-trials mean at each state. Measurement-based worst-case over an"
   echo "adversarial battery, not a sound hardware WCET; see ../../BENCHMARKS.md."
   echo
-  echo "## OCaml (§4) — alloc words/op + ns/op"
+  echo "## OCaml — alloc words/op + ns/op"
   echo
   # shellcheck disable=SC2086
   $PIN "$BIN" --m "$M" --trials "$TRIALS" --k "$K"
   echo
-  echo "## C (§4) — worst-case timing (ns/op)"
+  echo "## C — worst-case timing (ns/op)"
   echo
   # shellcheck disable=SC2086
   $PIN "$CBIN" --m "$M" --trials "$TRIALS"
   echo
-  echo "## C (§4) — worst-case allocation bound (wc_test, alloc objects/op)"
+  echo "## C — §4 worst-case allocation bound (wc_test, alloc objects/op)"
   echo
   echo '```'
   "$WCBIN"

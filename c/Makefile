@@ -94,8 +94,8 @@ bench_adversarial: $(KT_C_SRC) $(BENCHDIR)/bench_adversarial.c $(KT_HDR)
 # Worst-case per-op TIMING probe (§4): max over a reachable-state battery
 # of the min-over-trials ns/op.  Companion to wc_test (allocation bound).
 # Consumed by bench/wcet.sh alongside the OCaml wcet.exe.
-bench_wcet: $(KT_C_SRC) $(BENCHDIR)/bench_wcet.c $(KT_HDR)
-	$(CC) $(CFLAGS) -o $@ $(KT_C_SRC) $(BENCHDIR)/bench_wcet.c $(LDFLAGS) -lm
+bench_wcet: $(KT_C_SRC) $(KT_CAD_SRC) $(BENCHDIR)/bench_wcet.c $(KT_ALL_HDR)
+	$(CC) $(CFLAGS) -o $@ $(KT_C_SRC) $(KT_CAD_SRC) $(BENCHDIR)/bench_wcet.c $(LDFLAGS) -lm
 
 # wc_test must enable KT_PROFILE so the alloc counters are live.
 wc_test: $(KT_C_SRC) $(TESTDIR)/wc_test.c $(KT_HDR)

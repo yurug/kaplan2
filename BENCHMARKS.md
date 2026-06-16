@@ -137,13 +137,14 @@ of "worst-case O(1), not amortized".
 
 ---
 
-## Worst-case per operation (§4)
+## Worst-case per operation
 
 The tables above report *average* throughput; the property the structure
 actually guarantees is a bound on *every* operation. `make bench-wcet`
-probes that directly for the §4 deque: per implementation and operation,
-over a battery of reachable states (built by several op-histories plus a
-seeded random walk), it measures
+probes that directly for both the §4 deque and the §6 catenable deque:
+per implementation and operation, over a battery of reachable states
+(built by several op-histories plus a seeded random walk; for `concat`, a
+battery of operand pairs), it measures
 
 - **allocation words/op** — deterministic (a pure op allocates the same
   at a given state on every call), so an exact, reproducible measure of
@@ -157,6 +158,8 @@ defeat that). What makes it meaningful is that the algorithm is *proven*
 WC O(1) — the true worst case is bounded and reachable at small sizes —
 and the deterministic allocation column corroborates that the sampled
 worst is the structural worst.
+
+### §4 — OCaml
 
 Run 2026-06-16, OCaml 5.4.1, pinned to one core (m=80000, trials=7):
 
@@ -186,7 +189,7 @@ and Viennot never exceed ~52 ns on any state. Bounded vs unbounded worst
 case — the whole reason the WC-O(1) machinery exists — here measured, not
 only proven.
 
-### C (§4)
+### §4 — C
 
 `make bench-wcet` runs the same probe against the C port. The
 deterministic allocation bound is established by `tests/wc_test.c`:
@@ -204,9 +207,65 @@ The C is faster in the median; its worst-case ns shows up at the
 *smallest* states (per-op fixed costs / cold cache, not cascade work)
 and, like the allocation bound, does not grow with n.
 
-*(Coverage: the §4 deque, OCaml and C. The §6 catenable operations —
-including `concat` — are next; there the worst-case states will be
-derived from the proof's case analysis rather than only sampled.)*
+### §6 — OCaml
+
+The catenable deque adds `concat`. Same run; `concat` is probed over a
+battery of operand pairs.
+
+| impl | op | max alloc (words/op) | worst-case ns/op | median ns/op |
+|---|---|---:|---:|---:|
+| KTf (verified) | `push` | 75 | 52 | 45 |
+| | `inject` | 80 | 53 | 47 |
+| | `pop` | 97 | 48 | 22 |
+| | `eject` | 98 | 53 | 22 |
+| | `concat` | 640 | **357** | **18** |
+| Viennot | `push` | 99 | 51 | 49 |
+| | `inject` | 93 | 57 | 50 |
+| | `pop` | 137 | 69 | 59 |
+| | `eject` | 132 | 66 | 60 |
+| | `concat` | 404 | **198** | **184** |
+
+Two things stand out. First, on the four single-element operations the
+verified **KTf wins the worst case outright** — lower allocation (75–98
+vs 93–137 words/op) and lower worst-case ns (48–53 vs 51–69) than the
+hand-written Viennot cadeque — and, crucially, every column is *bounded*:
+none grows with operand size.
+
+Second, `concat` is the interesting one. KTf's `concat` is **bimodal** —
+median 18 ns but worst-case ~357 ns — while Viennot's is **uniform**
+(median 184 ≈ worst 198). So KTf wins *average* concatenation by a wide
+margin (this is the 8× concat-fold throughput win above) yet has a
+*higher worst-case single concat* than Viennot. Both are bounded (WC
+O(1)); they just spend their constant differently — KTf is cheap in the
+common case and occasionally does a larger bounded repair, Viennot pays a
+flatter cost every time. This is precisely the kind of trade-off an
+average-throughput benchmark hides and a worst-case probe exposes.
+
+### §6 — C
+
+Timing only (the C §6 port mallocs a spine node per op — the
+unified-arena integration is future work, see above — so its per-op cost
+legitimately includes that malloc; the deterministic *work* bound is the
+proven primitive count: push/inject ≤ 4, `concat` ≤ 43, pop/eject ≤ 145).
+
+| op (C §6) | worst-case ns/op | median ns/op |
+|---|---:|---:|
+| `push` | 86 | 51 |
+| `inject` | 78 | 46 |
+| `pop` | 77 | 50 |
+| `eject` | 75 | 52 |
+| `concat` | 522 | 15 |
+
+The C mirrors the OCaml shape: bounded basic ops, and a bimodal `concat`
+(median 15 ns, worst ~522 ns).
+
+> **Honesty about the §6 worst case.** The §6 worst-case states here are
+> *sampled* (op-histories + random walk + operand pairs), not yet
+> *derived* from the proof's case analysis, so the reported worst is a
+> strong empirical worst, not a certified maximum. Boundedness itself is
+> guaranteed by the mechanized cost theorem (`cat_wc_o1`); deriving the
+> exact worst-case operand configuration for `concat`/`pop` from
+> `FlatOps.v` is the natural next step.
 
 ---
 
