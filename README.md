@@ -1,15 +1,5 @@
 # kaplan2
 
-> **Released: `0.2.0`** — tagged, with a
-> [GitHub release](https://github.com/yurug/kaplan2/releases/tag/0.2.0),
-> and submitted to the official opam-repository
-> ([ocaml/opam-repository#30060](https://github.com/ocaml/opam-repository/pull/30060),
-> under review). The proof story is closed: both keystone theorem
-> bundles (non-catenable §4 and catenable §6) are proven with zero
-> admits, and the extracted artifact outperforms the hand-written
-> reference implementation on every benchmarked workload. See
-> [Status](#status).
-
 A Rocq-developed persistent real-time **catenable** deque, with
 extracted OCaml, hand-written ports, and a microbenchmark suite.
 Both headline theorem bundles are closed (zero admits, axiom-clean
