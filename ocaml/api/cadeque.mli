@@ -1,5 +1,4 @@
-(** Persistent real-time {b catenable} double-ended queue
-    (Kaplan–Tarjan §6).
+(** Persistent real-time {b catenable} double-ended queue.
 
     A {!Deque} that can also be {e concatenated} in constant time.  It
     keeps every guarantee of {!Deque} — purely functional, and worst-case
@@ -16,11 +15,11 @@
     afterwards) is exactly what the §6 construction buys, and the
     difficult theorem Kaplan and Tarjan prove.
 
-    Like {!Deque}, this is not hand-written: it is extracted from a
-    machine-checked Rocq proof — the §6 [cad_*] family, whose keystone
-    [cat_keystone_*] and cost bound [cat_wc_o1] are verified in
-    [rocq/KTDeque/Catenable/] — and wrapped here in the same idiomatic
-    interface as {!Deque}.
+    Like {!Deque}, this is not hand-written: it is {e extracted} from a
+    proof in the Rocq proof assistant (formerly Coq) — one that
+    additionally certifies the O(1) cost of {!concat} — and wrapped here
+    in the same idiomatic interface.  See {b Provenance} at the end for
+    the paper reference.
 
     {2 Cadeque or Deque?}
 
@@ -35,7 +34,16 @@
       let b = Cadeque.of_list [4; 5; 6] in
       let c = Cadeque.concat a b in        (* O(1) — a and b untouched *)
       assert (Cadeque.to_list c = [1; 2; 3; 4; 5; 6])
-    ]} *)
+    ]}
+
+    {2 Provenance}
+
+    This module implements the catenable real-time deque of section 6 of
+    Haim Kaplan and Robert E. Tarjan, {e Purely Functional, Real-Time
+    Deques with Catenation}, Journal of the ACM 46(5), 1999 — the same
+    paper whose section 4 gives {!Deque}.  Both are machine-checked in
+    the Rocq proof assistant; the proofs live in the project's [rocq/]
+    source tree. *)
 
 type 'a t
 (** A persistent catenable deque of elements of type ['a]. *)

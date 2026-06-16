@@ -1,4 +1,4 @@
-(** Persistent real-time double-ended queue (Kaplan–Tarjan §4).
+(** Persistent real-time double-ended queue.
 
     A {e deque} ("double-ended queue", pronounced "deck") is a sequence
     you can grow and shrink at {b both} ends: {!push} / {!pop} act on the
@@ -36,11 +36,10 @@
     {e and} O(1) at once is the hard result Kaplan and Tarjan's design
     delivers, and the reason this structure exists.
 
-    The implementation is not hand-written: it is extracted from a
-    machine-checked Rocq proof.  The [push_kt4] family carries a
-    worst-case-O(1) keystone, [deque_wc_o1_*], verified in
-    [rocq/KTDeque/DequePtr/DequeKeystone.v]; this module is a thin,
-    idiomatic OCaml wrapper around that extraction.
+    The implementation is not hand-written: it is {e extracted} from a
+    proof in the Rocq proof assistant (formerly Coq) that mechanically
+    checks the worst-case-O(1) bound, then wrapped unchanged behind this
+    interface.  See {b Provenance} at the end for the paper reference.
 
     Need O(1) {b concatenation} of two whole deques as well?  Use
     {!Cadeque}; it adds [concat] at the price of a slightly larger
@@ -60,7 +59,16 @@
       match Deque.pop d with
       | Some (x, d') -> assert (x = 0); ignore d'
       | None -> assert false
-    ]} *)
+    ]}
+
+    {2 Provenance}
+
+    This module implements the non-catenable real-time deque of section 4
+    of Haim Kaplan and Robert E. Tarjan, {e Purely Functional, Real-Time
+    Deques with Catenation}, Journal of the ACM 46(5), 1999.  {!Cadeque}
+    implements the catenable construction from section 6 of the same
+    paper.  Both are machine-checked in the Rocq proof assistant; the
+    proofs live in the project's [rocq/] source tree. *)
 
 type 'a t
 (** A persistent deque of elements of type ['a]. *)
