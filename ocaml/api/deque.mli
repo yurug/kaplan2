@@ -68,7 +68,9 @@
     Deques with Catenation}, Journal of the ACM 46(5), 1999.  {!Cadeque}
     implements the catenable construction from section 6 of the same
     paper.  Both are machine-checked in the Rocq proof assistant; the
-    proofs live in the project's [rocq/] source tree. *)
+    proofs live in the [rocq/] subtree of the project's source
+    repository,
+    {{:https://github.com/yurug/kaplan2}https://github.com/yurug/kaplan2}. *)
 
 type 'a t
 (** A persistent deque of elements of type ['a]. *)
