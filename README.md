@@ -211,65 +211,40 @@ OCaml versions embedded for reproducibility.  See
 
 See each tree's README for the full instructions and details.
 
-## Status
+## Benchmarks
 
-### Section 4 (non-catenable deque) — keystone CLOSED
+Our Rocq-extracted **catenable** deque (`Ktdeque.Cadeque`, the
+`KTFlatCadeque` artifact) versus Viennot et al.'s hand-written OCaml
+cadeque, at **n = 1,000,000** elements — nanoseconds per operation,
+lower is better (OCaml 5.4.1, pinned to one core):
 
-- `rocq/KTDeque/DequePtr/DequeKeystone.v`:
-  `deque_wc_o1_{push,inject,pop,eject}` all report *Closed under the
-  global context* — totality, sequence preservation, invariant
-  preservation, and the constant per-operation cost bound, for the
-  exact extracted operation family. Zero admits across `rocq/`
-  (`grep -rn 'Admitted\|admit\.' rocq/` is part of the gate).
-- Machine-checked gate: `make deque-keystone-gate`.
+| workload | ours | Viennot | speedup |
+|---|---:|---:|---:|
+| `push` ×n | 89 | 96 | 1.08× |
+| `inject` ×n | 89 | 97 | 1.09× |
+| `pop` ×n | 61 | 78 | 1.28× |
+| `eject` ×n | 59 | 75 | 1.27× |
+| mixed push/push/pop (3n ops) | 46 | 76 | 1.65× |
+| `concat` fold (n/64 blocks of 64) | 146 | 1174 | 8.0× |
+| `concat` tree (n/64 blocks of 64) | 1425 | 3166 | 2.2× |
+| `concat`+`pop` interleave | 91 | 277 | 3.0× |
+| persistent fork (n× pop of one deque) | 42 | 67 | 1.6× |
 
-### Section 6 (catenable deque) — keystone CLOSED, production artifact
+Faster on every workload: by a small margin on the single-element
+operations — the constant factor is competitive with a hand-tuned
+implementation — and by a wide margin on catenation, where the §6
+structure earns its keep. Retained memory is identical (3.00 live
+words per element).
 
-- `rocq/KTDeque/Catenable/CatKeystone.v`: the six
-  `cat_keystone_{empty,push,inject,concat,pop,eject}` theorems closed
-  under the invariant `J` (KT99 §6 Theorem 6.1, mechanized end to
-  end), plus `cat_wc_o1` (`Cost.v`): push/inject ≤ 4, concat ≤ 43,
-  pop/eject ≤ 145 buffer primitives per operation.
-- The production artifact is built by five **verified program
-  transformation passes**, each a mirror with machine-checked
-  equality/commutation lemmas so the keystone transfers verbatim
-  (`FastKeystone.v`, `FlatKeystone.v`; gate asserts 19/19 closed
-  theorems): buffer-primitive mirroring (`OpsFast`), case-of-case
-  fusion + deforestation (`OpsFused`), size-field constructor fusion
-  (`SizedChain`), runtime check erasure with zero-box elements
-  (`ErasedOps`/`Eraw`), spine constructor fusion + stored-cell
-  unboxing (`FlatChain`/`FlatOps`/`Sraw`).
-- Machine-checked gate: `make cat-keystone-gate`.
-- **Performance**: the extracted artifact beats Viennot's hand-written
-  OCaml cadeque on **all 9 benchmark workloads at every size**
-  (36/36 cells; at n=10⁶: up to 8× on concat-fold, 3× on
-  concat+pop interleave, ~1.1–1.7× elsewhere), with identical
-  retained memory (3.00 live words/element). Full analysis:
-  [`kb/reports/viennot-comparison-2026-06-11.md`](kb/reports/viennot-comparison-2026-06-11.md)
-  and the self-contained page
-  [`kb/viennot-comparison.html`](kb/viennot-comparison.html);
-  reproduce with `make bench-cadeque`.
-- The C port is hand-translated from the §4 algorithm and is
-  ~1.5×–2.9× faster than Viennot's OCaml on the non-catenable
-  workloads ([`c/COMPARISON.md`](c/COMPARISON.md)).
+The hand-written **C port** of the §4 deque is a further ~1.5×–2.9×
+faster than Viennot's OCaml on the non-catenable workloads
+([`c/COMPARISON.md`](c/COMPARISON.md)).
 
-### Packaging — `0.2.0` released
-
-- Tagged [`0.2.0`](https://github.com/yurug/kaplan2/releases/tag/0.2.0);
-  changelog in [`CHANGES.md`](CHANGES.md). The OCaml library is the opam
-  package `ktdeque` — the idiomatic `Deque` / `Cadeque` interface over
-  the extraction, with the raw extraction kept available as the internal
-  sub-library `ktdeque.extracted`.
-- opam-repository submission:
-  [ocaml/opam-repository#30060](https://github.com/ocaml/opam-repository/pull/30060)
-  (under review). Until it merges, install by pinning the release tarball
-  or from a clone (`opam install .`).
-
-The pre-rebuild development (with its honest audit of what was then
-conditional) is preserved at the branch/tag
-`archive/pre-rebuild-2026-06-02`; the closure reports are
-[`kb/reports/catenable-keystone-closure-2026-06-11.md`](kb/reports/catenable-keystone-closure-2026-06-11.md)
-and the session-by-session notes in [`kb/`](kb/).
+Full tables across all four sizes, the methodology, and a side-by-side
+proof-engineering comparison with VWGP are in
+[`kb/reports/viennot-comparison-2026-06-11.md`](kb/reports/viennot-comparison-2026-06-11.md)
+(self-contained HTML: [`kb/viennot-comparison.html`](kb/viennot-comparison.html)).
+Reproduce locally with `make bench-cadeque`.
 
 ## License
 
