@@ -2,7 +2,7 @@
         release-gate wc-o1-gate strict-wc-o1-gate        ports-wc-o1-gate wc-o1-kt4-assumptions \
         deque-keystone-gate \
         bench-three-way bench-canonical bench-sweep bench-adversarial \
-        bench-cadeque bench-all
+        bench-cadeque bench-wcet bench-all
 
 all: rocq
 
@@ -125,7 +125,14 @@ bench-adversarial:
 bench-cadeque:
 	bench/cadeque-compare.sh
 
-bench-all: bench-three-way bench-canonical bench-adversarial bench-cadeque
+# Worst-case per-op cost probe (§4): max allocation-words/op
+# (deterministic, comparable to the proven constant bound) and
+# worst-case ns/op over a reachable-state battery.  Shows the WC-O(1)
+# implementations bounded vs the amortized D4 unbounded.  < 1 minute.
+bench-wcet:
+	bench/wcet.sh
+
+bench-all: bench-three-way bench-canonical bench-adversarial bench-cadeque bench-wcet
 
 clean:
 	dune clean

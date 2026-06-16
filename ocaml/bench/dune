@@ -59,3 +59,12 @@
  (name diff_cadeque)
  (modules diff_cadeque)
  (libraries ktdeque_extracted))
+
+; wcet.ml: worst-case per-operation cost probe for the §4 deque —
+; max alloc-words/op (deterministic) and worst-case ns/op over a
+; reachable-state battery, KT vs Viennot vs amortized D4.  Driven from
+; bench/wcet.sh.
+(executable
+ (name wcet)
+ (modules wcet)
+ (libraries unix viennot_deque ktdeque_extracted ktdeque_bench_helpers))

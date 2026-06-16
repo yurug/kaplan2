@@ -240,8 +240,9 @@ and the persistent fork (less reclaimable garbage there, and a per-op
 spine node is still malloc'd). On the *non-catenable* §4 deque the C
 wins across the board, ~1.5×–2.9× over Viennot.
 
-**Full tables (all sizes, both the §4 and §6 layers), methodology, the
-worst-case-O(1) adversarial fingerprint, and reproduction commands:
+**Full tables (all sizes, both the §4 and §6 layers), methodology, a
+worst-case per-operation probe (max allocation-words/op and worst-case
+ns/op), the adversarial WC-O(1) fingerprint, and reproduction commands:
 [`BENCHMARKS.md`](BENCHMARKS.md).** Reproduce the headline numbers with
 `make bench-cadeque`.
 
