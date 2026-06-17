@@ -273,14 +273,26 @@ worst case (~410 ns, again at a small-side operand) sits below KTf
 OCaml's — though the C §6 per-op cost includes a `malloc` (the
 unified-arena gap), which the OCaml side avoids via its GC.
 
-> **Honesty about the §6 worst case.** The worst-case `concat` is now
-> *located* — it is the small-operand absorption path just below the
-> threshold, exactly where the algorithm's structure predicts it — but
-> the states are still *sampled*, so the reported worst is a strong
-> empirical worst, not a certified maximum. Boundedness itself is
-> guaranteed by the mechanized cost theorem (`cat_wc_o1`); a fully
-> proof-derived worst-case operand configuration from `FlatOps.v` would
-> turn the empirical peak into a certified one.
+> **The §6 `concat` worst case is now certified.** The peak is the
+> small-operand absorption path, and `rocq/KTDeque/Catenable/Cost.v` now
+> proves where it sits (all axiom-clean — `Print Assumptions: Closed
+> under the global context`):
+> - `cad_concat_cost_small_left` — on the small-side-absorption
+>   configuration the concat cost is *exactly* `2 + 4·length(small)`;
+> - `cad_concat_cost_small_left_peak` — that cost is `≤ 30` and equals 30
+>   (its maximum) **iff** the absorbed operand has 7 elements.
+>
+> So the measured "worst concat at small-side 7" is a theorem, not just a
+> sample. A subtlety the proof exposes: the general bound
+> `cad_concat_cost ≤ 43` (`cat_wc_o1`) is maximised by the *spine-join*
+> branch (`make_left + make_right`), which is the **cheap** case in
+> wall-clock terms — the heavy work is the element absorption, certified
+> to peak at 30 at small-side 7. The buffer-primitive cost model and
+> wall-clock therefore disagree about which branch is worst. (Still
+> empirical: that absorption primitives really are the wall-clock-heavy
+> ones — the model charges them a flat 4 each, while a full §4 push is
+> heavier — so the *ranking* of branches by real time is measured, not
+> proved.)
 
 ---
 

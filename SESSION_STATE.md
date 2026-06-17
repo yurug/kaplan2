@@ -35,10 +35,18 @@ The earlier "Viennot wins concat worst" was a BATTERY ARTIFACT (smallest
 operand was 7 = Viennot's flat regime; missed its size-6 peak). FIX:
 operand battery now includes sizes 1..7 (wcet.ml Build6.operands +
 bench_wcet.c). Corrected tables in BENCHMARKS.md. C §6 concat worst ~410.
-REMAINING (optional refinements, not started):
-- §6 worst case is now LOCATED (small-side absorption at the threshold)
-  but states still SAMPLED; a proof-derived (FlatOps.v) worst operand
-  config would make the peak certified, not just empirical.
+CONCAT WORST CASE NOW CERTIFIED (commit da1de4e): 4 axiom-clean lemmas
+in Catenable/Cost.v — concat_small_{left,right}_cost_absorb (= 4*length
+in the absorbing regime), cad_concat_cost_small_left (total = 2+4*length
+p), cad_concat_cost_small_left_peak (<=30, =30 iff length p = 7). The
+empirical "worst at small-side 7" is now a theorem. Print Assumptions:
+Closed under the global context; zero admits; full build green.
+Subtlety pinned: cad_concat_cost_bound's 43-maximiser is the spine-join
+(CHEAP in wall-clock); the heavy absorption is certified to peak at 30.
+REMAINING (only empirical part left): that absorption primitives are the
+wall-clock-heavy ones (model charges flat 4/elt; a real §4 push is
+heavier) — the branch RANKING by real time is measured, not proved.
+Would need a weighted cost model to close fully (large effort, optional).
 - C §6 has no alloc counters (kc_*); only timing measured for §6 C.
 - could add a `make`-level wcet gate / commit a wcet result snapshot.
 
