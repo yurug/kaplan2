@@ -146,6 +146,25 @@ Or via `pkg-config`:
 cc your_program.c $(pkg-config --cflags --libs ktdeque) -o your_program
 ```
 
+## Install from a release tarball
+
+The C library is published as `ktdeque-c-0.2.0.tar.gz` on the
+[0.2.0 release](https://github.com/yurug/kaplan2/releases/tag/0.2.0)
+(named to sit alongside the OCaml `ktdeque-0.2.0.tar.gz` without
+clashing):
+
+```sh
+curl -fsSLO https://github.com/yurug/kaplan2/releases/download/0.2.0/ktdeque-c-0.2.0.tar.gz
+# sha256: d3a97d23a1d15be771d73e8bcdaf8056fd8218aca4895d6d6468a471debd000a
+tar xzf ktdeque-c-0.2.0.tar.gz
+cd ktdeque-c-0.2.0
+make && make install PREFIX=/usr/local
+```
+
+This installs `ktdeque.h`, `ktcadeque.h`, `libktdeque.a`, and
+`ktdeque.pc` (so `pkg-config ktdeque` resolves the §4 `kt_*` and §6
+`kc_*` APIs from one `-lktdeque`).
+
 ## Minimal example
 
 ```c
