@@ -407,6 +407,77 @@ Proof.
 Qed.
 
 (* ========================================================================== *)
+(* Tight worst-case characterisation of [concat]: WHERE the cost peaks.        *)
+(*                                                                             *)
+(* [cad_concat_cost_bound] gives the O(1) upper bound (<= 43), but its         *)
+(* maximiser is the spine-join branch ([make_left] + [make_right]).  In        *)
+(* wall-clock terms that branch is the CHEAP one -- constant pointer surgery.  *)
+(* The wall-clock-heavy work is the element-by-element absorption of a small   *)
+(* operand: when one side is a degenerate buffer of fewer than 8 elements it   *)
+(* is folded into the other, and the counter charges [4 * length] for it.      *)
+(* The lemmas below pin that term down EXACTLY: it is linear in the small      *)
+(* operand, hence maximised at the largest absorbable size, length = 7 (cost   *)
+(* 28; total concat cost 30).  This is the certified analogue of the measured  *)
+(* peak ("worst concat at small-side 7") recorded in BENCHMARKS.md -- and it   *)
+(* explains why the proven 43-bound's maximiser is NOT the wall-clock worst.   *)
+(* ========================================================================== *)
+
+(* In the absorbing regime the small-side cost is exactly [4 * length]. *)
+Lemma concat_small_left_cost_absorb :
+  forall A (p : buffer (stored A)) (e : cchain A),
+    length p < 8 -> concat_small_left_cost p e = 4 * length p.
+Proof.
+  intros A p e H. unfold concat_small_left_cost.
+  destruct (length p <? 8) eqn:E; [reflexivity|].
+  apply Nat.ltb_ge in E; lia.
+Qed.
+
+Lemma concat_small_right_cost_absorb :
+  forall A (d : cchain A) (s : buffer (stored A)),
+    length s < 8 -> concat_small_right_cost d s = 4 * length s.
+Proof.
+  intros A d s H. unfold concat_small_right_cost.
+  destruct (length s <? 8) eqn:E; [reflexivity|].
+  apply Nat.ltb_ge in E; lia.
+Qed.
+
+(* Total concat cost on the small-left-absorption configuration.  A degenerate
+   [d = Some p] forces [d] to be a [CSingle] (so non-empty); we additionally
+   need [e] non-empty and non-degenerate. *)
+Lemma cad_concat_cost_small_left :
+  forall A (d e : cadeque A) (p : buffer (stored A)),
+    degenerate_buf d = Some p -> degenerate_buf e = None ->
+    e <> CEmpty -> length p < 8 ->
+    cad_concat_cost d e = 2 + 4 * length p.
+Proof.
+  intros A d e p Hd He Hne Hlen.
+  destruct d as [|pd rd|dl dr].
+  - cbn in Hd; discriminate.
+  - destruct e as [|pe re|el er].
+    + exfalso; apply Hne; reflexivity.
+    + cbn [cad_concat_cost]. rewrite Hd, He.
+      change (2 + concat_small_left_cost p (CSingle pe re) = 2 + 4 * length p).
+      rewrite (concat_small_left_cost_absorb _ Hlen); reflexivity.
+    + cbn [cad_concat_cost]. rewrite Hd, He.
+      change (2 + concat_small_left_cost p (CPair el er) = 2 + 4 * length p).
+      rewrite (concat_small_left_cost_absorb _ Hlen); reflexivity.
+  - cbn in Hd; discriminate.
+Qed.
+
+(* The peak: in that regime concat cost is <= 30, and equals 30 (the maximum)
+   exactly when the absorbed operand has 7 elements -- the certified location
+   of the wall-clock worst case. *)
+Corollary cad_concat_cost_small_left_peak :
+  forall A (d e : cadeque A) (p : buffer (stored A)),
+    degenerate_buf d = Some p -> degenerate_buf e = None ->
+    e <> CEmpty -> length p < 8 ->
+    cad_concat_cost d e <= 30 /\ (cad_concat_cost d e = 30 <-> length p = 7).
+Proof.
+  intros A d e p Hd He Hne Hlen.
+  rewrite (cad_concat_cost_small_left Hd He Hne Hlen). lia.
+Qed.
+
+(* ========================================================================== *)
 (* Removal and repair costs.  The repair counters are flat compositions       *)
 (* (drain + deficient-side moves + cell pushes + at most two concats); they   *)
 (* dominate the per-branch implementation work on regular inputs, where       *)
