@@ -155,7 +155,7 @@ clashing):
 
 ```sh
 curl -fsSLO https://github.com/yurug/kaplan2/releases/download/0.2.0/ktdeque-c-0.2.0.tar.gz
-# sha256: d3a97d23a1d15be771d73e8bcdaf8056fd8218aca4895d6d6468a471debd000a
+# sha256: b5128e74679eccffb52dd9b14b9198fa74a62ab0496204c92ba80ab916409f41
 tar xzf ktdeque-c-0.2.0.tar.gz
 cd ktdeque-c-0.2.0
 make && make install PREFIX=/usr/local
