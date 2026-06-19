@@ -536,11 +536,15 @@ function nodes4(snap){
     edges.push(i===0?{from:"root",to:c.id,kind:"root",rest:92}
                     :{from:cells[i-1].id,to:c.id,kind:"child",label:"child4",rest:140});
   });
-  // jump4 only where it actually SKIPS a run of yellow cells (so it never just
-  // duplicates child4 between adjacent anchors — that's what made it confusing).
-  const ai=[]; cells.forEach((c,i)=>{ if(c.anchor) ai.push(i); });
-  for(let k=0;k+1<ai.length;k++) if(ai[k+1]>ai[k]+1)
-    edges.push({from:cells[ai[k]].id,to:cells[ai[k+1]].id,kind:"jump",label:"jump4",rest:235});
+  // jump4 = from a non-yellow cell to the nearest NON-YELLOW cell strictly below
+  // it (green or red), skipping the run of yellow cells in between.  Drawn only
+  // when it actually skips ≥1 yellow cell, and never to a yellow cell.
+  for(let i=0;i<cells.length;i++){
+    if(cells[i].color==="yellow") continue;
+    let j=i+1; while(j<cells.length && cells[j].color==="yellow") j++;
+    if(j<cells.length && j>i+1)
+      edges.push({from:cells[i].id,to:cells[j].id,kind:"jump",label:"jump4",rest:235});
+  }
   return {nodes,edges};
 }
 function nodes6(snap){
