@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "fuzz": "npm run typecheck && esbuild test/fuzz.ts --bundle --platform=node --format=esm --outfile=dist/fuzz.mjs && node dist/fuzz.mjs",
     "wc": "npm run typecheck && esbuild test/wc.ts --bundle --platform=node --format=esm --outfile=dist/wc.mjs && node dist/wc.mjs",
-    "test": "npm run fuzz && npm run wc",
+    "fuzz6": "npm run typecheck && esbuild test/fuzz6.ts --bundle --platform=node --format=esm --outfile=dist/fuzz6.mjs && node dist/fuzz6.mjs",
+    "wc6": "npm run typecheck && esbuild test/wc6.ts --bundle --platform=node --format=esm --outfile=dist/wc6.mjs && node dist/wc6.mjs",
+    "test": "npm run fuzz && npm run wc && npm run fuzz6 && npm run wc6",
     "bundle": "esbuild src/index.ts --bundle --format=esm --outfile=dist/ktdeque.js"
   },
   "devDependencies": {

@@ -64,3 +64,11 @@
  (name diff_workload)
  (modules diff_workload)
  (libraries ktdeque_extracted))
+
+; difftrace6 — emits a per-op trace of the §6 catenable deque (KTCadeque)
+; under a mulberry32-seeded workload, byte-for-byte comparable to the
+; TypeScript port's ts/test/difftrace.ts (same PRNG, same op sequence).
+(executable
+ (name difftrace6)
+ (modules difftrace6)
+ (libraries ktdeque_extracted))

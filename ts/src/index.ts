@@ -22,3 +22,15 @@ export {
 } from "./deque.js";
 export type { Elt } from "./element.js";
 export type { Color } from "./buf5.js";
+
+// §6 catenable deque (push / inject / pop / eject / concat, worst-case O(1)).
+export type { Cchain as Cadeque } from "./cadeque.js";
+export {
+  cadEmpty,
+  cadPush,
+  cadInject,
+  cadPop,
+  cadEject,
+  cadConcatChecked as cadConcat,
+  cadToList,
+} from "./cadeque.js";
