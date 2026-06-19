@@ -40,6 +40,13 @@
   svg.graph { display:block; width:100%; height:540px; touch-action:none; cursor:grab;
       background:radial-gradient(circle at 1px 1px,#ece6d8 1px,transparent 0) 0 0/22px 22px, var(--bg); }
   svg.graph.grabbing { cursor:grabbing; }
+  /* full-screen: the stage fills the screen; only the graph (+ its controls) shows */
+  .stage:fullscreen { display:flex; flex-direction:column; width:100vw; height:100vh;
+                      border-radius:0; background:var(--bg); }
+  .stage:fullscreen svg.graph { flex:1 1 auto; height:auto; min-height:0; }
+  .stage:-webkit-full-screen { display:flex; flex-direction:column; width:100vw; height:100vh; background:var(--bg); }
+  .stage:-webkit-full-screen svg.graph { flex:1 1 auto; height:auto; min-height:0; }
+  .fs-btn { margin-left:6px; }
   .scene { display:none; } .scene.active { display:block; }
 
   /* nodes */
@@ -700,6 +707,27 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===t));
   document.querySelectorAll(".scene").forEach(s=>s.classList.toggle("active",s.id==="scene-"+t.dataset.scene));
 });
+
+/* full-screen: show only the active tab's graph (Esc exits) */
+const fsButtons=[];
+document.querySelectorAll(".stage").forEach(stage=>{
+  const bar=stage.querySelector(".bar"); if(!bar) return;
+  const btn=document.createElement("button"); btn.className="fs-btn"; btn.textContent="⛶ Full screen";
+  btn.title="Show only the graph, full screen (Esc to exit)";
+  btn.onclick=()=>{
+    const cur=document.fullscreenElement||document.webkitFullscreenElement;
+    if(cur){ (document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document); return; }
+    const req=stage.requestFullscreen||stage.webkitRequestFullscreen;
+    if(req){ const p=req.call(stage); if(p&&p.catch) p.catch(()=>{}); }
+  };
+  const hint=bar.querySelector(".hint");
+  hint?bar.insertBefore(btn,hint):bar.appendChild(btn);
+  fsButtons.push(btn);
+});
+const onFs=()=>{ const on=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  fsButtons.forEach(b=>b.textContent=on?"⤢ Exit full screen":"⛶ Full screen"); };
+document.addEventListener("fullscreenchange",onFs);
+document.addEventListener("webkitfullscreenchange",onFs);
 </script>
 </body>
 </html>
