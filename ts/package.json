@@ -11,7 +11,7 @@
     "fuzz6": "npm run typecheck && esbuild test/fuzz6.ts --bundle --platform=node --format=esm --outfile=dist/fuzz6.mjs && node dist/fuzz6.mjs",
     "wc6": "npm run typecheck && esbuild test/wc6.ts --bundle --platform=node --format=esm --outfile=dist/wc6.mjs && node dist/wc6.mjs",
     "test": "npm run fuzz && npm run wc && npm run fuzz6 && npm run wc6",
-    "bundle": "esbuild src/index.ts --bundle --format=esm --outfile=dist/ktdeque.js"
+    "bundle": "esbuild src/browser.ts --bundle --format=iife --global-name=KTDeque --outfile=../kb/ktdeque.bundle.js"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

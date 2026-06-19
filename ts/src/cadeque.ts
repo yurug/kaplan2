@@ -102,12 +102,12 @@ export const cadToList = <A>(c: Cchain<A>): A[] => cchainSeq(c);
 //  Colours (kTCadeque.ml:156–192).
 // ===================================================================
 export type Gyor = "CG" | "CY" | "CO" | "CR";
-const nodeColor = <A>(hasChild: boolean, n: Cnode<A>): Gyor => {
+export const nodeColor = <A>(hasChild: boolean, n: Cnode<A>): Gyor => {
   if (!hasChild) return "CG";
   const m = n.k === "only" ? Math.min(n.pre.length, n.suf.length) : n.k === "left" ? n.pre.length : n.suf.length;
   return m >= 8 ? "CG" : m === 7 ? "CY" : m === 6 ? "CO" : "CR";
 };
-const chainHasNode = <A>(c: Cchain<A>): boolean => c.tag !== "cempty";
+export const chainHasNode = <A>(c: Cchain<A>): boolean => c.tag !== "cempty";
 
 // ===================================================================
 //  Node + buffer helpers (kTCadeque.ml:194–311).
@@ -125,7 +125,7 @@ const bufEject3 = <T>(b: Buf<T>): [[[Buf<T>, T], T], T] | null =>
   b.length >= 3 ? [[[b.slice(0, -3), b[b.length - 3]!], b[b.length - 2]!], b[b.length - 1]!] : null;
 
 // root_and_child: peel the head node off a packet, re-threading its body.
-const rootAndChild = <A>(p: Cpacket<A>, rest: Cchain<A>): [Cnode<A>, Cchain<A>] => {
+export const rootAndChild = <A>(p: Cpacket<A>, rest: Cchain<A>): [Cnode<A>, Cchain<A>] => {
   const c = p.body;
   switch (c.tag) {
     case "bhole":

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaplan–Tarjan deques in memory — an animated graph</title>
+<style>
+  :root {
+    --bg:#fdfdfa; --fg:#1a1a1a; --muted:#6a6a6a; --accent:#0066cc; --accent-bg:#e8f3ff;
+    --code-bg:#f5f3ef; --rule:#ddd6c8;
+    --green-bd:#2e7d32; --green-bg:#e8f5e8; --green-fl:#43a047;
+    --yellow-bd:#d4a017; --yellow-bg:#fff8e1; --yellow-fl:#e6b21e;
+    --orange-bd:#e8740c; --orange-bg:#fff0e0; --orange-fl:#f5821f;
+    --red-bd:#c62828; --red-bg:#ffeaea; --red-fl:#e53935;
+  }
+  html { background:var(--bg); color:var(--fg); }
+  body { max-width:1040px; margin:2em auto; padding:0 1.5em;
+         font:16px/1.6 -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+  h1,h2 { font-weight:600; line-height:1.25; }
+  h1 { font-size:1.9em; border-bottom:2px solid var(--rule); padding-bottom:.3em; }
+  p { margin:.7em 0; }
+  a { color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent); }
+  a:hover { border-bottom-style:solid; }
+  code { font-family:"SF Mono",Consolas,"Liberation Mono",monospace; font-size:.88em;
+         background:var(--code-bg); padding:1px 4px; border-radius:3px; }
+  .meta { color:var(--muted); font-size:.9em; }
+  .tldr { background:var(--accent-bg); border-left:4px solid var(--accent);
+          padding:14px 18px; border-radius:4px; margin:1.2em 0; }
+  .honest { background:var(--yellow-bg); border-left:4px solid var(--yellow-bd);
+            padding:12px 18px; border-radius:4px; margin:1.4em 0; font-size:.95em; }
+  footer { margin-top:2.5em; padding-top:1em; border-top:1px solid var(--rule);
+           color:var(--muted); font-size:.9em; }
+
+  .tabs { display:flex; flex-wrap:wrap; gap:5px; margin:1.2em 0 0; }
+  .tab { padding:8px 14px; border:1px solid var(--rule); border-bottom:none;
+         border-radius:8px 8px 0 0; background:var(--code-bg); cursor:pointer;
+         font-weight:600; font-size:.88em; color:var(--muted); }
+  .tab.active { background:#fff; color:var(--accent); box-shadow:0 -2px 0 var(--accent) inset; }
+  .stage { border:1px solid var(--rule); border-radius:0 8px 8px 8px; background:#fff; overflow:hidden; }
+  svg.graph { display:block; width:100%; height:540px; touch-action:none; cursor:grab;
+      background:radial-gradient(circle at 1px 1px,#ece6d8 1px,transparent 0) 0 0/22px 22px, var(--bg); }
+  svg.graph.grabbing { cursor:grabbing; }
+  .scene { display:none; } .scene.active { display:block; }
+
+  /* nodes */
+  .node { cursor:grab; transition:opacity .5s; }
+  .node.c-green  { --bd:var(--green-bd);  --fl:var(--green-fl);  --soft:var(--green-bg);  }
+  .node.c-yellow { --bd:var(--yellow-bd); --fl:var(--yellow-fl); --soft:var(--yellow-bg); }
+  .node.c-orange { --bd:var(--orange-bd); --fl:var(--orange-fl); --soft:var(--orange-bg); }
+  .node.c-red    { --bd:var(--red-bd);    --fl:var(--red-fl);    --soft:var(--red-bg);    }
+  .node .cell { fill:var(--soft); stroke:var(--bd); stroke-width:3; transition:fill .35s, stroke .35s, stroke-width .2s; }
+  .node.flash .cell { stroke-width:5.5; }
+  .node.faded { opacity:.4; }
+  .node.shared .ring { stroke:var(--accent); stroke-width:2; stroke-dasharray:4 3; fill:none; opacity:.8; }
+  .node .ring { fill:none; stroke:none; }
+  .node .title { font:600 11px "SF Mono",monospace; fill:var(--bd); }
+  .node .sub   { font:9px "SF Mono",monospace; fill:var(--muted); }
+  .node .blab  { font:8px "SF Mono",monospace; fill:var(--muted); }
+  .node .badge { font:italic 9px "SF Mono",monospace; fill:var(--accent); }
+  .node.root .cell { fill:var(--accent); stroke:var(--accent); }
+  .node.root.rgrey .cell { fill:#8a8f96; stroke:#8a8f96; }
+  .node.root .title { fill:#fff; }
+  .dot { stroke:#fff; stroke-width:.8; }
+  .dot.base { fill:var(--accent); }
+  .dot.s6   { fill:#0f9b8e; stroke-width:1; }
+  .dot.empty { fill:none; stroke:#cfc8b8; stroke-width:1.3; stroke-dasharray:2 2; }
+  .bundle-box { fill:rgba(0,102,204,.05); stroke:#9db7d4; stroke-width:1; }
+  .bundle.pop { animation:pop .35s ease; transform-box:fill-box; transform-origin:center; }
+  .triple-box { fill:rgba(15,155,142,.06); stroke:#9fcfc8; stroke-width:1; }
+  .child-mark { fill:#fff; stroke:#5b6b7a; stroke-width:1.1; }
+  .more { font:700 9px "SF Mono",monospace; fill:#0c8377; }
+  @keyframes pop { from{transform:scale(.2);opacity:0} to{transform:scale(1);opacity:1} }
+
+  /* edges */
+  .edge { fill:none; stroke-width:2.2; }
+  .edge.child { stroke:#5b6b7a; }
+  .edge.left  { stroke:#2e7d32; }
+  .edge.right { stroke:#b8860b; }
+  .edge.root  { stroke:var(--accent); stroke-width:2.6; }
+  .edge.rootgrey { stroke:#8a8f96; stroke-width:2.4; }
+  .edge.jump, .edge.adopt { stroke:var(--orange-bd); stroke-dasharray:6 4; }
+  .elab { font:8px "SF Mono",monospace; fill:#7a7a7a; }
+  .elab.shortcut { fill:var(--orange-bd); }
+
+  .legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.8em; color:var(--muted); padding:8px 14px; }
+  .legend .it { display:inline-flex; align-items:center; gap:5px; }
+  .sw { width:13px; height:13px; border-radius:4px; border:2px solid; }
+  .lin { width:22px; border-top:3px solid; display:inline-block; }
+  .lin.dash { border-top-style:dashed; }
+  .ic { width:11px; height:11px; border-radius:50%; display:inline-block; }
+  .bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+         padding:10px 14px; border-top:1px solid var(--rule); background:var(--code-bg); }
+  button { font:600 .83em/1 inherit; padding:7px 11px; border-radius:6px;
+           border:1px solid var(--rule); background:#fff; color:var(--fg); cursor:pointer; }
+  button:hover { background:#eee; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .hint { color:var(--muted); font-size:.78em; margin-left:auto; }
+  .cap { min-height:3.0em; padding:9px 14px; font-size:.86em; color:var(--muted);
+         border-top:1px solid var(--rule); background:#fff; }
+  .cap b,.cap code { color:var(--fg); } .cap code{ background:var(--code-bg); }
+  .cap.warn { color:#7a1414; background:var(--red-bg); }
+  .cap.ok   { color:#1b5e20; background:var(--green-bg); }
+</style>
+</head>
+<body>
+
+<h1>Kaplan–Tarjan deques in memory — an animated graph</h1>
+<p class="meta">Force-directed &amp; draggable · kaplan2 · companion to
+<a href="color-invariants.html">color-invariants.html</a> ·
+<a href="execution-manual-v3.md">execution-manual-v3.md</a> §§5,11 ·
+<a href="spec/why-bounded-cascade.md">why-bounded-cascade.md</a></p>
+
+<div class="tldr">
+<strong>What you are looking at.</strong> Every <strong>box is a heap cell</strong>
+(a §4 <code>D4Cell</code> or a §6 <code>T6Cell</code>); the <strong>dots inside are
+the elements</strong> in its prefix/suffix buffers; the <strong>edges are the
+pointers</strong> the cell stores. The layout is a live force simulation — <em>drag
+any box</em>, and use the buttons to push/pop and watch the graph mutate and
+re-settle. Cells are tinted by their G/Y/(O/)R colour.
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-scene="s4">§4 deque — spine + <code>jump4</code></div>
+  <div class="tab" data-scene="persist">Persistence — fork &amp; share</div>
+  <div class="tab" data-scene="s6">§6 cadeque — tree + <code>adopt6</code></div>
+  <div class="tab" data-scene="concat">§6 <code>concat</code> — join in O(1)</div>
+</div>
+
+<!-- ============ §4 ============ -->
+<div class="scene active" id="scene-s4"><div class="stage">
+  <svg class="graph" id="svg-s4" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">
+    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green 2–3</span>
+    <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 1,4</span>
+    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red 0,5</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code></span>
+    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>jump4</code> → non-yellow</span>
+    <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
+    <span class="it">each slot is one buffer entry = a bundle of <b>2<sup>ℓ</sup></b> elements — a <b>pair</b> at L1, a <b>pair-of-pairs</b> at L2</span>
+  </div>
+  <div class="bar">
+    <button class="primary" id="play-s4">▶ Play</button>
+    <button data-op="push" data-s="s4">＋ Push</button>
+    <button data-op="pop"  data-s="s4">－ Pop</button>
+    <button data-op="inject" data-s="s4">Inject＋</button>
+    <button data-op="eject"  data-s="s4">Eject－</button>
+    <button data-op="shake"  data-s="s4">↯ Shake</button>
+    <button data-op="reset"  data-s="s4">⟲ Reset</button>
+    <span class="hint">drag a box to reposition</span>
+  </div>
+  <div class="cap" id="cap-s4"></div>
+</div></div>
+
+<!-- ============ Persistence ============ -->
+<div class="scene" id="scene-persist"><div class="stage">
+  <svg class="graph" id="svg-persist" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code> spine</span>
+    <span class="it"><span class="lin" style="border-color:var(--accent)"></span>live root</span>
+    <span class="it"><span class="lin" style="border-color:#8a8f96"></span>old / forked root</span>
+    <span class="it">a cell with two incoming edges is <b>shared</b> — allocation-only ⇒ free persistence</span>
+  </div>
+  <div class="bar">
+    <button class="primary" id="play-persist">▶ Play</button>
+    <button data-step="persist">⏭ Step</button>
+    <button data-op="shake" data-s="persist">↯ Shake</button>
+    <button data-op="reset" data-s="persist">⟲ Reset</button>
+    <span class="hint">drag a box to reposition</span>
+  </div>
+  <div class="cap" id="cap-persist"></div>
+</div></div>
+
+<!-- ============ §6 tree ============ -->
+<div class="scene" id="scene-s6"><div class="stage">
+  <svg class="graph" id="svg-s6" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">
+    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green ≥8</span>
+    <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 7</span>
+    <span class="it"><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg)"></span>Orange 6</span>
+    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red 5</span>
+    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span><code>two6</code> L/R</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>one6</code></span>
+    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>adopt6</code></span>
+    <span class="it"><span class="ic" style="background:#0f9b8e"></span>element · each entry is a <b>stored triple</b> (pre · ◇child · suf) — nests: L1 triples, L2 triples-of-triples</span>
+  </div>
+  <div class="bar">
+    <button class="primary" id="play-s6">▶ Play</button>
+    <button data-op="push" data-s="s6">＋ Push</button>
+    <button data-op="pop"  data-s="s6">－ Pop</button>
+    <button data-op="inject" data-s="s6">Inject＋</button>
+    <button data-op="eject"  data-s="s6">Eject－</button>
+    <button data-op="concat" data-s="s6">⋈ Concat ＋8</button>
+    <button data-op="shake"  data-s="s6">↯ Shake</button>
+    <button data-op="reset"  data-s="s6">⟲ Reset</button>
+    <span class="hint">drag a box to reposition</span>
+  </div>
+  <div class="cap" id="cap-s6"></div>
+</div></div>
+
+<!-- ============ §6 concat ============ -->
+<div class="scene" id="scene-concat"><div class="stage">
+  <svg class="graph" id="svg-concat" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="legend">
+    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span><code>two6</code> left/right</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>one6</code></span>
+    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>adopt6</code></span>
+    <span class="it">operand trees are <b>shared wholesale</b> — never copied or walked</span>
+  </div>
+  <div class="bar">
+    <button class="primary" id="play-concat">▶ Play</button>
+    <button data-step="concat">⏭ Step</button>
+    <button data-op="shake" data-s="concat">↯ Shake</button>
+    <button data-op="reset" data-s="concat">⟲ Reset</button>
+    <span class="hint">drag a box to reposition</span>
+  </div>
+  <div class="cap" id="cap-concat"></div>
+</div></div>
+
+<div class="honest">
+<strong>Driven by the verified port.</strong> The two <em>interactive</em> tabs
+(§4 spine, §6 cadeque) run the actual differentially-tested TypeScript port in
+<code>ts/</code> (the <code>*_kt2</code> / <code>cad_*</code> ops, faithful to the
+Rocq-extracted <code>kTDeque.ml</code> / <code>kTCadeque.ml</code>) — bundled as
+<code>ktdeque.bundle.js</code> and rendered from a structural snapshot, so what you
+see is the <em>real</em> heap structure after each op, not a hand-drawn
+approximation.  A §4 level-ℓ entry is exactly 2<sup>ℓ</sup> base elements (the
+pair-tower, drawn nested); a §6 entry is a <em>stored triple</em>
+<code>Small(buf) | Big(pre,child,suf)</code>, drawn as a nested <em>triple</em> glyph
+(pre · ◇child · suf) with a <code>+N</code> count for the rest of a fat buffer.
+The §6 model keeps a flat root buffer under pure push/inject; the tree appears
+under <b>concat</b> (try the ⋈ button).  The two <em>storyline</em> tabs
+(persistence, concat) remain curated step-throughs that illustrate sharing.  The
+port itself is verified the same way as <code>c/</code>: differential fuzzing vs a
+naive oracle, a worst-case-O(1) allocation bound, and a byte-for-byte trace diff
+against the OCaml extraction (see <code>ts/README.md</code>).
+</div>
+
+<footer><strong>Sources.</strong>
+<code>rocq/KTDeque/DequePtr/</code> (<code>D4Cell</code>, <code>jump4</code>, <code>green_of_red</code>) ·
+<code>rocq/KTDeque/Catenable/Model.v</code> &amp; <code>Ops.v</code> (cadeque, <code>concat</code>) ·
+<code>Common/Color.v</code> · <code>OpsKTRegular.v</code> (<code>regular_kt</code>) ·
+<code>Footprint.v</code> (cost ≤ 9) ·
+<a href="execution-manual-v3.md">kb/execution-manual-v3.md</a> §§5,10–12 ·
+Kaplan &amp; Tarjan, JACM 1999, §§4,6.
+</footer>
+
+<!-- The verified TypeScript port (ts/), bundled.  Built by `npm run bundle`
+     in ts/; exposes window.KTDeque (the differentially-tested §4 + §6 ops and
+     their render snapshots).  The interactive tabs are driven by THIS, not by
+     hand-rolled logic. -->
+<script src="ktdeque.bundle.js"></script>
+<script>
+"use strict";
+const SVGNS="http://www.w3.org/2000/svg";
+const el=(n,a={})=>{const e=document.createElementNS(SVGNS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+const cap=(s,n)=>s[0].toUpperCase()+s.slice(1)+(n||"");
+
+/* ---- exact colour-of-size rules ---- */
+const colS4=n=>(n===0||n>=5)?"red":(n===1||n===4)?"yellow":"green";
+const colS6=n=>(n<=5)?"red":(n===6)?"orange":(n===7)?"yellow":"green";
+const meet4=(a,b)=>[a,b].includes("red")?"red":[a,b].includes("orange")?"orange":[a,b].includes("yellow")?"yellow":"green";
+function col6tri(role,pre,suf){const cp=colS6(pre),cs=colS6(suf);
+  role=(role||"only").toLowerCase();
+  return role==="left"?cp:role==="right"?cs:meet4(cp,cs);}
+
+/* ================================================================
+ *  Force-directed graph engine over SVG (self-contained).
+ * ================================================================ */
+class ForceGraph {
+  constructor(svg,opts){
+    this.svg=svg; this.opts=opts; this.W=960; this.H=560;
+    this.tall=(opts.id==="s4"||opts.id==="persist");
+    this.base=66; this.gap=this.tall?132:118;
+    this.edgeLayer=el("g"); this.nodeLayer=el("g"); svg.append(this.edgeLayer,this.nodeLayer);
+    addDefs(svg,opts.id);
+    this.nodes=[]; this.edges=[]; this.alpha=1; this.running=false; this.drag=null;
+    this.bufCap=opts.bufCap||5; this._raf=()=>this.frame(); this._bindDrag();
+  }
+  byId(id){return this.nodes.find(n=>n.id===id);}
+  transition(nodes,edges){
+    const old={}; this.nodes.forEach(n=>old[n.id]={x:n.x,y:n.y,vx:n.vx,vy:n.vy});
+    this.edgeLayer.replaceChildren(); this.nodeLayer.replaceChildren();
+    this.nodes=nodes; this.edges=edges;
+    nodes.forEach(n=>{
+      n.w=n.w||(n.kind==="root"?96:(this.opts.id==="s6"||this.opts.id==="concat")?168:132);
+      n.h=n.h||(n.kind==="root"?30:(this.tall?88:78));
+      if(old[n.id]){Object.assign(n,old[n.id]); n._fresh=false;}
+      else{
+        const pe=edges.find(e=>e.to===n.id&&old[e.from]);
+        if(pe){n.x=old[pe.from].x+(n.bias||0)*50;}
+        else{n.x=this.W/2+(n.bias||0)*200+Math.sin((n.seed||0)*1.7)*30;}
+        n.vx=0; n._fresh=true;
+      }
+      // snap to the level row so vertical banding is always correct; x morphs freely
+      n.y=this.base+(n.level||0)*this.gap; n.vy=0;
+    });
+    edges.forEach(e=>{e.a=this.byId(e.from); e.b=this.byId(e.to);
+      e.dom=this._edgeDom(e); this.edgeLayer.appendChild(e.dom.g);});
+    nodes.forEach(n=>{n.dom=this._nodeDom(n); this.nodeLayer.appendChild(n.dom.g);
+      if(n._fresh){n.dom.g.style.opacity=0; requestAnimationFrame(()=>{n.dom.g.style.opacity=n.faded?0.4:1;});}});
+    this.kick(1);
+  }
+  _edgeDom(e){
+    const g=el("g"), kc=e.kind==="tail"?"child":e.kind;
+    const path=el("path",{class:"edge "+kc});
+    if(["root","rootgrey","child","left","right"].includes(kc))
+      path.setAttribute("marker-end","url(#arrow-"+kc+"-"+this.opts.id+")");
+    const lab=el("text",{class:"elab"+((kc==="jump"||kc==="adopt")?" shortcut":"")});
+    lab.textContent=e.label||""; g.append(path,lab); return {g,path,lab};
+  }
+  _nodeDom(n){
+    const cls="node c-"+(n.color||"green")+(n.kind==="root"?(" root"+(n.rgrey?" rgrey":"")):"")
+      +(n.faded?" faded":"")+(n.shared?" shared":"");
+    const g=el("g",{class:cls}); const w=n.w,h=n.h;
+    g.appendChild(el("rect",{class:"ring",x:-w/2-4,y:-h/2-4,width:w+8,height:h+8,rx:11}));
+    g.appendChild(el("rect",{class:"cell",x:-w/2,y:-h/2,width:w,height:h,rx:9}));
+    if(n.kind==="root"){
+      const t=el("text",{class:"title","text-anchor":"middle",y:4}); t.textContent=n.title||"root";
+      g.appendChild(t); return {g};
+    }
+    const ti=el("text",{class:"title","text-anchor":"middle",y:-h/2+15}); ti.textContent=n.title; g.appendChild(ti);
+    if(n.sub){const s=el("text",{class:"sub","text-anchor":"middle",y:-h/2+27}); s.textContent=n.sub; g.appendChild(s);}
+    n._pre=el("g"); n._suf=el("g"); g.append(n._pre,n._suf);
+    const preY=-h/2+(n.sub?40:32), sufY=h/2-14;
+    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:preY+3}),{textContent:"pre"}));
+    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:sufY+3}),{textContent:"suf"}));
+    if(n.badge){const b=el("text",{class:"badge","text-anchor":"middle",y:h/2+13}); b.textContent=n.badge; g.appendChild(b);}
+    this._buf(n,n._pre,n.pre,preY); this._buf(n,n._suf,n.suf,sufY);
+    return {g};
+  }
+  _buf(n,grp,count,y){
+    grp.replaceChildren();
+    const stored=(this.opts.id==="s6"||this.opts.id==="concat");
+    const lvl=Math.max(0,Math.round(n.level||0));
+    const D=6, g=2;
+    const lab=26, leftX=-n.w/2+lab, avail=n.w-10-lab;   // reserve the left "pre/suf" label gutter
+    const place=(node,cx)=>{ node.setAttribute("transform",`translate(${cx},${y})`);
+      node.setAttribute("class",((node.getAttribute("class")||"")+" bundle filled").trim());
+      grp.appendChild(node); };
+    if(stored){
+      // §6: each entry is a stored triple; fat buffers ⇒ cap shown glyphs with +N.
+      // Cap the drawn nesting at 2 (triples-of-triples) so deep levels stay legible.
+      const gl=Math.min(lvl,2);
+      const pitch=tripleSize(gl,D,g).w+6, nfit=Math.max(1,Math.floor(avail/pitch));
+      let show=count, over=0;
+      if(count>nfit){ show=Math.max(1,nfit-1); over=count-show; }
+      const total=show+(over?1:0), startX=leftX+Math.max(0,(avail-pitch*total)/2);
+      for(let i=0;i<show;i++) place(makeTriple(gl,D,g).node, startX+pitch*(i+0.5));
+      if(over){ const t=el("text",{x:startX+pitch*(show+0.5),y:y+3,class:"more","text-anchor":"middle"});
+        t.textContent="+"+over; grp.appendChild(t); }
+      return;
+    }
+    // §4 family: pair-tower bundles against the fixed Buf5 capacity (empties shown).
+    const cap=this.bufCap; let DD=D, gg=g, pitch=bundleSize(lvl,DD,gg).w+5;
+    if(pitch*cap>avail){ const k=avail/(pitch*cap); DD*=k; gg*=k; pitch*=k; }
+    const startX=leftX+Math.max(0,(avail-pitch*cap)/2);
+    for(let i=0;i<cap;i++){
+      const cx=startX+pitch*(i+0.5);
+      if(i>=count){ grp.appendChild(el("circle",{cx,cy:y,r:3,class:"dot empty bundle"})); continue; }
+      place(makeBundle(lvl,DD,gg,"base").node, cx);
+    }
+  }
+  recolor(n){
+    n.dom.g.setAttribute("class","node c-"+n.color+(n.shared?" shared":""));
+    this._buf(n,n._pre,n.pre,-3); this._buf(n,n._suf,n.suf,15);
+  }
+  flash(n){n.dom.g.classList.add("flash"); setTimeout(()=>n.dom&&n.dom.g.classList.remove("flash"),650);}
+  popLast(n,side){const g=side==="suf"?n._suf:n._pre,d=g.querySelectorAll(".bundle.filled"),l=d[d.length-1];
+    if(l){l.classList.add("pop"); setTimeout(()=>l&&l.classList.remove("pop"),360);}}
+
+  kick(a=0.9){this.alpha=Math.max(this.alpha,a); if(!this.running){this.running=true; requestAnimationFrame(this._raf);}}
+  frame(){
+    const K_REP=8000,K_SPR=0.055,K_LVL=0.13,K_CTR=0.010,DAMP=0.85,MAXV=16,ns=this.nodes;
+    const BASE=this.base,GAP=this.gap,PAD=16;
+    for(let i=0;i<ns.length;i++)for(let j=i+1;j<ns.length;j++){
+      const a=ns[i],b=ns[j]; let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;
+      if(d2<1){dx=(i-j)||1; dy=1; d2=2;} const d=Math.sqrt(d2),f=K_REP/d2;
+      a.vx+=f*dx/d; a.vy+=f*dy/d; b.vx-=f*dx/d; b.vy-=f*dy/d;
+    }
+    for(const e of this.edges){const a=e.a,b=e.b; if(!a||!b)continue;
+      const kc=e.kind==="tail"?"child":e.kind;
+      const rest=e.rest||((kc==="jump"||kc==="adopt")?215:(kc==="root"||kc==="rootgrey")?92:150);
+      let dx=b.x-a.x,dy=b.y-a.y; const d=Math.hypot(dx,dy)||1,f=K_SPR*(d-rest);
+      a.vx+=f*dx/d; a.vy+=f*dy/d; b.vx-=f*dx/d; b.vy-=f*dy/d;
+      if(kc==="left") b.vx+=(a.x-120-b.x)*0.020;
+      if(kc==="right")b.vx+=(a.x+120-b.x)*0.020;
+    }
+    let ke=0;
+    for(const n of ns){
+      if(n===this.drag){n.vx=n.vy=0; continue;}
+      n.vy+=((BASE+(n.level||0)*GAP)-n.y)*K_LVL;
+      n.vx+=(this.W/2-n.x)*K_CTR;
+      n.vx*=DAMP; n.vy*=DAMP;
+      n.vx=Math.max(-MAXV,Math.min(MAXV,n.vx)); n.vy=Math.max(-MAXV,Math.min(MAXV,n.vy));
+      n.x+=n.vx*this.alpha; n.y+=n.vy*this.alpha;
+      ke+=n.vx*n.vx+n.vy*n.vy;
+    }
+    // hard collision resolution — guarantees boxes never overlap
+    for(let it=0;it<3;it++) for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++){
+      const a=ns[i],b=ns[j], dx=b.x-a.x, dy=b.y-a.y;
+      const ox=(a.w/2+b.w/2+PAD)-Math.abs(dx), oy=(a.h/2+b.h/2+PAD)-Math.abs(dy);
+      if(ox<=0||oy<=0) continue;
+      if(ox<oy){ const s=(dx<0?-1:1)*ox; this._sep(a,b,"x",s); }
+      else     { const s=(dy<0?-1:1)*oy; this._sep(a,b,"y",s); }
+    }
+    for(const n of ns){
+      n.x=Math.max(n.w/2+4,Math.min(this.W-n.w/2-4,n.x));
+      n.y=Math.max(n.h/2+4,Math.min(this.H-n.h/2-4,n.y));
+    }
+    this.render(); this.alpha*=0.985;
+    if(ke<0.4&&this.alpha<0.05&&!this.drag){this.running=false; return;}
+    requestAnimationFrame(this._raf);
+  }
+  _sep(a,b,ax,amt){
+    if(a===this.drag){ b[ax]+=amt; }
+    else if(b===this.drag){ a[ax]-=amt; }
+    else { a[ax]-=amt/2; b[ax]+=amt/2; }
+  }
+  render(){
+    for(const n of this.nodes) n.dom.g.setAttribute("transform",`translate(${n.x},${n.y})`);
+    for(const e of this.edges){const a=e.a,b=e.b; if(!a||!b)continue;
+      const kc=e.kind==="tail"?"child":e.kind;
+      const p=this._trim(a,b),q=this._trim(b,a);
+      if(kc==="jump"||kc==="adopt"){
+        const mx=(p.x+q.x)/2+44,my=(p.y+q.y)/2;
+        e.dom.path.setAttribute("d",`M${p.x},${p.y} Q${mx},${my} ${q.x},${q.y}`);
+        e.dom.lab.setAttribute("x",mx-2); e.dom.lab.setAttribute("y",my);
+      }else{
+        e.dom.path.setAttribute("d",`M${p.x},${p.y} L${q.x},${q.y}`);
+        e.dom.lab.setAttribute("x",(p.x+q.x)/2+4); e.dom.lab.setAttribute("y",(p.y+q.y)/2-2);
+      }
+    }
+  }
+  _trim(from,to){
+    const dx=to.x-from.x,dy=to.y-from.y,hw=from.w/2+2,hh=from.h/2+2;
+    if(!dx&&!dy)return{x:from.x,y:from.y};
+    const s=Math.min(dx?hw/Math.abs(dx):1e9, dy?hh/Math.abs(dy):1e9);
+    return{x:from.x+dx*s,y:from.y+dy*s};
+  }
+  _bindDrag(){
+    const loc=ev=>{const p=this.svg.createSVGPoint(); p.x=ev.clientX; p.y=ev.clientY;
+      return p.matrixTransform(this.svg.getScreenCTM().inverse());};
+    this.svg.addEventListener("pointerdown",ev=>{
+      const g=ev.target.closest(".node"); if(!g)return;
+      const n=this.nodes.find(x=>x.dom&&x.dom.g===g); if(!n)return;
+      this.drag=n; g.classList.add("flash"); this.svg.classList.add("grabbing");
+      this.svg.setPointerCapture(ev.pointerId);
+    });
+    this.svg.addEventListener("pointermove",ev=>{if(!this.drag)return;
+      const p=loc(ev); this.drag.x=p.x; this.drag.y=p.y; this.drag.vx=this.drag.vy=0;
+      this.kick(0.3); this.render();});
+    const up=()=>{if(this.drag){this.drag.dom.g.classList.remove("flash");
+      this.drag=null; this.svg.classList.remove("grabbing"); this.kick(0.5);}};
+    this.svg.addEventListener("pointerup",up); this.svg.addEventListener("pointercancel",up);
+  }
+  shake(){for(const n of this.nodes){n.vx+=Math.sin(n.x*12.9+n.y)*22; n.vy+=Math.cos(n.y*7.3)*22;} this.kick(1);}
+}
+function addDefs(svg,id){
+  const defs=el("defs"), colors={root:"#0066cc",rootgrey:"#8a8f96",child:"#5b6b7a",left:"#2e7d32",right:"#b8860b"};
+  for(const k in colors){
+    const m=el("marker",{id:"arrow-"+k+"-"+id,viewBox:"0 0 10 10",refX:9,refY:5,
+      markerWidth:7,markerHeight:7,orient:"auto-start-reverse"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:colors[k]}));
+    defs.appendChild(m);
+  }
+  svg.appendChild(defs);
+}
+
+/* A level-ℓ buffer entry = a bundle of 2^ℓ base elements, drawn nested:
+   level 0 = one dot, level 1 = a pair, level 2 = a pair-of-pairs (2×2), …
+   Orientation alternates (horizontal on odd levels, vertical on even) so a
+   level-2 bundle is a compact square. */
+function bundleSize(level,D,g){
+  if(level<=0) return {w:D,h:D};
+  const c=bundleSize(level-1,D,g);
+  return (level%2===1) ? {w:2*c.w+3*g, h:c.h+2*g} : {w:c.w+2*g, h:2*c.h+3*g};
+}
+function makeBundle(level,D,g,dotClass){
+  if(level<=0) return {node:el("circle",{r:D/2,class:"dot "+dotClass}), w:D, h:D};
+  const a=makeBundle(level-1,D,g,dotClass), b=makeBundle(level-1,D,g,dotClass);
+  const grp=el("g"); let w,h;
+  if(level%2===1){ w=2*a.w+3*g; h=a.h+2*g;
+    a.node.setAttribute("transform",`translate(${-w/2+g+a.w/2},0)`);
+    b.node.setAttribute("transform",`translate(${ w/2-g-b.w/2},0)`);
+  }else{ w=a.w+2*g; h=2*a.h+3*g;
+    a.node.setAttribute("transform",`translate(0,${-h/2+g+a.h/2})`);
+    b.node.setAttribute("transform",`translate(0,${ h/2-g-b.h/2})`);
+  }
+  grp.appendChild(el("rect",{x:-w/2,y:-h/2,width:w,height:h,rx:Math.min(4,w/4),class:"bundle-box"}));
+  grp.append(a.node,b.node);
+  return {node:grp,w,h};
+}
+
+/* A §6 level-ℓ buffer entry is a STORED TRIPLE, not a pair: (pre · child · suf),
+   where the child (◇) is a sub-cadeque. Level 0 = a base element (one dot);
+   level ℓ = ( triple(ℓ-1) · ◇ · triple(ℓ-1) ), orientation alternating so it
+   stays compact. The ◇ marks the child link (coloured like a child edge); it is
+   not recursed into — only pre/suf nest, exactly as picked in the dialog. */
+function tripleSize(level,D,g){
+  if(level<=0) return {w:D,h:D};
+  const c=tripleSize(level-1,D,g), ch=D;
+  return {w:2*c.w+ch+5*g, h:Math.max(c.h,ch)+2*g};   // horizontal: pre · child · suf
+}
+function makeTriple(level,D,g){
+  if(level<=0) return {node:el("circle",{r:D/2,class:"dot s6"}), w:D, h:D};
+  const a=makeTriple(level-1,D,g), b=makeTriple(level-1,D,g), ch=D;
+  const w=2*a.w+ch+5*g, h=Math.max(a.h,ch)+2*g;
+  a.node.setAttribute("transform",`translate(${-w/2+g+a.w/2},0)`);
+  b.node.setAttribute("transform",`translate(${ w/2-g-b.w/2},0)`);
+  const dia=el("rect",{x:-ch/2,y:-ch/2,width:ch,height:ch,rx:1,class:"child-mark",transform:"rotate(45)"});
+  const grp=el("g");
+  grp.appendChild(el("rect",{x:-w/2,y:-h/2,width:w,height:h,rx:Math.min(4,w/4),class:"triple-box"}));
+  grp.append(a.node,dia,b.node);
+  return {node:grp,w,h};
+}
+
+/* ================================================================
+ *  Scene builders.
+ * ================================================================ */
+// Build force-graph nodes/edges from the verified port's render snapshots.
+function nodes4(snap){
+  const sub=d=>d===0?"base elements":d===1?"pairs":d===2?"pairs²":"level "+d;
+  const cells=snap.cells;
+  const nodes=[{id:"root",kind:"root",title:"deque",level:-0.55,bias:0,seed:9}];
+  const edges=[];
+  cells.forEach((c,i)=>{
+    nodes.push({id:c.id,level:c.depth,title:"D4Cell · L"+c.depth,sub:c.ending?"ending":sub(c.depth),
+                color:c.color,pre:c.pre,suf:c.suf,seed:i});
+    edges.push(i===0?{from:"root",to:c.id,kind:"root",rest:92}
+                    :{from:cells[i-1].id,to:c.id,kind:"child",label:"child4",rest:140});
+  });
+  const anc=cells.filter(c=>c.anchor);
+  for(let i=0;i+1<anc.length;i++) edges.push({from:anc[i].id,to:anc[i+1].id,kind:"jump",label:"jump4",rest:235});
+  return {nodes,edges};
+}
+function nodes6(snap){
+  const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
+  const nodes=[{id:"croot",kind:"root",title:"cadeque",level:-0.7,bias:0,seed:99}];
+  const edges=[];
+  snap.nodes.forEach((n,i)=>nodes.push({
+    id:n.id,level:n.depth,
+    title:(n.role==="pair"?"CPair":n.role+" triple"),
+    sub:n.role==="pair"?"two6":(n.role==="only"?"only":"two6 · "+n.role),
+    color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i}));
+  snap.nodes.filter(n=>n.depth===0).forEach(r=>edges.push({from:"croot",to:r.id,kind:"root",rest:92}));
+  snap.edges.forEach(e=>edges.push({from:e.from,to:e.to,
+    kind:e.kind==="child"?"child":e.kind,
+    label:e.kind==="child"?"one6":e.kind==="left"?"L":"R",rest:e.kind==="child"?140:150}));
+  return {nodes,edges};
+}
+
+/* storyline frames: arrays of {nodes,edges,caption} */
+const P4=(id,t,p,s,o={})=>Object.assign({id,level:o.level!=null?o.level:({L0:0,Q0:0,L1:1,L2:2})[id]||0,
+  title:t,color:colS4(o.cby==="suf"?s:p),pre:p,suf:s},o);
+function FRAMES_persist(){return[
+ {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,seed:9},
+    P4("L0","D4Cell L0",3,2),P4("L1","L1 (Packet)",4,1),P4("L2","D4Cell L2",2,3)],
+  edges:[{from:"root",to:"L0",kind:"root"},{from:"L0",to:"L1",kind:"child",label:"child4"},
+    {from:"L1",to:"L2",kind:"child",label:"child4"}],
+  caption:"<b>One deque <code>d</code>.</b> A spine of three <code>D4Cell</code>s. The heap is <b>allocation-only</b> — operations never overwrite a cell."},
+ {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,bias:-1,seed:9},
+    {id:"root2",kind:"root",title:"d2 = d",level:-0.55,bias:1,seed:8},
+    P4("L0","D4Cell L0",3,2,{shared:true}),P4("L1","L1 (Packet)",4,1,{shared:true}),P4("L2","D4Cell L2",2,3,{shared:true})],
+  edges:[{from:"root",to:"L0",kind:"rootgrey"},{from:"root2",to:"L0",kind:"root"},
+    {from:"L0",to:"L1",kind:"child",label:"child4"},{from:"L1",to:"L2",kind:"child",label:"child4"}],
+  caption:"<b><code>let d2 = d</code>.</b> Forking copies a single root pointer. <code>d</code> and <code>d2</code> name the <b>same shared cells</b> — nothing is duplicated."},
+ {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,bias:-1.4,rgrey:true,seed:9},
+    {id:"root2",kind:"root",title:"d2 (pushed)",level:-0.55,bias:1.4,seed:8},
+    P4("L0","L0  (d's old top)",3,2,{bias:-1,faded:true,badge:"untouched"}),
+    P4("Q0","L0′  (new)",4,2,{bias:1,badge:"allocated for d2"}),
+    P4("L1","L1 (Packet)",4,1,{shared:true,badge:"shared by d & d2"}),
+    P4("L2","D4Cell L2",2,3,{shared:true,badge:"shared by d & d2"})],
+  edges:[{from:"root",to:"L0",kind:"rootgrey"},{from:"root2",to:"Q0",kind:"root"},
+    {from:"L0",to:"L1",kind:"child"},{from:"Q0",to:"L1",kind:"child",label:"child4"},
+    {from:"L1",to:"L2",kind:"child",label:"child4"}],
+  caption:"<b><code>push x d2</code>.</b> Only <code>d2</code>'s top cell is re-allocated (L0′). The push <b>never touched</b> L1/L2, so both roots <b>share</b> them. <code>d</code> still reads its old sequence — <b>persistence for free</b> (<code>heap_ext</code>)."},
+];}
+
+const T6=(id,t,role,p,s,o={})=>Object.assign({id,level:o.level!=null?o.level:0,title:t,sub:o.sub||"",
+  color:col6tri(role,p,s),pre:p,suf:s},o);
+function FRAMES_concat(){return[
+ {nodes:[{id:"root",kind:"root",title:"q",level:-0.55,seed:9},
+    T6("A","Only triple","only",7,8,{level:0,badge:"preferred path ↓"}),
+    T6("Ab","Left triple","left",6,8,{level:1,bias:-0.3}),
+    T6("Ac","Only triple (green tail)","only",8,8,{level:2,bias:-0.3,badge:"repair site (green)"})],
+  edges:[{from:"root",to:"A",kind:"root"},{from:"A",to:"Ab",kind:"child",label:"one6"},
+    {from:"Ab",to:"Ac",kind:"child",label:"one6"},{from:"A",to:"Ac",kind:"adopt",label:"adopt6"}],
+  caption:"<b>A §6 cadeque is a tree of triples.</b> A <code>CSingle</code> chain: an <code>Only</code> head, a Yellow <code>Left</code> (the preferred path / Packet), a Green tail. <code>adopt6</code> shortcuts to the repair site — like <code>jump4</code> in §4. <b>Orange</b> is the four-colour second cushion."},
+ {nodes:[T6("A","q1 (Only)","only",7,8,{level:0,bias:-1.3}),
+    T6("B","q2 (Only)","only",8,7,{level:0,bias:1.3}),
+    {id:"r1",kind:"root",title:"q1",level:-0.55,bias:-1.3,seed:7},
+    {id:"r2",kind:"root",title:"q2",level:-0.55,bias:1.3,seed:8}],
+  edges:[{from:"r1",to:"A",kind:"root"},{from:"r2",to:"B",kind:"root"}],
+  caption:"<b><code>concat q1 q2</code>.</b> Two independent cadeques, each its own tree. Catenation must join them in O(1) <b>without walking either</b>."},
+ {nodes:[{id:"root",kind:"root",title:"concat q1 q2",level:-0.55,seed:9},
+    T6("R","new root","only",8,8,{level:0,badge:"O(1) cells at the root"}),
+    T6("A","q1 (whole)","only",7,8,{level:1,bias:-1,shared:true,badge:"shared subtree"}),
+    T6("B","q2 (whole)","only",8,7,{level:1,bias:1,shared:true,badge:"shared subtree"})],
+  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"L"},
+    {from:"R",to:"B",kind:"right",label:"R"}],
+  caption:"<b><code>CPair</code>.</b> concat allocates a constant number of cells at the top (a balancing <code>Only</code> over a <code>CPair</code>) and hangs both operands underneath <b>entirely shared</b> — q1, q2 are neither copied nor traversed. Worst-case O(1), both operands stay valid."},
+ {nodes:[{id:"root",kind:"root",title:"concat q1 q2",level:-0.55,seed:9},
+    T6("R","root","only",8,8,{level:0}),
+    T6("A","q1","only",7,8,{level:1,bias:-1,shared:true}),
+    T6("B","q2","only",8,7,{level:1,bias:1,shared:true}),
+    T6("Bp","q2 preferred path","left",7,8,{level:2,bias:1,shared:true})],
+  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"L"},
+    {from:"R",to:"B",kind:"right",label:"R"},{from:"B",to:"Bp",kind:"child",label:"one6"},
+    {from:"B",to:"Bp",kind:"adopt",label:"adopt6"}],
+  caption:"<b>The shared operands keep their own internal structure.</b> q2's preferred path and its <code>adopt6</code> shortcut are untouched under the new root — the join only rearranged O(1) constructors at the top (<code>Catenable/Ops.v</code>, concat cases 1–4)."},
+];}
+
+/* ================================================================
+ *  Wiring.
+ * ================================================================ */
+function setCap(elc,html,cls){elc.innerHTML=html; elc.className="cap"+(cls?(" "+cls):"");}
+
+// Drive an interactive tab from the verified port (window.KTDeque).  Every
+// operation is the differentially-tested implementation; we just re-snapshot
+// the resulting structure and re-render.  No hand-rolled repair logic.
+function wirePort(id,playSeq){
+  const K=window.KTDeque;
+  const G=new ForceGraph(document.getElementById("svg-"+id),{id,bufCap:(id==="s6")?9:5});
+  const capEl=document.getElementById("cap-"+id);
+  const is4=(id==="s4");
+  const defCap=is4
+    ? "Driven by the <b>verified</b> §4 port (<code>ts/</code>): a spine of <code>D4Cell</code>s linked by <code>child4</code>, with <code>jump4</code> across anchors. push/inject grow it; an overflow spills a pair down a level (<code>ensure_green</code>), all O(1). Every op here is the differentially-tested code."
+    : "Driven by the <b>verified</b> §6 port: a tree of stored-triple triples. push/inject grow the root buffer; <b>concat</b> joins two deques in O(1) (a <code>CPair</code>), sharing both operands — that is what builds the tree.";
+  let chain,val;
+  const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
+  function seed(){ val=1;
+    if(is4){ chain=K.empty4(); for(let i=0;i<7;i++) chain=K.push4(val++,chain); }  // a 2-level spine
+    else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
+  function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
+  function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
+  function op(k){
+    if(k==="reset"){ seed(); render(); setCap(capEl,defCap,""); return; }
+    if(k==="shake"){ G.shake(); return; }
+    const before=count();
+    let label=cap(k);
+    if(is4){
+      if(k==="push") chain=K.push4(val++,chain);
+      else if(k==="inject") chain=K.inject4(chain,val++);
+      else if(k==="pop"){ const r=K.pop4(chain); if(r)chain=r[1]; }
+      else if(k==="eject"){ const r=K.eject4(chain); if(r)chain=r[0]; }
+    } else {
+      if(k==="push") chain=K.push6(val++,chain);
+      else if(k==="inject") chain=K.inject6(chain,val++);
+      else if(k==="pop"){ const r=K.pop6(chain); if(r)chain=r[1]; }
+      else if(k==="eject"){ const r=K.eject6(chain); if(r)chain=r[0]; }
+      else if(k==="concat"){ chain=K.concat6(chain,eight()); label="concat (+8)"; }
+    }
+    render(); G.kick(0.7);
+    const after=count(), grew=after>before, shrank=after<before;
+    let msg=label+" — applied by the verified port.";
+    if(is4&&grew) msg=label+" → <b>overflow</b>: a pair spilled down a level (<code>ensure_green</code>, O(1) ✓).";
+    else if(is4&&shrank) msg=label+" → <b>underflow</b>: a pair pulled up a level (<code>ensure_green</code>, O(1) ✓).";
+    else if(!is4&&k==="concat") msg="<b>concat</b> joined a fresh 8-element deque in <b>O(1)</b> — a <code>CPair</code> over both operands, shared wholesale.";
+    setCap(capEl,msg,is4&&grew?"ok":is4&&shrank?"ok":"");
+  }
+  let timer=null,playing=false,si=0;
+  const pe=document.getElementById("play-"+id);
+  function step(){ if(si>=playSeq.length){ si=0; op("reset"); return; } op(playSeq[si++]); }
+  function play(){playing=true; pe.textContent="⏸ Pause"; pe.classList.remove("primary");
+    clearInterval(timer); timer=setInterval(step,1700);}
+  function pause(){playing=false; pe.textContent="▶ Play"; pe.classList.add("primary"); clearInterval(timer);}
+  pe.onclick=()=>playing?pause():play();
+  document.querySelectorAll('button[data-s="'+id+'"]').forEach(b=>
+    b.onclick=()=>{if(b.dataset.op!=="shake")pause(); op(b.dataset.op);});
+  seed(); render(); setCap(capEl,defCap,"");
+}
+
+function wireStoryline(id,frames){
+  const G=new ForceGraph(document.getElementById("svg-"+id),{id,bufCap:(id==="concat")?9:5});
+  const capEl=document.getElementById("cap-"+id);
+  let i=0,timer=null,playing=false;
+  function show(){const f=frames[i]; G.transition(structuredClone(f.nodes),structuredClone(f.edges));
+    setCap(capEl,(i+1)+"/"+frames.length+" · "+f.caption,"");}
+  function adv(){i=(i+1)%frames.length; show();}
+  const pe=document.getElementById("play-"+id);
+  function play(){playing=true; pe.textContent="⏸ Pause"; pe.classList.remove("primary");
+    clearInterval(timer); timer=setInterval(adv,2600);}
+  function pause(){playing=false; pe.textContent="▶ Play"; pe.classList.add("primary"); clearInterval(timer);}
+  pe.onclick=()=>playing?pause():play();
+  document.querySelector('button[data-step="'+id+'"]').onclick=()=>{pause(); adv();};
+  document.querySelectorAll('button[data-s="'+id+'"]').forEach(b=>
+    b.onclick=()=>{if(b.dataset.op==="reset"){pause(); i=0; show();} else G.shake();});
+  i=0; show(); return{show};
+}
+
+wirePort("s4",
+  ["push","push","push","push","push","push","inject","inject","pop","pop","eject","eject"]);
+wirePort("s6",
+  ["push","push","concat","pop","concat","inject","pop","eject","concat"]);
+wireStoryline("persist",FRAMES_persist());
+wireStoryline("concat",FRAMES_concat());
+
+/* tabs */
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x===t));
+  document.querySelectorAll(".scene").forEach(s=>s.classList.toggle("active",s.id==="scene-"+t.dataset.scene));
+});
+</script>
+</body>
+</html>
