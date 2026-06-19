@@ -137,11 +137,11 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
 <div class="scene active" id="scene-s4"><div class="stage">
   <svg class="graph" id="svg-s4" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green 2–3</span>
-    <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 1,4</span>
-    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red 0,5</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code></span>
-    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>jump4</code> → non-yellow</span>
+    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green = roomy (2–3)</span>
+    <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow = nearly full/empty (1,4)</span>
+    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red = full/empty, must be fixed (0,5)</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code> — pointer to the level below</span>
+    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>jump4</code> — shortcut over a run of yellow cells (lets a fix stay O(1)); shown only when there's a run to skip</span>
     <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
     <span class="it">each slot is one buffer entry = a bundle of <b>2<sup>ℓ</sup></b> elements — a <b>pair</b> at L1, a <b>pair-of-pairs</b> at L2</span>
   </div>
@@ -536,8 +536,11 @@ function nodes4(snap){
     edges.push(i===0?{from:"root",to:c.id,kind:"root",rest:92}
                     :{from:cells[i-1].id,to:c.id,kind:"child",label:"child4",rest:140});
   });
-  const anc=cells.filter(c=>c.anchor);
-  for(let i=0;i+1<anc.length;i++) edges.push({from:anc[i].id,to:anc[i+1].id,kind:"jump",label:"jump4",rest:235});
+  // jump4 only where it actually SKIPS a run of yellow cells (so it never just
+  // duplicates child4 between adjacent anchors — that's what made it confusing).
+  const ai=[]; cells.forEach((c,i)=>{ if(c.anchor) ai.push(i); });
+  for(let k=0;k+1<ai.length;k++) if(ai[k+1]>ai[k]+1)
+    edges.push({from:cells[ai[k]].id,to:cells[ai[k+1]].id,kind:"jump",label:"jump4",rest:235});
   return {nodes,edges};
 }
 function nodes6(snap){
@@ -636,7 +639,7 @@ function wirePort(id,playSeq){
   let chain,val;
   const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
   function seed(){ val=1;
-    if(is4){ chain=K.empty4(); for(let i=0;i<7;i++) chain=K.push4(val++,chain); }  // a 2-level spine
+    if(is4){ chain=K.empty4(); for(let i=0;i<48;i++) chain=K.push4(val++,chain); }  // deep enough to show a yellow run + jump4
     else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
   function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
   function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
