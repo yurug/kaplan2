@@ -667,7 +667,9 @@ function wirePort(id,playSeq){
   }
   let timer=null,playing=false,si=0;
   const pe=document.getElementById("play-"+id);
-  function step(){ if(si>=playSeq.length){ si=0; op("reset"); return; } op(playSeq[si++]); }
+  // Cycle the operation pattern indefinitely — never reset — so the structure
+  // keeps evolving and you can watch how a given pattern shapes it over time.
+  function step(){ op(playSeq[si%playSeq.length]); si++; }
   function play(){playing=true; pe.textContent="⏸ Pause"; pe.classList.remove("primary");
     clearInterval(timer); timer=setInterval(step,1700);}
   function pause(){playing=false; pe.textContent="▶ Play"; pe.classList.add("primary"); clearInterval(timer);}
@@ -695,10 +697,11 @@ function wireStoryline(id,frames){
   i=0; show(); return{show};
 }
 
-wirePort("s4",
-  ["push","push","push","push","push","push","inject","inject","pop","pop","eject","eject"]);
-wirePort("s6",
-  ["push","push","concat","pop","concat","inject","pop","eject","concat"]);
+// Play cycles these patterns forever (no reset), so the structure keeps evolving.
+// Net-growth motifs: §4 grows its spine (depth ~log of size); §6 grows its tree
+// via concat.  Use the buttons for ad-hoc steps; Reset to start over.
+wirePort("s4", ["push","push","inject","push","pop","eject"]);  // net growth; shows both spill & pull-up repairs
+wirePort("s6", ["push","push","inject","concat"]);             // concat builds the tree every 4th step
 wireStoryline("persist",FRAMES_persist());
 wireStoryline("concat",FRAMES_concat());
 
