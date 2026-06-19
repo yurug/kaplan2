@@ -276,11 +276,14 @@ function col6tri(role,pre,suf){const cp=colS6(pre),cs=colS6(suf);
 /* ================================================================
  *  Force-directed graph engine over SVG (self-contained).
  * ================================================================ */
+const GRAPHS=[]; const ORIENT={h:true};   // shared layout orientation (default horizontal)
 class ForceGraph {
   constructor(svg,opts){
     this.svg=svg; this.opts=opts; this.W=960; this.H=560;
     this.tall=(opts.id==="s4"||opts.id==="persist");
-    this.base=66; this.gap=this.tall?132:118;
+    this.base=66; this.gap=this.tall?132:118;                                   // vertical: level → y
+    this.hbase=96; this.hgap=(opts.id==="s6"||opts.id==="concat")?212:180;       // horizontal: level → x
+    this.horizontal=ORIENT.h; GRAPHS.push(this);
     this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g");
     svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer);
     addDefs(svg,opts.id);
@@ -299,18 +302,20 @@ class ForceGraph {
       const rect=el("rect",{class:"pkt-hull",rx:14}), lab=el("text",{class:"pkt-lab"});
       lab.textContent="Packet · "+members.length+" cells = 1 alloc";
       this.groupLayer.append(rect,lab); this.groups.push({members,rect,lab}); });
+    const LA=this.horizontal?"x":"y", CA=this.horizontal?"y":"x";   // level / cross axes
+    const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
+    const cmid=this.horizontal?this.H/2:this.W/2, cspread=this.horizontal?120:200;
     nodes.forEach(n=>{
       n.w=n.w||(n.kind==="root"?96:(this.opts.id==="s6"||this.opts.id==="concat")?168:132);
       n.h=n.h||(n.kind==="root"?30:(this.tall?88:78));
       if(old[n.id]){Object.assign(n,old[n.id]); n._fresh=false;}
       else{
         const pe=edges.find(e=>e.to===n.id&&old[e.from]);
-        if(pe){n.x=old[pe.from].x+(n.bias||0)*50;}
-        else{n.x=this.W/2+(n.bias||0)*200+Math.sin((n.seed||0)*1.7)*30;}
-        n.vx=0; n._fresh=true;
+        n[CA]=pe?old[pe.from][CA]+(n.bias||0)*50:cmid+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30;
+        n["v"+CA]=0; n._fresh=true;
       }
-      // snap to the level row so vertical banding is always correct; x morphs freely
-      n.y=this.base+(n.level||0)*this.gap; n.vy=0;
+      // snap the level axis so banding is always correct; the cross axis morphs freely
+      n[LA]=lbase+(n.level||0)*lgap; n["v"+LA]=0;
     });
     edges.forEach(e=>{e.a=this.byId(e.from); e.b=this.byId(e.to);
       e.dom=this._edgeDom(e); this.edgeLayer.appendChild(e.dom.g);});
@@ -389,7 +394,9 @@ class ForceGraph {
   kick(a=0.9){this.alpha=Math.max(this.alpha,a); if(!this.running){this.running=true; requestAnimationFrame(this._raf);}}
   frame(){
     const K_REP=8000,K_SPR=0.055,K_LVL=0.13,K_CTR=0.010,DAMP=0.85,MAXV=16,ns=this.nodes;
-    const BASE=this.base,GAP=this.gap,PAD=16;
+    const PAD=16, LA=this.horizontal?"x":"y", CA=this.horizontal?"y":"x";
+    const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
+    const cmid=this.horizontal?this.H/2:this.W/2, sib=this.horizontal?96:120;
     for(let i=0;i<ns.length;i++)for(let j=i+1;j<ns.length;j++){
       const a=ns[i],b=ns[j]; let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;
       if(d2<1){dx=(i-j)||1; dy=1; d2=2;} const d=Math.sqrt(d2),f=K_REP/d2;
@@ -400,14 +407,14 @@ class ForceGraph {
       const rest=e.rest||((kc==="jump"||kc==="adopt")?215:(kc==="root"||kc==="rootgrey")?92:150);
       let dx=b.x-a.x,dy=b.y-a.y; const d=Math.hypot(dx,dy)||1,f=K_SPR*(d-rest);
       a.vx+=f*dx/d; a.vy+=f*dy/d; b.vx-=f*dx/d; b.vy-=f*dy/d;
-      if(kc==="left") b.vx+=(a.x-120-b.x)*0.020;
-      if(kc==="right")b.vx+=(a.x+120-b.x)*0.020;
+      if(kc==="left") b["v"+CA]+=(a[CA]-sib-b[CA])*0.020;
+      if(kc==="right")b["v"+CA]+=(a[CA]+sib-b[CA])*0.020;
     }
     let ke=0;
     for(const n of ns){
       if(n===this.drag){n.vx=n.vy=0; continue;}
-      n.vy+=((BASE+(n.level||0)*GAP)-n.y)*K_LVL;
-      n.vx+=(this.W/2-n.x)*K_CTR;
+      n["v"+LA]+=((lbase+(n.level||0)*lgap)-n[LA])*K_LVL;
+      n["v"+CA]+=(cmid-n[CA])*K_CTR;
       n.vx*=DAMP; n.vy*=DAMP;
       n.vx=Math.max(-MAXV,Math.min(MAXV,n.vx)); n.vy=Math.max(-MAXV,Math.min(MAXV,n.vy));
       n.x+=n.vx*this.alpha; n.y+=n.vy*this.alpha;
@@ -449,7 +456,7 @@ class ForceGraph {
       const kc=e.kind==="tail"?"child":e.kind;
       const p=this._trim(a,b),q=this._trim(b,a);
       if(kc==="jump"||kc==="adopt"){
-        const mx=(p.x+q.x)/2+44,my=(p.y+q.y)/2;
+        const mx=(p.x+q.x)/2+(this.horizontal?0:44),my=(p.y+q.y)/2+(this.horizontal?44:0);
         e.dom.path.setAttribute("d",`M${p.x},${p.y} Q${mx},${my} ${q.x},${q.y}`);
         e.dom.lab.setAttribute("x",mx-2); e.dom.lab.setAttribute("y",my);
       }else{
@@ -481,6 +488,12 @@ class ForceGraph {
     this.svg.addEventListener("pointerup",up); this.svg.addEventListener("pointercancel",up);
   }
   shake(){for(const n of this.nodes){n.vx+=Math.sin(n.x*12.9+n.y)*22; n.vy+=Math.cos(n.y*7.3)*22;} this.kick(1);}
+  reorient(h){ this.horizontal=h;
+    const LA=h?"x":"y", CA=h?"y":"x", lbase=h?this.hbase:this.base, lgap=h?this.hgap:this.gap;
+    const cmid=h?this.H/2:this.W/2, cspread=h?120:200;
+    for(const n of this.nodes){ n[LA]=lbase+(n.level||0)*lgap;
+      n[CA]=cmid+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30; n.vx=0; n.vy=0; }
+    this.kick(1); }
 }
 function addDefs(svg,id){
   const defs=el("defs"), colors={root:"#0066cc",rootgrey:"#8a8f96",child:"#5b6b7a",left:"#2e7d32",right:"#b8860b"};
@@ -755,6 +768,19 @@ const onFs=()=>{ const on=!!(document.fullscreenElement||document.webkitFullscre
   fsButtons.forEach(b=>b.textContent=on?"⤢ Exit full screen":"⛶ Full screen"); };
 document.addEventListener("fullscreenchange",onFs);
 document.addEventListener("webkitfullscreenchange",onFs);
+
+/* layout orientation toggle (horizontal ⇄ vertical) — flips every graph */
+const orientButtons=[];
+document.querySelectorAll(".stage .bar").forEach(bar=>{
+  const btn=document.createElement("button"); btn.className="fs-btn";
+  btn.textContent=ORIENT.h?"⇅ Vertical":"⇄ Horizontal";
+  btn.title="Switch the layout between horizontal and vertical";
+  btn.onclick=()=>{ ORIENT.h=!ORIENT.h; GRAPHS.forEach(g=>g.reorient(ORIENT.h));
+    orientButtons.forEach(b=>b.textContent=ORIENT.h?"⇅ Vertical":"⇄ Horizontal"); };
+  const fs=bar.querySelector(".fs-btn");
+  fs?bar.insertBefore(btn,fs):bar.appendChild(btn);
+  orientButtons.push(btn);
+});
 </script>
 </body>
 </html>
