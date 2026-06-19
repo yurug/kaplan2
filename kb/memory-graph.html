@@ -86,7 +86,8 @@
   .edge.root  { stroke:var(--accent); stroke-width:2.6; }
   .edge.rootgrey { stroke:#8a8f96; stroke-width:2.4; }
   .edge.jump, .edge.adopt { stroke:var(--orange-bd); stroke-dasharray:6 4; }
-  .elab { font:8px "SF Mono",monospace; fill:#7a7a7a; }
+  .elab { font:600 9px "SF Mono",monospace; fill:#5a5a5a;
+          paint-order:stroke; stroke:var(--bg); stroke-width:3px; stroke-linejoin:round; }
   .elab.shortcut { fill:var(--orange-bd); }
 
   .legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.8em; color:var(--muted); padding:8px 14px; }
@@ -284,8 +285,8 @@ class ForceGraph {
     this.base=66; this.gap=this.tall?132:118;                                   // vertical: level → y
     this.hbase=96; this.hgap=(opts.id==="s6"||opts.id==="concat")?212:180;       // horizontal: level → x
     this.horizontal=ORIENT.h; GRAPHS.push(this);
-    this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g");
-    svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer);
+    this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g"); this.labelLayer=el("g");
+    svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer,this.labelLayer); // labels on top
     addDefs(svg,opts.id);
     this.nodes=[]; this.edges=[]; this.groups=[]; this.alpha=1; this.running=false; this.drag=null;
     this.bufCap=opts.bufCap||5; this._raf=()=>this.frame(); this._bindDrag();
@@ -293,7 +294,8 @@ class ForceGraph {
   byId(id){return this.nodes.find(n=>n.id===id);}
   transition(nodes,edges){
     const old={}; this.nodes.forEach(n=>old[n.id]={x:n.x,y:n.y,vx:n.vx,vy:n.vy});
-    this.groupLayer.replaceChildren(); this.edgeLayer.replaceChildren(); this.nodeLayer.replaceChildren();
+    this.groupLayer.replaceChildren(); this.edgeLayer.replaceChildren();
+    this.nodeLayer.replaceChildren(); this.labelLayer.replaceChildren();
     this.nodes=nodes; this.edges=edges;
     // packet enclosures: nodes sharing a `pkt` group with ≥2 members = one allocation
     const byPkt={}; nodes.forEach(n=>{ if(n.pkt!=null)(byPkt[n.pkt]=byPkt[n.pkt]||[]).push(n); });
@@ -318,7 +320,8 @@ class ForceGraph {
       n[LA]=lbase+(n.level||0)*lgap; n["v"+LA]=0;
     });
     edges.forEach(e=>{e.a=this.byId(e.from); e.b=this.byId(e.to);
-      e.dom=this._edgeDom(e); this.edgeLayer.appendChild(e.dom.g);});
+      e.dom=this._edgeDom(e); this.edgeLayer.appendChild(e.dom.g);
+      this.labelLayer.appendChild(e.dom.lab);});  // labels above the nodes
     nodes.forEach(n=>{n.dom=this._nodeDom(n); this.nodeLayer.appendChild(n.dom.g);
       if(n._fresh){n.dom.g.style.opacity=0; requestAnimationFrame(()=>{n.dom.g.style.opacity=n.faded?0.4:1;});}});
     this.kick(1);
@@ -329,7 +332,7 @@ class ForceGraph {
     if(["root","rootgrey","child","left","right"].includes(kc))
       path.setAttribute("marker-end","url(#arrow-"+kc+"-"+this.opts.id+")");
     const lab=el("text",{class:"elab"+((kc==="jump"||kc==="adopt")?" shortcut":"")});
-    lab.textContent=e.label||""; g.append(path,lab); return {g,path,lab};
+    lab.textContent=e.label||""; g.append(path); return {g,path,lab};  // lab added to labelLayer
   }
   _nodeDom(n){
     const cls="node c-"+(n.color||"green")+(n.kind==="root"?(" root"+(n.rgrey?" rgrey":"")):"")
@@ -461,7 +464,12 @@ class ForceGraph {
         e.dom.lab.setAttribute("x",mx-2); e.dom.lab.setAttribute("y",my);
       }else{
         e.dom.path.setAttribute("d",`M${p.x},${p.y} L${q.x},${q.y}`);
-        e.dom.lab.setAttribute("x",(p.x+q.x)/2+4); e.dom.lab.setAttribute("y",(p.y+q.y)/2-2);
+        // place labels clear of the (short) arrows: above them when horizontal,
+        // beside them when vertical, with a white halo (CSS) for legibility.
+        if(this.horizontal){ e.dom.lab.setAttribute("text-anchor","middle");
+          e.dom.lab.setAttribute("x",(p.x+q.x)/2); e.dom.lab.setAttribute("y",(p.y+q.y)/2-10); }
+        else { e.dom.lab.setAttribute("text-anchor","start");
+          e.dom.lab.setAttribute("x",(p.x+q.x)/2+5); e.dom.lab.setAttribute("y",(p.y+q.y)/2-2); }
       }
     }
   }
