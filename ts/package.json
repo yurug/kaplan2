@@ -1,0 +1,19 @@
+{
+  "name": "ktdeque",
+  "version": "0.1.0",
+  "description": "TypeScript port of the Kaplan-Tarjan purely-functional worst-case O(1) deque (kaplan2), verified by differential testing against a naive oracle — the same method as the C port.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "fuzz": "npm run typecheck && esbuild test/fuzz.ts --bundle --platform=node --format=esm --outfile=dist/fuzz.mjs && node dist/fuzz.mjs",
+    "wc": "npm run typecheck && esbuild test/wc.ts --bundle --platform=node --format=esm --outfile=dist/wc.mjs && node dist/wc.mjs",
+    "test": "npm run fuzz && npm run wc",
+    "bundle": "esbuild src/index.ts --bundle --format=esm --outfile=dist/ktdeque.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "esbuild": "^0.28.1",
+    "typescript": "^5.9.3"
+  }
+}
