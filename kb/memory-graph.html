@@ -8,10 +8,10 @@
   :root {
     --bg:#fdfdfa; --fg:#1a1a1a; --muted:#6a6a6a; --accent:#0066cc; --accent-bg:#e8f3ff;
     --code-bg:#f5f3ef; --rule:#ddd6c8;
-    --green-bd:#2e7d32; --green-bg:#e8f5e8; --green-fl:#43a047;
+    --green-bd:#4ea65a; --green-bg:#eef8ef; --green-fl:#66bd70;
     --yellow-bd:#d4a017; --yellow-bg:#fff8e1; --yellow-fl:#e6b21e;
     --orange-bd:#e8740c; --orange-bg:#fff0e0; --orange-fl:#f5821f;
-    --red-bd:#c62828; --red-bg:#ffeaea; --red-fl:#e53935;
+    --red-bd:#e06c6c; --red-bg:#fff1f1; --red-fl:#ef7d7d;
   }
   html { background:var(--bg); color:var(--fg); }
   body { max-width:1040px; margin:2em auto; padding:0 1.5em;
@@ -66,6 +66,9 @@
   .node .sub   { font:9px "SF Mono",monospace; fill:var(--muted); }
   .node .blab  { font:8px "SF Mono",monospace; fill:var(--muted); }
   .node .badge { font:italic 9px "SF Mono",monospace; fill:var(--accent); }
+  /* non-colour cue for the red ("must be fixed") state — colourblind aid */
+  .node .warn { display:none; font-size:13px; }
+  .node.c-red .warn { display:block; }
   .node.root .cell { fill:var(--accent); stroke:var(--accent); }
   .node.root.rgrey .cell { fill:#8a8f96; stroke:#8a8f96; }
   .node.root .title { fill:#fff; }
@@ -145,7 +148,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
   <div class="legend">
     <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green = roomy (2–3)</span>
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow = nearly full/empty (1,4)</span>
-    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red = full/empty, must be fixed (0,5)</span>
+    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red ⚠️ = full/empty, must be fixed (0,5)</span>
     <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — the spine, one pointer to the next packet</span>
     <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> (dashed box) = <b>one block of memory</b> bundling a level with the one(s) a previous repair tucked beneath it. An operation only ever touches the <b>top</b> of the chain — everything below is carried along unchanged (<b>deferred</b>), and that bounded work is what makes each op O(1). (A cell's green/yellow/red tint is a separate lens: how full that one buffer is.)</span>
     <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
@@ -190,7 +193,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green ≥8</span>
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 7</span>
     <span class="it"><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg)"></span>Orange 6</span>
-    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red 5</span>
+    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red ⚠️ 5</span>
     <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>two children — left / right</span>
     <span class="it"><span class="lin" style="border-color:#5b6b7a"></span>single child</span>
     <span class="it"><span class="ic" style="background:#0f9b8e"></span>element · each entry is itself a small bundle (a <b>triple</b>: front · ◇child · back), and those nest one level deeper each step down</span>
@@ -343,6 +346,8 @@ class ForceGraph {
       g.appendChild(t); return {g};
     }
     const ti=el("text",{class:"title","text-anchor":"middle",y:-h/2+15}); ti.textContent=n.title; g.appendChild(ti);
+    // ⚠️ shown only on red cells (via CSS) — a shape cue independent of colour
+    const wn=el("text",{class:"warn","text-anchor":"middle",x:w/2-13,y:-h/2+17}); wn.textContent="⚠️"; g.appendChild(wn);
     if(n.sub){const s=el("text",{class:"sub","text-anchor":"middle",y:-h/2+27}); s.textContent=n.sub; g.appendChild(s);}
     n._pre=el("g"); n._suf=el("g"); g.append(n._pre,n._suf);
     const preY=-h/2+(n.sub?40:32), sufY=h/2-14;
