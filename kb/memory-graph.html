@@ -75,6 +75,11 @@
   /* a CPair junction: a small green pill where two deques were joined */
   .node.branch .cell { fill:#dff0e3; stroke:var(--green-bd); stroke-width:2.5; }
   .node.branch .title { fill:var(--green-bd); font-size:12px; }
+  /* §6 sequence bar: origin-coloured segments (blue = own, orange = from B) */
+  .seg { stroke-width:1.6; }
+  .seg-a { fill:rgba(0,102,204,.45); stroke:#0066cc; }
+  .seg-b { fill:rgba(232,116,12,.45); stroke:#e8740c; }
+  .seg-num { font:600 11px "SF Mono",monospace; fill:#1a1a1a; }
   .dot { stroke:#fff; stroke-width:.8; }
   .dot.base { fill:var(--accent); }
   .dot.s6   { fill:#0f9b8e; stroke-width:1; }
@@ -145,7 +150,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
 <div class="tabs">
   <div class="tab active" data-scene="s4">Deque — a chain of packets</div>
   <div class="tab" data-scene="persist">Persistence — fork &amp; share</div>
-  <div class="tab" data-scene="s6">Catenable deque — a tree</div>
+  <div class="tab" data-scene="s6">Catenable deque — concat</div>
   <div class="tab" data-scene="concat">Concat — join two deques in O(1)</div>
 </div>
 
@@ -197,10 +202,10 @@ cell is tinted green / yellow / (orange /) red by how full it is.
 <div class="scene" id="scene-s6"><div class="stage">
   <svg class="graph" id="svg-s6" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it"><span class="ic" style="background:#0f9b8e"></span><b>each dot is one element</b> (in the cell's front / back buffer)</span>
-    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>cell colour = its place in the <b>4-colour rule</b> (green = fine → red ⚠️ = must be fixed); that extra 4th colour is what lets <b>concat</b> stay O(1). Most cells stay green</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — a deeper cell</span>
-    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>the two sides of a <code>⋈ join</code></span>
+    <span class="it">each <b>bar</b> is a deque's sequence (front → back); its length = element count</span>
+    <span class="it"><span class="sw" style="border-color:#0066cc;background:rgba(0,102,204,.45)"></span><b>A</b>'s own elements</span>
+    <span class="it"><span class="sw" style="border-color:#e8740c;background:rgba(232,116,12,.45)"></span><b>B</b>'s elements — each concat copies a chunk of them into A</span>
+    <span class="it"><b>stored in N cells</b> = the bounded tree underneath — that's why every op (incl. concat) is O(1)</span>
   </div>
   <div class="bar">
     <span class="seg-lab">grow:</span>
@@ -212,7 +217,6 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <button data-op="eject"  data-s="s6">Eject－</button>
     <button class="primary" data-op="concatAB" data-s="s6">A ← A ++ B</button>
     <button class="primary" data-op="concatBA" data-s="s6">A ← B ++ A</button>
-    <button data-op="shake"  data-s="s6">↯ Shake</button>
     <button data-op="reset"  data-s="s6">⟲ Reset</button>
     <span class="hint">drag a box to reposition</span>
   </div>
@@ -815,63 +819,64 @@ function wireStoryline(id,frames){
 
 // §6 interactive: TWO catenable deques A and B you grow separately, then
 // concatenate (A++B or B++A) to watch the O(1) join — a ⋈ over both, shared whole.
+// Two catenable deques A & B, each shown as a SEQUENCE BAR (front→back) of
+// origin-coloured segments: blue = the deque's own elements, orange = a chunk
+// pulled in from B by concat.  Each "A ← A++B" appends a fresh orange B-segment,
+// so a sequence of concats visibly stacks up — while a "stored in N cells" note
+// shows the structure stays bounded (the whole point of O(1) concat).
 function wireCadeque6(){
-  const id="s6", K=window.KTDeque, G=new ForceGraph(document.getElementById("svg-"+id),{id,bufCap:9});
-  const capEl=document.getElementById("cap-"+id);
-  let chA,chB,which,val,flash;   // flash: after a concat, which child of A's ⋈ is the shared B
+  const K=window.KTDeque, svg=document.getElementById("svg-s6"), capEl=document.getElementById("cap-s6");
+  const W=960,H=560;
+  let chA,chB,blkA,blkB,which,val;            // blkX: [{o:"A"|"B", n}] logical segments, front→back
   const eight=()=>{ let d=K.empty6(); for(let i=0;i<8;i++) d=K.push6(val++,d); return d; };
-  const freshDeque=()=>K.concat6(eight(),eight());   // an [8 front / 8 back] cell — concats into a ⋈ branch
-  function seed(){ val=1; chA=freshDeque(); chB=freshDeque(); which="A"; flash=null; }
-  // force-graph nodes/edges for ONE deque snapshot, prefixed + placed in a lane
-  function deqNodes(snap,pfx,lane,title,active,labelFor){
-    const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
-    const nodes=[{id:pfx+":root",kind:"root",rgrey:!active,title,level:-0.7,lane,bias:0,seed:pfx.charCodeAt(0)*7}];
-    const edges=[];
-    snap.nodes.forEach((n,i)=>{ const pair=n.role==="pair", lf=labelFor?labelFor(n.id):{};
-      nodes.push({id:pfx+":"+n.id,level:n.depth,lane,kind:pair?"branch":undefined,
-        title:pair?"⋈ join":(n.role==="only"?"Cell":"Cell ("+n.role+")"),
-        sub:pair?"":(n.role==="only"?"":n.role+" child"),
-        color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i,shared:!!lf.shared,badge:lf.badge}); });
-    snap.nodes.filter(n=>n.depth===0).forEach(r=>edges.push({from:pfx+":root",to:pfx+":"+r.id,kind:active?"root":"rootgrey",rest:92}));
-    snap.edges.forEach(e=>edges.push({from:pfx+":"+e.from,to:pfx+":"+e.to,kind:e.kind,label:e.kind==="child"?"child":e.kind,rest:e.kind==="child"?140:150}));
-    return {nodes,edges};
+  const fresh=()=>K.concat6(eight(),eight());                 // a 16-element cell
+  function seed(){ val=1; chA=fresh(); chB=fresh(); blkA=[{o:"A",n:16}]; blkB=[{o:"B",n:16}]; which="A"; }
+  const len=d=>K.toList6(d).length, cells=d=>K.snapshot6(d).nodes.length;
+  function drawDeque(d,blk,name,cy,active){
+    const g=el("g"), total=blk.reduce((s,b)=>s+b.n,0);
+    const p=el("g",{class:"node root"+(active?"":" rgrey")});
+    p.appendChild(el("rect",{class:"cell",x:14,y:cy-16,width:120,height:32,rx:16}));
+    const pt=el("text",{class:"title","text-anchor":"middle",x:74,y:cy+4}); pt.textContent=name+" · "+total; p.appendChild(pt);
+    g.appendChild(p);
+    const x0=156, maxW=W-x0-26, pitch=Math.min(8.5,maxW/Math.max(1,total)), hh=40; let x=x0;
+    blk.forEach(b=>{ const w=b.n*pitch;
+      g.appendChild(el("rect",{x,y:cy-hh/2,width:Math.max(2,w-1.5),height:hh,rx:3,class:"seg seg-"+(b.o==="B"?"b":"a")}));
+      if(w>=20){ const t=el("text",{x:x+w/2,y:cy+4,"text-anchor":"middle",class:"seg-num"}); t.textContent=b.n; g.appendChild(t); }
+      x+=w; });
+    const note=el("text",{x:x0,y:cy+hh/2+15,class:"blab"});
+    note.textContent="stored in "+cells(d)+" cell"+(cells(d)>1?"s":"")+"  —  a bounded tree, so every operation is O(1)";
+    g.appendChild(note);
+    return g;
   }
-  // after a concat, badge the child of A's ⋈ that is the (shared) B
-  function aLabel(snapA){ if(!flash) return null;
-    const pair=snapA.nodes.find(n=>n.role==="pair"); if(!pair) return null;
-    let L,R; snapA.edges.forEach(e=>{ if(e.from===pair.id){ if(e.kind==="left")L=e.to; if(e.kind==="right")R=e.to; }});
-    const tgt=flash==="right"?R:L; return nid=> nid===tgt?{shared:true,badge:"B — shared into A"}:{}; }
-  function renderBuild(){
-    const sa=K.snapshot6(chA), nA=K.toList6(chA).length, nB=K.toList6(chB).length;
-    const a=deqNodes(sa,"A",-1,"deque A · "+nA,which==="A",aLabel(sa));
-    const b=deqNodes(K.snapshot6(chB),"B", 1,"deque B · "+nB,which==="B");
-    G.transition([...a.nodes,...b.nodes],[...a.edges,...b.edges]);
-  }
+  function render(){ svg.replaceChildren();
+    svg.appendChild(drawDeque(chA,blkA,"deque A",H*0.32,which==="A"));
+    svg.appendChild(drawDeque(chB,blkB,"deque B",H*0.66,which==="B")); }
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
-  const buildCap="Two catenable deques, <b>A</b> and <b>B</b>. Pick one with <b>grow: deque A / deque B</b> and add or remove elements (each dot is one element). <b>A ← A++B</b> / <b>A ← B++A</b> store the join back into A and <b>keep B intact</b> — so you can concat again and again.";
+  const buildCap="Two catenable deques as <b>sequence bars</b> (front → back). <b>Blue</b> = A's own elements; <b>orange</b> = B's. Pick A or B with <b>grow:</b> and push/inject; then <b>A ← A++B</b> / <b>A ← B++A</b> append a whole <b>orange B-segment</b> onto A and leave B intact — so you can stack B again and again, while A stays stored in just a few cells.";
   function op(k){
-    if(k==="reset"){ seed(); selUI(); renderBuild(); setCap(capEl,buildCap,""); return; }
-    if(k==="shake"){ G.shake(); return; }
+    if(k==="reset"){ seed(); selUI(); render(); setCap(capEl,buildCap,""); return; }
     if(k==="concatAB"||k==="concatBA"){
-      const ab=(k==="concatAB"), before=K.toList6(chA).length;
-      chA = ab ? K.concat6(chA,chB) : K.concat6(chB,chA);   // result stored in A; B untouched
-      const after=K.toList6(chA).length;
-      flash = ab ? "right" : "left";                        // the newest B sits on that side of A's new ⋈
-      renderBuild(); G.kick(1);
-      setCap(capEl, "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: A grew <b>"+before+" → "+after+" elements</b> (watch the <code>deque A · N</code> count). The newest B is the "+(ab?"right":"left")+" subtree (dashed); each earlier B got <b>absorbed deeper</b> into the tree instead of stacking up — so A stays a handful of cells, never a growing chain of B's. <i>That</i> is the worst-case-O(1) trick. <b>B is unchanged</b> — concat again to keep accumulating.","ok");
+      const ab=(k==="concatAB"), before=len(chA), nB=len(chB);
+      chA = ab ? K.concat6(chA,chB) : K.concat6(chB,chA);     // result stored in A; B untouched
+      const seg={o:"B",n:nB}; if(ab) blkA.push(seg); else blkA.unshift(seg);
+      render();
+      setCap(capEl,"<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: a fresh <b>orange B-segment</b> ("+nB+" elts) was "+(ab?"appended on the right":"prepended on the left")+" of A — A grew <b>"+before+" → "+len(chA)+"</b>. <b>B is unchanged</b> below; concat again to stack more orange segments. Yet A is still <b>stored in just "+cells(chA)+" cells</b> — concat never copies and never grows unbounded. <i>That</i> bounded storage is the worst-case-O(1) guarantee.","ok");
       return;
     }
-    flash=null;
-    const apply=d=>{ if(k==="push")return K.push6(val++,d); if(k==="inject")return K.inject6(d,val++);
-      if(k==="pop"){const r=K.pop6(d);return r?r[1]:d;} if(k==="eject"){const r=K.eject6(d);return r?r[0]:d;} return d; };
-    if(which==="A") chA=apply(chA); else chB=apply(chB);
-    renderBuild(); G.kick(0.7);
-    setCap(capEl, cap(k)+" on <b>deque "+which+"</b> — watch a dot move.","");
+    const isA=which==="A", o=isA?"A":"B", blk=isA?blkA:blkB; let nd=isA?chA:chB;
+    if(k==="push"){ nd=K.push6(val++,nd); if(blk[0]&&blk[0].o===o)blk[0].n++; else blk.unshift({o,n:1}); }
+    else if(k==="inject"){ nd=K.inject6(nd,val++); const L=blk[blk.length-1]; if(L&&L.o===o)L.n++; else blk.push({o,n:1}); }
+    else if(k==="pop"){ const r=K.pop6(nd); if(r){nd=r[1]; if(blk[0]){blk[0].n--; if(blk[0].n<=0)blk.shift();}} }
+    else if(k==="eject"){ const r=K.eject6(nd); if(r){nd=r[0]; const L=blk.length-1; if(blk[L]){blk[L].n--; if(blk[L].n<=0)blk.pop();}} }
+    else return;
+    if(isA) chA=nd; else chB=nd;
+    render();
+    setCap(capEl, cap(k)+" on <b>deque "+which+"</b> — "+len(nd)+" elements ("+cells(nd)+" cell"+(cells(nd)>1?"s":"")+").","");
   }
   document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>
-    b.onclick=()=>{ which=b.dataset.sel; selUI(); renderBuild(); });
+    b.onclick=()=>{ which=b.dataset.sel; selUI(); render(); });
   document.querySelectorAll('button[data-op][data-s="s6"]').forEach(b=> b.onclick=()=>op(b.dataset.op));
-  seed(); selUI(); renderBuild(); setCap(capEl,buildCap,"");
+  seed(); selUI(); render(); setCap(capEl,buildCap,"");
 }
 
 // Play cycles these patterns forever (no reset), so the structure keeps evolving.
@@ -912,6 +917,7 @@ document.addEventListener("webkitfullscreenchange",onFs);
 /* layout orientation toggle (horizontal ⇄ vertical) — flips every graph */
 const orientButtons=[];
 document.querySelectorAll(".stage .bar").forEach(bar=>{
+  if(bar.closest("#scene-s6")) return;   // §6 is a static sequence-bar view, no orientation
   const btn=document.createElement("button"); btn.className="fs-btn";
   btn.textContent=ORIENT.h?"⇅ Vertical":"⇄ Horizontal";
   btn.title="Switch the layout between horizontal and vertical";
