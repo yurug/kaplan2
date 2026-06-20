@@ -215,10 +215,13 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <button data-op="pop"  data-s="s6">－ Pop</button>
     <button data-op="inject" data-s="s6">Inject＋</button>
     <button data-op="eject"  data-s="s6">Eject－</button>
-    <button class="primary" data-op="concatAB" data-s="s6">A ← A ++ B</button>
-    <button class="primary" data-op="concatBA" data-s="s6">A ← B ++ A</button>
+    <span class="seg-lab">concat:</span>
+    <button class="primary" data-op="cc:A:A" data-s="s6">A ← A++B</button>
+    <button class="primary" data-op="cc:A:B" data-s="s6">A ← B++A</button>
+    <button class="primary" data-op="cc:B:A" data-s="s6">B ← A++B</button>
+    <button class="primary" data-op="cc:B:B" data-s="s6">B ← B++A</button>
     <button data-op="reset"  data-s="s6">⟲ Reset</button>
-    <span class="hint">drag a box to reposition</span>
+    <span class="hint">join in either order, into either deque</span>
   </div>
   <div class="cap" id="cap-s6"></div>
 </div></div>
@@ -852,17 +855,21 @@ function wireCadeque6(){
     svg.appendChild(drawDeque(chA,blkA,"deque A",H*0.32,which==="A"));
     svg.appendChild(drawDeque(chB,blkB,"deque B",H*0.66,which==="B")); }
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
-  const buildCap="Two catenable deques as <b>sequence bars</b> (front → back). <b>Blue</b> = A's own elements; <b>orange</b> = B's. Pick A or B with <b>grow:</b> and push/inject; then <b>A ← A++B</b> / <b>A ← B++A</b> append a whole <b>orange B-segment</b> onto A and leave B intact — so you can stack B again and again, while A stays stored in just a few cells.";
+  const buildCap="Two catenable deques as <b>sequence bars</b> (front → back). <b>Blue</b> = A's own elements; <b>orange</b> = B's. Pick A or B with <b>grow:</b> and push/inject; then the <b>concat:</b> buttons join them in O(1) and store the result into <b>A or B</b> (the other stays intact) — so you can stack a chunk onto either side, again and again, while each deque stays stored in just a few cells.";
+  // X ← L ++ R, result stored in X (the other operand is left untouched).
+  function concatOp(tgt,l){
+    const r=l==="A"?"B":"A";
+    const Lc=l==="A"?chA:chB, Rc=r==="A"?chA:chB, Lb=l==="A"?blkA:blkB, Rb=r==="A"?blkA:blkB;
+    const before=tgt==="A"?len(chA):len(chB);
+    const res=K.concat6(Lc,Rc), resBlk=Lb.map(b=>({o:b.o,n:b.n})).concat(Rb.map(b=>({o:b.o,n:b.n})));
+    if(tgt==="A"){ chA=res; blkA=resBlk; } else { chB=res; blkB=resBlk; }
+    render();
+    const tc=tgt==="A"?chA:chB, other=(l===tgt)?r:l, side=(l===tgt)?"appended on the right":"prepended on the left", oc=other==="A"?"blue":"orange";
+    setCap(capEl,"<b>"+tgt+" ← "+l+"++"+r+"</b> in <b>O(1)</b>: <b>"+other+"</b>'s elements ("+oc+") were "+side+" of <b>"+tgt+"</b> — "+tgt+" grew <b>"+before+" → "+len(tc)+"</b>. <b>"+other+" is unchanged</b>; concat again to stack more. Yet "+tgt+" is still <b>stored in "+cells(tc)+" cells</b> — concat never copies and never grows unbounded. <i>That</i> bounded storage is the worst-case-O(1) guarantee.","ok");
+  }
   function op(k){
     if(k==="reset"){ seed(); selUI(); render(); setCap(capEl,buildCap,""); return; }
-    if(k==="concatAB"||k==="concatBA"){
-      const ab=(k==="concatAB"), before=len(chA), nB=len(chB);
-      chA = ab ? K.concat6(chA,chB) : K.concat6(chB,chA);     // result stored in A; B untouched
-      const seg={o:"B",n:nB}; if(ab) blkA.push(seg); else blkA.unshift(seg);
-      render();
-      setCap(capEl,"<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: a fresh <b>orange B-segment</b> ("+nB+" elts) was "+(ab?"appended on the right":"prepended on the left")+" of A — A grew <b>"+before+" → "+len(chA)+"</b>. <b>B is unchanged</b> below; concat again to stack more orange segments. Yet A is still <b>stored in just "+cells(chA)+" cells</b> — concat never copies and never grows unbounded. <i>That</i> bounded storage is the worst-case-O(1) guarantee.","ok");
-      return;
-    }
+    if(k.startsWith("cc:")){ const p=k.split(":"); concatOp(p[1],p[2]); return; }
     const isA=which==="A", o=isA?"A":"B", blk=isA?blkA:blkB; let nd=isA?chA:chB;
     if(k==="push"){ nd=K.push6(val++,nd); if(blk[0]&&blk[0].o===o)blk[0].n++; else blk.unshift({o,n:1}); }
     else if(k==="inject"){ nd=K.inject6(nd,val++); const L=blk[blk.length-1]; if(L&&L.o===o)L.n++; else blk.push({o,n:1}); }
