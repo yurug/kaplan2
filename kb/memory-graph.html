@@ -147,7 +147,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow = nearly full/empty (1,4)</span>
     <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red = full/empty, must be fixed (0,5)</span>
     <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — the spine, one pointer to the next packet</span>
-    <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> = a green/red cell + its yellow run, aggregated into <b>one allocation</b> — that's what keeps a fix O(1) (no jump pointer needed)</span>
+    <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> (dashed box) = <b>one block of memory</b>: a green/red <b>anchor</b> + the levels below it the algorithm has <b>deferred</b> (tagged “yellow”). Deferred levels are not re-touched per op (the O(1) trick) and are left as-is — so one can read green inside a packet</span>
     <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
     <span class="it">each slot is one buffer entry = a bundle of <b>2<sup>ℓ</sup></b> elements — a <b>pair</b> at L1, a <b>pair-of-pairs</b> at L2</span>
   </div>
@@ -300,7 +300,7 @@ class ForceGraph {
     this.groups=[];
     Object.values(byPkt).forEach(members=>{ if(members.length<2)return;
       const rect=el("rect",{class:"pkt-hull",rx:14}), lab=el("text",{class:"pkt-lab"});
-      lab.textContent="Packet ("+members.length+" levels, one block of memory)";
+      lab.textContent="Packet · anchor + "+(members.length-1)+" deferred = one block of memory";
       this.groupLayer.append(rect,lab); this.groups.push({members,rect,lab}); });
     const LA=this.horizontal?"x":"y", CA=this.horizontal?"y":"x";   // level / cross axes
     const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
@@ -683,7 +683,7 @@ function wirePort(id,playSeq){
   const capEl=document.getElementById("cap-"+id);
   const is4=(id==="s4");
   const defCap=is4
-    ? "A <b>chain of packets</b>, run by the verified code. Each packet (dashed box) packs a green/red cell together with its run of yellow cells into <b>one block of memory</b> — so a fix only ever rewrites a couple of cells (O(1)). Add to the front or back and watch it grow; when a buffer fills up, a pair spills down to the next level."
+    ? "A <b>chain of packets</b>, run by the verified code. Each packet (dashed box) is <b>one block of memory</b>: a green/red <b>anchor</b> plus the levels below it the algorithm has <b>deferred</b> (tagged “yellow”). Those are not re-visited per op (that is the O(1)), so a fix only rewrites a couple of cells — and a deferred level, left as-is, may now read green. Add to the front or back and watch it grow; when a buffer fills up, a pair spills down to the next level."
     : "A <b>tree</b>, run by the verified code. Adding to the front or back grows the top cell's buffer; <b>Concat</b> (⋈) joins in another deque in O(1) by making a <b>branch</b> over both — that is what grows the tree.";
   let chain,val;
   const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
@@ -695,13 +695,16 @@ function wirePort(id,playSeq){
   // Fast-forward: apply n pushes instantly (no per-step animation), then render
   // the result, auto-fitting so even a deep structure is fully visible.
   function fastForward(n){
-    n=Math.min(Math.max(1,Math.floor(n)||0), is4?5_000_000:50_000);
+    // capped to keep the tab responsive — a deque truly retains every element,
+    // so a million-element jump can exhaust the page's memory and crash it.
+    n=Math.min(Math.max(1,Math.floor(n)||0), is4?100_000:20_000);
     const t0=performance.now();
+    chain=is4?K.empty4():K.empty6(); val=1;       // a deque of exactly n pushes, from empty
     for(let i=0;i<n;i++) chain=is4?K.push4(val++,chain):K.push6(val++,chain);
     G.setAutofit(true); render();
     const ms=Math.round(performance.now()-t0), depth=count();
-    setCap(capEl, "⏩ <b>Jumped "+n.toLocaleString()+" pushes</b> ahead ("+ms+" ms). "+
-      (is4 ? "The deque is only <b>"+depth+" levels</b> deep — depth grows like <b>log(size)</b>, so even a million elements stays a shallow chain of packets."
+    setCap(capEl, "⏩ <b>A deque of "+n.toLocaleString()+" pushes</b> ("+ms+" ms). "+
+      (is4 ? "Only <b>"+depth+" levels</b> deep — depth grows like <b>log(size)</b>, so even 100&thinsp;000 elements stays a shallow chain of packets."
            : "It is still one fat cell — a catenable deque only branches under <b>Concat</b>."), "ok");
   }
   function op(k){
@@ -743,7 +746,7 @@ function wirePort(id,playSeq){
   // Fast-forward control: type a count, jump that many pushes instantly.
   if(is4){
     const bar=document.querySelector("#scene-"+id+" .bar");
-    const inp=document.createElement("input"); inp.type="number"; inp.min="1"; inp.value="1000000";
+    const inp=document.createElement("input"); inp.type="number"; inp.min="1"; inp.max="100000"; inp.value="1000";
     inp.className="ff-input"; inp.title="number of pushes to jump";
     const jb=document.createElement("button"); jb.textContent="⏩ Fast-forward";
     jb.title="Apply this many pushes at once";
