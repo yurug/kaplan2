@@ -47,6 +47,8 @@
   .stage:-webkit-full-screen { display:flex; flex-direction:column; width:100vw; height:100vh; background:var(--bg); }
   .stage:-webkit-full-screen svg.graph { flex:1 1 auto; height:auto; min-height:0; }
   .fs-btn { margin-left:6px; }
+  .ff-input { width:88px; font:600 .8em/1 "SF Mono",monospace; padding:6px 7px; border-radius:6px;
+              border:1px solid var(--rule); background:#fff; color:var(--fg); }
   .scene { display:none; } .scene.active { display:block; }
 
   /* nodes */
@@ -284,7 +286,7 @@ class ForceGraph {
     this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g"); this.labelLayer=el("g");
     svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer,this.labelLayer); // labels on top
     addDefs(svg,opts.id);
-    this.nodes=[]; this.edges=[]; this.groups=[]; this.alpha=1; this.running=false; this.drag=null;
+    this.nodes=[]; this.edges=[]; this.groups=[]; this.alpha=1; this.running=false; this.drag=null; this.autofit=false;
     this.bufCap=opts.bufCap||5; this._raf=()=>this.frame(); this._bindDrag();
   }
   byId(id){return this.nodes.find(n=>n.id===id);}
@@ -427,7 +429,7 @@ class ForceGraph {
       if(ox<oy){ const s=(dx<0?-1:1)*ox; this._sep(a,b,"x",s); }
       else     { const s=(dy<0?-1:1)*oy; this._sep(a,b,"y",s); }
     }
-    for(const n of ns){
+    if(!this.autofit) for(const n of ns){          // when auto-fitting, let nodes spread freely
       n.x=Math.max(n.w/2+4,Math.min(this.W-n.w/2-4,n.x));
       n.y=Math.max(n.h/2+4,Math.min(this.H-n.h/2-4,n.y));
     }
@@ -440,7 +442,17 @@ class ForceGraph {
     else if(b===this.drag){ a[ax]-=amt; }
     else { a[ax]-=amt/2; b[ax]+=amt/2; }
   }
+  setAutofit(b){ this.autofit=b; if(!b) this.svg.setAttribute("viewBox","0 0 "+this.W+" "+this.H); this.kick(1); }
+  fitView(){
+    if(!this.nodes.length) return;
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    for(const n of this.nodes){ x0=Math.min(x0,n.x-n.w/2); y0=Math.min(y0,n.y-n.h/2);
+      x1=Math.max(x1,n.x+n.w/2); y1=Math.max(y1,n.y+n.h/2); }
+    const pad=24;
+    this.svg.setAttribute("viewBox",`${x0-pad} ${y0-pad} ${x1-x0+2*pad} ${y1-y0+2*pad}`);
+  }
   render(){
+    if(this.autofit) this.fitView();
     for(const n of this.nodes) n.dom.g.setAttribute("transform",`translate(${n.x},${n.y})`);
     for(const grp of this.groups){
       let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
@@ -680,8 +692,20 @@ function wirePort(id,playSeq){
     else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
   function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
   function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
+  // Fast-forward: apply n pushes instantly (no per-step animation), then render
+  // the result, auto-fitting so even a deep structure is fully visible.
+  function fastForward(n){
+    n=Math.min(Math.max(1,Math.floor(n)||0), is4?5_000_000:50_000);
+    const t0=performance.now();
+    for(let i=0;i<n;i++) chain=is4?K.push4(val++,chain):K.push6(val++,chain);
+    G.setAutofit(true); render();
+    const ms=Math.round(performance.now()-t0), depth=count();
+    setCap(capEl, "⏩ <b>Jumped "+n.toLocaleString()+" pushes</b> ahead ("+ms+" ms). "+
+      (is4 ? "The deque is only <b>"+depth+" levels</b> deep — depth grows like <b>log(size)</b>, so even a million elements stays a shallow chain of packets."
+           : "It is still one fat cell — a catenable deque only branches under <b>Concat</b>."), "ok");
+  }
   function op(k){
-    if(k==="reset"){ seed(); render(); setCap(capEl,defCap,""); return; }
+    if(k==="reset"){ G.setAutofit(false); seed(); render(); setCap(capEl,defCap,""); return; }
     if(k==="shake"){ G.shake(); return; }
     const before=count();
     let label=cap(k);
@@ -716,6 +740,17 @@ function wirePort(id,playSeq){
   pe.onclick=()=>playing?pause():play();
   document.querySelectorAll('button[data-s="'+id+'"]').forEach(b=>
     b.onclick=()=>{if(b.dataset.op!=="shake")pause(); op(b.dataset.op);});
+  // Fast-forward control: type a count, jump that many pushes instantly.
+  if(is4){
+    const bar=document.querySelector("#scene-"+id+" .bar");
+    const inp=document.createElement("input"); inp.type="number"; inp.min="1"; inp.value="1000000";
+    inp.className="ff-input"; inp.title="number of pushes to jump";
+    const jb=document.createElement("button"); jb.textContent="⏩ Fast-forward";
+    jb.title="Apply this many pushes at once";
+    jb.onclick=()=>{ pause(); fastForward(Number(inp.value)); };
+    const hint=bar.querySelector(".hint");
+    bar.insertBefore(inp,hint); bar.insertBefore(jb,hint);
+  }
   seed(); render(); setCap(capEl,defCap,"");
 }
 

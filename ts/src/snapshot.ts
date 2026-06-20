@@ -30,7 +30,8 @@ export interface Snap4 {
 }
 
 /** Flatten a Chain top→bottom into one cell per level; mark the ChainCons
- *  packet boundaries as anchors (the jump4 edge connects consecutive anchors). */
+ *  packet boundaries as anchors (an anchor begins a new packet — the cells of
+ *  one packet share a single allocation, drawn enclosed in memory-graph.html). */
 export function snapshot4<A>(c: Chain<A>): Snap4 {
   const cells: Cell4[] = [];
   let depth = 0;
