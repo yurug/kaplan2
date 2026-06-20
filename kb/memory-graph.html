@@ -697,6 +697,13 @@ function wirePort(id,playSeq){
     else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
   function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
   function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
+  // Round-trip detection: an add then its matching remove (push→pop / inject→eject)
+  // restores the *sequence*, but not necessarily the layout — surface that.
+  let prevOp=null, sigBeforeLast=null;
+  // include the anchor flag — the packet boundary the graph draws as an enclosure
+  function sig(){ return is4
+    ? K.snapshot4(chain).cells.map(c=>c.color[0]+c.pre+c.suf+(c.anchor?"a":"")+(c.ending?"e":"")).join("|")
+    : K.snapshot6(chain).nodes.map(n=>n.role[0]+n.color[0]+n.pre+n.suf+n.depth).join("|"); }
   // Fast-forward: apply n pushes instantly (no per-step animation), then render
   // the result, auto-fitting so even a deep structure is fully visible.
   function fastForward(n){
@@ -704,7 +711,7 @@ function wirePort(id,playSeq){
     // so a million-element jump can exhaust the page's memory and crash it.
     n=Math.min(Math.max(1,Math.floor(n)||0), is4?100_000:20_000);
     const t0=performance.now();
-    chain=is4?K.empty4():K.empty6(); val=1;       // a deque of exactly n pushes, from empty
+    chain=is4?K.empty4():K.empty6(); val=1; prevOp=null; sigBeforeLast=null;  // a deque of exactly n pushes, from empty
     for(let i=0;i<n;i++) chain=is4?K.push4(val++,chain):K.push6(val++,chain);
     G.setAutofit(true); render();
     const ms=Math.round(performance.now()-t0), depth=count();
@@ -713,8 +720,9 @@ function wirePort(id,playSeq){
            : "It is still one fat cell — a catenable deque only branches under <b>Concat</b>."), "ok");
   }
   function op(k){
-    if(k==="reset"){ G.setAutofit(false); seed(); render(); setCap(capEl,defCap,""); return; }
+    if(k==="reset"){ G.setAutofit(false); prevOp=null; sigBeforeLast=null; seed(); render(); setCap(capEl,defCap,""); return; }
     if(k==="shake"){ G.shake(); return; }
+    const sigBeforeCur=sig();
     const before=count();
     let label=cap(k);
     if(is4){
@@ -735,7 +743,17 @@ function wirePort(id,playSeq){
     if(is4&&grew) msg=label+" → buffer full: a pair <b>spilled down</b> a level (O(1) ✓).";
     else if(is4&&shrank) msg=label+" → buffer empty: a pair <b>pulled up</b> from a level (O(1) ✓).";
     else if(!is4&&k==="concat") msg="<b>Concat</b> joined a fresh 8-element deque in <b>O(1)</b> — a branch over both, both shared whole.";
-    setCap(capEl,msg,is4&&grew?"ok":is4&&shrank?"ok":"");
+    let cls=is4&&grew?"ok":is4&&shrank?"ok":"";
+    // an add then its matching remove restores the sequence — show whether the layout did too
+    const undo=(prevOp==="push"&&k==="pop")||(prevOp==="inject"&&k==="eject");
+    if(undo && sigBeforeLast!=null){
+      msg = sig()===sigBeforeLast
+        ? "<b>↩ "+cap(k)+"</b> undid the "+prevOp+" — same elements, and this time the layout returned to exactly the original too."
+        : "<b>↩ "+cap(k)+"</b> undid the "+prevOp+": the deque holds the <b>same elements</b> as before, but the <b>layout settled differently</b>. Worst-case-O(1) deques keep <b>no canonical form</b>, so a value that round-trips need not restore the exact structure.";
+      cls="";
+    }
+    setCap(capEl,msg,cls);
+    sigBeforeLast=sigBeforeCur; prevOp=k;
   }
   let timer=null,playing=false,si=0;
   const pe=document.getElementById("play-"+id);
