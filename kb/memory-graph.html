@@ -315,7 +315,7 @@ class ForceGraph {
     const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
     const cmid=this.horizontal?this.H/2:this.W/2, cspread=this.horizontal?120:200;
     nodes.forEach(n=>{
-      n.w=n.w||(n.kind==="root"?96:n.kind==="branch"?92:(this.opts.id==="s6"||this.opts.id==="concat")?168:132);
+      n.w=n.w||(n.kind==="root"?96:n.kind==="branch"?92:(this.opts.id==="s6"||this.opts.id==="concat")?196:132);
       n.h=n.h||(n.kind==="root"?30:n.kind==="branch"?34:(this.tall?88:78));
       if(old[n.id]){Object.assign(n,old[n.id]); n._fresh=false;}
       else{
@@ -377,14 +377,13 @@ class ForceGraph {
       node.setAttribute("class",((node.getAttribute("class")||"")+" bundle filled").trim());
       grp.appendChild(node); };
     if(stored){
-      // §6: each entry is a stored triple; fat buffers ⇒ cap shown glyphs with +N.
-      // Cap the drawn nesting at 2 (triples-of-triples) so deep levels stay legible.
-      const gl=Math.min(lvl,2);
-      const pitch=tripleSize(gl,D,g).w+6, nfit=Math.max(1,Math.floor(avail/pitch));
+      // §6: one teal dot per stored entry, so push/pop/inject/eject visibly move
+      // a dot (each entry is itself a small bundle — see legend).  Cap with +N.
+      const pitch=9.5, nfit=Math.max(1,Math.floor(avail/pitch));
       let show=count, over=0;
       if(count>nfit){ show=Math.max(1,nfit-1); over=count-show; }
       const total=show+(over?1:0), startX=leftX+Math.max(0,(avail-pitch*total)/2);
-      for(let i=0;i<show;i++) place(makeTriple(gl,D,g).node, startX+pitch*(i+0.5));
+      for(let i=0;i<show;i++){ const c=el("circle",{cx:startX+pitch*(i+0.5),cy:y,r:3.4,class:"dot s6 bundle filled"}); grp.appendChild(c); }
       if(over){ const t=el("text",{x:startX+pitch*(show+0.5),y:y+3,class:"more","text-anchor":"middle"});
         t.textContent="+"+over; grp.appendChild(t); }
       return;
@@ -700,13 +699,14 @@ function wirePort(id,playSeq){
   const is4=(id==="s4");
   const defCap=is4
     ? "A <b>chain of packets</b>, run by the verified code. Each packet (dashed box) is <b>one block of memory</b> bundling a level with the one(s) a previous repair tucked beneath it. An operation only ever touches the <b>top</b> of the chain — the rest is carried along unchanged (deferred) — so a fix rewrites just a couple of cells (O(1)). Add to the front or back and watch it grow; when a buffer fills up, a pair spills down to the next level."
-    : "A catenable deque is a <b>small, bounded tree</b>, run by the verified code: cells (a front/back buffer + a child) joined at <b>⋈</b> branches. Add/remove touches one cell; <b>Concat</b> (⋈) merges in another whole deque in <b>O(1)</b> — and the tree stays just a handful of cells no matter how much you concat. That boundedness is the worst-case guarantee.";
+    : "A catenable deque is a <b>small tree</b> of cells (a front + back buffer) joined at <b>⋈</b> branches, run by the verified code. <b>Each dot is an element</b>: push/inject add one to the front/back, pop/eject remove one — drain a buffer and watch the tree <b>rebalance</b>. <b>Concat</b> (⋈) merges in another whole deque in <b>O(1)</b>, and the tree stays a handful of cells no matter how much you concat — that boundedness is the worst-case guarantee.";
   let chain,val;
   const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
   function seed(){ val=1;
     if(is4){ chain=K.empty4(); for(let i=0;i<48;i++) chain=K.push4(val++,chain); }  // deep enough to show a multi-cell packet
-    // a balanced join of eight-element deques — a join over two subtrees, each a cell with a child (a real tree spine)
-    else { const q=()=>K.concat6(eight(),eight()); chain=K.concat6(K.concat6(q(),q()),K.concat6(q(),q())); } }
+    // two 16-element deques joined at a ⋈ branch: small enough that every element
+    // shows as a dot you can watch move under push/pop/inject/eject.
+    else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
   function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
   function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
   // Round-trip detection: an add then its matching remove (push→pop / inject→eject)
