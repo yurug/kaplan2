@@ -210,9 +210,8 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <button data-op="pop"  data-s="s6">－ Pop</button>
     <button data-op="inject" data-s="s6">Inject＋</button>
     <button data-op="eject"  data-s="s6">Eject－</button>
-    <button class="primary" data-op="concatAB" data-s="s6">⋈ A ++ B</button>
-    <button class="primary" data-op="concatBA" data-s="s6">⋈ B ++ A</button>
-    <button data-op="split" data-s="s6" style="display:none">↺ Split back</button>
+    <button class="primary" data-op="concatAB" data-s="s6">A ← A ++ B</button>
+    <button class="primary" data-op="concatBA" data-s="s6">A ← B ++ A</button>
     <button data-op="shake"  data-s="s6">↯ Shake</button>
     <button data-op="reset"  data-s="s6">⟲ Reset</button>
     <span class="hint">drag a box to reposition</span>
@@ -819,10 +818,10 @@ function wireStoryline(id,frames){
 function wireCadeque6(){
   const id="s6", K=window.KTDeque, G=new ForceGraph(document.getElementById("svg-"+id),{id,bufCap:9});
   const capEl=document.getElementById("cap-"+id);
-  let chA,chB,which,mode,result,order,val;
+  let chA,chB,which,val,flash;   // flash: after a concat, which child of A's ⋈ is the shared B
   const eight=()=>{ let d=K.empty6(); for(let i=0;i<8;i++) d=K.push6(val++,d); return d; };
   const freshDeque=()=>K.concat6(eight(),eight());   // an [8 front / 8 back] cell — concats into a ⋈ branch
-  function seed(){ val=1; chA=freshDeque(); chB=freshDeque(); which="A"; mode="build"; result=null; order=null; }
+  function seed(){ val=1; chA=freshDeque(); chB=freshDeque(); which="A"; flash=null; }
   // force-graph nodes/edges for ONE deque snapshot, prefixed + placed in a lane
   function deqNodes(snap,pfx,lane,title,active,labelFor){
     const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
@@ -837,42 +836,35 @@ function wireCadeque6(){
     snap.edges.forEach(e=>edges.push({from:pfx+":"+e.from,to:pfx+":"+e.to,kind:e.kind,label:e.kind==="child"?"child":e.kind,rest:e.kind==="child"?140:150}));
     return {nodes,edges};
   }
+  // after a concat, badge the child of A's ⋈ that is the (shared) B
+  function aLabel(snapA){ if(!flash) return null;
+    const pair=snapA.nodes.find(n=>n.role==="pair"); if(!pair) return null;
+    let L,R; snapA.edges.forEach(e=>{ if(e.from===pair.id){ if(e.kind==="left")L=e.to; if(e.kind==="right")R=e.to; }});
+    const tgt=flash==="right"?R:L; return nid=> nid===tgt?{shared:true,badge:"B — shared into A"}:{}; }
   function renderBuild(){
-    const a=deqNodes(K.snapshot6(chA),"A",-1,"deque A",which==="A");
+    const sa=K.snapshot6(chA);
+    const a=deqNodes(sa,"A",-1,"deque A",which==="A",aLabel(sa));
     const b=deqNodes(K.snapshot6(chB),"B", 1,"deque B",which==="B");
     G.transition([...a.nodes,...b.nodes],[...a.edges,...b.edges]);
   }
-  function renderResult(){
-    const snap=K.snapshot6(result), pair=snap.nodes.find(n=>n.role==="pair");
-    let leftId,rightId;
-    if(pair) snap.edges.forEach(e=>{ if(e.from===pair.id){ if(e.kind==="left")leftId=e.to; if(e.kind==="right")rightId=e.to; }});
-    const lL=order==="AB"?"A":"B", lR=order==="AB"?"B":"A";
-    const labelFor=nid=> nid===leftId?{shared:true,badge:lL+" — shared whole"} : nid===rightId?{shared:true,badge:lR+" — shared whole"} : {};
-    const t=deqNodes(snap,"R",0,order==="AB"?"A ++ B":"B ++ A",true,labelFor);
-    G.transition(t.nodes,t.edges);
-  }
-  const Q=s=>document.querySelector('button[data-op="'+s+'"][data-s="s6"]');
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
-  function resultMode(on){ Q("split").style.display=on?"":"none";
-    ["push","pop","inject","eject","concatAB","concatBA"].forEach(s=>Q(s).disabled=on);
-    document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.disabled=on); }
-  const buildCap="Two separate catenable deques, <b>A</b> and <b>B</b>. Pick one with <b>grow: deque A / deque B</b> and add or remove elements (each dot is one element). Then <b>⋈ A ++ B</b> or <b>⋈ B ++ A</b> joins them in <b>O(1)</b>.";
+  const buildCap="Two catenable deques, <b>A</b> and <b>B</b>. Pick one with <b>grow: deque A / deque B</b> and add or remove elements (each dot is one element). <b>A ← A++B</b> / <b>A ← B++A</b> store the join back into A and <b>keep B intact</b> — so you can concat again and again.";
   function op(k){
-    if(k==="reset"){ seed(); selUI(); resultMode(false); renderBuild(); setCap(capEl,buildCap,""); return; }
+    if(k==="reset"){ seed(); selUI(); renderBuild(); setCap(capEl,buildCap,""); return; }
     if(k==="shake"){ G.shake(); return; }
-    if(k==="split"){ mode="build"; resultMode(false); renderBuild();
-      setCap(capEl,"Back to <b>A</b> and <b>B</b>, both <b>unchanged</b> by the join — that's persistence: concat never altered its inputs. "+buildCap,""); return; }
     if(k==="concatAB"||k==="concatBA"){
-      order=(k==="concatAB")?"AB":"BA";
-      result=(order==="AB")?K.concat6(chA,chB):K.concat6(chB,chA);
-      mode="result"; resultMode(true); renderResult(); G.kick(1);
-      const branched=K.snapshot6(result).nodes.some(n=>n.role==="pair"), name=order==="AB"?"A ++ B":"B ++ A";
-      setCap(capEl, branched
-        ? "<b>"+name+"</b> in <b>O(1)</b>: a <code>⋈ join</code> over "+(order==="AB"?"A (top) and B (bottom)":"B (top) and A (bottom)")+", both <b>shared whole</b> — neither was copied or walked. A and B still work on their own — hit <b>↺ Split back</b>."
-        : "<b>"+name+"</b> in <b>O(1)</b> — they were small enough to <b>merge into one cell</b> (no branch needed). Still O(1); hit <b>↺ Split back</b>.","ok");
+      const ab=(k==="concatAB");
+      chA = ab ? K.concat6(chA,chB) : K.concat6(chB,chA);   // result stored in A; B untouched
+      flash = ab ? "right" : "left";                        // B sits on that side of A's new ⋈
+      renderBuild(); G.kick(1);
+      const branched=K.snapshot6(chA).nodes.some(n=>n.role==="pair");
+      setCap(capEl, (branched
+        ? "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: A is now a <code>⋈ join</code>, with <b>B as a shared subtree</b> (dashed)."
+        : "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b> — small enough to merge into one cell.")
+        + " <b>B is unchanged</b> (still its own deque below) — concat shared it, didn't copy it. Concat again to keep building.","ok");
       return;
     }
-    if(mode!=="build") return;
+    flash=null;
     const apply=d=>{ if(k==="push")return K.push6(val++,d); if(k==="inject")return K.inject6(d,val++);
       if(k==="pop"){const r=K.pop6(d);return r?r[1]:d;} if(k==="eject"){const r=K.eject6(d);return r?r[0]:d;} return d; };
     if(which==="A") chA=apply(chA); else chB=apply(chB);
@@ -880,7 +872,7 @@ function wireCadeque6(){
     setCap(capEl, cap(k)+" on <b>deque "+which+"</b> — watch a dot move.","");
   }
   document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>
-    b.onclick=()=>{ which=b.dataset.sel; selUI(); if(mode==="build"){ renderBuild(); setCap(capEl,buildCap,""); } });
+    b.onclick=()=>{ which=b.dataset.sel; selUI(); renderBuild(); });
   document.querySelectorAll('button[data-op][data-s="s6"]').forEach(b=> b.onclick=()=>op(b.dataset.op));
   seed(); selUI(); renderBuild(); setCap(capEl,buildCap,"");
 }
