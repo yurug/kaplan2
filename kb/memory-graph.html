@@ -95,9 +95,11 @@
           paint-order:stroke; stroke:var(--bg); stroke-width:3px; stroke-linejoin:round; }
   .elab.shortcut { fill:var(--orange-bd); }
 
-  .legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.8em; color:var(--muted); padding:8px 14px; }
-  .legend .it { display:inline-flex; align-items:center; gap:5px; }
-  .sw { width:13px; height:13px; border-radius:4px; border:2px solid; }
+  /* normal inline flow (NOT flex) so long items wrap as text, not into columns */
+  .legend { font-size:.8em; color:var(--muted); padding:8px 14px; line-height:1.85; }
+  .legend .it { display:inline-block; vertical-align:middle; margin-right:18px; }
+  .sw, .lin, .ic { vertical-align:middle; margin-right:5px; }
+  .sw { width:13px; height:13px; border-radius:4px; border:2px solid; display:inline-block; }
   .lin { width:22px; border-top:3px solid; display:inline-block; }
   .lin.dash { border-top-style:dashed; }
   .ic { width:11px; height:11px; border-radius:50%; display:inline-block; }
@@ -150,7 +152,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow = nearly full/empty (1,4)</span>
     <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red ⚠️ = full/empty, must be fixed (0,5)</span>
     <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — the spine, one pointer to the next packet</span>
-    <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> (dashed box) = <b>one block of memory</b> bundling a level with the one(s) a previous repair tucked beneath it. An operation only ever touches the <b>top</b> of the chain — everything below is carried along unchanged (<b>deferred</b>), and that bounded work is what makes each op O(1). (A cell's green/yellow/red tint is a separate lens: how full that one buffer is.)</span>
+    <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> (dashed box) = <b>one block of memory</b>: a top level + the levels carried untouched (<b>deferred</b>) beneath it — that's the O(1). (Full note in the caption below.)</span>
     <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
     <span class="it">each slot is one buffer entry = a bundle of <b>2<sup>ℓ</sup></b> elements — a <b>pair</b> at L1, a <b>pair-of-pairs</b> at L2</span>
   </div>
