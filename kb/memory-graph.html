@@ -87,7 +87,8 @@
   .node-mini.c-orange { fill:var(--orange-bg); stroke:var(--orange-bd); }
   .node-mini.c-red    { fill:var(--red-bg);    stroke:var(--red-bd); }
   .branch-mini { fill:#dff0e3; stroke:var(--green-bd); }
-  .mini-lab { font:600 11px "SF Mono",monospace; fill:var(--green-bd); }
+  .mini-lab { font:600 11px "SF Mono",monospace; fill:#7a828c; }
+  .cell-lab { font:600 10px "SF Mono",monospace; fill:#fff; }
   .dot { stroke:#fff; stroke-width:.8; }
   .dot.base { fill:var(--accent); }
   .dot.s6   { fill:#0f9b8e; stroke-width:1; }
@@ -210,10 +211,10 @@ cell is tinted green / yellow / (orange /) red by how full it is.
 <div class="scene" id="scene-s6"><div class="stage">
   <svg class="graph" id="svg-s6" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it">each <b>bar</b> is a deque's sequence (front → back); its length = element count</span>
-    <span class="it"><span class="sw" style="border-color:#0066cc;background:rgba(0,102,204,.45)"></span><b>A</b>'s own elements</span>
-    <span class="it"><span class="sw" style="border-color:#e8740c;background:rgba(232,116,12,.45)"></span><b>B</b>'s elements — each concat copies a chunk of them into A</span>
-    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>the <b>structure</b> (cells below each bar) — it stays bounded however long the bar gets; concat copies <b>0 elements</b> and rebuilds only this skeleton ⇒ O(1)</span>
+    <span class="it">the <b>bottom strip</b> is the deque's sequence (front → back); length = element count</span>
+    <span class="it">each <b>coloured chunk</b> = the slice of the sequence one <b>cell</b> holds (each colour is one cell)</span>
+    <span class="it">a chunk is <b>lifted to its cell's depth</b> in the tree (<code>⋈ split</code> = the deque divides into a left + right part)</span>
+    <span class="it">the punch line: a <b>handful of cells</b> spans the whole sequence, and stays that few as you concat — concat copies <b>0 elements</b>, just re-splices a bounded skeleton ⇒ <b>O(1)</b></span>
   </div>
   <div class="bar">
     <span class="seg-lab">grow:</span>
@@ -838,72 +839,68 @@ function wireStoryline(id,frames){
 function wireCadeque6(){
   const K=window.KTDeque, svg=document.getElementById("svg-s6"), capEl=document.getElementById("cap-s6");
   const W=960,H=560;
-  let chA,chB,blkA,blkB,which,val;            // blkX: [{o:"A"|"B", n}] logical segments, front→back
+  let chA,chB,which,val;
   const eight=()=>{ let d=K.empty6(); for(let i=0;i<8;i++) d=K.push6(val++,d); return d; };
   const fresh=()=>K.concat6(eight(),eight());                 // a 16-element cell
-  function seed(){ val=1; chA=fresh(); chB=fresh(); blkA=[{o:"A",n:16}]; blkB=[{o:"B",n:16}]; which="A"; }
+  function seed(){ val=1; chA=fresh(); chB=fresh(); which="A"; }
   const len=d=>K.toList6(d).length, cells=d=>K.snapshot6(d).nodes.length;
-  // a compact static drawing of the actual cell structure (snapshot6)
-  function drawTree(d,cx,cy){
-    const s=K.snapshot6(d), g=el("g"), dx=66;
-    const byD={}; s.nodes.forEach(n=>{ (byD[n.depth]=byD[n.depth]||[]).push(n); });
-    const maxD=Math.max(0,...s.nodes.map(n=>n.depth)), x0=cx-maxD*dx/2, pos={};
-    s.nodes.forEach(n=>{ const peers=byD[n.depth], i=peers.indexOf(n);
-      pos[n.id]={x:x0+n.depth*dx, y:cy+(i-(peers.length-1)/2)*32}; });
-    s.edges.forEach(e=>{ const a=pos[e.from],b=pos[e.to]; if(a&&b)
-      g.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#aab1bb","stroke-width":1.6})); });
-    s.nodes.forEach(n=>{ const p=pos[n.id];
-      if(n.role==="pair"){ g.appendChild(el("rect",{x:p.x-15,y:p.y-9,width:30,height:18,rx:9,class:"node-mini branch-mini"}));
-        const t=el("text",{x:p.x,y:p.y+4,"text-anchor":"middle",class:"mini-lab"}); t.textContent="⋈"; g.appendChild(t); }
-      else g.appendChild(el("rect",{x:p.x-19,y:p.y-12,width:38,height:24,rx:4,class:"node-mini c-"+n.color})); });
-    return g;
-  }
-  function drawDeque(d,blk,name,top,active){
-    const g=el("g"), total=blk.reduce((s,b)=>s+b.n,0), nc=cells(d);
+  const PAL=["#2fa39d","#7e57c2","#d49a17","#3f86d4","#cf5fa0","#5aab5f","#bd6a3f","#0f9b8e"];
+  // Draw the deque as a MAP of the tree over the sequence: the flat sequence at
+  // the bottom, and each contiguous chunk lifted up to the depth of the cell that
+  // holds it (same colour).  Few cells hold the whole (growing) sequence ⇒ O(1).
+  function drawDeque(d,name,top,active){
+    const s=K.snapshot6(d), g=el("g"), N=Math.max(1,len(d)), nc=s.nodes.length;
+    const x0=150, x1=W-28, mp=i=>x0+(i/N)*(x1-x0);
+    const maxD=Math.max(0,...s.nodes.map(n=>n.depth)), rowH=30, topY=top+22;
+    const seqY=topY+(maxD+1)*rowH+6;
+    const col={}; s.nodes.forEach((n,i)=>col[n.id]=PAL[i%PAL.length]);
+    // pill + headline
     const p=el("g",{class:"node root"+(active?"":" rgrey")});
     p.appendChild(el("rect",{class:"cell",x:14,y:top-16,width:104,height:32,rx:16}));
-    const pt=el("text",{class:"title","text-anchor":"middle",x:66,y:top+4}); pt.textContent=name; p.appendChild(pt);
+    p.appendChild(Object.assign(el("text",{class:"title","text-anchor":"middle",x:66,y:top+4}),{textContent:name}));
     g.appendChild(p);
-    const head=el("text",{x:132,y:top+5,class:"head6"});
-    head.appendChild(Object.assign(el("tspan"),{textContent:total+" elements  —  in "}));
+    const head=el("text",{x:150,y:top-1,class:"head6"});
+    head.appendChild(Object.assign(el("tspan"),{textContent:N+" elements — the whole sequence held by "}));
     head.appendChild(Object.assign(el("tspan",{class:"head6-em"}),{textContent:"only "+nc+" cell"+(nc>1?"s":"")}));
     g.appendChild(head);
-    // content bar (front → back), grows with every concat
-    const x0=132, maxW=W-x0-26, pitch=Math.min(7.5,maxW/Math.max(1,total)), hh=26, by=top+24; let x=x0;
-    blk.forEach(b=>{ const w=b.n*pitch;
-      g.appendChild(el("rect",{x,y:by,width:Math.max(2,w-1.5),height:hh,rx:2,class:"seg seg-"+(b.o==="B"?"b":"a")}));
-      if(w>=20){ const t=el("text",{x:x+w/2,y:by+17,"text-anchor":"middle",class:"seg-num"}); t.textContent=b.n; g.appendChild(t); }
-      x+=w; });
-    g.appendChild(Object.assign(el("text",{x:x0,y:by+hh+12,class:"blab"}),{textContent:"content (front → back) — grows with every concat ↑"}));
-    // the actual structure — stays bounded
-    g.appendChild(drawTree(d, W*0.52, top+108));
-    g.appendChild(Object.assign(el("text",{x:x0,y:top+150,class:"blab"}),{textContent:"structure — stays a handful of cells however many elements (← that's the O(1))"}));
+    // each cell's buffer chunks, lifted to its depth + projected onto the sequence
+    s.nodes.forEach(n=>{ const c=col[n.id], cy=topY+n.depth*rowH;
+      if(n.role==="pair"){ const sx=mp(n.hi); /* split point sits at end... use mid of range */
+        const m=mp((n.lo+n.hi)/2); g.appendChild(Object.assign(el("text",{x:m,y:cy+11,"text-anchor":"middle",class:"mini-lab"}),{textContent:"⋈ split"})); return; }
+      const chunk=(a,b)=>{ if(b<=a)return; const xa=mp(a),w=Math.max(2,mp(b)-mp(a));
+        g.appendChild(el("rect",{x:xa,y:cy,width:w,height:rowH-9,rx:3,fill:c,"fill-opacity":.78,stroke:"#fff","stroke-width":.6}));     // lifted chunk
+        g.appendChild(el("rect",{x:xa,y:seqY,width:w,height:15,fill:c,"fill-opacity":.5,stroke:"#fff","stroke-width":.6}));            // on the sequence
+        g.appendChild(el("line",{x1:xa+w/2,y1:cy+rowH-9,x2:xa+w/2,y2:seqY,stroke:c,"stroke-width":.8,"stroke-dasharray":"2 2",opacity:.5})); // guide
+        if(w>34) g.appendChild(Object.assign(el("text",{x:xa+w/2,y:cy+(rowH-9)/2+3,"text-anchor":"middle",class:"cell-lab"}),{textContent:(b-a)+""})); };
+      chunk(n.lo,n.lo+n.preBase); chunk(n.hi-n.sufBase,n.hi);
+    });
+    g.appendChild(Object.assign(el("text",{x:x0,y:seqY+30,class:"blab"}),{textContent:"↑ the sequence (front → back); each chunk sits at the depth of the cell that stores it"}));
     return g;
   }
   function render(){ svg.replaceChildren();
-    svg.appendChild(drawDeque(chA,blkA,"deque A",70,which==="A"));
-    svg.appendChild(drawDeque(chB,blkB,"deque B",330,which==="B")); }
+    svg.appendChild(drawDeque(chA,"deque A",64,which==="A"));
+    svg.appendChild(drawDeque(chB,"deque B",330,which==="B")); }
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
-  const buildCap="Each deque is shown <b>two ways</b>: a <b>content bar</b> (front → back; blue = A's elements, orange = B's) and, below it, its actual <b>cell structure</b>. Grow A or B with <b>push/inject</b>; the <b>concat:</b> buttons join them in O(1) into either deque (the other stays intact). The point to watch: as you concat, the <b>bar grows without bound but the structure stays a handful of cells</b> — that's the worst-case-O(1) trick.";
+  const buildCap="Each deque is drawn as a <b>map of its tree over its sequence</b>: the bottom strip is the sequence (front → back), and every chunk is lifted to the <b>depth of the cell that stores it</b> (same colour = same cell; <code>⋈</code> = a split into a left + right part). Grow A or B with <b>push/inject</b>; <b>concat</b> joins them (any order, into either deque) in O(1). The thing to watch: as you concat, the strip gets longer but the <b>same few cells</b> still span it — concat copies <b>0 elements</b>, just re-splices a bounded skeleton. That's the O(1).";
   // X ← L ++ R, result stored in X (the other operand is left untouched).
   function concatOp(tgt,l){
     const r=l==="A"?"B":"A";
-    const Lc=l==="A"?chA:chB, Rc=r==="A"?chA:chB, Lb=l==="A"?blkA:blkB, Rb=r==="A"?blkA:blkB;
+    const Lc=l==="A"?chA:chB, Rc=r==="A"?chA:chB;
     const tcOld=tgt==="A"?chA:chB, before=len(tcOld), cBefore=cells(tcOld);
-    const res=K.concat6(Lc,Rc), resBlk=Lb.map(b=>({o:b.o,n:b.n})).concat(Rb.map(b=>({o:b.o,n:b.n})));
-    if(tgt==="A"){ chA=res; blkA=resBlk; } else { chB=res; blkB=resBlk; }
+    const res=K.concat6(Lc,Rc);
+    if(tgt==="A") chA=res; else chB=res;
     render();
     const tc=tgt==="A"?chA:chB;
-    setCap(capEl,"<b>"+tgt+" ← "+l+"++"+r+"</b>: "+tgt+"'s elements jumped <b>"+before+" → "+len(tc)+"</b>, but its <b>structure went "+cBefore+" → "+cells(tc)+" cells</b> — barely a change. Concat <b>copied 0 elements</b> (every element of "+l+" and "+r+" is shared, not duplicated) and only rebuilt that handful-of-cells skeleton. The cell count never runs away with the size — <i>that</i> bounded skeleton is exactly why concat is <b>O(1)</b>. (Watch: the content bar keeps growing, the structure below it doesn't.)","ok");
+    setCap(capEl,"<b>"+tgt+" ← "+l+"++"+r+"</b>: "+tgt+"'s elements jumped <b>"+before+" → "+len(tc)+"</b>, but its <b>structure went "+cBefore+" → "+cells(tc)+" cells</b> — barely a change. Concat <b>copied 0 elements</b> (every element of "+l+" and "+r+" is shared, not duplicated) and only re-spliced that handful-of-cells skeleton. The cell count never runs away with the size — <i>that</i> bounded skeleton is exactly why concat is <b>O(1)</b>. Watch the <code>⋈ split</code>: "+l+" lands on its left, "+r+" on its right.","ok");
   }
   function op(k){
     if(k==="reset"){ seed(); selUI(); render(); setCap(capEl,buildCap,""); return; }
     if(k.startsWith("cc:")){ const p=k.split(":"); concatOp(p[1],p[2]); return; }
-    const isA=which==="A", o=isA?"A":"B", blk=isA?blkA:blkB; let nd=isA?chA:chB;
-    if(k==="push"){ nd=K.push6(val++,nd); if(blk[0]&&blk[0].o===o)blk[0].n++; else blk.unshift({o,n:1}); }
-    else if(k==="inject"){ nd=K.inject6(nd,val++); const L=blk[blk.length-1]; if(L&&L.o===o)L.n++; else blk.push({o,n:1}); }
-    else if(k==="pop"){ const r=K.pop6(nd); if(r){nd=r[1]; if(blk[0]){blk[0].n--; if(blk[0].n<=0)blk.shift();}} }
-    else if(k==="eject"){ const r=K.eject6(nd); if(r){nd=r[0]; const L=blk.length-1; if(blk[L]){blk[L].n--; if(blk[L].n<=0)blk.pop();}} }
+    const isA=which==="A"; let nd=isA?chA:chB;
+    if(k==="push") nd=K.push6(val++,nd);
+    else if(k==="inject") nd=K.inject6(nd,val++);
+    else if(k==="pop"){ const r=K.pop6(nd); if(r)nd=r[1]; }
+    else if(k==="eject"){ const r=K.eject6(nd); if(r)nd=r[0]; }
     else return;
     if(isA) chA=nd; else chB=nd;
     render();

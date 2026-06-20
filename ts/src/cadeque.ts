@@ -66,7 +66,7 @@ export const cadEmpty = <A>(): Cchain<A> => cempty();
 // ===================================================================
 //  Sequence semantics (kTCadeque.ml:92–154).
 // ===================================================================
-const storedSeq = <A>(s: Stored<A>): A[] => {
+export const storedSeq = <A>(s: Stored<A>): A[] => {
   if (s.tag === "ground") return [s.v];
   if (s.tag === "small") return s.b.flatMap(storedSeq);
   return s.pre.flatMap(storedSeq).concat(cchainSeq(s.child), s.suf.flatMap(storedSeq));

@@ -13,6 +13,7 @@ import {
   rootAndChild,
   nodeColor,
   chainHasNode,
+  storedSeq,
 } from "./cadeque.js";
 
 // ---------- §4 deque ----------
@@ -70,6 +71,13 @@ export interface Node6 {
   suf: number;
   color: Color4;
   depth: number;
+  // base-element range this node spans in the flattened sequence (front→back):
+  // [lo, hi).  Its prefix buffer holds [lo, lo+preBase); its suffix buffer holds
+  // [hi-sufBase, hi); the child subtree holds the middle.
+  lo: number;
+  hi: number;
+  preBase: number;
+  sufBase: number;
 }
 export interface Edge6 {
   from: string;
@@ -93,14 +101,19 @@ export function snapshot6<A>(root: Cchain<A>): Snap6 {
   let counter = 0;
   const fresh = () => `T${counter++}`;
 
+  // `pos` threads the base-element index through the in-order walk (pre, child,
+  // suf for a node; left, right for a pair) so every node gets its sequence range.
+  let pos = 0;
   const walk = (c: Cchain<A>, parent: string | null, kind: Edge6["kind"], depth: number): void => {
     if (c.tag === "cempty") return;
     if (c.tag === "cpair") {
       if (parent === null) {
         const id = fresh();
-        nodes.push({ id, role: "pair", pre: 0, suf: 0, color: "green", depth });
+        const node: Node6 = { id, role: "pair", pre: 0, suf: 0, color: "green", depth, lo: pos, hi: pos, preBase: 0, sufBase: 0 };
+        nodes.push(node);
         walk(c.l, id, "left", depth + 1);
         walk(c.r, id, "right", depth + 1);
+        node.hi = pos;
       } else {
         walk(c.l, parent, "left", depth);
         walk(c.r, parent, "right", depth);
@@ -110,17 +123,28 @@ export function snapshot6<A>(root: Cchain<A>): Snap6 {
     // csingle
     const p: Cpacket<A> = c.p;
     const [n, child]: [Cnode<A>, Cchain<A>] = rootAndChild(p, c.rest);
+    const preBase = n.pre.reduce((s, st) => s + storedSeq(st).length, 0);
+    const sufBase = n.suf.reduce((s, st) => s + storedSeq(st).length, 0);
     const id = fresh();
-    nodes.push({
+    const lo = pos;
+    pos += preBase; // the prefix buffer occupies [lo, pos)
+    const node: Node6 = {
       id,
       role: n.k,
       pre: n.pre.length,
       suf: n.suf.length,
       color: gyorToColor(nodeColor(chainHasNode(child), n)),
       depth,
-    });
+      lo,
+      hi: lo,
+      preBase,
+      sufBase,
+    };
+    nodes.push(node);
     if (parent !== null) edges.push({ from: parent, to: id, kind });
-    walk(child, id, "child", depth + 1);
+    walk(child, id, "child", depth + 1); // the child occupies the middle
+    pos += sufBase; // the suffix buffer occupies [pos-sufBase, pos)
+    node.hi = pos;
   };
 
   walk(root, null, "child", 0);

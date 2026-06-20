@@ -963,14 +963,17 @@ var KTDeque = (() => {
     const edges = [];
     let counter = 0;
     const fresh = () => `T${counter++}`;
+    let pos = 0;
     const walk = (c, parent, kind, depth) => {
       if (c.tag === "cempty") return;
       if (c.tag === "cpair") {
         if (parent === null) {
           const id2 = fresh();
-          nodes.push({ id: id2, role: "pair", pre: 0, suf: 0, color: "green", depth });
+          const node3 = { id: id2, role: "pair", pre: 0, suf: 0, color: "green", depth, lo: pos, hi: pos, preBase: 0, sufBase: 0 };
+          nodes.push(node3);
           walk(c.l, id2, "left", depth + 1);
           walk(c.r, id2, "right", depth + 1);
+          node3.hi = pos;
         } else {
           walk(c.l, parent, "left", depth);
           walk(c.r, parent, "right", depth);
@@ -979,17 +982,28 @@ var KTDeque = (() => {
       }
       const p = c.p;
       const [n, child] = rootAndChild(p, c.rest);
+      const preBase = n.pre.reduce((s, st) => s + storedSeq(st).length, 0);
+      const sufBase = n.suf.reduce((s, st) => s + storedSeq(st).length, 0);
       const id = fresh();
-      nodes.push({
+      const lo = pos;
+      pos += preBase;
+      const node2 = {
         id,
         role: n.k,
         pre: n.pre.length,
         suf: n.suf.length,
         color: gyorToColor(nodeColor(chainHasNode(child), n)),
-        depth
-      });
+        depth,
+        lo,
+        hi: lo,
+        preBase,
+        sufBase
+      };
+      nodes.push(node2);
       if (parent !== null) edges.push({ from: parent, to: id, kind });
       walk(child, id, "child", depth + 1);
+      pos += sufBase;
+      node2.hi = pos;
     };
     walk(root, null, "child", 0);
     return { nodes, edges };
