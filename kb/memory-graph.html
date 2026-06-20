@@ -842,9 +842,9 @@ function wireCadeque6(){
     let L,R; snapA.edges.forEach(e=>{ if(e.from===pair.id){ if(e.kind==="left")L=e.to; if(e.kind==="right")R=e.to; }});
     const tgt=flash==="right"?R:L; return nid=> nid===tgt?{shared:true,badge:"B — shared into A"}:{}; }
   function renderBuild(){
-    const sa=K.snapshot6(chA);
-    const a=deqNodes(sa,"A",-1,"deque A",which==="A",aLabel(sa));
-    const b=deqNodes(K.snapshot6(chB),"B", 1,"deque B",which==="B");
+    const sa=K.snapshot6(chA), nA=K.toList6(chA).length, nB=K.toList6(chB).length;
+    const a=deqNodes(sa,"A",-1,"deque A · "+nA,which==="A",aLabel(sa));
+    const b=deqNodes(K.snapshot6(chB),"B", 1,"deque B · "+nB,which==="B");
     G.transition([...a.nodes,...b.nodes],[...a.edges,...b.edges]);
   }
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
@@ -853,15 +853,12 @@ function wireCadeque6(){
     if(k==="reset"){ seed(); selUI(); renderBuild(); setCap(capEl,buildCap,""); return; }
     if(k==="shake"){ G.shake(); return; }
     if(k==="concatAB"||k==="concatBA"){
-      const ab=(k==="concatAB");
+      const ab=(k==="concatAB"), before=K.toList6(chA).length;
       chA = ab ? K.concat6(chA,chB) : K.concat6(chB,chA);   // result stored in A; B untouched
-      flash = ab ? "right" : "left";                        // B sits on that side of A's new ⋈
+      const after=K.toList6(chA).length;
+      flash = ab ? "right" : "left";                        // the newest B sits on that side of A's new ⋈
       renderBuild(); G.kick(1);
-      const branched=K.snapshot6(chA).nodes.some(n=>n.role==="pair");
-      setCap(capEl, (branched
-        ? "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: A is now a <code>⋈ join</code>, with <b>B as a shared subtree</b> (dashed)."
-        : "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b> — small enough to merge into one cell.")
-        + " <b>B is unchanged</b> (still its own deque below) — concat shared it, didn't copy it. Concat again to keep building.","ok");
+      setCap(capEl, "<b>A ← "+(ab?"A ++ B":"B ++ A")+"</b> in <b>O(1)</b>: A grew <b>"+before+" → "+after+" elements</b> (watch the <code>deque A · N</code> count). The newest B is the "+(ab?"right":"left")+" subtree (dashed); each earlier B got <b>absorbed deeper</b> into the tree instead of stacking up — so A stays a handful of cells, never a growing chain of B's. <i>That</i> is the worst-case-O(1) trick. <b>B is unchanged</b> — concat again to keep accumulating.","ok");
       return;
     }
     flash=null;
