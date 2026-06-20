@@ -80,6 +80,14 @@
   .seg-a { fill:rgba(0,102,204,.45); stroke:#0066cc; }
   .seg-b { fill:rgba(232,116,12,.45); stroke:#e8740c; }
   .seg-num { font:600 11px "SF Mono",monospace; fill:#1a1a1a; }
+  .head6 { font:600 13px -apple-system,sans-serif; fill:#555; }
+  .head6-em { fill:#1b7a2e; font-weight:700; }
+  .node-mini { fill:var(--green-bg); stroke:var(--green-bd); stroke-width:1.8; }
+  .node-mini.c-yellow { fill:var(--yellow-bg); stroke:var(--yellow-bd); }
+  .node-mini.c-orange { fill:var(--orange-bg); stroke:var(--orange-bd); }
+  .node-mini.c-red    { fill:var(--red-bg);    stroke:var(--red-bd); }
+  .branch-mini { fill:#dff0e3; stroke:var(--green-bd); }
+  .mini-lab { font:600 11px "SF Mono",monospace; fill:var(--green-bd); }
   .dot { stroke:#fff; stroke-width:.8; }
   .dot.base { fill:var(--accent); }
   .dot.s6   { fill:#0f9b8e; stroke-width:1; }
@@ -205,7 +213,7 @@ cell is tinted green / yellow / (orange /) red by how full it is.
     <span class="it">each <b>bar</b> is a deque's sequence (front → back); its length = element count</span>
     <span class="it"><span class="sw" style="border-color:#0066cc;background:rgba(0,102,204,.45)"></span><b>A</b>'s own elements</span>
     <span class="it"><span class="sw" style="border-color:#e8740c;background:rgba(232,116,12,.45)"></span><b>B</b>'s elements — each concat copies a chunk of them into A</span>
-    <span class="it"><b>stored in N cells</b> = the bounded tree underneath — that's why every op (incl. concat) is O(1)</span>
+    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>the <b>structure</b> (cells below each bar) — it stays bounded however long the bar gets; concat copies <b>0 elements</b> and rebuilds only this skeleton ⇒ O(1)</span>
   </div>
   <div class="bar">
     <span class="seg-lab">grow:</span>
@@ -835,37 +843,58 @@ function wireCadeque6(){
   const fresh=()=>K.concat6(eight(),eight());                 // a 16-element cell
   function seed(){ val=1; chA=fresh(); chB=fresh(); blkA=[{o:"A",n:16}]; blkB=[{o:"B",n:16}]; which="A"; }
   const len=d=>K.toList6(d).length, cells=d=>K.snapshot6(d).nodes.length;
-  function drawDeque(d,blk,name,cy,active){
-    const g=el("g"), total=blk.reduce((s,b)=>s+b.n,0);
+  // a compact static drawing of the actual cell structure (snapshot6)
+  function drawTree(d,cx,cy){
+    const s=K.snapshot6(d), g=el("g"), dx=66;
+    const byD={}; s.nodes.forEach(n=>{ (byD[n.depth]=byD[n.depth]||[]).push(n); });
+    const maxD=Math.max(0,...s.nodes.map(n=>n.depth)), x0=cx-maxD*dx/2, pos={};
+    s.nodes.forEach(n=>{ const peers=byD[n.depth], i=peers.indexOf(n);
+      pos[n.id]={x:x0+n.depth*dx, y:cy+(i-(peers.length-1)/2)*32}; });
+    s.edges.forEach(e=>{ const a=pos[e.from],b=pos[e.to]; if(a&&b)
+      g.appendChild(el("line",{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:"#aab1bb","stroke-width":1.6})); });
+    s.nodes.forEach(n=>{ const p=pos[n.id];
+      if(n.role==="pair"){ g.appendChild(el("rect",{x:p.x-15,y:p.y-9,width:30,height:18,rx:9,class:"node-mini branch-mini"}));
+        const t=el("text",{x:p.x,y:p.y+4,"text-anchor":"middle",class:"mini-lab"}); t.textContent="⋈"; g.appendChild(t); }
+      else g.appendChild(el("rect",{x:p.x-19,y:p.y-12,width:38,height:24,rx:4,class:"node-mini c-"+n.color})); });
+    return g;
+  }
+  function drawDeque(d,blk,name,top,active){
+    const g=el("g"), total=blk.reduce((s,b)=>s+b.n,0), nc=cells(d);
     const p=el("g",{class:"node root"+(active?"":" rgrey")});
-    p.appendChild(el("rect",{class:"cell",x:14,y:cy-16,width:120,height:32,rx:16}));
-    const pt=el("text",{class:"title","text-anchor":"middle",x:74,y:cy+4}); pt.textContent=name+" · "+total; p.appendChild(pt);
+    p.appendChild(el("rect",{class:"cell",x:14,y:top-16,width:104,height:32,rx:16}));
+    const pt=el("text",{class:"title","text-anchor":"middle",x:66,y:top+4}); pt.textContent=name; p.appendChild(pt);
     g.appendChild(p);
-    const x0=156, maxW=W-x0-26, pitch=Math.min(8.5,maxW/Math.max(1,total)), hh=40; let x=x0;
+    const head=el("text",{x:132,y:top+5,class:"head6"});
+    head.appendChild(Object.assign(el("tspan"),{textContent:total+" elements  —  in "}));
+    head.appendChild(Object.assign(el("tspan",{class:"head6-em"}),{textContent:"only "+nc+" cell"+(nc>1?"s":"")}));
+    g.appendChild(head);
+    // content bar (front → back), grows with every concat
+    const x0=132, maxW=W-x0-26, pitch=Math.min(7.5,maxW/Math.max(1,total)), hh=26, by=top+24; let x=x0;
     blk.forEach(b=>{ const w=b.n*pitch;
-      g.appendChild(el("rect",{x,y:cy-hh/2,width:Math.max(2,w-1.5),height:hh,rx:3,class:"seg seg-"+(b.o==="B"?"b":"a")}));
-      if(w>=20){ const t=el("text",{x:x+w/2,y:cy+4,"text-anchor":"middle",class:"seg-num"}); t.textContent=b.n; g.appendChild(t); }
+      g.appendChild(el("rect",{x,y:by,width:Math.max(2,w-1.5),height:hh,rx:2,class:"seg seg-"+(b.o==="B"?"b":"a")}));
+      if(w>=20){ const t=el("text",{x:x+w/2,y:by+17,"text-anchor":"middle",class:"seg-num"}); t.textContent=b.n; g.appendChild(t); }
       x+=w; });
-    const note=el("text",{x:x0,y:cy+hh/2+15,class:"blab"});
-    note.textContent="stored in "+cells(d)+" cell"+(cells(d)>1?"s":"")+"  —  a bounded tree, so every operation is O(1)";
-    g.appendChild(note);
+    g.appendChild(Object.assign(el("text",{x:x0,y:by+hh+12,class:"blab"}),{textContent:"content (front → back) — grows with every concat ↑"}));
+    // the actual structure — stays bounded
+    g.appendChild(drawTree(d, W*0.52, top+108));
+    g.appendChild(Object.assign(el("text",{x:x0,y:top+150,class:"blab"}),{textContent:"structure — stays a handful of cells however many elements (← that's the O(1))"}));
     return g;
   }
   function render(){ svg.replaceChildren();
-    svg.appendChild(drawDeque(chA,blkA,"deque A",H*0.32,which==="A"));
-    svg.appendChild(drawDeque(chB,blkB,"deque B",H*0.66,which==="B")); }
+    svg.appendChild(drawDeque(chA,blkA,"deque A",70,which==="A"));
+    svg.appendChild(drawDeque(chB,blkB,"deque B",330,which==="B")); }
   function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
-  const buildCap="Two catenable deques as <b>sequence bars</b> (front → back). <b>Blue</b> = A's own elements; <b>orange</b> = B's. Pick A or B with <b>grow:</b> and push/inject; then the <b>concat:</b> buttons join them in O(1) and store the result into <b>A or B</b> (the other stays intact) — so you can stack a chunk onto either side, again and again, while each deque stays stored in just a few cells.";
+  const buildCap="Each deque is shown <b>two ways</b>: a <b>content bar</b> (front → back; blue = A's elements, orange = B's) and, below it, its actual <b>cell structure</b>. Grow A or B with <b>push/inject</b>; the <b>concat:</b> buttons join them in O(1) into either deque (the other stays intact). The point to watch: as you concat, the <b>bar grows without bound but the structure stays a handful of cells</b> — that's the worst-case-O(1) trick.";
   // X ← L ++ R, result stored in X (the other operand is left untouched).
   function concatOp(tgt,l){
     const r=l==="A"?"B":"A";
     const Lc=l==="A"?chA:chB, Rc=r==="A"?chA:chB, Lb=l==="A"?blkA:blkB, Rb=r==="A"?blkA:blkB;
-    const before=tgt==="A"?len(chA):len(chB);
+    const tcOld=tgt==="A"?chA:chB, before=len(tcOld), cBefore=cells(tcOld);
     const res=K.concat6(Lc,Rc), resBlk=Lb.map(b=>({o:b.o,n:b.n})).concat(Rb.map(b=>({o:b.o,n:b.n})));
     if(tgt==="A"){ chA=res; blkA=resBlk; } else { chB=res; blkB=resBlk; }
     render();
-    const tc=tgt==="A"?chA:chB, other=(l===tgt)?r:l, side=(l===tgt)?"appended on the right":"prepended on the left", oc=other==="A"?"blue":"orange";
-    setCap(capEl,"<b>"+tgt+" ← "+l+"++"+r+"</b> in <b>O(1)</b>: <b>"+other+"</b>'s elements ("+oc+") were "+side+" of <b>"+tgt+"</b> — "+tgt+" grew <b>"+before+" → "+len(tc)+"</b>. <b>"+other+" is unchanged</b>; concat again to stack more. Yet "+tgt+" is still <b>stored in "+cells(tc)+" cells</b> — concat never copies and never grows unbounded. <i>That</i> bounded storage is the worst-case-O(1) guarantee.","ok");
+    const tc=tgt==="A"?chA:chB;
+    setCap(capEl,"<b>"+tgt+" ← "+l+"++"+r+"</b>: "+tgt+"'s elements jumped <b>"+before+" → "+len(tc)+"</b>, but its <b>structure went "+cBefore+" → "+cells(tc)+" cells</b> — barely a change. Concat <b>copied 0 elements</b> (every element of "+l+" and "+r+" is shared, not duplicated) and only rebuilt that handful-of-cells skeleton. The cell count never runs away with the size — <i>that</i> bounded skeleton is exactly why concat is <b>O(1)</b>. (Watch: the content bar keeps growing, the structure below it doesn't.)","ok");
   }
   function op(k){
     if(k==="reset"){ seed(); selUI(); render(); setCap(capEl,buildCap,""); return; }
