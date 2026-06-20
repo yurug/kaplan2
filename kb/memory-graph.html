@@ -122,19 +122,19 @@
 <a href="spec/why-bounded-cascade.md">why-bounded-cascade.md</a></p>
 
 <div class="tldr">
-<strong>What you are looking at.</strong> Every <strong>box is a heap cell</strong>
-(a §4 <code>D4Cell</code> or a §6 <code>T6Cell</code>); the <strong>dots inside are
-the elements</strong> in its prefix/suffix buffers; the <strong>edges are the
-pointers</strong> the cell stores. The layout is a live force simulation — <em>drag
-any box</em>, and use the buttons to push/pop and watch the graph mutate and
-re-settle. Cells are tinted by their G/Y/(O/)R colour.
+<strong>What you are looking at.</strong> Every <strong>box is a cell</strong> in
+memory; the <strong>dots inside are the elements</strong> it holds (in a front
+buffer and a back buffer); the <strong>arrows are the links</strong> from one
+cell to the next. The layout is a live force simulation — <em>drag any box</em>,
+and use the buttons to add/remove elements and watch the graph rearrange. Each
+cell is tinted green / yellow / (orange /) red by how full it is.
 </div>
 
 <div class="tabs">
-  <div class="tab active" data-scene="s4">§4 deque — spine of packets</div>
+  <div class="tab active" data-scene="s4">Deque — a chain of packets</div>
   <div class="tab" data-scene="persist">Persistence — fork &amp; share</div>
-  <div class="tab" data-scene="s6">§6 cadeque — tree + <code>adopt6</code></div>
-  <div class="tab" data-scene="concat">§6 <code>concat</code> — join in O(1)</div>
+  <div class="tab" data-scene="s6">Catenable deque — a tree</div>
+  <div class="tab" data-scene="concat">Concat — join two deques in O(1)</div>
 </div>
 
 <!-- ============ §4 ============ -->
@@ -144,7 +144,7 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
     <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green = roomy (2–3)</span>
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow = nearly full/empty (1,4)</span>
     <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red = full/empty, must be fixed (0,5)</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code> — the spine, one pointer to the next packet</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — the spine, one pointer to the next packet</span>
     <span class="it"><span class="sw" style="border-color:#9b7fc0;background:rgba(112,72,192,.08);border-style:dashed"></span><b>Packet</b> = a green/red cell + its yellow run, aggregated into <b>one allocation</b> — that's what keeps a fix O(1) (no jump pointer needed)</span>
     <span class="it"><span class="ic" style="background:var(--accent)"></span>element (level 0)</span>
     <span class="it">each slot is one buffer entry = a bundle of <b>2<sup>ℓ</sup></b> elements — a <b>pair</b> at L1, a <b>pair-of-pairs</b> at L2</span>
@@ -166,7 +166,7 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
 <div class="scene" id="scene-persist"><div class="stage">
   <svg class="graph" id="svg-persist" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child4</code> spine</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> spine</span>
     <span class="it"><span class="lin" style="border-color:var(--accent)"></span>live root</span>
     <span class="it"><span class="lin" style="border-color:#8a8f96"></span>old / forked root</span>
     <span class="it">a cell with two incoming edges is <b>shared</b> — allocation-only ⇒ free persistence</span>
@@ -189,10 +189,9 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
     <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 7</span>
     <span class="it"><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg)"></span>Orange 6</span>
     <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red 5</span>
-    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span><code>two6</code> L/R</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>one6</code></span>
-    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>adopt6</code></span>
-    <span class="it"><span class="ic" style="background:#0f9b8e"></span>element · each entry is a <b>stored triple</b> (pre · ◇child · suf) — nests: L1 triples, L2 triples-of-triples</span>
+    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>two children — left / right</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span>single child</span>
+    <span class="it"><span class="ic" style="background:#0f9b8e"></span>element · each entry is itself a small bundle (a <b>triple</b>: front · ◇child · back), and those nest one level deeper each step down</span>
   </div>
   <div class="bar">
     <button class="primary" id="play-s6">▶ Play</button>
@@ -212,10 +211,9 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
 <div class="scene" id="scene-concat"><div class="stage">
   <svg class="graph" id="svg-concat" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span><code>two6</code> left/right</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>one6</code></span>
-    <span class="it"><span class="lin dash" style="border-color:var(--orange-bd)"></span><code>adopt6</code></span>
-    <span class="it">operand trees are <b>shared wholesale</b> — never copied or walked</span>
+    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>two children — left/right</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span>single child</span>
+    <span class="it">the two joined deques are <b>shared whole</b> — never copied or walked</span>
   </div>
   <div class="bar">
     <button class="primary" id="play-concat">▶ Play</button>
@@ -228,27 +226,25 @@ re-settle. Cells are tinted by their G/Y/(O/)R colour.
 </div></div>
 
 <div class="honest">
-<strong>Driven by the verified port.</strong> The two <em>interactive</em> tabs
-(§4 spine, §6 cadeque) run the actual differentially-tested TypeScript port in
-<code>ts/</code> (the <code>*_kt2</code> / <code>cad_*</code> ops, faithful to the
-Rocq-extracted <code>kTDeque.ml</code> / <code>kTCadeque.ml</code>) — bundled as
-<code>ktdeque.bundle.js</code> and rendered from a structural snapshot, so what you
-see is the <em>real</em> heap structure after each op, not a hand-drawn
-approximation.  A §4 level-ℓ entry is exactly 2<sup>ℓ</sup> base elements (the
-pair-tower, drawn nested); a §6 entry is a <em>stored triple</em>
-<code>Small(buf) | Big(pre,child,suf)</code>, drawn as a nested <em>triple</em> glyph
-(pre · ◇child · suf) with a <code>+N</code> count for the rest of a fat buffer.
-The §6 model keeps a flat root buffer under pure push/inject; the tree appears
-under <b>concat</b> (try the ⋈ button).  The two <em>storyline</em> tabs
-(persistence, concat) remain curated step-throughs that illustrate sharing.  The
-port itself is verified the same way as <code>c/</code>: differential fuzzing vs a
-naive oracle, a worst-case-O(1) allocation bound, and a byte-for-byte trace diff
-against the OCaml extraction (see <code>ts/README.md</code>).
+<strong>Driven by the verified code.</strong> The two <em>interactive</em> tabs
+(Deque, Catenable&nbsp;deque) run the actual, tested implementation — a TypeScript
+port in <code>ts/</code> of the machine-checked Rocq code — bundled into the page
+and rendered straight from the real structure, so what you see is the <em>real</em>
+memory after each step, not a hand-drawn approximation.  In the Deque, an element
+one level down bundles 2× as many base values (a pair, then a pair-of-pairs, …);
+in the catenable deque, each entry is a small bundle (a triple) and they nest one
+level deeper each step down.  A catenable deque stays a single fat cell under
+plain add/remove; the tree only appears when you <b>join</b> two of them (the ⋈
+button).  The two <em>storyline</em> tabs (persistence, concat) are curated
+step-throughs that illustrate sharing.  The implementation is verified the same
+way as the C version: random testing against a simple reference, a worst-case-O(1)
+bound on work per operation, and a byte-for-byte trace match against the original
+(see <code>ts/README.md</code>).
 </div>
 
 <footer><strong>Sources.</strong>
 <code>rocq/KTDeque/DequePtr/</code> (<code>Chain</code>/<code>Packet</code> aggregation, <code>green_of_red</code>) ·
-<code>rocq/KTDeque/Catenable/Model.v</code> &amp; <code>Ops.v</code> (cadeque, <code>concat</code>) ·
+<code>rocq/KTDeque/Catenable/Model.v</code> &amp; <code>Ops.v</code> (catenable deque, <code>concat</code>) ·
 <code>Common/Color.v</code> · <code>OpsKTRegular.v</code> (<code>regular_kt</code>) ·
 <code>Footprint.v</code> (cost ≤ 9) ·
 <a href="execution-manual-v3.md">kb/execution-manual-v3.md</a> §§5,10–12 ·
@@ -302,7 +298,7 @@ class ForceGraph {
     this.groups=[];
     Object.values(byPkt).forEach(members=>{ if(members.length<2)return;
       const rect=el("rect",{class:"pkt-hull",rx:14}), lab=el("text",{class:"pkt-lab"});
-      lab.textContent="Packet · "+members.length+" cells = 1 alloc";
+      lab.textContent="Packet ("+members.length+" levels, one block of memory)";
       this.groupLayer.append(rect,lab); this.groups.push({members,rect,lab}); });
     const LA=this.horizontal?"x":"y", CA=this.horizontal?"y":"x";   // level / cross axes
     const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
@@ -348,8 +344,8 @@ class ForceGraph {
     if(n.sub){const s=el("text",{class:"sub","text-anchor":"middle",y:-h/2+27}); s.textContent=n.sub; g.appendChild(s);}
     n._pre=el("g"); n._suf=el("g"); g.append(n._pre,n._suf);
     const preY=-h/2+(n.sub?40:32), sufY=h/2-14;
-    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:preY+3}),{textContent:"pre"}));
-    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:sufY+3}),{textContent:"suf"}));
+    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:preY+3}),{textContent:"front"}));
+    g.appendChild(Object.assign(el("text",{class:"blab",x:-w/2+7,y:sufY+3}),{textContent:"back"}));
     if(n.badge){const b=el("text",{class:"badge","text-anchor":"middle",y:h/2+13}); b.textContent=n.badge; g.appendChild(b);}
     this._buf(n,n._pre,n.pre,preY); this._buf(n,n._suf,n.suf,sufY);
     return {g};
@@ -359,7 +355,7 @@ class ForceGraph {
     const stored=(this.opts.id==="s6"||this.opts.id==="concat");
     const lvl=Math.max(0,Math.round(n.level||0));
     const D=6, g=2;
-    const lab=26, leftX=-n.w/2+lab, avail=n.w-10-lab;   // reserve the left "pre/suf" label gutter
+    const lab=34, leftX=-n.w/2+lab, avail=n.w-10-lab;   // reserve the left "front/back" label gutter
     const place=(node,cx)=>{ node.setAttribute("transform",`translate(${cx},${y})`);
       node.setAttribute("class",((node.getAttribute("class")||"")+" bundle filled").trim());
       grp.appendChild(node); };
@@ -574,30 +570,30 @@ function nodes4(snap){
   // A Packet aggregates a green/red anchor + its run of yellow cells into ONE
   // allocation — the real mechanism; there is no jump4 pointer.  Tag each cell
   // with its packet (a new one starts at each ChainCons anchor / the ending);
-  // the engine encloses any packet with >1 cell.  child4 = the spine pointer.
+  // the engine encloses any packet with >1 cell.  child = the spine pointer.
   let pkt=-1;
   cells.forEach((c,i)=>{
     if(c.anchor) pkt++;
-    nodes.push({id:c.id,level:c.depth,title:"D4Cell · L"+c.depth,sub:c.ending?"ending":sub(c.depth),
+    nodes.push({id:c.id,level:c.depth,title:"Cell · L"+c.depth,sub:c.ending?"ending":sub(c.depth),
                 color:c.color,pre:c.pre,suf:c.suf,seed:i,pkt});
     edges.push(i===0?{from:"root",to:c.id,kind:"root",rest:92}
-                    :{from:cells[i-1].id,to:c.id,kind:"child",label:"child4",rest:140});
+                    :{from:cells[i-1].id,to:c.id,kind:"child",label:"child",rest:140});
   });
   return {nodes,edges};
 }
 function nodes6(snap){
   const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
-  const nodes=[{id:"croot",kind:"root",title:"cadeque",level:-0.7,bias:0,seed:99}];
+  const nodes=[{id:"croot",kind:"root",title:"catenable deque",level:-0.7,bias:0,seed:99}];
   const edges=[];
   snap.nodes.forEach((n,i)=>nodes.push({
     id:n.id,level:n.depth,
-    title:(n.role==="pair"?"CPair":n.role+" triple"),
-    sub:n.role==="pair"?"two6":(n.role==="only"?"only":"two6 · "+n.role),
+    title:(n.role==="pair"?"Branch":n.role==="only"?"Cell":"Cell ("+n.role+")"),
+    sub:n.role==="pair"?"two children":(n.role==="only"?"front · child · back":n.role+" child"),
     color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i}));
   snap.nodes.filter(n=>n.depth===0).forEach(r=>edges.push({from:"croot",to:r.id,kind:"root",rest:92}));
   snap.edges.forEach(e=>edges.push({from:e.from,to:e.to,
     kind:e.kind==="child"?"child":e.kind,
-    label:e.kind==="child"?"one6":e.kind==="left"?"L":"R",rest:e.kind==="child"?140:150}));
+    label:e.kind==="child"?"child":e.kind,rest:e.kind==="child"?140:150}));
   return {nodes,edges};
 }
 
@@ -606,60 +602,59 @@ const P4=(id,t,p,s,o={})=>Object.assign({id,level:o.level!=null?o.level:({L0:0,Q
   title:t,color:colS4(o.cby==="suf"?s:p),pre:p,suf:s},o);
 function FRAMES_persist(){return[
  {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,seed:9},
-    P4("L0","D4Cell L0",3,2),P4("L1","L1 (Packet)",4,1),P4("L2","D4Cell L2",2,3)],
-  edges:[{from:"root",to:"L0",kind:"root"},{from:"L0",to:"L1",kind:"child",label:"child4"},
-    {from:"L1",to:"L2",kind:"child",label:"child4"}],
-  caption:"<b>One deque <code>d</code>.</b> A spine of three <code>D4Cell</code>s. The heap is <b>allocation-only</b> — operations never overwrite a cell."},
+    P4("L0","Cell L0",3,2),P4("L1","L1 (Packet)",4,1),P4("L2","Cell L2",2,3)],
+  edges:[{from:"root",to:"L0",kind:"root"},{from:"L0",to:"L1",kind:"child",label:"child"},
+    {from:"L1",to:"L2",kind:"child",label:"child"}],
+  caption:"<b>One deque <code>d</code>.</b> A chain of three cells. Memory is <b>append-only</b> — an operation never overwrites a cell, it only adds new ones."},
  {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,bias:-1,seed:9},
     {id:"root2",kind:"root",title:"d2 = d",level:-0.55,bias:1,seed:8},
-    P4("L0","D4Cell L0",3,2,{shared:true}),P4("L1","L1 (Packet)",4,1,{shared:true}),P4("L2","D4Cell L2",2,3,{shared:true})],
+    P4("L0","Cell L0",3,2,{shared:true}),P4("L1","L1 (Packet)",4,1,{shared:true}),P4("L2","Cell L2",2,3,{shared:true})],
   edges:[{from:"root",to:"L0",kind:"rootgrey"},{from:"root2",to:"L0",kind:"root"},
-    {from:"L0",to:"L1",kind:"child",label:"child4"},{from:"L1",to:"L2",kind:"child",label:"child4"}],
-  caption:"<b><code>let d2 = d</code>.</b> Forking copies a single root pointer. <code>d</code> and <code>d2</code> name the <b>same shared cells</b> — nothing is duplicated."},
+    {from:"L0",to:"L1",kind:"child",label:"child"},{from:"L1",to:"L2",kind:"child",label:"child"}],
+  caption:"<b>Fork: <code>d2 = d</code>.</b> Copying a deque just copies one link. <code>d</code> and <code>d2</code> now point at the <b>same cells</b> — nothing is duplicated."},
  {nodes:[{id:"root",kind:"root",title:"d",level:-0.55,bias:-1.4,rgrey:true,seed:9},
     {id:"root2",kind:"root",title:"d2 (pushed)",level:-0.55,bias:1.4,seed:8},
     P4("L0","L0  (d's old top)",3,2,{bias:-1,faded:true,badge:"untouched"}),
     P4("Q0","L0′  (new)",4,2,{bias:1,badge:"allocated for d2"}),
     P4("L1","L1 (Packet)",4,1,{shared:true,badge:"shared by d & d2"}),
-    P4("L2","D4Cell L2",2,3,{shared:true,badge:"shared by d & d2"})],
+    P4("L2","Cell L2",2,3,{shared:true,badge:"shared by d & d2"})],
   edges:[{from:"root",to:"L0",kind:"rootgrey"},{from:"root2",to:"Q0",kind:"root"},
-    {from:"L0",to:"L1",kind:"child"},{from:"Q0",to:"L1",kind:"child",label:"child4"},
-    {from:"L1",to:"L2",kind:"child",label:"child4"}],
-  caption:"<b><code>push x d2</code>.</b> Only <code>d2</code>'s top cell is re-allocated (L0′). The push <b>never touched</b> L1/L2, so both roots <b>share</b> them. <code>d</code> still reads its old sequence — <b>persistence for free</b> (<code>heap_ext</code>)."},
+    {from:"L0",to:"L1",kind:"child"},{from:"Q0",to:"L1",kind:"child",label:"child"},
+    {from:"L1",to:"L2",kind:"child",label:"child"}],
+  caption:"<b>Add to <code>d2</code>.</b> Only <code>d2</code>'s top cell is rebuilt (L0′). The rest (L1, L2) was <b>untouched</b>, so both <code>d</code> and <code>d2</code> <b>share</b> it. <code>d</code> still shows its old contents — old versions stay valid, for free."},
 ];}
 
 const T6=(id,t,role,p,s,o={})=>Object.assign({id,level:o.level!=null?o.level:0,title:t,sub:o.sub||"",
   color:col6tri(role,p,s),pre:p,suf:s},o);
 function FRAMES_concat(){return[
- {nodes:[{id:"root",kind:"root",title:"q",level:-0.55,seed:9},
-    T6("A","Only triple","only",7,8,{level:0,badge:"preferred path ↓"}),
-    T6("Ab","Left triple","left",6,8,{level:1,bias:-0.3}),
-    T6("Ac","Only triple (green tail)","only",8,8,{level:2,bias:-0.3,badge:"repair site (green)"})],
-  edges:[{from:"root",to:"A",kind:"root"},{from:"A",to:"Ab",kind:"child",label:"one6"},
-    {from:"Ab",to:"Ac",kind:"child",label:"one6"},{from:"A",to:"Ac",kind:"adopt",label:"adopt6"}],
-  caption:"<b>A §6 cadeque is a tree of triples.</b> A <code>CSingle</code> chain: an <code>Only</code> head, a Yellow <code>Left</code> (the preferred path / Packet), a Green tail. <b>Orange</b> is the four-colour second cushion."},
- {nodes:[T6("A","q1 (Only)","only",7,8,{level:0,bias:-1.3}),
-    T6("B","q2 (Only)","only",8,7,{level:0,bias:1.3}),
-    {id:"r1",kind:"root",title:"q1",level:-0.55,bias:-1.3,seed:7},
-    {id:"r2",kind:"root",title:"q2",level:-0.55,bias:1.3,seed:8}],
+ {nodes:[{id:"root",kind:"root",title:"catenable deque",level:-0.55,seed:9},
+    T6("A","Cell","only",7,8,{level:0}),
+    T6("Ab","Cell","left",6,8,{level:1,bias:-0.3}),
+    T6("Ac","Cell","only",8,8,{level:2,bias:-0.3,badge:"green = roomy"})],
+  edges:[{from:"root",to:"A",kind:"root"},{from:"A",to:"Ab",kind:"child",label:"child"},
+    {from:"Ab",to:"Ac",kind:"child",label:"child"}],
+  caption:"A catenable deque is a <b>tree of cells</b>. Here, a simple chain: a head cell, a yellow (nearly-full) cell, and a green (roomy) tail. The fourth colour, orange, is an extra early warning just before red."},
+ {nodes:[T6("A","Deque A","only",7,8,{level:0,bias:-1.3}),
+    T6("B","Deque B","only",8,7,{level:0,bias:1.3}),
+    {id:"r1",kind:"root",title:"A",level:-0.55,bias:-1.3,seed:7},
+    {id:"r2",kind:"root",title:"B",level:-0.55,bias:1.3,seed:8}],
   edges:[{from:"r1",to:"A",kind:"root"},{from:"r2",to:"B",kind:"root"}],
-  caption:"<b><code>concat q1 q2</code>.</b> Two independent cadeques, each its own tree. Catenation must join them in O(1) <b>without walking either</b>."},
- {nodes:[{id:"root",kind:"root",title:"concat q1 q2",level:-0.55,seed:9},
-    T6("R","new root","only",8,8,{level:0,badge:"O(1) cells at the root"}),
-    T6("A","q1 (whole)","only",7,8,{level:1,bias:-1,shared:true,badge:"shared subtree"}),
-    T6("B","q2 (whole)","only",8,7,{level:1,bias:1,shared:true,badge:"shared subtree"})],
-  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"L"},
-    {from:"R",to:"B",kind:"right",label:"R"}],
-  caption:"<b><code>CPair</code>.</b> concat allocates a constant number of cells at the top (a balancing <code>Only</code> over a <code>CPair</code>) and hangs both operands underneath <b>entirely shared</b> — q1, q2 are neither copied nor traversed. Worst-case O(1), both operands stay valid."},
- {nodes:[{id:"root",kind:"root",title:"concat q1 q2",level:-0.55,seed:9},
-    T6("R","root","only",8,8,{level:0}),
-    T6("A","q1","only",7,8,{level:1,bias:-1,shared:true}),
-    T6("B","q2","only",8,7,{level:1,bias:1,shared:true}),
-    T6("Bp","q2 preferred path","left",7,8,{level:2,bias:1,shared:true})],
-  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"L"},
-    {from:"R",to:"B",kind:"right",label:"R"},{from:"B",to:"Bp",kind:"child",label:"one6"},
-    {from:"B",to:"Bp",kind:"adopt",label:"adopt6"}],
-  caption:"<b>The shared operands keep their own internal structure.</b> q2's preferred path and its <code>adopt6</code> shortcut are untouched under the new root — the join only rearranged O(1) constructors at the top (<code>Catenable/Ops.v</code>, concat cases 1–4)."},
+  caption:"<b>Concat A and B.</b> Two separate deques, each its own tree. The join has to be O(1) — without walking through either one."},
+ {nodes:[{id:"root",kind:"root",title:"A ++ B",level:-0.55,seed:9},
+    T6("R","new branch","only",8,8,{level:0,badge:"O(1) work"}),
+    T6("A","Deque A (shared)","only",7,8,{level:1,bias:-1,shared:true,badge:"shared whole"}),
+    T6("B","Deque B (shared)","only",8,7,{level:1,bias:1,shared:true,badge:"shared whole"})],
+  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"left"},
+    {from:"R",to:"B",kind:"right",label:"right"}],
+  caption:"A new <b>branch</b> is made at the top — a constant amount of work — with A and B hanging underneath, <b>shared whole</b>. Neither is copied or walked. O(1), and both A and B still work on their own afterwards."},
+ {nodes:[{id:"root",kind:"root",title:"A ++ B",level:-0.55,seed:9},
+    T6("R","branch","only",8,8,{level:0}),
+    T6("A","Deque A","only",7,8,{level:1,bias:-1,shared:true}),
+    T6("B","Deque B","only",8,7,{level:1,bias:1,shared:true}),
+    T6("Bp","B's inner cells","left",7,8,{level:2,bias:1,shared:true})],
+  edges:[{from:"root",to:"R",kind:"root"},{from:"R",to:"A",kind:"left",label:"left"},
+    {from:"R",to:"B",kind:"right",label:"right"},{from:"B",to:"Bp",kind:"child",label:"child"}],
+  caption:"The joined deques keep all their own internal structure — B's inner cells are untouched under the new branch. The join only rearranged a few cells at the very top."},
 ];}
 
 /* ================================================================
@@ -676,8 +671,8 @@ function wirePort(id,playSeq){
   const capEl=document.getElementById("cap-"+id);
   const is4=(id==="s4");
   const defCap=is4
-    ? "Driven by the <b>verified</b> §4 port (<code>ts/</code>): a spine of <b>packets</b> linked by <code>child4</code>. Each packet (dashed box) aggregates a green/red cell with its yellow run into <b>one allocation</b> — so a repair re-threads O(1) cells, no jump pointer needed. push/inject grow it; an overflow spills a pair down a level (<code>ensure_green</code>). Every op here is the differentially-tested code."
-    : "Driven by the <b>verified</b> §6 port: a tree of stored-triple triples. push/inject grow the root buffer; <b>concat</b> joins two deques in O(1) (a <code>CPair</code>), sharing both operands — that is what builds the tree.";
+    ? "A <b>chain of packets</b>, run by the verified code. Each packet (dashed box) packs a green/red cell together with its run of yellow cells into <b>one block of memory</b> — so a fix only ever rewrites a couple of cells (O(1)). Add to the front or back and watch it grow; when a buffer fills up, a pair spills down to the next level."
+    : "A <b>tree</b>, run by the verified code. Adding to the front or back grows the top cell's buffer; <b>Concat</b> (⋈) joins in another deque in O(1) by making a <b>branch</b> over both — that is what grows the tree.";
   let chain,val;
   const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
   function seed(){ val=1;
@@ -704,10 +699,10 @@ function wirePort(id,playSeq){
     }
     render(); G.kick(0.7);
     const after=count(), grew=after>before, shrank=after<before;
-    let msg=label+" — applied by the verified port.";
-    if(is4&&grew) msg=label+" → <b>overflow</b>: a pair spilled down a level (<code>ensure_green</code>, O(1) ✓).";
-    else if(is4&&shrank) msg=label+" → <b>underflow</b>: a pair pulled up a level (<code>ensure_green</code>, O(1) ✓).";
-    else if(!is4&&k==="concat") msg="<b>concat</b> joined a fresh 8-element deque in <b>O(1)</b> — a <code>CPair</code> over both operands, shared wholesale.";
+    let msg=label+" — done by the verified code.";
+    if(is4&&grew) msg=label+" → buffer full: a pair <b>spilled down</b> a level (O(1) ✓).";
+    else if(is4&&shrank) msg=label+" → buffer empty: a pair <b>pulled up</b> from a level (O(1) ✓).";
+    else if(!is4&&k==="concat") msg="<b>Concat</b> joined a fresh 8-element deque in <b>O(1)</b> — a branch over both, both shared whole.";
     setCap(capEl,msg,is4&&grew?"ok":is4&&shrank?"ok":"");
   }
   let timer=null,playing=false,si=0;
