@@ -116,6 +116,8 @@
   button:hover { background:#eee; }
   button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
   .hint { color:var(--muted); font-size:.78em; margin-left:auto; }
+  .seg-lab { color:var(--muted); font-size:.8em; align-self:center; margin-right:-2px; }
+  .seg-btn.primary { background:#0f9b8e; border-color:#0f9b8e; color:#fff; }
   .cap { min-height:3.0em; padding:9px 14px; font-size:.86em; color:var(--muted);
          border-top:1px solid var(--rule); background:#fff; }
   .cap b,.cap code { color:var(--fg); } .cap code{ background:var(--code-bg); }
@@ -195,21 +197,22 @@ cell is tinted green / yellow / (orange /) red by how full it is.
 <div class="scene" id="scene-s6"><div class="stage">
   <svg class="graph" id="svg-s6" viewBox="0 0 960 560" preserveAspectRatio="xMidYMid meet"></svg>
   <div class="legend">
-    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg)"></span>Green ≥8</span>
-    <span class="it"><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg)"></span>Yellow 7</span>
-    <span class="it"><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg)"></span>Orange 6</span>
-    <span class="it"><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>Red ⚠️ 5</span>
-    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>two children — left / right</span>
-    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span>single child</span>
-    <span class="it"><span class="ic" style="background:#0f9b8e"></span>element · each entry is itself a small bundle (a <b>triple</b>: front · ◇child · back), and those nest one level deeper each step down</span>
+    <span class="it"><span class="ic" style="background:#0f9b8e"></span><b>each dot is one element</b> (in the cell's front / back buffer)</span>
+    <span class="it"><span class="sw" style="border-color:var(--green-bd);background:var(--green-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--yellow-bd);background:var(--yellow-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--orange-bd);background:var(--orange-bg);margin-right:1px"></span><span class="sw" style="border-color:var(--red-bd);background:var(--red-bg)"></span>cell colour = its place in the <b>4-colour rule</b> (green = fine → red ⚠️ = must be fixed); that extra 4th colour is what lets <b>concat</b> stay O(1). Most cells stay green</span>
+    <span class="it"><span class="lin" style="border-color:#5b6b7a"></span><code>child</code> — a deeper cell</span>
+    <span class="it"><span class="lin" style="border-color:#2e7d32"></span>/<span class="lin" style="border-color:#b8860b"></span>the two sides of a <code>⋈ join</code></span>
   </div>
   <div class="bar">
-    <button class="primary" id="play-s6">▶ Play</button>
+    <span class="seg-lab">grow:</span>
+    <button class="seg-btn primary" data-sel="A" data-s="s6">deque A</button>
+    <button class="seg-btn" data-sel="B" data-s="s6">deque B</button>
     <button data-op="push" data-s="s6">＋ Push</button>
     <button data-op="pop"  data-s="s6">－ Pop</button>
     <button data-op="inject" data-s="s6">Inject＋</button>
     <button data-op="eject"  data-s="s6">Eject－</button>
-    <button data-op="concat" data-s="s6">⋈ Concat ＋8</button>
+    <button class="primary" data-op="concatAB" data-s="s6">⋈ A ++ B</button>
+    <button class="primary" data-op="concatBA" data-s="s6">⋈ B ++ A</button>
+    <button data-op="split" data-s="s6" style="display:none">↺ Split back</button>
     <button data-op="shake"  data-s="s6">↯ Shake</button>
     <button data-op="reset"  data-s="s6">⟲ Reset</button>
     <span class="hint">drag a box to reposition</span>
@@ -291,6 +294,7 @@ class ForceGraph {
     this.base=66; this.gap=this.tall?132:118;                                   // vertical: level → y
     this.hbase=96; this.hgap=(opts.id==="s6"||opts.id==="concat")?256:180;       // horizontal: level → x
     this.sib=(opts.id==="s6"||opts.id==="concat")?142:96;                        // left/right sibling spread
+    this.laneGap=150;                                                            // cross-axis offset per node.lane (stacked deques)
     this.horizontal=ORIENT.h; GRAPHS.push(this);
     this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g"); this.labelLayer=el("g");
     svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer,this.labelLayer); // labels on top
@@ -320,7 +324,7 @@ class ForceGraph {
       if(old[n.id]){Object.assign(n,old[n.id]); n._fresh=false;}
       else{
         const pe=edges.find(e=>e.to===n.id&&old[e.from]);
-        n[CA]=pe?old[pe.from][CA]+(n.bias||0)*50:cmid+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30;
+        n[CA]=pe?old[pe.from][CA]+(n.bias||0)*50:cmid+(n.lane||0)*this.laneGap+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30;
         n["v"+CA]=0; n._fresh=true;
       }
       // snap the level axis so banding is always correct; the cross axis morphs freely
@@ -429,7 +433,7 @@ class ForceGraph {
     for(const n of ns){
       if(n===this.drag){n.vx=n.vy=0; continue;}
       n["v"+LA]+=((lbase+(n.level||0)*lgap)-n[LA])*K_LVL;
-      n["v"+CA]+=(cmid-n[CA])*K_CTR;
+      n["v"+CA]+=(cmid+(n.lane||0)*this.laneGap-n[CA])*K_CTR;
       n.vx*=DAMP; n.vy*=DAMP;
       n.vx=Math.max(-MAXV,Math.min(MAXV,n.vx)); n.vy=Math.max(-MAXV,Math.min(MAXV,n.vy));
       n.x+=n.vx*this.alpha; n.y+=n.vy*this.alpha;
@@ -522,7 +526,7 @@ class ForceGraph {
     const LA=h?"x":"y", CA=h?"y":"x", lbase=h?this.hbase:this.base, lgap=h?this.hgap:this.gap;
     const cmid=h?this.H/2:this.W/2, cspread=h?120:200;
     for(const n of this.nodes){ n[LA]=lbase+(n.level||0)*lgap;
-      n[CA]=cmid+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30; n.vx=0; n.vy=0; }
+      n[CA]=cmid+(n.lane||0)*this.laneGap+(n.bias||0)*cspread+Math.sin((n.seed||0)*1.7)*30; n.vx=0; n.vy=0; }
     this.kick(1); }
 }
 function addDefs(svg,id){
@@ -810,11 +814,82 @@ function wireStoryline(id,frames){
   i=0; show(); return{show};
 }
 
+// §6 interactive: TWO catenable deques A and B you grow separately, then
+// concatenate (A++B or B++A) to watch the O(1) join — a ⋈ over both, shared whole.
+function wireCadeque6(){
+  const id="s6", K=window.KTDeque, G=new ForceGraph(document.getElementById("svg-"+id),{id,bufCap:9});
+  const capEl=document.getElementById("cap-"+id);
+  let chA,chB,which,mode,result,order,val;
+  const eight=()=>{ let d=K.empty6(); for(let i=0;i<8;i++) d=K.push6(val++,d); return d; };
+  const freshDeque=()=>K.concat6(eight(),eight());   // an [8 front / 8 back] cell — concats into a ⋈ branch
+  function seed(){ val=1; chA=freshDeque(); chB=freshDeque(); which="A"; mode="build"; result=null; order=null; }
+  // force-graph nodes/edges for ONE deque snapshot, prefixed + placed in a lane
+  function deqNodes(snap,pfx,lane,title,active,labelFor){
+    const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
+    const nodes=[{id:pfx+":root",kind:"root",rgrey:!active,title,level:-0.7,lane,bias:0,seed:pfx.charCodeAt(0)*7}];
+    const edges=[];
+    snap.nodes.forEach((n,i)=>{ const pair=n.role==="pair", lf=labelFor?labelFor(n.id):{};
+      nodes.push({id:pfx+":"+n.id,level:n.depth,lane,kind:pair?"branch":undefined,
+        title:pair?"⋈ join":(n.role==="only"?"Cell":"Cell ("+n.role+")"),
+        sub:pair?"":(n.role==="only"?"":n.role+" child"),
+        color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i,shared:!!lf.shared,badge:lf.badge}); });
+    snap.nodes.filter(n=>n.depth===0).forEach(r=>edges.push({from:pfx+":root",to:pfx+":"+r.id,kind:active?"root":"rootgrey",rest:92}));
+    snap.edges.forEach(e=>edges.push({from:pfx+":"+e.from,to:pfx+":"+e.to,kind:e.kind,label:e.kind==="child"?"child":e.kind,rest:e.kind==="child"?140:150}));
+    return {nodes,edges};
+  }
+  function renderBuild(){
+    const a=deqNodes(K.snapshot6(chA),"A",-1,"deque A",which==="A");
+    const b=deqNodes(K.snapshot6(chB),"B", 1,"deque B",which==="B");
+    G.transition([...a.nodes,...b.nodes],[...a.edges,...b.edges]);
+  }
+  function renderResult(){
+    const snap=K.snapshot6(result), pair=snap.nodes.find(n=>n.role==="pair");
+    let leftId,rightId;
+    if(pair) snap.edges.forEach(e=>{ if(e.from===pair.id){ if(e.kind==="left")leftId=e.to; if(e.kind==="right")rightId=e.to; }});
+    const lL=order==="AB"?"A":"B", lR=order==="AB"?"B":"A";
+    const labelFor=nid=> nid===leftId?{shared:true,badge:lL+" — shared whole"} : nid===rightId?{shared:true,badge:lR+" — shared whole"} : {};
+    const t=deqNodes(snap,"R",0,order==="AB"?"A ++ B":"B ++ A",true,labelFor);
+    G.transition(t.nodes,t.edges);
+  }
+  const Q=s=>document.querySelector('button[data-op="'+s+'"][data-s="s6"]');
+  function selUI(){ document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.classList.toggle("primary",b.dataset.sel===which)); }
+  function resultMode(on){ Q("split").style.display=on?"":"none";
+    ["push","pop","inject","eject","concatAB","concatBA"].forEach(s=>Q(s).disabled=on);
+    document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>b.disabled=on); }
+  const buildCap="Two separate catenable deques, <b>A</b> and <b>B</b>. Pick one with <b>grow: deque A / deque B</b> and add or remove elements (each dot is one element). Then <b>⋈ A ++ B</b> or <b>⋈ B ++ A</b> joins them in <b>O(1)</b>.";
+  function op(k){
+    if(k==="reset"){ seed(); selUI(); resultMode(false); renderBuild(); setCap(capEl,buildCap,""); return; }
+    if(k==="shake"){ G.shake(); return; }
+    if(k==="split"){ mode="build"; resultMode(false); renderBuild();
+      setCap(capEl,"Back to <b>A</b> and <b>B</b>, both <b>unchanged</b> by the join — that's persistence: concat never altered its inputs. "+buildCap,""); return; }
+    if(k==="concatAB"||k==="concatBA"){
+      order=(k==="concatAB")?"AB":"BA";
+      result=(order==="AB")?K.concat6(chA,chB):K.concat6(chB,chA);
+      mode="result"; resultMode(true); renderResult(); G.kick(1);
+      const branched=K.snapshot6(result).nodes.some(n=>n.role==="pair"), name=order==="AB"?"A ++ B":"B ++ A";
+      setCap(capEl, branched
+        ? "<b>"+name+"</b> in <b>O(1)</b>: a <code>⋈ join</code> over "+(order==="AB"?"A (top) and B (bottom)":"B (top) and A (bottom)")+", both <b>shared whole</b> — neither was copied or walked. A and B still work on their own — hit <b>↺ Split back</b>."
+        : "<b>"+name+"</b> in <b>O(1)</b> — they were small enough to <b>merge into one cell</b> (no branch needed). Still O(1); hit <b>↺ Split back</b>.","ok");
+      return;
+    }
+    if(mode!=="build") return;
+    const apply=d=>{ if(k==="push")return K.push6(val++,d); if(k==="inject")return K.inject6(d,val++);
+      if(k==="pop"){const r=K.pop6(d);return r?r[1]:d;} if(k==="eject"){const r=K.eject6(d);return r?r[0]:d;} return d; };
+    if(which==="A") chA=apply(chA); else chB=apply(chB);
+    renderBuild(); G.kick(0.7);
+    setCap(capEl, cap(k)+" on <b>deque "+which+"</b> — watch a dot move.","");
+  }
+  document.querySelectorAll('button[data-sel][data-s="s6"]').forEach(b=>
+    b.onclick=()=>{ which=b.dataset.sel; selUI(); if(mode==="build"){ renderBuild(); setCap(capEl,buildCap,""); } });
+  document.querySelectorAll('button[data-op][data-s="s6"]').forEach(b=> b.onclick=()=>op(b.dataset.op));
+  seed(); selUI(); renderBuild(); setCap(capEl,buildCap,"");
+}
+
 // Play cycles these patterns forever (no reset), so the structure keeps evolving.
 // Net-growth motifs: §4 grows its spine (depth ~log of size); §6 grows its tree
 // via concat.  Use the buttons for ad-hoc steps; Reset to start over.
 wirePort("s4", ["push","push","inject","push","pop","eject"]);  // net growth; shows both spill & pull-up repairs
-wirePort("s6", ["push","push","inject","concat"]);             // concat builds the tree every 4th step
+wireCadeque6();                                                // two deques A & B, grow each, then concat
 wireStoryline("persist",FRAMES_persist());
 wireStoryline("concat",FRAMES_concat());
 
