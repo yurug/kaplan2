@@ -72,6 +72,9 @@
   .node.root .cell { fill:var(--accent); stroke:var(--accent); }
   .node.root.rgrey .cell { fill:#8a8f96; stroke:#8a8f96; }
   .node.root .title { fill:#fff; }
+  /* a CPair junction: a small green pill where two deques were joined */
+  .node.branch .cell { fill:#dff0e3; stroke:var(--green-bd); stroke-width:2.5; }
+  .node.branch .title { fill:var(--green-bd); font-size:12px; }
   .dot { stroke:#fff; stroke-width:.8; }
   .dot.base { fill:var(--accent); }
   .dot.s6   { fill:#0f9b8e; stroke-width:1; }
@@ -286,7 +289,8 @@ class ForceGraph {
     this.svg=svg; this.opts=opts; this.W=960; this.H=560;
     this.tall=(opts.id==="s4"||opts.id==="persist");
     this.base=66; this.gap=this.tall?132:118;                                   // vertical: level → y
-    this.hbase=96; this.hgap=(opts.id==="s6"||opts.id==="concat")?212:180;       // horizontal: level → x
+    this.hbase=96; this.hgap=(opts.id==="s6"||opts.id==="concat")?256:180;       // horizontal: level → x
+    this.sib=(opts.id==="s6"||opts.id==="concat")?142:96;                        // left/right sibling spread
     this.horizontal=ORIENT.h; GRAPHS.push(this);
     this.groupLayer=el("g"); this.edgeLayer=el("g"); this.nodeLayer=el("g"); this.labelLayer=el("g");
     svg.append(this.groupLayer,this.edgeLayer,this.nodeLayer,this.labelLayer); // labels on top
@@ -311,8 +315,8 @@ class ForceGraph {
     const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
     const cmid=this.horizontal?this.H/2:this.W/2, cspread=this.horizontal?120:200;
     nodes.forEach(n=>{
-      n.w=n.w||(n.kind==="root"?96:(this.opts.id==="s6"||this.opts.id==="concat")?168:132);
-      n.h=n.h||(n.kind==="root"?30:(this.tall?88:78));
+      n.w=n.w||(n.kind==="root"?96:n.kind==="branch"?92:(this.opts.id==="s6"||this.opts.id==="concat")?168:132);
+      n.h=n.h||(n.kind==="root"?30:n.kind==="branch"?34:(this.tall?88:78));
       if(old[n.id]){Object.assign(n,old[n.id]); n._fresh=false;}
       else{
         const pe=edges.find(e=>e.to===n.id&&old[e.from]);
@@ -339,12 +343,16 @@ class ForceGraph {
   }
   _nodeDom(n){
     const cls="node c-"+(n.color||"green")+(n.kind==="root"?(" root"+(n.rgrey?" rgrey":"")):"")
-      +(n.faded?" faded":"")+(n.shared?" shared":"");
+      +(n.kind==="branch"?" branch":"")+(n.faded?" faded":"")+(n.shared?" shared":"");
     const g=el("g",{class:cls}); const w=n.w,h=n.h;
     g.appendChild(el("rect",{class:"ring",x:-w/2-4,y:-h/2-4,width:w+8,height:h+8,rx:11}));
-    g.appendChild(el("rect",{class:"cell",x:-w/2,y:-h/2,width:w,height:h,rx:9}));
+    g.appendChild(el("rect",{class:"cell",x:-w/2,y:-h/2,width:w,height:h,rx:n.kind==="branch"?h/2:9}));
     if(n.kind==="root"){
       const t=el("text",{class:"title","text-anchor":"middle",y:4}); t.textContent=n.title||"root";
+      g.appendChild(t); return {g};
+    }
+    if(n.kind==="branch"){  // a CPair junction: no buffers, just the join point of two deques
+      const t=el("text",{class:"title","text-anchor":"middle",y:4}); t.textContent=n.title||"⋈";
       g.appendChild(t); return {g};
     }
     const ti=el("text",{class:"title","text-anchor":"middle",y:-h/2+15}); ti.textContent=n.title; g.appendChild(ti);
@@ -404,7 +412,7 @@ class ForceGraph {
     const K_REP=8000,K_SPR=0.055,K_LVL=0.13,K_CTR=0.010,DAMP=0.85,MAXV=16,ns=this.nodes;
     const PAD=16, LA=this.horizontal?"x":"y", CA=this.horizontal?"y":"x";
     const lbase=this.horizontal?this.hbase:this.base, lgap=this.horizontal?this.hgap:this.gap;
-    const cmid=this.horizontal?this.H/2:this.W/2, sib=this.horizontal?96:120;
+    const cmid=this.horizontal?this.H/2:this.W/2, sib=this.horizontal?this.sib:120;
     for(let i=0;i<ns.length;i++)for(let j=i+1;j<ns.length;j++){
       const a=ns[i],b=ns[j]; let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;
       if(d2<1){dx=(i-j)||1; dy=1; d2=2;} const d=Math.sqrt(d2),f=K_REP/d2;
@@ -604,11 +612,12 @@ function nodes6(snap){
   const bias={}; snap.edges.forEach(e=>{ if(e.kind==="left")bias[e.to]=-1; else if(e.kind==="right")bias[e.to]=1; });
   const nodes=[{id:"croot",kind:"root",title:"catenable deque",level:-0.7,bias:0,seed:99}];
   const edges=[];
-  snap.nodes.forEach((n,i)=>nodes.push({
-    id:n.id,level:n.depth,
-    title:(n.role==="pair"?"Branch":n.role==="only"?"Cell":"Cell ("+n.role+")"),
-    sub:n.role==="pair"?"two children":(n.role==="only"?"front · child · back":n.role+" child"),
-    color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i}));
+  snap.nodes.forEach((n,i)=>{ const pair=n.role==="pair";
+    nodes.push({
+      id:n.id,level:n.depth,kind:pair?"branch":undefined,
+      title:pair?"⋈ join":(n.role==="only"?"Cell":"Cell ("+n.role+")"),
+      sub:pair?"":(n.role==="only"?"front · child · back":n.role+" child"),
+      color:n.color,pre:n.pre,suf:n.suf,bias:bias[n.id]||0,seed:i}); });
   snap.nodes.filter(n=>n.depth===0).forEach(r=>edges.push({from:"croot",to:r.id,kind:"root",rest:92}));
   snap.edges.forEach(e=>edges.push({from:e.from,to:e.to,
     kind:e.kind==="child"?"child":e.kind,
@@ -691,12 +700,13 @@ function wirePort(id,playSeq){
   const is4=(id==="s4");
   const defCap=is4
     ? "A <b>chain of packets</b>, run by the verified code. Each packet (dashed box) is <b>one block of memory</b> bundling a level with the one(s) a previous repair tucked beneath it. An operation only ever touches the <b>top</b> of the chain — the rest is carried along unchanged (deferred) — so a fix rewrites just a couple of cells (O(1)). Add to the front or back and watch it grow; when a buffer fills up, a pair spills down to the next level."
-    : "A <b>tree</b>, run by the verified code. Adding to the front or back grows the top cell's buffer; <b>Concat</b> (⋈) joins in another deque in O(1) by making a <b>branch</b> over both — that is what grows the tree.";
+    : "A catenable deque is a <b>small, bounded tree</b>, run by the verified code: cells (a front/back buffer + a child) joined at <b>⋈</b> branches. Add/remove touches one cell; <b>Concat</b> (⋈) merges in another whole deque in <b>O(1)</b> — and the tree stays just a handful of cells no matter how much you concat. That boundedness is the worst-case guarantee.";
   let chain,val;
   const eight=()=>{let d=K.empty6();for(let i=0;i<8;i++)d=K.push6(val++,d);return d;};
   function seed(){ val=1;
     if(is4){ chain=K.empty4(); for(let i=0;i<48;i++) chain=K.push4(val++,chain); }  // deep enough to show a multi-cell packet
-    else { chain=K.concat6(K.concat6(eight(),eight()),K.concat6(eight(),eight())); } }
+    // a balanced join of eight-element deques — a join over two subtrees, each a cell with a child (a real tree spine)
+    else { const q=()=>K.concat6(eight(),eight()); chain=K.concat6(K.concat6(q(),q()),K.concat6(q(),q())); } }
   function render(){ const s=is4?nodes4(K.snapshot4(chain)):nodes6(K.snapshot6(chain)); G.transition(s.nodes,s.edges); }
   function count(){ return is4?K.snapshot4(chain).cells.length:K.snapshot6(chain).nodes.length; }
   // Round-trip detection: an add then its matching remove (push→pop / inject→eject)
@@ -744,7 +754,7 @@ function wirePort(id,playSeq){
     let msg=label+" — done by the verified code.";
     if(is4&&grew) msg=label+" → buffer full: a pair <b>spilled down</b> a level (O(1) ✓).";
     else if(is4&&shrank) msg=label+" → buffer empty: a pair <b>pulled up</b> from a level (O(1) ✓).";
-    else if(!is4&&k==="concat") msg="<b>Concat</b> joined a fresh 8-element deque in <b>O(1)</b> — a branch over both, both shared whole.";
+    else if(!is4&&k==="concat") msg="<b>Concat</b> merged in a fresh 8-element deque in <b>O(1)</b> — notice the tree stays a handful of cells. It never grows unbounded; that's the worst-case-O(1) concat.";
     let cls=is4&&grew?"ok":is4&&shrank?"ok":"";
     // an add then its matching remove restores the sequence — show whether the layout did too
     const undo=(prevOp==="push"&&k==="pop")||(prevOp==="inject"&&k==="eject");
