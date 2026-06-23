@@ -1,7 +1,7 @@
 ---
 id: index
 domain: meta
-last-updated: 2026-05-25
+last-updated: 2026-06-23
 ---
 
 # Knowledge base — index
@@ -34,6 +34,14 @@ kb/
 ├── GLOSSARY.md            -- canonical vocabulary
 ├── INDEX.md               -- you are here
 ├── lessons.md             -- distilled what-works / what-doesn't
+│
+├── *.html                 -- self-contained visualizations (open in a browser):
+│   ├── evolution-readable.html     -- watch a deque evolve (start here)
+│   ├── evolution.html              -- the same, painted by its dynamics ("regimes")
+│   ├── color-invariants.html       -- the GYOR colour invariants, interactive
+│   ├── memory-graph.html           -- in-memory structure as a draggable graph
+│   ├── cadeque8-formalization.html -- the Rocq formalization, explained
+│   └── viennot-comparison.html     -- head-to-head benchmark vs Viennot et al.
 │
 ├── domain/                -- product requirements
 │   └── prd.md
@@ -80,6 +88,7 @@ kb/
 | Goal | Read these |
 | ---- | ---------- |
 | **Get oriented** | `../README.md`, `INDEX.md`, `GLOSSARY.md`, `domain/prd.md`, `architecture/overview.md` |
+| **See it animate** | `evolution-readable.html` (start here), `evolution.html`, `color-invariants.html`, `memory-graph.html`, `cadeque8-formalization.html` — self-contained, open in a browser |
 | **Implement an operation** | `architecture/overview.md`, `spec/data-model.md`, `spec/algorithms.md`, `properties/functional.md`, `conventions/code-style.md`, `conventions/proof-style.md` |
 | **Touch the C side** | `architecture/decisions/adr-0012-packet-aggregation.md`, `adr-0013-diff-link-encoding.md`, `adr-0014-pair-tree-flattening.md`, `../c/README.md` |
 | **Add tests** | `conventions/testing-strategy.md`, `properties/functional.md`, `properties/edge-cases.md`, `spec/error-taxonomy.md` |

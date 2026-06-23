@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watch a Kaplan–Tarjan deque evolve</title>
+<style>
+  :root{
+    --bg:#fdfdfa; --fg:#1a1a1a; --muted:#6a6a6a; --accent:#0066cc; --accent-bg:#e8f3ff;
+    --code-bg:#f5f3ef; --rule:#ddd6c8;
+    --green-bd:#2e7d32; --green-bg:#e8f5e8; --green-fl:#43a047;
+    --yellow-bd:#d4a017; --yellow-bg:#fff8e1; --yellow-fl:#e6b21e;
+    --red-bd:#c62828; --red-bg:#ffeaea; --red-fl:#e53935;
+  }
+  html{ background:var(--bg); color:var(--fg); }
+  body{ max-width:1080px; margin:2em auto; padding:0 1.5em;
+        font:16px/1.6 -apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif; }
+  h1{ font-size:1.8em; font-weight:600; border-bottom:2px solid var(--rule); padding-bottom:.3em; }
+  p{ margin:.7em 0; } .meta{ color:var(--muted); font-size:.9em; }
+  a{ color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent); }
+  a:hover{ border-bottom-style:solid; }
+  code{ font-family:"SF Mono",Consolas,monospace; font-size:.88em; background:var(--code-bg); padding:1px 4px; border-radius:3px; }
+  .tldr{ background:var(--accent-bg); border-left:4px solid var(--accent); padding:13px 17px; border-radius:4px; margin:1.1em 0; font-size:.96em; }
+
+  /* regime tabs */
+  .tabs{ display:flex; flex-wrap:wrap; gap:6px; margin:1.1em 0 .4em; }
+  .tabs button{ font:600 .82em/1 inherit; padding:7px 12px; border:1px solid var(--rule);
+                background:#fff; border-radius:7px; cursor:pointer; color:var(--fg); }
+  .tabs button:hover{ background:var(--code-bg); }
+  .tabs button.on{ background:var(--accent); color:#fff; border-color:var(--accent); }
+
+  .card{ background:#fff; border:1px solid var(--rule); border-radius:10px; padding:16px 18px; margin:.6em 0; }
+  .opline{ display:flex; align-items:baseline; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .opline .opname{ font:700 1.15em "SF Mono",monospace; }
+  .opline .opwhat{ color:var(--muted); font-size:.9em; }
+  .opline .len{ margin-left:auto; color:var(--muted); font-size:.85em; }
+  .opline .len b{ color:var(--fg); font:700 1em "SF Mono",monospace; }
+
+  .stage{ display:flex; gap:18px; align-items:flex-start; }
+  @media (max-width:820px){ .stage{ flex-direction:column; } }
+  .now{ flex:none; }
+  .histwrap{ flex:1; min-width:0; }
+
+  /* tower */
+  .lvl{ display:flex; align-items:center; gap:9px; height:34px; }
+  .lvl .lname{ width:24px; font:700 .8em "SF Mono",monospace; color:var(--muted); text-align:right; }
+  .lvl .accent{ width:5px; height:26px; border-radius:3px; background:#cfc8b8; }
+  .buf{ display:flex; gap:3px; }
+  .slot{ width:18px; height:22px; border-radius:3px; border:1.5px solid #cfc8b8;
+         box-sizing:border-box; background:transparent; transition:background .12s, border-color .12s; }
+  .slot.fill{ border-color:var(--bd); background:var(--fl); }
+  .bcap{ width:74px; font:.74em/1 "SF Mono",monospace; color:var(--bd); }
+  .bcap .nm{ color:var(--muted); }
+  .lvl.pulse .accent{ box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--accent); }
+  .lvl.pulse .buf .slot{ }
+  .col-pre,.col-suf{ display:flex; align-items:center; gap:7px; }
+  .midlbl{ display:flex; gap:84px; margin:0 0 4px 38px; font:.72em/1 "SF Mono",monospace; color:var(--muted); }
+
+  .c-green{ --bd:var(--green-bd); --fl:var(--green-fl); }
+  .c-yellow{ --bd:var(--yellow-bd); --fl:var(--yellow-fl); }
+  .c-red{ --bd:var(--red-bd); --fl:var(--red-fl); }
+
+  /* history */
+  .histwrap .hlbl{ font:.72em/1 "SF Mono",monospace; color:var(--muted); margin-bottom:4px; }
+  canvas{ display:block; width:100%; border:1px solid var(--rule); border-radius:6px; background:#faf8f3; }
+  .axis{ display:flex; justify-content:space-between; font:.7em "SF Mono",monospace; color:var(--muted); margin-top:3px; }
+
+  /* transport */
+  .transport{ display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .transport button{ font:600 .9em/1 inherit; padding:8px 12px; border:1px solid var(--rule);
+                     background:#fff; border-radius:7px; cursor:pointer; }
+  .transport button:hover{ background:var(--code-bg); }
+  .transport button.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .scrub{ flex:1; min-width:160px; accent-color:var(--accent); }
+  .counter{ font:700 .9em "SF Mono",monospace; color:var(--fg); min-width:92px; text-align:right; }
+  .speed{ display:flex; align-items:center; gap:6px; font-size:.78em; color:var(--muted); }
+  .speed input{ width:80px; accent-color:var(--accent); }
+
+  .legend{ display:flex; gap:18px; flex-wrap:wrap; font-size:.85em; color:var(--muted); margin:12px 2px 0; }
+  .legend .sw{ display:inline-block; width:.85em; height:.85em; border-radius:3px; vertical-align:-1px; margin-right:5px; border:1px solid rgba(0,0,0,.2); }
+  footer{ margin-top:2.4em; padding-top:1em; border-top:1px solid var(--rule); color:var(--muted); font-size:.88em; }
+</style>
+</head>
+<body>
+
+<h1>Watch a Kaplan–Tarjan deque evolve</h1>
+<p class="meta">kaplan2 · 2026-06-18 · the readable companion to the
+<a href="evolution.html">generative version</a>; see also
+<a href="color-invariants.html">color-invariants.html</a> and
+<a href="memory-graph.html">memory-graph.html</a></p>
+
+<div class="tldr">
+Pick a <strong>regime</strong> and press play. On the <strong>left</strong> is the
+deque <em>right now</em>: a stack of <strong>levels</strong>, each with a
+<strong>prefix</strong> and <strong>suffix</strong> buffer (0–5 cells), coloured by
+size (<code>buf_color</code>). On the <strong>right</strong> is the
+<strong>history</strong>: one row per level, painted left→right, so you can read the
+whole run at a glance. An overflow to size&nbsp;5 spills a <em>pair</em> down to the
+next level — that downward <strong>carry</strong> is the recursive slowdown, and the
+reason a deeper level ticks at <em>half</em> the rate of the one above. Drag the
+slider to scrub through all 1000 operations.
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="card">
+  <div class="opline">
+    <span class="opname" id="opname">push</span>
+    <span class="opwhat" id="opwhat"></span>
+    <span class="len">sequence length <b id="seqlen">0</b> · depth <b id="depth">1</b></span>
+  </div>
+  <div class="stage">
+    <div class="now">
+      <div class="midlbl"><span>prefix</span><span>suffix</span></div>
+      <div id="tower"></div>
+    </div>
+    <div class="histwrap">
+      <div class="hlbl">history — each level: prefix (top) / suffix (bottom) over time (▸ = now)</div>
+      <canvas id="hist"></canvas>
+      <div class="axis"><span>op 0</span><span id="axmid"></span><span>op 1000</span></div>
+    </div>
+  </div>
+
+  <div class="transport">
+    <button id="back">⏮</button>
+    <button id="play" class="primary">▶ Play</button>
+    <button id="fwd">⏭</button>
+    <input type="range" id="scrub" class="scrub" min="0" max="999" value="0">
+    <span class="counter" id="counter">0 / 1000</span>
+    <span class="speed">slow <input type="range" id="speed" min="1" max="30" value="4"> fast</span>
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="sw" style="background:var(--green-fl)"></span>green — size 2–3, safe</span>
+  <span><span class="sw" style="background:var(--yellow-fl)"></span>yellow — size 1 or 4, one step from trouble</span>
+  <span><span class="sw" style="background:var(--red-fl)"></span>red — size 0 or 5, repair imminent</span>
+  <span>each level-<i>l</i> cell holds 2<sup><i>l</i></sup> base elements</span>
+</div>
+
+<footer>
+The deque ops run a faithful redundant-counter model (push/inject add to a buffer
+and carry a pair on overflow; pop/eject remove and borrow on underflow) — the
+recursive-slowdown mechanism the repo is built on
+(<a href="GLOSSARY.md">GLOSSARY.md</a>, RBR). Colours are exactly
+<code>buf_color</code> (<code>rocq/KTDeque/Common/Color.v:44</code>). Catenation is a
+tree, not a prefix/suffix tower, so it is shown in
+<a href="memory-graph.html">memory-graph.html §3</a> instead. · kaplan2
+</footer>
+
+<script>
+"use strict";
+const PAL={ green:"#43a047", yellow:"#e6b21e", red:"#e53935" };
+const CN={ green:"Green", yellow:"Yellow", red:"Red" };
+const CLS={ green:"c-green", yellow:"c-yellow", red:"c-red" };
+function col4(n){ return (n===0||n===5)?"red":(n===1||n===4)?"yellow":"green"; }
+function meet(a,b){ const o=["red","yellow","green"]; return o[Math.min(o.indexOf(a),o.indexOf(b))]; }
+
+/* ---- engine: redundant-counter deque (verified) ---- */
+class Deque{
+  constructor(){ this.pre=[0]; this.suf=[0]; }
+  get depth(){ return this.pre.length; }
+  _grow(){ this.pre.push(0); this.suf.push(0); }
+  _carry(a){ let i=0; while(a[i]>=5){ a[i]-=2; if(i+1>=this.pre.length) this._grow(); a[i+1]++; i++; } }
+  _trim(){ while(this.pre.length>1){ const d=this.pre.length-1;
+            if(this.pre[d]===0&&this.suf[d]===0){ this.pre.pop(); this.suf.pop(); } else break; } }
+  _borrow(a){ let i=0; while(i<a.length&&a[i]===0) i++; if(i>=a.length) return false;
+              while(i>0){ a[i]--; a[i-1]+=2; i--; } return true; }
+  push(){ this.pre[0]++; this._carry(this.pre); }
+  inject(){ this.suf[0]++; this._carry(this.suf); }
+  pop(){ if(this.pre[0]>0) this.pre[0]--; else if(this._borrow(this.pre)) this.pre[0]--; this._trim(); }
+  eject(){ if(this.suf[0]>0) this.suf[0]--; else if(this._borrow(this.suf)) this.suf[0]--; this._trim(); }
+}
+function snapOf(d){ const o=[]; for(let k=0;k<d.depth;k++){
+  const cp=col4(d.pre[k]), cs=col4(d.suf[k]);
+  o.push({pre:d.pre[k],suf:d.suf[k],cpre:cp,csuf:cs,lc:meet(cp,cs)}); } return o; }
+
+/* ---- regimes ---- */
+const RG=[
+  {name:"push",          what:"add one element to the prefix of level 0",
+   eng:()=>new Deque(), step:d=>{d.push();return"push";}},
+  {name:"inject",        what:"add one element to the suffix of level 0",
+   eng:()=>new Deque(), step:d=>{d.inject();return"inject";}},
+  {name:"pop",           what:"remove from the prefix (deque pre-filled by 1000 pushes)",
+   eng:()=>{const d=new Deque(); for(let i=0;i<1000;i++)d.push(); return d;}, step:d=>{d.pop();return"pop";}},
+  {name:"eject",         what:"remove from the suffix (deque pre-filled by 1000 injects)",
+   eng:()=>{const d=new Deque(); for(let i=0;i<1000;i++)d.inject(); return d;}, step:d=>{d.eject();return"eject";}},
+  {name:"push · inject", what:"alternate prefix and suffix growth",
+   eng:()=>new Deque(), step:(d,i)=> i%2? (d.inject(),"inject"):(d.push(),"push")},
+  {name:"build & drain", what:"500 pushes, then 500 pops — grow then collapse",
+   eng:()=>new Deque(), step:(d,i)=> i<500? (d.push(),"push"):(d.pop(),"pop")},
+  {name:"mixed",         what:"a random op each step (seeded)",
+   eng:()=>{const d=new Deque(); d._s=20151205; return d;},
+   step:d=>{ d._s=(d._s*1103515245+12345)&0x7fffffff; const r=(d._s/0x7fffffff*4)|0;
+             const op=["push","pop","inject","eject"][r]; d[op](); return op; }},
+];
+
+/* ---- precompute a full trace for a regime ---- */
+function buildTrace(rg){
+  const d=rg.eng(); const tr=[]; let prev=snapOf(d);
+  for(let i=0;i<1000;i++){
+    const op=rg.step(d,i); const s=snapOf(d);
+    const changed=[]; const D=Math.max(prev.length,s.length);
+    for(let k=0;k<D;k++){ const a=prev[k]||{pre:-1,suf:-1}, b=s[k]||{pre:0,suf:0};
+      if(a.pre!==b.pre||a.suf!==b.suf) changed.push(k); }
+    tr.push({levels:s, op, changed}); prev=s;
+  }
+  let md=1; tr.forEach(f=>md=Math.max(md,f.levels.length));
+  return {frames:tr, maxDepth:md};
+}
+
+/* ---- DOM refs ---- */
+const tower=document.getElementById("tower");
+const hist=document.getElementById("hist"), hg=hist.getContext("2d");
+const opname=document.getElementById("opname"), opwhat=document.getElementById("opwhat");
+const seqlenEl=document.getElementById("seqlen"), depthEl=document.getElementById("depth");
+const scrub=document.getElementById("scrub"), counter=document.getElementById("counter");
+const RH=34;
+
+let trace=null, cur=0, regimeIdx=0, offscreen=null, playing=false, timer=null;
+
+/* build tabs */
+const tabsEl=document.getElementById("tabs");
+RG.forEach((rg,i)=>{ const b=document.createElement("button"); b.textContent=rg.name;
+  b.onclick=()=>selectRegime(i); tabsEl.appendChild(b); rg._btn=b; });
+
+function selectRegime(i){
+  regimeIdx=i; RG.forEach((rg,k)=>rg._btn.classList.toggle("on",k===i));
+  trace=buildTrace(RG[i]);
+  renderHistoryOffscreen();
+  pause(); setCur(0);
+}
+
+/* paint the full history once to an offscreen canvas, then we just blit + cursor */
+function renderHistoryOffscreen(){
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const W=hist.clientWidth||640, rows=trace.maxDepth, H=rows*RH;
+  hist.style.height=H+"px";
+  hist.width=Math.round(W*dpr); hist.height=Math.round(H*dpr);
+  offscreen=document.createElement("canvas"); offscreen.width=hist.width; offscreen.height=hist.height;
+  const g=offscreen.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
+  const colW=W/1000;
+  for(let j=0;j<1000;j++){
+    const lv=trace.frames[j].levels; const x=j*colW;
+    for(let d=0;d<lv.length;d++){
+      const w=Math.max(1,colW+0.6), y=d*RH; g.globalAlpha=0.95;
+      g.fillStyle=PAL[lv[d].cpre]; g.fillRect(x, y+2,      w, RH/2-2);  // prefix (top)
+      g.fillStyle=PAL[lv[d].csuf]; g.fillRect(x, y+RH/2,   w, RH/2-2);  // suffix (bottom)
+    }
+  }
+  g.globalAlpha=1;
+  // faint row separators
+  g.strokeStyle="rgba(0,0,0,.06)";
+  for(let d=1;d<rows;d++){ g.beginPath(); g.moveTo(0,d*RH+.5); g.lineTo(W,d*RH+.5); g.stroke(); }
+  document.getElementById("axmid").textContent="op "+ (RG[regimeIdx].name==="build & drain"?"500 (turn)":"500");
+}
+
+function drawHistory(){
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  const W=hist.clientWidth, H=hist.height/dpr;
+  hg.setTransform(dpr,0,0,dpr,0,0); hg.clearRect(0,0,W,H);
+  hg.drawImage(offscreen,0,0,W,H);
+  // dim the future (right of cursor)
+  const cx=(cur+1)/1000*W;
+  hg.fillStyle="rgba(250,248,243,.66)"; hg.fillRect(cx,0,W-cx,H);
+  // cursor line
+  hg.strokeStyle="#0066cc"; hg.lineWidth=1.5;
+  hg.beginPath(); hg.moveTo(cx,0); hg.lineTo(cx,H); hg.stroke();
+  hg.fillStyle="#0066cc"; hg.beginPath(); hg.moveTo(cx-4,0); hg.lineTo(cx+4,0); hg.lineTo(cx,7); hg.fill();
+}
+
+function buf(size,color){
+  const d=document.createElement("div"); d.className="buf "+CLS[color];
+  for(let i=0;i<5;i++){ const s=document.createElement("div");
+    s.className="slot"+(i<size?" fill":""); d.appendChild(s); }
+  return d;
+}
+function drawTower(){
+  const f=trace.frames[cur]; tower.innerHTML="";
+  let seq=0;
+  f.levels.forEach((lv,d)=>{
+    seq += (lv.pre+lv.suf) * Math.pow(2,d);
+    const row=document.createElement("div");
+    row.className="lvl"+(f.changed.includes(d)?" pulse":"");
+    row.innerHTML='<span class="lname">L'+d+'</span><span class="accent"></span>';
+    const pre=document.createElement("div"); pre.className="col-pre";
+    pre.appendChild(buf(lv.pre,lv.cpre));
+    pre.insertAdjacentHTML("beforeend",'<span class="bcap '+CLS[lv.cpre]+'">'+lv.pre+' <span class="nm">'+CN[lv.cpre]+'</span></span>');
+    const suf=document.createElement("div"); suf.className="col-suf";
+    suf.appendChild(buf(lv.suf,lv.csuf));
+    suf.insertAdjacentHTML("beforeend",'<span class="bcap '+CLS[lv.csuf]+'">'+lv.suf+' <span class="nm">'+CN[lv.csuf]+'</span></span>');
+    row.appendChild(pre); row.appendChild(suf);
+    tower.appendChild(row);
+  });
+  opname.textContent=f.op;
+  opwhat.textContent="— "+RG[regimeIdx].what + (f.changed.length>1? "  ·  carry reached L"+Math.max(...f.changed) : "");
+  seqlenEl.textContent=seq; depthEl.textContent=f.levels.length;
+}
+
+function setCur(i){
+  cur=Math.max(0,Math.min(999,i|0));
+  scrub.value=cur; counter.textContent=cur+" / 1000";
+  drawTower(); drawHistory();
+}
+
+/* transport */
+const playBtn=document.getElementById("play");
+function play(){ playing=true; playBtn.textContent="⏸ Pause"; playBtn.classList.remove("primary");
+  clearInterval(timer);
+  timer=setInterval(()=>{ const sp=+document.getElementById("speed").value;
+    if(cur>=999){ pause(); return; } setCur(cur+Math.max(1,Math.round(sp/4))); }, 60);
+}
+function pause(){ playing=false; playBtn.textContent="▶ Play"; playBtn.classList.add("primary");
+  clearInterval(timer); timer=null; }
+playBtn.onclick=()=> playing?pause():play();
+document.getElementById("fwd").onclick=()=>{ pause(); setCur(cur+1); };
+document.getElementById("back").onclick=()=>{ pause(); setCur(cur-1); };
+scrub.oninput=()=>{ pause(); setCur(+scrub.value); };
+let rT=null; window.addEventListener("resize",()=>{ clearTimeout(rT);
+  rT=setTimeout(()=>{ renderHistoryOffscreen(); setCur(cur); },180); });
+
+selectRegime(0);
+</script>
+</body>
+</html>

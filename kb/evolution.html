@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regimes — Kaplan–Tarjan deques, painted by their own dynamics</title>
+<style>
+  :root{ --ink:#06060c; --hair:#22222e; --txt:#cac8d8; --dim:#6b6982; --sel:#7a78ff; }
+  html,body{ background:var(--ink); color:var(--txt); margin:0; }
+  body{ font:14px/1.5 ui-sans-serif,-apple-system,"Helvetica Neue",Arial,sans-serif;
+        -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:1280px; margin:0 auto; padding:28px 22px 64px; }
+  header{ display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+          border-bottom:1px solid var(--hair); padding-bottom:15px; }
+  h1{ font-size:18px; font-weight:600; letter-spacing:.13em; text-transform:uppercase; margin:0; }
+  .sub{ color:var(--dim); font-size:12px; letter-spacing:.04em; }
+  .sub b{ color:var(--txt); font-weight:600; }
+  .bar{ margin-left:auto; display:flex; align-items:center; gap:14px; }
+  button{ background:transparent; color:var(--txt); border:1px solid var(--hair);
+          border-radius:999px; padding:7px 14px; font:inherit; font-size:12px;
+          letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
+          transition:border-color .2s,color .2s,background .2s; }
+  button:hover{ border-color:#5b5b78; color:#fff; }
+  .slider{ display:flex; align-items:center; gap:8px; color:var(--dim); font-size:11px;
+           letter-spacing:.08em; text-transform:uppercase; }
+  input[type=range]{ accent-color:var(--sel); width:92px; }
+
+  /* hero */
+  .hero{ position:relative; margin:20px 0 8px; border:1px solid var(--hair); border-radius:12px;
+         overflow:hidden; aspect-ratio:21/9;
+         background:radial-gradient(120% 130% at 50% 40%, #12121f 0%, #08080f 70%, #050509 100%); }
+  .hero canvas{ display:block; width:100%; height:100%; }
+  .hero .htag{ position:absolute; left:20px; bottom:16px; pointer-events:none;
+               font-size:13px; letter-spacing:.2em; text-transform:uppercase; color:#e8e6f7;
+               text-shadow:0 1px 12px #000,0 0 3px #000; }
+  .hero .htag small{ display:block; color:#9b99b8; letter-spacing:.12em; font-size:10px; margin-top:3px; }
+  .hero .hbtns{ position:absolute; right:14px; bottom:14px; display:flex; gap:8px; }
+  .hero .pct{ position:absolute; right:16px; top:14px; pointer-events:none;
+              font:600 10px/1 "SF Mono",monospace; color:#6f6d89; letter-spacing:.05em; }
+
+  .glabel{ color:var(--dim); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+           margin:24px 2px 10px; }
+  .grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:980px){ .grid{ grid-template-columns:repeat(2,1fr); } }
+  .panel{ position:relative; border:1px solid var(--hair); border-radius:9px; overflow:hidden;
+          background:radial-gradient(120% 130% at 50% 38%, #101019 0%, #08080f 72%);
+          cursor:pointer; aspect-ratio:16/9; transition:border-color .2s, box-shadow .2s; }
+  .panel canvas{ display:block; width:100%; height:100%; }
+  .panel .tag{ position:absolute; left:10px; bottom:8px; pointer-events:none;
+               font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:#d9d7ea;
+               text-shadow:0 1px 7px #000,0 0 2px #000; }
+  .panel:hover{ border-color:#46465f; }
+  .panel.sel{ border-color:var(--sel); box-shadow:0 0 0 1px var(--sel), 0 0 22px -6px var(--sel); }
+
+  footer{ color:var(--dim); font-size:11.5px; margin-top:26px; border-top:1px solid var(--hair); padding-top:14px; }
+  footer a{ color:#9b99c0; }
+  .key{ display:flex; gap:16px; flex-wrap:wrap; margin-top:14px; color:var(--dim); font-size:11px;
+        letter-spacing:.05em; text-transform:uppercase; }
+  .dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; box-shadow:0 0 7px currentColor; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Regimes</h1>
+  <span class="sub">Kaplan–Tarjan deques, painted by their own dynamics · <b>1000 operations</b> ·
+    colour = buffer state · depth = level · light = the step a buffer changes</span>
+  <div class="bar">
+    <span class="slider">slow <input id="speed" type="range" min="1" max="40" value="10"> fast</span>
+    <button id="replay">↻ Replay all</button>
+  </div>
+</header>
+
+<div class="hero" id="hero">
+  <canvas id="herocv"></canvas>
+  <div class="htag" id="herotag"></div>
+  <div class="pct" id="heropct">0%</div>
+  <div class="hbtns">
+    <button id="heroreplay">↻ Replay</button>
+    <button id="herosave">⤓ Save PNG</button>
+  </div>
+</div>
+
+<div class="glabel">Gallery — click a regime to bring it to the top</div>
+<div class="grid" id="grid"></div>
+
+<div class="key">
+  <span><span class="dot" style="color:#57e08a"></span>green safe</span>
+  <span><span class="dot" style="color:#ffd24a"></span>yellow warning</span>
+  <span><span class="dot" style="color:#ff9a3c"></span>orange §6 cushion</span>
+  <span><span class="dot" style="color:#ff5d6c"></span>red repair</span>
+  <span style="color:#6b6982">prefix rises · suffix falls · level 0 hugs the spine · half-frequency per level = recursive slowdown</span>
+</div>
+
+<footer>
+Each thread is one buffer level over time; its height tracks the buffer's fill,
+its colour is <code>buf_color</code>, and it brightens on the step it changes —
+so the half-frequency carries deeper in the structure sparkle as they fire. The
+deque ops (push/pop/inject/eject) run a faithful redundant-counter model (the
+repo's RBR warm-up, <a href="GLOSSARY.md">GLOSSARY.md</a>); <em>concat</em> is a
+schematic §6 tree-growth. Source-cited, annotated views:
+<a href="color-invariants.html">color-invariants.html</a> ·
+<a href="memory-graph.html">memory-graph.html</a>. · kaplan2 · 2026-06-17
+</footer>
+</div>
+
+<script>
+"use strict";
+
+/* palette tuned for additive glow on near-black */
+const PAL = { green:"#57e08a", yellow:"#ffd24a", orange:"#ff9a3c", red:"#ff5d6c" };
+function col4(n){ return (n===0||n===5)?"red":(n===1||n===4)?"yellow":"green"; }
+
+/* ---- engine: redundant-counter deque (KT recursive slowdown) ---- */
+class Deque{
+  constructor(){ this.pre=[0]; this.suf=[0]; }
+  get depth(){ return this.pre.length; }
+  _grow(){ this.pre.push(0); this.suf.push(0); }
+  _carry(a){ let i=0; while(a[i]>=5){ a[i]-=2; if(i+1>=this.pre.length) this._grow(); a[i+1]++; i++; } }
+  _trim(){ while(this.pre.length>1){ const d=this.pre.length-1;
+            if(this.pre[d]===0&&this.suf[d]===0){ this.pre.pop(); this.suf.pop(); } else break; } }
+  _borrow(a){ let i=0; while(i<a.length&&a[i]===0) i++; if(i>=a.length) return false;
+              while(i>0){ a[i]--; a[i-1]+=2; i--; } return true; }
+  push(){ this.pre[0]++; this._carry(this.pre); }
+  inject(){ this.suf[0]++; this._carry(this.suf); }
+  pop(){ if(this.pre[0]>0){ this.pre[0]--; } else if(this._borrow(this.pre)){ this.pre[0]--; } this._trim(); }
+  eject(){ if(this.suf[0]>0){ this.suf[0]--; } else if(this._borrow(this.suf)){ this.suf[0]--; } this._trim(); }
+}
+class Cat{
+  constructor(){ this.m=1; this.t=0; }
+  concat(){ this.m++; this.t++; }
+  get depth(){ return Math.max(1, Math.floor(Math.log2(this.m))+1); }
+  colAt(d){ const s=(Math.sin(this.t*0.013 + d*0.7)+1)/2;
+    return s<0.30?"green": s<0.55?"yellow": s<0.78?"orange":"green"; }
+}
+
+const REGIMES = [
+  { name:"push",          sub:"1000 × push",             make:()=>deqRegime(d=>d.push()) },
+  { name:"inject",        sub:"1000 × inject",           make:()=>deqRegime(d=>d.inject()) },
+  { name:"pop",           sub:"1000 × pop · after fill", make:()=>deqRegime(d=>d.pop(),1000,"push") },
+  { name:"eject",         sub:"1000 × eject · after fill",make:()=>deqRegime(d=>d.eject(),1000,"inject") },
+  { name:"push · inject", sub:"1000 × alternate",        make:()=>{let k=0; return deqRegime(d=>(k++%2?d.inject():d.push()));} },
+  { name:"push · pop",    sub:"1000 × oscillate",        make:()=>{let k=0; return deqRegime(d=>(k++%2?d.pop():d.push()));} },
+  { name:"concat",        sub:"1000 × concat",           make:()=>catRegime() },
+  { name:"mixed",         sub:"1000 × random op",        make:()=>{ const ops=["push","pop","inject","eject"]; let seed=20151205;
+        const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; };
+        return deqRegime(d=>{ d[ops[(rnd()*4)|0]](); }); } },
+];
+function deqRegime(stepFn,seedN=0,seedOp=null){
+  const d=new Deque(); for(let i=0;i<seedN;i++) d[seedOp]();
+  return { total:1000, step(){ stepFn(d); },
+    snap(){ const o=[]; for(let k=0;k<d.depth;k++) o.push({pre:d.pre[k],suf:d.suf[k],cpre:col4(d.pre[k]),csuf:col4(d.suf[k])}); return o; } };
+}
+function catRegime(){
+  const c=new Cat();
+  return { total:1000, step(){ c.concat(); },
+    snap(){ const o=[]; for(let k=0;k<c.depth;k++){ const col=c.colAt(k); o.push({pre:3,suf:3,cpre:col,csuf:col}); } return o; } };
+}
+
+/* ---- Portrait: paints one regime, accumulating light ---- */
+class Portrait{
+  constructor(canvas, def){ this.canvas=canvas; this.def=def; this.reset(); }
+  reset(){
+    const c=this.canvas, dpr=Math.min(2,window.devicePixelRatio||1);
+    const r=c.getBoundingClientRect();
+    c.width=Math.max(2,Math.round(r.width*dpr)); c.height=Math.max(2,Math.round(r.height*dpr));
+    this.g=c.getContext("2d"); this.g.setTransform(dpr,0,0,dpr,0,0);
+    this.W=r.width; this.H=r.height; this.cy=this.H*0.5;
+    this.gap=Math.max(7,(this.H*0.46)/12); this.unit=this.gap*0.36; this.margin=this.W*0.045;
+    this.i=0; this.r=this.def.make(); this.prev=[]; this.pc=[];
+    this.g.globalCompositeOperation="source-over"; this.g.clearRect(0,0,this.W,this.H);
+    this.g.strokeStyle="rgba(120,120,150,.09)"; this.g.lineWidth=1;
+    this.g.beginPath(); this.g.moveTo(this.margin,this.cy); this.g.lineTo(this.W-this.margin,this.cy); this.g.stroke();
+    this.done=false;
+  }
+  advance(n){
+    if(this.done) return;
+    const g=this.g; g.globalCompositeOperation="lighter"; g.lineCap="round";
+    for(let s=0;s<n && this.i<this.r.total; s++,this.i++){
+      this.r.step(); const snap=this.r.snap();
+      const x=this.margin+(this.i/this.r.total)*(this.W-2*this.margin);
+      const cur=[], pcNow=[];
+      for(let d=0; d<snap.length; d++){
+        const lv=snap[d], band=this.gap*(d+1);
+        const ypre=this.cy-band-lv.pre*this.unit, ysuf=this.cy+band+lv.suf*this.unit;
+        cur[d]={x,ypre,ysuf};
+        const pcd=this.pc[d]||{pre:-1,suf:-1};
+        const preCh=lv.pre!==pcd.pre, sufCh=lv.suf!==pcd.suf;
+        pcNow[d]={pre:lv.pre,suf:lv.suf};
+        const depthFade=Math.max(0.5,1-d*0.05), lw=Math.max(0.7,1.7-d*0.1);
+        const p=this.prev[d];
+        // brightness: a thread glows on the step it changes, recedes when static
+        const aPre=(preCh?0.96:0.20)*depthFade, aSuf=(sufCh?0.96:0.20)*depthFade;
+        this._seg(p?p.x:x-1, p?p.ypre:ypre, x, ypre, PAL[lv.cpre], aPre, lw);
+        this._seg(p?p.x:x-1, p?p.ysuf:ysuf, x, ysuf, PAL[lv.csuf], aSuf, lw);
+        // a carry firing deep in the structure = a bright spark (the rare event)
+        if(preCh && d>0) this._spark(x,ypre,PAL[lv.cpre], 1.1+d*0.25);
+        if(sufCh && d>0) this._spark(x,ysuf,PAL[lv.csuf], 1.1+d*0.25);
+      }
+      this.prev=cur; this.pc=pcNow;
+    }
+    if(this.i>=this.r.total) this.done=true;
+  }
+  _seg(x1,y1,x2,y2,color,alpha,lw){
+    const g=this.g;
+    g.strokeStyle=color; g.lineWidth=lw+2.4; g.globalAlpha=alpha*0.14;   // halo
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    g.lineWidth=lw; g.globalAlpha=alpha;                                  // core
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke();
+    g.globalAlpha=1;
+  }
+  _spark(x,y,color,rad){
+    const g=this.g; g.globalAlpha=0.85; g.fillStyle=color;
+    g.beginPath(); g.arc(x,y,rad,0,6.28318); g.fill();
+    g.globalAlpha=0.25; g.beginPath(); g.arc(x,y,rad*2.4,0,6.28318); g.fill();
+    g.globalAlpha=1;
+  }
+  pct(){ return Math.round(this.i/this.r.total*100); }
+}
+
+/* ---- gallery + hero wiring ---- */
+const grid=document.getElementById("grid");
+const minis=[];
+REGIMES.forEach((def,idx)=>{
+  const panel=document.createElement("div"); panel.className="panel"; panel.dataset.idx=idx;
+  const cv=document.createElement("canvas"); panel.appendChild(cv);
+  const tag=document.createElement("div"); tag.className="tag"; tag.textContent=def.name; panel.appendChild(tag);
+  grid.appendChild(panel);
+  minis.push({panel, p:new Portrait(cv,def)});
+  panel.addEventListener("click",()=>selectHero(idx));
+});
+
+const heroCv=document.getElementById("herocv");
+const heroTag=document.getElementById("herotag");
+const heroPct=document.getElementById("heropct");
+let heroIdx=4, hero=null;
+function selectHero(idx){
+  heroIdx=idx;
+  minis.forEach((m,i)=>m.panel.classList.toggle("sel", i===idx));
+  heroTag.innerHTML=REGIMES[idx].name+"<small>"+REGIMES[idx].sub+"</small>";
+  hero=new Portrait(heroCv, REGIMES[idx]);
+}
+
+let speed=10;
+document.getElementById("speed").addEventListener("input",e=>speed=+e.target.value);
+document.getElementById("replay").addEventListener("click",()=>{
+  minis.forEach(m=>m.p.reset()); if(hero) hero.reset();
+});
+document.getElementById("heroreplay").addEventListener("click",()=>{ if(hero) hero.reset(); });
+document.getElementById("herosave").addEventListener("click",()=>{
+  const a=document.createElement("a");
+  a.download="regime-"+REGIMES[heroIdx].name.replace(/[^a-z]+/gi,"-")+".png";
+  a.href=heroCv.toDataURL("image/png"); a.click();
+});
+
+function loop(){
+  const step=Math.max(1,Math.round(speed*0.7));
+  minis.forEach(m=>{ if(!m.p.done) m.p.advance(step); });
+  if(hero && !hero.done){ hero.advance(Math.round(step*1.4)); heroPct.textContent=hero.pct()+"%"; }
+  requestAnimationFrame(loop);
+}
+let rT=null;
+window.addEventListener("resize",()=>{ clearTimeout(rT); rT=setTimeout(()=>{
+  minis.forEach(m=>m.p.reset()); if(hero) hero.reset(); },180); });
+
+selectHero(heroIdx);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

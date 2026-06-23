@@ -78,6 +78,9 @@ agentic-dev-kit
 .codex/
 .claude/
 
+# Local session-continuity log (working scratchpad; kept on disk, not tracked)
+SESSION_STATE.md
+
 # Generated extraction outputs (rebuildable from Coq sources)
 kt_extracted/*.ml
 kt_extracted/*.mli

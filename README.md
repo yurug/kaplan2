@@ -38,6 +38,30 @@ should hit each file, see
 ~90 minutes for the full tour, ~20 minutes for the first three
 stops (intuition + public API + worked example).
 
+## Visualizations
+
+The [`kb/`](kb/) directory ships six self-contained HTML animations —
+no build, no dependencies, no network: clone the repo and open them in
+a browser. They are the fastest way to *see* why the algorithm works:
+
+- [`kb/evolution-readable.html`](kb/evolution-readable.html) — **watch a
+  deque evolve**, operation by operation. The friendliest place to start.
+- [`kb/evolution.html`](kb/evolution.html) — the same dynamics as
+  "regimes": the structure painted by its own colour transitions.
+- [`kb/color-invariants.html`](kb/color-invariants.html) — an interactive
+  illustration of the green / yellow / orange / red invariants that bound
+  the cascade to a constant.
+- [`kb/memory-graph.html`](kb/memory-graph.html) — the in-memory structure
+  as a force-directed, draggable graph.
+- [`kb/cadeque8-formalization.html`](kb/cadeque8-formalization.html) — a
+  guided walk through the Rocq formalization.
+- [`kb/viennot-comparison.html`](kb/viennot-comparison.html) — the
+  head-to-head benchmark against Viennot et al., with log-log scaling
+  charts.
+
+(GitHub renders `.html` as source rather than running it; open the files
+from a local clone to see them animate.)
+
 ## When you'd use this
 
 A persistent real-time deque is the right data structure when you

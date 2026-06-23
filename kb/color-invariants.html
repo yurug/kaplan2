@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colour invariants of Kaplan–Tarjan deques — an animation</title>
+<style>
+  :root {
+    --bg:        #fdfdfa;
+    --fg:        #1a1a1a;
+    --muted:     #6a6a6a;
+    --accent:    #0066cc;
+    --accent-bg: #e8f3ff;
+    --code-bg:   #f5f3ef;
+    --rule:      #ddd6c8;
+
+    /* The four colours, matched to the repo's KB palette. */
+    --green-bd:  #2e7d32; --green-bg:  #e8f5e8; --green-fl:  #43a047;
+    --yellow-bd: #d4a017; --yellow-bg: #fff8e1; --yellow-fl: #e6b21e;
+    --orange-bd: #e8740c; --orange-bg: #fff0e0; --orange-fl: #f5821f;
+    --red-bd:    #c62828; --red-bg:    #ffeaea; --red-fl:    #e53935;
+  }
+  html { background: var(--bg); color: var(--fg); }
+  body {
+    max-width: 980px;
+    margin: 2em auto;
+    padding: 0 1.5em;
+    font: 16px/1.6 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  h1, h2, h3 { font-weight: 600; line-height: 1.25; }
+  h1 { font-size: 1.9em; border-bottom: 2px solid var(--rule); padding-bottom: .3em; }
+  h2 { font-size: 1.45em; margin-top: 2.2em; border-bottom: 1px solid var(--rule); padding-bottom: .2em; }
+  h3 { font-size: 1.12em; margin-top: 1.4em; }
+  p  { margin: .7em 0; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  a:hover { border-bottom-style: solid; }
+  code { font-family: "SF Mono", Consolas, "Liberation Mono", monospace;
+         font-size: .9em; background: var(--code-bg); padding: 1px 4px; border-radius: 3px; }
+  .meta { color: var(--muted); font-size: .9em; }
+  .tldr { background: var(--accent-bg); border-left: 4px solid var(--accent);
+          padding: 14px 18px; border-radius: 4px; margin: 1.2em 0; }
+  .honest { background: var(--yellow-bg); border-left: 4px solid var(--yellow-bd);
+            padding: 12px 18px; border-radius: 4px; margin: 1.2em 0; font-size: .95em; }
+  footer { margin-top: 3em; padding-top: 1em; border-top: 1px solid var(--rule);
+           color: var(--muted); font-size: .9em; }
+  footer code { font-size: .85em; }
+
+  /* ---- colour helpers ---- */
+  .c-green  { --bd: var(--green-bd);  --bg: var(--green-bg);  --fl: var(--green-fl);  }
+  .c-yellow { --bd: var(--yellow-bd); --bg: var(--yellow-bg); --fl: var(--yellow-fl); }
+  .c-orange { --bd: var(--orange-bd); --bg: var(--orange-bg); --fl: var(--orange-fl); }
+  .c-red    { --bd: var(--red-bd);    --bg: var(--red-bg);    --fl: var(--red-fl);    }
+  .swatch { display:inline-block; width:.85em; height:.85em; border-radius:3px;
+            vertical-align:-1px; border:1px solid rgba(0,0,0,.25); }
+
+  /* ---- demo card ---- */
+  .panels { display:grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 1.2em 0; }
+  @media (max-width: 760px) { .panels { grid-template-columns: 1fr; } }
+  .card { background:#fff; border:1px solid var(--rule); border-radius:8px;
+          padding: 16px 18px 18px; }
+  .card h3 { margin-top:0; }
+  .card .sub { color:var(--muted); font-size:.86em; margin:-.2em 0 1em; }
+
+  /* ---- the buffer ---- */
+  .buffer { display:flex; gap:6px; padding:10px; border-radius:8px; justify-content:center;
+            border:3px solid var(--bd); background:var(--bg);
+            transition: border-color .35s ease, box-shadow .35s ease; }
+  .buffer.flash { box-shadow: 0 0 0 4px var(--bg), 0 0 0 7px var(--bd); }
+  .slot { width:30px; height:38px; border-radius:6px; border:2px dashed #cfc8b8;
+          background:transparent; transition: background-color .3s ease, transform .25s ease, border-color .3s; }
+  .slot.fill { border-style:solid; border-color:var(--bd); background:var(--fl); }
+  .slot.pop  { transform: translateY(-10px) scale(.6); opacity:.2; }
+  .slot.push { animation: pushpop .35s ease; }
+  @keyframes pushpop { 0%{transform:scale(.4);opacity:.2} 100%{transform:scale(1);opacity:1} }
+
+  .readout { display:flex; align-items:baseline; gap:10px; margin:12px 0 6px; }
+  .readout .size { font:700 1.5em/1 "SF Mono",monospace; }
+  .readout .cname { font-weight:700; color:var(--bd); }
+  .readout .cmean { color:var(--muted); font-size:.86em; }
+
+  /* ---- size→colour gauge ---- */
+  .gauge { display:flex; margin:6px 0 2px; border-radius:6px; overflow:hidden;
+           border:1px solid var(--rule); }
+  .gauge .g { flex:1; text-align:center; font:600 .82em/2.1 "SF Mono",monospace;
+              color:#00000099; }
+  .gauge-track { position:relative; height:16px; margin-bottom:6px; }
+  .gauge-mark { position:absolute; top:0; transform:translateX(-50%);
+                transition:left .35s ease; font-size:.9em; color:var(--fg); }
+  .gauge-cap { font-size:.78em; color:var(--muted); text-align:center; }
+
+  /* ---- repair banner ---- */
+  .banner { min-height:2.4em; margin-top:10px; padding:7px 10px; border-radius:6px;
+            font-size:.84em; background:var(--code-bg); color:var(--muted);
+            border-left:3px solid var(--rule); transition:all .3s; }
+  .banner.active { background:var(--red-bg); border-left-color:var(--red-bd); color:#7a1414; font-weight:600; }
+  .banner.ok     { background:var(--green-bg); border-left-color:var(--green-bd); color:#1b5e20; }
+
+  /* ---- controls ---- */
+  .controls { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  button { font:600 .85em/1 inherit; padding:7px 11px; border-radius:6px;
+           border:1px solid var(--rule); background:#fff; color:var(--fg); cursor:pointer;
+           transition:background .15s, border-color .15s; }
+  button:hover { background:var(--code-bg); border-color:var(--muted); }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button.primary:hover { background:#0055ab; }
+  button:disabled { opacity:.4; cursor:default; }
+
+  /* ---- chain demo ---- */
+  .chain-wrap { display:grid; grid-template-columns: 1fr 280px; gap:18px; align-items:start; }
+  @media (max-width: 760px){ .chain-wrap { grid-template-columns:1fr; } }
+  .chain { position:relative; padding-left:8px; }
+  .level { display:flex; align-items:center; gap:10px; margin:6px 0;
+           transition: opacity .4s; }
+  .lvl-box { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:7px;
+             border:2px solid var(--bd); background:var(--bg); min-width:150px;
+             transition: all .45s ease; }
+  .lvl-box .dot { width:14px; height:14px; border-radius:50%; background:var(--fl);
+                  border:2px solid var(--bd); flex:none; }
+  .lvl-box .txt { font-size:.85em; }
+  .lvl-box .txt b { color:var(--bd); }
+  .level.touched .lvl-box { box-shadow:0 0 0 3px #fff,0 0 0 6px var(--accent); transform:translateX(6px); }
+  .level.shared { opacity:.45; }
+  .lvl-name { font:600 .8em/1 "SF Mono",monospace; color:var(--muted); width:26px; }
+  .packet-brace { font-size:.78em; color:var(--accent); margin:2px 0 2px 34px;
+                  border-left:3px solid var(--accent); padding:2px 0 2px 8px; }
+  .chain-side .stat { background:var(--code-bg); border-radius:6px; padding:8px 11px; margin:8px 0;
+                      font-size:.86em; }
+  .chain-side .stat b { font:700 1.1em "SF Mono",monospace; }
+  .chain-cap { min-height:3.2em; font-size:.9em; background:var(--accent-bg);
+               border-left:3px solid var(--accent); padding:9px 12px; border-radius:6px; }
+
+  table.ref { border-collapse:collapse; width:100%; margin:.6em 0; font-size:.9em; }
+  table.ref th, table.ref td { border:1px solid var(--rule); padding:5px 9px; text-align:center; }
+  table.ref th { background:var(--code-bg); }
+</style>
+</head>
+<body>
+
+<h1>The colour invariants of Kaplan–Tarjan deques</h1>
+<p class="meta">An interactive illustration · kaplan2 · 2026-06-17 ·
+companion to <a href="spec/why-bounded-cascade.md">why-bounded-cascade.md</a></p>
+
+<div class="tldr">
+<strong>The whole trick in one sentence.</strong> Tag every buffer with a
+<em>colour</em> that depends only on how full it is, keep the chain
+<em>regular</em> (<strong>no two Reds adjacent</strong>), and a single bounded
+repair after each operation is enough to stay regular forever — that is what
+turns a purely-functional deque from amortised / O(log&nbsp;n) into
+<strong>worst-case O(1)</strong>. This page animates the colour rule for the two
+data structures in this repo and shows the repair firing.
+</div>
+
+<h2>1 · Two structures, two colour rules</h2>
+<p>
+A buffer's colour is a pure function of its size. <strong>Red</strong> means an
+operation in some direction is about to over- or under-flow — it must be
+repaired. The warning bands (<strong>Yellow</strong>, and in §6 also
+<strong>Orange</strong>) are safe but one step from trouble.
+<strong>Green</strong> is safe in both directions. Press <em>Play</em> and watch
+the colour track the size; when a buffer turns Red, <code>ensure_green</code>
+fires and snaps it back to Green.
+</p>
+
+<div class="panels">
+  <div class="card" id="demo-s4">
+    <h3>Section&nbsp;4 — non-catenable deque</h3>
+    <p class="sub"><code>Buf5</code>, size 0–5 · three colours</p>
+  </div>
+  <div class="card" id="demo-s6">
+    <h3>Section&nbsp;6 — catenable deque</h3>
+    <p class="sub">fat buffers, size&nbsp;≥5 · four colours</p>
+  </div>
+</div>
+
+<div class="panels">
+  <table class="ref">
+    <tr><th>size</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr>
+    <tr><th>colour</th>
+      <td class="c-red"    style="background:var(--bg)"><span class="swatch c-red"    style="background:var(--fl)"></span></td>
+      <td class="c-yellow" style="background:var(--bg)"><span class="swatch c-yellow" style="background:var(--fl)"></span></td>
+      <td class="c-green"  style="background:var(--bg)"><span class="swatch c-green"  style="background:var(--fl)"></span></td>
+      <td class="c-green"  style="background:var(--bg)"><span class="swatch c-green"  style="background:var(--fl)"></span></td>
+      <td class="c-yellow" style="background:var(--bg)"><span class="swatch c-yellow" style="background:var(--fl)"></span></td>
+      <td class="c-red"    style="background:var(--bg)"><span class="swatch c-red"    style="background:var(--fl)"></span></td>
+    </tr>
+  </table>
+  <table class="ref">
+    <tr><th>size</th><th>5</th><th>6</th><th>7</th><th>≥8</th></tr>
+    <tr><th>colour</th>
+      <td class="c-red"    style="background:var(--bg)"><span class="swatch c-red"    style="background:var(--fl)"></span></td>
+      <td class="c-orange" style="background:var(--bg)"><span class="swatch c-orange" style="background:var(--fl)"></span></td>
+      <td class="c-yellow" style="background:var(--bg)"><span class="swatch c-yellow" style="background:var(--fl)"></span></td>
+      <td class="c-green"  style="background:var(--bg)"><span class="swatch c-green"  style="background:var(--fl)"></span></td>
+    </tr>
+  </table>
+</div>
+
+<p class="meta">
+Source of truth: <code>rocq/KTDeque/Common/Color.v:44</code>
+(<code>buf_color</code>, three colours) and
+<code>kb/execution-manual-v3.md:854</code> (§6 four-colour thresholds). A whole
+level's colour is the <em>meet</em> of its prefix and suffix colours — one Red
+makes the level Red (<code>color_meet</code>, <code>Color.v:57</code>).
+</p>
+
+<h2>2 · The regularity invariant: no two Reds adjacent</h2>
+<p>
+The colour rule alone is not enough — you must also control how colours are
+arranged along the chain of levels. The invariant is:
+</p>
+<blockquote style="border-left:3px solid var(--accent);margin:1em 0;padding:.3em 1em;color:var(--fg)">
+<strong>No two Red levels are adjacent.</strong> Equivalently, between any two
+Reds there is at least one Green.
+</blockquote>
+<p>
+After every public operation a tiny routine, <code>ensure_green</code>, runs: if
+the top is Red, <code>green_of_red</code> rebuilds <em>the top plus the first
+non-yellow level below it</em>. Because the invariant guaranteed that level was
+<em>not</em> Red, the repair fires <strong>exactly once</strong> — no cascade.
+The long Yellow run in between is allocated as a single shared
+<em>Packet</em>, so re-threading the chain touches a constant number of cells,
+not one per yellow level. Press <em>Step</em> to walk through it.
+</p>
+
+<div class="card">
+  <div class="chain-wrap">
+    <div>
+      <div class="chain" id="chain"></div>
+      <div class="controls" id="chain-controls"></div>
+    </div>
+    <div class="chain-side">
+      <div class="chain-cap" id="chain-cap">&nbsp;</div>
+      <div class="stat">cascade depth&nbsp; <b id="stat-depth">1</b>
+        <span class="meta">(naive scheme: up to O(log n))</span></div>
+      <div class="stat">cells touched&nbsp; <b id="stat-cells">≤ 9</b>
+        <span class="meta">(<code>NF_PUSH_PKT_FULL</code>, a constant)</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="honest">
+<strong>What is faithful, and what is abstracted.</strong> The colour-of-size
+rule (panel 1) is exact — it is literally <code>buf_color</code> from
+<code>Color.v</code>. The chain animation (panel 2) shows the
+<em>shape</em> of <code>ensure_green</code> — one Red, one repair, the yellow
+Packet shared untouched — at the colour level; the precise buffer arithmetic of
+<code>green_of_red</code>'s three cases lives in
+<a href="spec/section4-repair-cases.md">section4-repair-cases.md</a> and the
+certified non-recursive ops in <code>rocq/KTDeque/DequePtr/OpsKT.v</code>.
+Section&nbsp;6 adds <strong>Orange</strong> (size&nbsp;6) as a second cushion
+because concatenation perturbs a buffer more than a single push, so it needs two
+warning bands instead of one — but the regularity principle is identical
+(<code>execution-manual-v3.md:849</code>).
+</div>
+
+<footer>
+<p><strong>Sources.</strong>
+<code>rocq/KTDeque/Common/Color.v</code> ·
+<code>rocq/KTDeque/DequePtr/OpsKTRegular.v</code> (<code>regular_kt</code>) ·
+<code>rocq/KTDeque/DequePtr/Footprint.v</code> (cost ≤ 9) ·
+<a href="spec/why-bounded-cascade.md">kb/spec/why-bounded-cascade.md</a> ·
+<a href="execution-manual-v3.md">kb/execution-manual-v3.md</a> §10.6 ·
+Kaplan &amp; Tarjan, <em>Purely Functional, Real-Time Deques with Catenation</em>,
+JACM 1999, §§4, 6.</p>
+</footer>
+
+<script>
+"use strict";
+
+/* ============================================================= *
+ *  Panel 1 — a single buffer breathing through its colours.
+ * ============================================================= */
+const MEANING = {
+  green:  "safe in both directions",
+  yellow: "safe in one direction — one step from Red",
+  orange: "extra §6 cushion — one step from Red",
+  red:    "over/under-flow imminent — must repair",
+};
+const CNAME = { green:"Green", yellow:"Yellow", orange:"Orange", red:"Red" };
+
+const SPEC_S4 = {
+  cap: 5, min: 0, max: 5, start: 2,
+  lowRed: 0, highRed: 5, recoverLow: 2, recoverHigh: 3,
+  gauge: [0,1,2,3,4,5], gaugeCap: "",
+  colorOf(n){ return (n===0||n===5) ? "red" : (n===1||n===4) ? "yellow" : "green"; },
+  msgHigh: "Prefix full (B5 = Red). green_of_red spills a pair down to the child → back to Green (B3).",
+  msgLow:  "Prefix empty (B0 = Red). green_of_red pulls a pair up from the child → back to Green (B2).",
+};
+const SPEC_S6 = {
+  cap: 9, min: 5, max: 9, start: 7,
+  lowRed: 5, highRed: null, recoverLow: 8, recoverHigh: null,
+  gauge: [5,6,7,8,9], gaugeCap: "size 9 shown as the “≥8 = Green” band",
+  colorOf(n){ return (n<=5) ? "red" : (n===6) ? "orange" : (n===7) ? "yellow" : "green"; },
+  msgHigh: "",
+  msgLow:  "Buffer too thin (size 5 = Red). A catenation repair re-fattens it → back to Green.",
+};
+
+class BufferDemo {
+  constructor(mount, spec){
+    this.spec = spec; this.count = spec.start; this.dir = +1;
+    this.repairing = false; this.timer = null; this.playing = false;
+    this.build(mount);
+    this.render(true);
+  }
+  build(root){
+    // buffer row
+    this.bufEl = document.createElement("div");
+    this.bufEl.className = "buffer";
+    this.slots = [];
+    for (let i=0;i<this.spec.cap;i++){
+      const s = document.createElement("div");
+      s.className = "slot"; this.bufEl.appendChild(s); this.slots.push(s);
+    }
+    root.appendChild(this.bufEl);
+
+    // readout
+    this.readEl = document.createElement("div");
+    this.readEl.className = "readout";
+    this.readEl.innerHTML =
+      '<span class="size"></span><span class="cname"></span><span class="cmean"></span>';
+    root.appendChild(this.readEl);
+    this.sizeEl  = this.readEl.querySelector(".size");
+    this.cnameEl = this.readEl.querySelector(".cname");
+    this.cmeanEl = this.readEl.querySelector(".cmean");
+
+    // gauge
+    const gv = document.createElement("div"); gv.className="gauge";
+    this.spec.gauge.forEach(n=>{
+      const g=document.createElement("div");
+      g.className="g c-"+this.spec.colorOf(n);
+      g.style.background="var(--fl)"; g.textContent=n;
+      gv.appendChild(g);
+    });
+    root.appendChild(gv);
+    const track=document.createElement("div"); track.className="gauge-track";
+    this.markEl=document.createElement("div"); this.markEl.className="gauge-mark";
+    this.markEl.textContent="▲";
+    track.appendChild(this.markEl); root.appendChild(track);
+    if (this.spec.gaugeCap){
+      const cap=document.createElement("div"); cap.className="gauge-cap";
+      cap.textContent=this.spec.gaugeCap; root.appendChild(cap);
+    }
+
+    // banner
+    this.banEl=document.createElement("div"); this.banEl.className="banner";
+    this.banEl.innerHTML="&nbsp;"; root.appendChild(this.banEl);
+
+    // controls
+    const c=document.createElement("div"); c.className="controls";
+    this.playBtn=this._btn("▶ Play","primary",()=>this.toggle());
+    c.appendChild(this.playBtn);
+    c.appendChild(this._btn("⏭ Step","",()=>{ this.pause(); this.tick(); }));
+    c.appendChild(this._btn("＋ Push","",()=>{ this.pause(); this.push(); }));
+    c.appendChild(this._btn("－ Pop","",()=>{ this.pause(); this.pop();  }));
+    c.appendChild(this._btn("⟲ Reset","",()=>this.reset()));
+    root.appendChild(c);
+  }
+  _btn(label,cls,fn){
+    const b=document.createElement("button");
+    if(cls) b.className=cls; b.textContent=label; b.onclick=fn; return b;
+  }
+  color(){ return this.spec.colorOf(this.count); }
+
+  render(skipPulse){
+    const col=this.color();
+    this.bufEl.className="buffer c-"+col;
+    this.slots.forEach((s,i)=>{
+      const fill=i<this.count;
+      const was=s.classList.contains("fill");
+      s.className="slot"+(fill?" fill c-"+col:"");
+      if(!skipPulse && fill && !was) s.classList.add("push");
+    });
+    this.sizeEl.textContent=this.count;
+    this.cnameEl.textContent=CNAME[col];
+    this.cnameEl.className="cname c-"+col; this.cnameEl.style.color="var(--bd)";
+    this.cmeanEl.textContent="— "+MEANING[col];
+    const g=this.spec.gauge, idx=g.indexOf(this.count);
+    const pos = idx<0 ? 0 : (idx+0.5)/g.length*100;
+    this.markEl.style.left=pos+"%";
+  }
+  banner(text,cls){
+    this.banEl.innerHTML=text||"&nbsp;";
+    this.banEl.className="banner"+(cls?(" "+cls):"");
+  }
+  // returns 'moved' | 'repair' | 'blocked'
+  push(){
+    if(this.repairing) return 'blocked';
+    if(this.count>=this.spec.max) return 'blocked';
+    this.count++; this.render();
+    if(this.color()==="red"){ this._repair("high"); return 'repair'; }
+    this.banner("push — "+CNAME[this.color()]);
+    return 'moved';
+  }
+  pop(){
+    if(this.repairing) return 'blocked';
+    if(this.count<=this.spec.min) return 'blocked';
+    this.count--; this.render();
+    if(this.color()==="red"){ this._repair("low"); return 'repair'; }
+    this.banner("pop — "+CNAME[this.color()]);
+    return 'moved';
+  }
+  _repair(side){
+    this.repairing=true;
+    this.bufEl.classList.add("flash");
+    this.banner((side==="high"?this.spec.msgHigh:this.spec.msgLow), "active");
+    setTimeout(()=>{
+      this.count = side==="high" ? this.spec.recoverHigh : this.spec.recoverLow;
+      this.dir   = side==="high" ? -1 : +1;     // bounce away from the repaired end
+      this.render();
+      this.bufEl.classList.remove("flash");
+      this.banner("ensure_green ✓ — Red repaired in O(1). The buffer is Green again.","ok");
+      this.repairing=false;
+    }, 850);
+  }
+  tick(){
+    if(this.repairing) return;                  // 'repair' sets dir in the async callback
+    const res = this.dir>0 ? this.push() : this.pop();
+    if(res==='blocked') this.dir = -this.dir;   // hit a non-red wall (§6 full at 9) → turn around
+  }
+  toggle(){ this.playing ? this.pause() : this.play(); }
+  play(){
+    this.playing=true; this.playBtn.textContent="⏸ Pause";
+    this.playBtn.classList.remove("primary");
+    clearInterval(this.timer);
+    this.timer=setInterval(()=>this.tick(), 950);
+  }
+  pause(){
+    this.playing=false; this.playBtn.textContent="▶ Play";
+    this.playBtn.classList.add("primary");
+    clearInterval(this.timer); this.timer=null;
+  }
+  reset(){
+    this.pause(); this.repairing=false; this.dir=+1;
+    this.count=this.spec.start; this.bufEl.classList.remove("flash");
+    this.render(true); this.banner("");
+  }
+}
+
+new BufferDemo(document.getElementById("demo-s4"), SPEC_S4);
+new BufferDemo(document.getElementById("demo-s6"), SPEC_S6);
+
+/* ============================================================= *
+ *  Panel 2 — the chain stays regular (ensure_green walkthrough).
+ * ============================================================= */
+// Levels top→bottom. L1..L3 form one shared Yellow Packet.
+const NAMES = ["L0","L1","L2","L3","L4","L5"];
+const FRAMES = [
+  { colors:["green","yellow","yellow","yellow","green","green"], touched:[], shared:false,
+    cap:"A <b>regular</b> chain. Read top→bottom: no two Reds are adjacent. Levels "+
+        "L1–L3 are one shared <b>Packet</b> (a single allocation).", depth:0, cells:"0" },
+  { colors:["yellow","yellow","yellow","yellow","green","green"], touched:[0], shared:false,
+    cap:"<b>push.</b> An operation only ever touches the <b>top</b> level. "+
+        "Here L0 goes Green → Yellow.", depth:1, cells:"1" },
+  { colors:["red","yellow","yellow","yellow","green","green"], touched:[0], shared:false,
+    cap:"One more <b>push</b> and the top turns <b>Red</b> — overflow imminent. "+
+        "The invariant says everything below is still safe.", depth:1, cells:"1" },
+  { colors:["green","yellow","yellow","yellow","yellow","green"], touched:[0,4], shared:true,
+    cap:"<b>ensure_green.</b> green_of_red rebuilds the top + the first <b>non-yellow</b> "+
+        "level below it (L4, which was Green, not Red). The Yellow Packet L1–L3 is "+
+        "<b>shared untouched</b> — no copy.", depth:1, cells:"≤ 9" },
+  { colors:["green","yellow","yellow","yellow","yellow","green"], touched:[], shared:false,
+    cap:"<b>Regular again.</b> Exactly one repair fired. Total work is <b>O(1)</b> — "+
+        "independent of how long the Yellow run is.", depth:1, cells:"≤ 9" },
+];
+
+class ChainDemo {
+  constructor(){
+    this.i=0; this.timer=null; this.playing=false;
+    this.el=document.getElementById("chain");
+    this.cap=document.getElementById("chain-cap");
+    this.depth=document.getElementById("stat-depth");
+    this.cells=document.getElementById("stat-cells");
+    this.rows=[]; this.build(); this.render();
+    const c=document.getElementById("chain-controls");
+    this.playBtn=this._btn("▶ Play","primary",()=>this.toggle()); c.appendChild(this.playBtn);
+    c.appendChild(this._btn("⏭ Step","",()=>{ this.pause(); this.advance(); }));
+    c.appendChild(this._btn("⟲ Reset","",()=>{ this.pause(); this.i=0; this.render(); }));
+  }
+  _btn(l,cls,fn){ const b=document.createElement("button"); if(cls)b.className=cls;
+                  b.textContent=l; b.onclick=fn; return b; }
+  build(){
+    for(let k=0;k<NAMES.length;k++){
+      const row=document.createElement("div"); row.className="level";
+      row.innerHTML='<span class="lvl-name">'+NAMES[k]+'</span>'+
+        '<span class="lvl-box"><span class="dot"></span>'+
+        '<span class="txt">level <b class="cn"></b></span></span>';
+      this.el.appendChild(row); this.rows.push(row);
+    }
+    // packet brace spanning L1..L3
+    this.brace=document.createElement("div"); this.brace.className="packet-brace";
+    this.brace.innerHTML="Packet — one allocation, structurally shared (L1–L3)";
+    this.rows[3].after(this.brace);
+  }
+  render(){
+    const f=FRAMES[this.i];
+    f.colors.forEach((col,k)=>{
+      const row=this.rows[k];
+      row.className="level"
+        + (f.touched.includes(k)?" touched":"")
+        + (f.shared && k>=1 && k<=3 ?" shared":"");
+      const box=row.querySelector(".lvl-box");
+      box.className="lvl-box c-"+col;
+      row.querySelector(".cn").textContent=CNAME[col];
+      row.querySelector(".cn").style.color="var(--bd)";
+    });
+    this.brace.style.opacity = f.shared ? .5 : 1;
+    this.cap.innerHTML=f.cap;
+    this.depth.textContent=f.depth;
+    this.cells.textContent=f.cells;
+  }
+  advance(){ this.i=(this.i+1)%FRAMES.length; this.render(); }
+  toggle(){ this.playing?this.pause():this.play(); }
+  play(){ this.playing=true; this.playBtn.textContent="⏸ Pause";
+          this.playBtn.classList.remove("primary");
+          clearInterval(this.timer); this.timer=setInterval(()=>this.advance(),2100); }
+  pause(){ this.playing=false; this.playBtn.textContent="▶ Play";
+           this.playBtn.classList.add("primary");
+           clearInterval(this.timer); this.timer=null; }
+}
+new ChainDemo();
+</script>
+</body>
+</html>
