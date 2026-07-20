@@ -10,8 +10,8 @@ This is the data structure from
 [Kaplan & Tarjan, *Purely functional, real-time deques with catenation*
 (JACM 1999)](https://doi.org/10.1145/324133.324139), in the modernized
 encoding of
-[Viennot, Wendling, Guéneau & Pottier, *Verified catenable deques*
-(PLDI 2024)](https://dl.acm.org/doi/10.1145/3656430).
+[Viennot, Wendling, Guéneau & Pottier, *Verified catenable deques*]
+(https://doi.org/10.48550/arXiv.2505.07681).
 
 The algorithmic claim: every operation — **`push`** (prepend),
 **`pop`** (remove first), **`inject`** (append), **`eject`** (remove
